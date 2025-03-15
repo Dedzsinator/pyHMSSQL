@@ -15,50 +15,90 @@ class DBMSClient:
         self.sock.connect((SERVER_HOST, SERVER_PORT))
     
     def send_command(self, command):
-        try:
-            send_data(self.sock, command)
-            response = receive_data(self.sock)
-            if response:
-                print(response['response'])
-            else:
-                print("No response received from the server.")
-        except Exception as e:
-            print(f"Error communicating with server: {e}")
-        finally:
-            self.sock.close()
+            """
+            Send a command to the server and print the response.
+            """
+            try:
+                send_data(self.sock, command)
+                response = receive_data(self.sock)
+                if response:
+                    print(response['response'])
+                else:
+                    print("No response received from the server.")
+            except Exception as e:
+                print(f"Error communicating with server: {e}")
+        
+    def close(self):
+        """
+        Close the connection to the server.
+        """
+        self.sock.close()
 
-if __name__ == "__main__":
+def execute_commands_from_file(file_path, client):
+    """
+    Execute commands from a file line by line.
+    """
+    if not os.path.exists(file_path):
+        print(f"File not found: {file_path}")
+        return
+    
+    with open(file_path, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line:  # Skip empty lines
+                print(f"Executing: {line}")
+                if line.lower().startswith("files"):
+                    print("Error: Nested file execution is not allowed.")
+                    continue
+                client.send_command({'action': 'query', 'query': line})
+
+def main():
+    client = DBMSClient()
+    
     while True:
-        cmd = input("DBMS> ").strip().split()
+        cmd = input("DBMS> ").strip()
         if not cmd:
             continue
         
-        client = DBMSClient()
-        
-        if cmd[0].lower() == 'create' and cmd[1].lower() == 'database':
-            client.send_command({'action': 'create_database', 'db_name': cmd[2]})
-        elif cmd[0].lower() == 'drop' and cmd[1].lower() == 'database':
-            client.send_command({'action': 'drop_database', 'db_name': cmd[2]})
-        elif cmd[0].lower() == 'create' and cmd[1].lower() == 'table':
-            db_name = cmd[2]
-            table_name = cmd[3]
-            columns = {}
-            for col_def in cmd[4:]:
-                col_name, col_type = col_def.split(':')
-                columns[col_name] = {'type': col_type}
-            client.send_command({'action': 'create_table', 'db_name': db_name, 'table_name': table_name, 'columns': columns})
-        elif cmd[0].lower() == 'drop' and cmd[1].lower() == 'table':
-            client.send_command({'action': 'drop_table', 'db_name': cmd[2], 'table_name': cmd[3]})
-        elif cmd[0].lower() == 'create' and cmd[1].lower() == 'index':
-            db_name = cmd[2]
-            table_name = cmd[3]
-            index_name = cmd[4]
-            column = cmd[5]
-            client.send_command({'action': 'create_index', 'db_name': db_name, 'table_name': table_name, 'index_name': index_name, 'column': column})
-        elif cmd[0].lower() == 'query':
-            query = ' '.join(cmd[1:])
-            client.send_command({'action': 'query', 'query': query})
-        elif cmd[0].lower() == 'exit':
+        if cmd.lower().startswith("files"):
+            # Handle the "files" command
+            parts = cmd.split()
+            if len(parts) != 2:
+                print("Usage: files <file_path>")
+            else:
+                file_path = parts[1]
+                execute_commands_from_file(file_path, client)
+        elif cmd.lower() == "exit":
+            client.close()
             break
         else:
-            print("Invalid command.")
+            if cmd[0].lower() == 'create' and cmd[1].lower() == 'database':
+                client.send_command({'action': 'create_database', 'db_name': cmd[2]})
+            elif cmd[0].lower() == 'drop' and cmd[1].lower() == 'database':
+                client.send_command({'action': 'drop_database', 'db_name': cmd[2]})
+            elif cmd[0].lower() == 'create' and cmd[1].lower() == 'table':
+                db_name = cmd[2]
+                table_name = cmd[3]
+                columns = {}
+                for col_def in cmd[4:]:
+                    col_name, col_type = col_def.split(':')
+                    columns[col_name] = {'type': col_type}
+                client.send_command({'action': 'create_table', 'db_name': db_name, 'table_name': table_name, 'columns': columns})
+            elif cmd[0].lower() == 'drop' and cmd[1].lower() == 'table':
+                client.send_command({'action': 'drop_table', 'db_name': cmd[2], 'table_name': cmd[3]})
+            elif cmd[0].lower() == 'create' and cmd[1].lower() == 'index':
+                db_name = cmd[2]
+                table_name = cmd[3]
+                index_name = cmd[4]
+                column = cmd[5]
+                client.send_command({'action': 'create_index', 'db_name': db_name, 'table_name': table_name, 'index_name': index_name, 'column': column})
+            elif cmd[0].lower() == 'query':
+                query = ' '.join(cmd[1:])
+                client.send_command({'action': 'query', 'query': query})
+            elif cmd[0].lower() == 'exit':
+                break
+            else:
+                print("Invalid command.")
+
+if __name__ == "__main__":
+    main()

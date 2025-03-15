@@ -1,4 +1,5 @@
 import pickle
+import logging
 
 class BPlusTreeNode:
     def __init__(self, leaf=False):
@@ -13,6 +14,7 @@ class BPlusTree:
         self.order = order  # Maximum number of keys per node
         
     def insert(self, key, value):
+        logging.debug(f"Inserting key: {key}, value: {value}")
         # Find the leaf node where this key should be inserted
         root = self.root
         if len(root.keys) == (2 * self.order) - 1:
@@ -26,6 +28,7 @@ class BPlusTree:
             self._insert_non_full(root, key, value)
     
     def _split_child(self, parent, index):
+        logging.debug(f"Splitting child at index: {index} of parent: {parent.keys}")
         order = self.order
         y = parent.children[index]
         z = BPlusTreeNode(leaf=y.leaf)
@@ -67,10 +70,12 @@ class BPlusTree:
                 if k == key:
                     # Replace the value for existing key
                     node.keys[idx] = (key, value)
+                    logging.debug(f"Updated key: {key} with new value: {value}")
                     return
             
             # Insert the new key-value pair
             node.keys.insert(i + 1, (key, value))
+            logging.debug(f"Inserted key: {key}, value: {value} at position: {i + 1}")
         else:
             # Find the child which will have the new key
             while i >= 0 and key < node.keys[i]:
@@ -86,6 +91,7 @@ class BPlusTree:
             self._insert_non_full(node.children[i], key, value)
     
     def search(self, key):
+        logging.debug(f"Searching for key: {key}")
         return self._search(self.root, key)
     
     def _search(self, node, key):
@@ -97,7 +103,9 @@ class BPlusTree:
         if node.leaf:
             # If we're at a leaf, check if we found the key
             if i < len(node.keys) and node.keys[i][0] == key:
+                logging.debug(f"Found key: {key} with value: {node.keys[i][1]}")
                 return node.keys[i][1]  # Return the value
+            logging.debug(f"Key: {key} not found")
             return None  # Key not found
         
         # Recurse to the appropriate child
@@ -107,6 +115,7 @@ class BPlusTree:
     
     def range_query(self, start_key, end_key):
         """Get all values with keys between start_key and end_key."""
+        logging.debug(f"Performing range query from {start_key} to {end_key}")
         result = []
         self._range_query(self.root, start_key, end_key, result)
         return result
@@ -146,10 +155,12 @@ class BPlusTree:
         return result if result is not None else default
     
     def save_to_file(self, filename):
+        logging.debug(f"Saving B+ tree to file: {filename}")
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
     
     @classmethod
     def load_from_file(cls, filename):
+        logging.debug(f"Loading B+ tree from file: {filename}")
         with open(filename, 'rb') as f:
             return pickle.load(f)

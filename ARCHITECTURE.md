@@ -4,7 +4,7 @@
 
 pyHMSSQL is a database management system built with a client-server architecture. The system consists of several components that work together to provide database functionality.
 
-![Architecture Diagram (W.I.P)](https://via.placeholder.com/800x400?text=pyHMSSQL+Architecture)
+![Architecture Diagram](https://via.placeholder.com/800x400?text=pyHMSSQL+Architecture)
 
 ## Core Components
 
@@ -15,6 +15,7 @@ pyHMSSQL is a database management system built with a client-server architecture
    - Parses user commands and sends them to the server
    - Displays results from the server
    - Handles connection management
+   - Supports batch execution from files
 
 2. **GUI Client** (`gui_client.py` & `main_window.py`)
    - Provides a graphical user interface for database operations
@@ -24,7 +25,7 @@ pyHMSSQL is a database management system built with a client-server architecture
 
 3. **Shared Utilities** (`shared/` directory)
    - Contains common code used by both client and server
-   - Implements network communication protocol
+   - Implements network communication protocol (JSON over sockets)
    - Defines constants and utility functions
    - Handles JSON serialization/deserialization
 
@@ -35,6 +36,7 @@ pyHMSSQL is a database management system built with a client-server architecture
    - Routes requests to appropriate components
    - Returns results to clients
    - Handles multiple concurrent client connections
+   - Provides error handling and logging
 
 2. **Catalog Manager** (`catalog_manager.py`)
    - Manages database metadata (schemas, tables, columns)
@@ -49,16 +51,25 @@ pyHMSSQL is a database management system built with a client-server architecture
    - Handles serialization and deserialization of index structures
 
 4. **Planner** (`planner.py`)
-   - Parses SQL queries
+   - Parses SQL queries (SELECT, INSERT, UPDATE, DELETE)
    - Generates execution plans for queries
-   - Optimizes query execution using available indexes
+   - Handles complex query structures (joins, subqueries)
    - Transforms SQL statements into executable operations
 
-5. **Execution Engine** (`execution_engine.py`)
+5. **Optimizer** (`optimizer.py`)
+   - Analyzes execution plans to improve performance
+   - Uses indexes for efficient data access
+   - Implements join optimizations (hash joins, index joins)
+   - Applies techniques like filter pushdown, expression rewriting
+   - Handles join reordering and index selection
+
+6. **Execution Engine** (`execution_engine.py`)
    - Executes query plans
    - Interacts with storage engine (MongoDB)
    - Returns results to the server
    - Performs CRUD operations on actual data
+   - Implements join algorithms and aggregation functions
+   - Handles set operations and logical operations
 
 ## Data Flow
 
@@ -68,17 +79,19 @@ pyHMSSQL is a database management system built with a client-server architecture
    - Server receives and deserializes the request
    - Server determines the appropriate action
 
-2. **Query Execution**:
+2. **Query Execution Pipeline**:
    - For schema operations (CREATE/DROP), the Catalog Manager handles the request
-   - For data operations (SELECT/INSERT/DELETE):
+   - For data operations (SELECT/INSERT/DELETE/UPDATE):
      - The Planner parses and creates an execution plan
-     - The Execution Engine executes the plan
+     - The Optimizer improves the plan for efficiency
+     - The Execution Engine executes the optimized plan
      - Results are returned to the client
 
 3. **Index Usage**:
    - When a query involves a field with an index, the index is used for lookups
    - B+ Tree indexes provide efficient key-based and range-based access
    - When data is modified, indexes are updated accordingly
+   - The optimizer selects appropriate indexes for query conditions
 
 ## B+ Tree Implementation
 
@@ -90,15 +103,46 @@ The system uses a custom B+ Tree implementation for indexing:
   - Non-leaf nodes contain routing information
   - Leaves are linked for efficient range scans
 
-- **Operations**:
+- **Key Operations**:
   - Insert: Add a new key-value pair
   - Search: Lookup a specific key
   - Range Query: Find all keys in a given range
+  
+- **Optimizations**:
+  - Node splitting for balanced tree structure
+  - Leaf node linking for efficient sequential access
+  - Key-value storage in leaf nodes for direct data access
   
 - **Persistence**:
   - Trees are serialized using pickle
   - Each index is stored in a separate file
   - Loaded on-demand to minimize memory usage
+
+## Query Optimization Techniques
+
+The Optimizer implements several strategies:
+
+1. **Index-Based Access**:
+   - Uses indexes for efficient data retrieval
+   - Avoids full table scans when possible
+
+2. **Join Optimization**:
+   - Hash join for equality conditions
+   - Sort-merge join for sorted data
+   - Index join when indexes are available
+   - Nested loop join as fallback
+
+3. **Predicate Pushdown**:
+   - Pushes filter conditions closer to data sources
+   - Reduces intermediate result sizes
+
+4. **Join Reordering**:
+   - Reorders join operations to minimize intermediate results
+   - Prioritizes joins with available indexes
+
+5. **Expression Rewriting**:
+   - Simplifies and normalizes expressions
+   - Eliminates redundant conditions
 
 ## Storage Layer
 
@@ -108,6 +152,7 @@ pyHMSSQL uses MongoDB as its storage engine:
 - Table definitions stored as documents
 - Index information maintained in separate collections
 - Actual table data stored as documents in MongoDB collections
+- B+ Tree index files stored in the filesystem
 
 ## Communication Protocol
 
@@ -125,7 +170,29 @@ The client and server communicate using a simple JSON-based protocol:
   "column": "column_name",
   "query": "SQL_QUERY"
 }
+```
+
+**Server Response Format:**
+
+```json
 {
   "response": "Success or error message or query results"
 }
 ```
+
+## Special Features
+
+1. Batch Processing:
+   -Execute multiple SQL commands from script files
+   -Process large operations efficiently
+2. Aggregation Functions:
+   -Implement AVG, MIN, MAX, SUM, COUNT operations
+   -Support for TOP N queries
+   -DISTINCT operation support
+3. Set Operations:
+   -UNION, INTERSECT, EXCEPT operations between query results
+   -Support for logical operations (AND, OR, NOT)
+4. Advanced Query Support:
+   -Subquery processing
+   -Join operations
+   -Filter conditions

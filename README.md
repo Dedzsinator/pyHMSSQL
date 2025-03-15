@@ -12,16 +12,19 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Socket-based communication
   - [x] JSON message protocol
   - [x] Error handling and connection management
+  - [x] Multi-request handling
 
 - [x] **Multiple Client Interfaces**
   - [x] Command Line Interface (CLI)
   - [x] Graphical User Interface (GUI)
+  - [x] Batch processing via script files
   - [ ] REST API (planned)
 
 - [x] **Database Operations**
   - [x] Create/Drop Databases
   - [x] Create/Drop Tables
-  - [ ] SQL Query Support (SELECT, INSERT, DELETE)
+  - [x] SQL Query Support (SELECT, INSERT, DELETE, UPDATE)
+  - [x] Basic joins and subqueries
   - [ ] Transactions (planned)
   - [ ] Stored Procedures (planned)
 
@@ -29,12 +32,25 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Custom B+ Tree Implementation
   - [x] Serialization for persistence
   - [x] Index-based lookups
-  - [ ] Range queries
+  - [x] Range queries
+  - [x] Index-based optimizations
+
+- [x] **Query Optimization**
+  - [x] Index-based query planning
+  - [x] Join optimization (hash join, index join)
+  - [x] Filter pushdown
+  - [x] Plan rewriting
 
 - [x] **Storage**
   - [x] MongoDB Integration
   - [x] Schema management
+  - [x] Index management
   - [ ] Custom page-based storage engine (planned)
+
+- [x] **Aggregation Functions**
+  - [x] AVG, MIN, MAX, SUM, COUNT
+  - [x] TOP N queries
+  - [x] DISTINCT operations
 
 - [ ] **Security Features**
   - [ ] User authentication
@@ -68,7 +84,7 @@ pip install -r requirements.txt
   - Ensure MongoDB is running
 
 - On Linux:
-  - W.I.P
+  - Start MongoDB (sudo systemctl start mongodb)
 
 ## 🚀 Quick Start
 
@@ -95,7 +111,7 @@ python gui_client.py
 
 ## 📝 Example Commands
 
-```bash
+```sql
 -- Create a new database
 DBMS> create database mydb
 
@@ -111,8 +127,17 @@ DBMS> query INSERT INTO users (id, name, age) VALUES (1, 'Alice', 30)
 -- Query data
 DBMS> query SELECT * FROM users WHERE name = 'Alice'
 
+-- Join example
+DBMS> query SELECT * FROM users INNER JOIN orders ON users.id = orders.user_id
+
+-- Aggregation example
+DBMS> query SELECT AVG(age) FROM users
+
 -- Delete data
 DBMS> query DELETE FROM users WHERE id = 1
+
+-- Run SQL script from file
+DBMS> files path/to/script.sql
 ```
 
 ## 📊 Architecture
@@ -137,27 +162,27 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 1. Transaction Support:
 
-    *Implementing ACID properties
-    *Concurrency control mechanisms
-    *Rollback and recovery
-    *Advanced Query Processing:
+  -Implementing ACID properties
+  -Concurrency control mechanisms
+  -Rollback and recovery
+2. Advanced Query Processing:
 
-2. JOIN operations
-    *Aggregation (GROUP BY, SUM, AVG)
-    *Subqueries
-    *Security Enhancements:
+  -More complex JOIN operations
+  -Advanced aggregation (GROUP BY, HAVING)
+  -Window functions
+  -Common Table Expressions (CTEs)
+3. Security Enhancements:
 
-3. User authentication
-    *Access control lists
-    *Data encryption
-    *Performance Optimizations:
+  -User authentication
+  -Access control lists
+  -Data encryption
+4. Performance Optimizations:
 
-4. Query caching
-    *Cost-based query optimization
-    *Connection pooling
-    *Custom Storage Engine:
-
+  -Query caching
+  -Cost-based query optimization
+  -Connection pooling
 5. Custom Storage Engine:
-    *Page-based storage
-    *Write-ahead logging
-    *Buffer management
+
+  -Page-based storage
+  -Write-ahead logging
+  -Buffer management
