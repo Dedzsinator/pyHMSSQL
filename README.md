@@ -138,6 +138,26 @@ cd client
 python gui_client.py
 ```
 
+Start the java client (experimental):
+
+```bash
+cd e:\Programming\pyHMSSQL\client\java_client
+mvn javafx:run
+```
+
+Then run it with:
+  
+```bash
+java --module-path "path\to\javafx-sdk\lib" --add-modules javafx.controls,javafx.fxml,javafx.web,javafx.swing,javafx.graphics -jar target\java-client-1.0-SNAPSHOT.jar
+```
+
+Creating executable JAR:
+
+```bash
+cd e:\Programming\pyHMSSQL\client\java_client
+mvn clean package
+```
+
 ## 📝 Example Commands
 
 ```sql
