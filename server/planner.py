@@ -1,4 +1,5 @@
 import logging
+import re
 
 class Planner:
     def __init__(self, catalog_manager, index_manager):
@@ -116,58 +117,118 @@ class Planner:
         """
         Plan for SELECT queries.
         """
-        logging.debug(f"Planning SELECT query: {parsed_query}")
+        tables = parsed_query.get('tables', [])
         
-        # Determine if we can use indexes for this query
-        table = parsed_query['tables'][0] if parsed_query.get('tables') else None
-        where_clause = parsed_query.get('where')
-        use_index = False
-        index_column = None
+        # If there are multiple tables or a join condition, this is a JOIN query
+        if len(tables) > 1 or parsed_query.get('join_condition'):
+            return self.plan_join(parsed_query)
         
-        if table and where_clause:
-            # Check if the condition could use an index
-            # Simple implementation - assumes condition is of form "column = value"
-            if '=' in where_clause and not (' OR ' in where_clause.upper()):
-                parts = where_clause.split('=')
-                if len(parts) == 2:
-                    column = parts[0].strip()
-                    # Check if this column has an index
-                    if self.catalog_manager.has_index(table, column):
-                        use_index = True
-                        index_column = column
+        table = tables[0] if tables else None
+        
+        # Extract condition (WHERE clause)
+        condition = parsed_query.get('condition')
+        
+        # Extract ORDER BY clause
+        order_by = parsed_query.get('order_by')
+        
+        # Extract LIMIT clause
+        limit = parsed_query.get('limit')
+        
+        # Check for aggregation functions in columns
+        columns = parsed_query.get('columns', [])
+        aggregate_function = None
+        aggregate_column = None
+        
+        for col in columns:
+            if '(' in col and ')' in col:
+                # This might be an aggregate function
+                func_match = re.match(r'(\w+)\((\w+|\*)\)', col)
+                if func_match:
+                    func_name = func_match.group(1).upper()
+                    if func_name in ('COUNT', 'SUM', 'AVG', 'MIN', 'MAX'):
+                        aggregate_function = func_name
+                        aggregate_column = func_match.group(2)
+        
+        if aggregate_function:
+            return {
+                'type': 'AGGREGATE',
+                'function': aggregate_function,
+                'column': aggregate_column if aggregate_column != '*' else None,
+                'table': table,
+                'condition': condition
+            }
         
         return {
             'type': 'SELECT',
             'table': table,
-            'columns': parsed_query['columns'],
-            'condition': where_clause,
-            'use_index': use_index,
-            'index_column': index_column,
-            'limit': parsed_query.get('limit')
+            'columns': columns,
+            'condition': condition,
+            'order_by': order_by,
+            'limit': limit,
+            'use_index': False,
+            'index_column': None
         }
+
+    def plan_join(self, parsed_query):
+        """
+        Plan for JOIN queries.
+        """
+        tables = parsed_query.get('tables', [])
+        join_type = parsed_query.get('join_type', 'INNER JOIN')
+        join_condition = parsed_query.get('join_condition')
+        columns = parsed_query.get('columns', [])
+        condition = parsed_query.get('condition')
+        
+        # Default to hash join strategy
+        join_strategy = 'HASH_JOIN'
+        preferences = self.catalog_manager.get_preferences()
+        if preferences.get('join_strategy') == 'sort_merge':
+            join_strategy = 'SORT_MERGE_JOIN'
+        elif preferences.get('join_strategy') == 'index':
+            join_strategy = 'INDEX_JOIN'
+        elif preferences.get('join_strategy') == 'nested_loop':
+            join_strategy = 'NESTED_LOOP_JOIN'
+        
+        # Determine which tables are being joined
+        table1 = tables[0]
+        table2 = tables[1] if len(tables) > 1 else None
+        
+        # Build the join plan
+        join_plan = {
+            'type': join_strategy,
+            'table1': table1,
+            'table2': table2,
+            'condition': join_condition,
+            'columns': columns,
+            'where_condition': condition
+        }
+        
+        return join_plan
     
     def plan_insert(self, parsed_query):
         """
         Plan for INSERT queries.
         """
         logging.debug(f"Planning INSERT query: {parsed_query}")
+        
+        table_name = parsed_query['table']
+        columns = parsed_query.get('columns', [])
+        values = parsed_query.get('values', [])
+        
+        # Build a record from columns and values
+        record = {}
+        if columns and values and len(values) > 0:
+            for i, column in enumerate(columns):
+                if i < len(values[0]):
+                    value = values[0][i]
+                    record[column] = value
+        
         return {
             'type': 'INSERT',
-            'table': parsed_query['table'],
-            'values': parsed_query['values']
-        }
-    
-    def plan_join(self, parsed_query):
-        """
-        Plan for JOIN queries.
-        Example: SELECT * FROM table1 INNER JOIN table2 ON table1.id = table2.id
-        """
-        logging.debug(f"Planning JOIN query: {parsed_query}")
-        return {
-            'type': 'JOIN',
-            'table1': parsed_query['from']['table'],
-            'table2': parsed_query['join']['table'],
-            'condition': parsed_query['join']['condition']
+            'table': table_name,
+            'record': record,
+            'columns': columns,
+            'values': values
         }
     
     def plan_drop_table(self, parsed_query):
@@ -187,11 +248,14 @@ class Planner:
         Example: UPDATE table1 SET name = 'Bob' WHERE id = 1
         """
         logging.debug(f"Planning UPDATE query: {parsed_query}")
+        where_clause = parsed_query.get('condition') or parsed_query.get('where')
+    
         return {
             'type': 'UPDATE',
             'table': parsed_query['table'],
             'set': parsed_query['set'],
-            'condition': parsed_query.get('where')
+            'updates': list(parsed_query['set'].items()),  # Convert set pairs to update list
+            'condition': where_clause  # Use consistent key name
         }
     
     def plan_delete(self, parsed_query):

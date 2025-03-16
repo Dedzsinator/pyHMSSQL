@@ -95,7 +95,15 @@ class DBMSServer:
         """
         try:
             logging.debug(f"Parsing SQL query: {query}")
-            parsed = sqlparse.parse(query)[0]
+            parsed = sqlparse.parse(query)
+            
+            if not parsed:
+                return {
+                    "type": "UNKNOWN",
+                    "error": "Empty or invalid SQL query"
+                }
+                
+            parsed = parsed[0]
             stmt_type = parsed.get_type()
             
             # Handle special case for SHOW commands which sqlparse may not recognize properly
@@ -109,20 +117,25 @@ class DBMSServer:
             }
             
             # Extract common elements based on statement type
-            if stmt_type == "SELECT":
-                self._extract_select_elements(parsed, result)
-            elif stmt_type == "INSERT":
-                self._extract_insert_elements(parsed, result)
-            elif stmt_type == "UPDATE":
-                self._extract_update_elements(parsed, result)
-            elif stmt_type == "DELETE":
-                self._extract_delete_elements(parsed, result)
-            elif stmt_type == "CREATE":
-                self._extract_create_elements(parsed, result)
-            elif stmt_type == "DROP":
-                self._extract_drop_elements(parsed, result)
-            elif stmt_type == "SHOW":
-                self._extract_show_elements(parsed, result)
+            try:
+                if stmt_type == "SELECT":
+                    self._extract_select_elements(parsed, result)
+                elif stmt_type == "INSERT":
+                    self._extract_insert_elements(parsed, result)
+                elif stmt_type == "UPDATE":
+                    self._extract_update_elements(parsed, result)
+                elif stmt_type == "DELETE":
+                    self._extract_delete_elements(parsed, result)
+                elif stmt_type == "CREATE":
+                    self._extract_create_elements(parsed, result)
+                elif stmt_type == "DROP":
+                    self._extract_drop_elements(parsed, result)
+                elif stmt_type == "SHOW":
+                    self._extract_show_elements(parsed, result)
+            except Exception as extract_err:
+                logging.error(f"Error extracting elements: {str(extract_err)}")
+                logging.error(traceback.format_exc())
+                result["error"] = f"Error extracting SQL elements: {str(extract_err)}"
             
             logging.debug(f"Parsed SQL result: {result}")
             return result
@@ -137,103 +150,117 @@ class DBMSServer:
             }
     
     def _extract_select_elements(self, parsed, result):
-        """Extract elements from a SELECT statement"""
+        """Extract elements from a SELECT query"""
         # Initialize components
         columns = []
         tables = []
-        where_clause = None
-        join_conditions = []
-        group_by = []
-        having = None
-        order_by = []
+        condition = None
+        order_by = None
         limit = None
+        join_type = None
+        join_condition = None
         
-        # Process tokens
-        from_seen = False
-        group_by_seen = False
-        order_by_seen = False
-        
+        # Extract main parts
         for token in parsed.tokens:
-            # Skip whitespace and punctuation
-            if token.is_whitespace or str(token) == ';':
+            # Skip whitespace
+            if token.is_whitespace:
                 continue
                 
-            # Extract column list (after SELECT keyword)
-            if token.ttype is None and hasattr(token, 'get_identifiers') and not from_seen:
-                columns = [str(col) for col in token.get_identifiers()]
+            # Extract columns
+            if token.ttype is None and isinstance(token, sqlparse.sql.IdentifierList) and not 'FROM' in str(parsed).upper().split(str(token), 1)[0].split()[-1:]:
+                columns = [str(col).strip() for col in token.get_identifiers()]
             
-            # Mark when we see FROM keyword
-            if token.is_keyword and token.value.upper() == "FROM":
-                from_seen = True
-                continue
+            # Handle star projections and single columns
+            elif (token.ttype is sqlparse.tokens.Wildcard or 
+                (isinstance(token, sqlparse.sql.Identifier) and not 'FROM' in str(parsed).upper().split(str(token), 1)[0].split()[-1:])):
+                columns.append(str(token).strip())
                 
-            # Extract table names (after FROM keyword)
-            if from_seen and token.ttype is None and hasattr(token, 'get_identifiers'):
-                tables = [str(t) for t in token.get_identifiers()]
-                from_seen = False  # Reset to avoid capturing other tokens
-            
-            # Extract WHERE clause
-            if token.is_keyword and token.value.upper() == "WHERE":
-                # Find the next token which should be the condition
+            # Find the table name (after FROM)
+            elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'FROM':
                 idx = parsed.token_index(token)
                 if idx < len(parsed.tokens) - 1:
-                    # Get everything until the next major clause
-                    where_tokens = []
-                    for t in parsed.tokens[idx+1:]:
-                        if t.is_keyword and t.value.upper() in ("GROUP", "ORDER", "LIMIT"):
+                    next_token = parsed.tokens[idx + 1]
+                    if next_token.ttype is None:
+                        if isinstance(next_token, sqlparse.sql.IdentifierList):
+                            tables = [str(ident).strip() for ident in next_token.get_identifiers()]
+                        else:
+                            tables = [str(next_token).strip()]
+            
+            # Find JOIN conditions
+            elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() in ('JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN'):
+                join_type = token.value.upper()
+                idx = parsed.token_index(token)
+                if idx < len(parsed.tokens) - 1:
+                    # Get the right table of the join
+                    next_token = parsed.tokens[idx + 1]
+                    if not next_token.is_whitespace:
+                        right_table = str(next_token).strip()
+                        if right_table not in tables:
+                            tables.append(right_table)
+                    
+                    # Look for ON clause
+                    for i in range(idx + 2, len(parsed.tokens)):
+                        if parsed.tokens[i].ttype is sqlparse.tokens.Keyword and parsed.tokens[i].value.upper() == 'ON':
+                            # Collect the join condition
+                            on_clause = []
+                            for j in range(i + 1, len(parsed.tokens)):
+                                t = parsed.tokens[j]
+                                if t.ttype is sqlparse.tokens.Keyword and t.value.upper() in ('WHERE', 'GROUP', 'ORDER', 'LIMIT'):
+                                    break
+                                if not t.is_whitespace:
+                                    on_clause.append(str(t))
+                            
+                            join_condition = ''.join(on_clause).strip()
+                            break
+            
+            # Find WHERE clause
+            elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'WHERE':
+                idx = parsed.token_index(token)
+                if idx < len(parsed.tokens) - 1:
+                    # Get all tokens until ORDER BY or LIMIT or end
+                    where_clause_tokens = []
+                    for i in range(idx + 1, len(parsed.tokens)):
+                        t = parsed.tokens[i]
+                        if t.ttype is sqlparse.tokens.Keyword and t.value.upper() in ('ORDER', 'LIMIT', 'GROUP'):
                             break
                         if not t.is_whitespace:
-                            where_tokens.append(str(t))
-                    where_clause = " ".join(where_tokens).strip()
+                            where_clause_tokens.append(str(t))
+                    
+                    condition = ''.join(where_clause_tokens).strip()
             
-            # Extract GROUP BY clause
-            if token.is_keyword and token.value.upper() == "GROUP":
-                group_by_seen = True
-                continue
-                
-            if group_by_seen and token.is_keyword and token.value.upper() == "BY":
+            # Find ORDER BY clause
+            elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'ORDER':
+                idx = parsed.token_index(token)
+                if idx < len(parsed.tokens) - 2:  # Need at least "BY"
+                    if parsed.tokens[idx + 1].value.upper() == 'BY':
+                        order_tokens = []
+                        for i in range(idx + 2, len(parsed.tokens)):
+                            t = parsed.tokens[i]
+                            if t.ttype is sqlparse.tokens.Keyword and t.value.upper() in ('LIMIT',):
+                                break
+                            if not t.is_whitespace:
+                                order_tokens.append(str(t))
+                        
+                        order_by = ''.join(order_tokens).strip()
+            
+            # Find LIMIT clause
+            elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'LIMIT':
                 idx = parsed.token_index(token)
                 if idx < len(parsed.tokens) - 1:
-                    for t in parsed.tokens[idx+1:]:
-                        if t.is_keyword and t.value.upper() in ("HAVING", "ORDER", "LIMIT"):
-                            break
-                        if not t.is_whitespace and str(t) != ',':
-                            group_by.append(str(t).strip())
-                group_by_seen = False
-            
-            # Extract ORDER BY clause
-            if token.is_keyword and token.value.upper() == "ORDER":
-                order_by_seen = True
-                continue
-                
-            if order_by_seen and token.is_keyword and token.value.upper() == "BY":
-                idx = parsed.token_index(token)
-                if idx < len(parsed.tokens) - 1:
-                    for t in parsed.tokens[idx+1:]:
-                        if t.is_keyword and t.value.upper() == "LIMIT":
-                            break
-                        if not t.is_whitespace and str(t) != ',':
-                            order_by.append(str(t).strip())
-                order_by_seen = False
-            
-            # Extract LIMIT clause
-            if token.is_keyword and token.value.upper() == "LIMIT":
-                idx = parsed.token_index(token)
-                if idx < len(parsed.tokens) - 1:
-                    limit_token = parsed.tokens[idx+1]
-                    if not limit_token.is_whitespace:
-                        limit = str(limit_token)
+                    try:
+                        limit = int(str(parsed.tokens[idx + 1]).strip())
+                    except (ValueError, TypeError):
+                        limit = None
         
         # Update result with extracted components
         result.update({
             "columns": columns,
             "tables": tables,
-            "where": where_clause,
-            "joins": join_conditions,
-            "groupBy": group_by,
-            "having": having,
-            "orderBy": order_by,
-            "limit": limit
+            "condition": condition,
+            "order_by": order_by,
+            "limit": limit,
+            "join_type": join_type,
+            "join_condition": join_condition
         })
     
     def _extract_insert_elements(self, parsed, result):
@@ -242,62 +269,77 @@ class DBMSServer:
         columns = []
         values = []
         
-        # Process tokens to find the table name and values
-        into_seen = False
-        values_seen = False
+        in_column_list = False
+        in_values_list = False
+        current_value_list = []
         
         for token in parsed.tokens:
-            # Skip whitespace and punctuation
-            if token.is_whitespace or str(token) == ';':
+            if token.is_whitespace or token.is_whitespace():
                 continue
-                
-            # Find the table name after INTO
-            if token.is_keyword and token.value.upper() == "INTO":
-                into_seen = True
-                continue
-                
-            if into_seen and token.ttype is None:
-                # This should be the table identifier
-                if hasattr(token, 'get_name'):
-                    table_name = token.get_name()
-                else:
-                    table_name = str(token)
-                into_seen = False
             
-            # Extract column names if specified
-            if str(token) == "(" and table_name and not values_seen:
+            # Get the table name
+            if token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'INTO':
                 idx = parsed.token_index(token)
-                # Look for closing parenthesis
-                for i in range(idx + 1, len(parsed.tokens)):
-                    if str(parsed.tokens[i]) == ")":
-                        # Extract everything between parentheses
-                        col_tokens = parsed.tokens[idx+1:i]
-                        columns = []
-                        for t in col_tokens:
-                            if not t.is_whitespace and str(t) != ',':
-                                columns.append(str(t).strip('`"\''))
-                        break
+                if idx + 1 < len(parsed.tokens):
+                    table_token = parsed.tokens[idx + 1]
+                    if isinstance(table_token, sqlparse.sql.Identifier):
+                        table_name = str(table_token)
+                        
+            # Get column names
+            if str(token) == '(' and table_name and not in_values_list:
+                in_column_list = True
+                continue
             
-            # Extract VALUES clause
-            if token.is_keyword and token.value.upper() == "VALUES":
-                values_seen = True
+            if in_column_list:
+                if str(token) == ')':
+                    in_column_list = False
+                    continue
+                    
+                if isinstance(token, sqlparse.sql.Identifier):
+                    columns.append(str(token))
+                elif isinstance(token, sqlparse.sql.IdentifierList):
+                    for col in token.get_identifiers():
+                        columns.append(str(col))
+                        
+            # Get values
+            if token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'VALUES':
+                in_values_list = True
                 continue
                 
-            # Extract actual values
-            if values_seen and str(token) == "(":
-                idx = parsed.token_index(token)
-                # Look for closing parenthesis
-                for i in range(idx + 1, len(parsed.tokens)):
-                    if str(parsed.tokens[i]) == ")":
-                        # Extract everything between parentheses
-                        val_tokens = parsed.tokens[idx+1:i]
-                        row_values = []
-                        for t in val_tokens:
-                            if not t.is_whitespace and str(t) != ',':
-                                row_values.append(str(t).strip())
-                        values.append(row_values)
-                        break
-        
+            if in_values_list:
+                if str(token) == '(':
+                    current_value_list = []
+                    continue
+                    
+                if str(token) == ')':
+                    values.append(current_value_list)
+                    continue
+                    
+                if token.ttype in (sqlparse.tokens.Literal.String.Single, 
+                                sqlparse.tokens.Literal.Number.Integer,
+                                sqlparse.tokens.Literal.Number.Float):
+                    # Convert values to appropriate Python types
+                    val = str(token)
+                    if token.ttype is sqlparse.tokens.Literal.String.Single:
+                        val = val.strip("'")
+                    elif token.ttype is sqlparse.tokens.Literal.Number.Integer:
+                        val = int(val)
+                    elif token.ttype is sqlparse.tokens.Literal.Number.Float:
+                        val = float(val)
+                    current_value_list.append(val)
+                elif isinstance(token, sqlparse.sql.IdentifierList):
+                    for val in token.get_identifiers():
+                        val_str = str(val)
+                        if val_str.startswith("'") and val_str.endswith("'"):
+                            current_value_list.append(val_str.strip("'"))
+                        elif val_str.isdigit():
+                            current_value_list.append(int(val_str))
+                        else:
+                            try:
+                                current_value_list.append(float(val_str))
+                            except:
+                                current_value_list.append(val_str)
+                                
         # Update result with extracted components
         result.update({
             "table": table_name,
@@ -363,8 +405,9 @@ class DBMSServer:
                 # Find the next token which should be the condition
                 idx = parsed.token_index(token)
                 if idx < len(parsed.tokens) - 1:
-                    where_tokens = parsed.tokens[idx+1:]
-                    where_clause = " ".join(str(t) for t in where_tokens if not t.is_whitespace).strip()
+                    where_tokens = [str(t) for t in parsed.tokens[idx+1:] if not t.is_whitespace]
+                    where_clause = " ".join(where_tokens).strip()
+                    result["condition"] = where_clause  # Add a condition key for consistency
         
         # Update result with extracted components
         result.update({

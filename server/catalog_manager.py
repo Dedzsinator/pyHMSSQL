@@ -114,6 +114,57 @@ class CatalogManager:
         logging.info(f"Index {index_name} created on column {column} in table {table_name}.")
         return f"Index {index_name} created on column {column} in table {table_name}."
     
+    def get_tables(self):
+        """
+        Get all tables in the database.
+        """
+        db = self.client['dbms_project']
+        collections = db.list_collection_names()
+        
+        # Filter out system collections
+        tables = [col for col in collections if not col.startswith('system.') and col != 'catalog' and col != 'users' and col != 'preferences']
+        
+        return tables
+
+    def get_indexes_for_table(self, table_name):
+        """
+        Get all indexes for a specific table.
+        """
+        db = self.client['dbms_project']
+        indexes = {}
+        
+        # Get all indexes registered in our custom index collection
+        for idx_doc in db.indexes.find({"table": table_name}):
+            index_name = idx_doc.get("name")
+            indexes[index_name] = {
+                "column": idx_doc.get("column"),
+                "unique": idx_doc.get("unique", False)
+            }
+        
+        return indexes
+
+    def get_all_indexes(self):
+        """
+        Get all indexes in the database.
+        """
+        db = self.client['dbms_project']
+        index_map = {}
+        
+        # Get all indexes registered in our custom index collection
+        for idx_doc in db.indexes.find():
+            table_name = idx_doc.get("table")
+            index_name = idx_doc.get("name")
+            
+            if table_name not in index_map:
+                index_map[table_name] = {}
+                
+            index_map[table_name][index_name] = {
+                "column": idx_doc.get("column"),
+                "unique": idx_doc.get("unique", False)
+            }
+        
+        return index_map
+    
     def get_indexes(self, table_name):
         """
         Retrieve all indexes for a table.

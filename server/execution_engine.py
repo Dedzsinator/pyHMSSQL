@@ -1,6 +1,8 @@
 from pymongo import MongoClient
 from bson import ObjectId
+import logging
 import json
+import re
 
 class ExecutionEngine:
     def __init__(self, catalog_manager, index_manager):
@@ -10,124 +12,197 @@ class ExecutionEngine:
         self.transaction_stack = []
         self.preferences = self.catalog_manager.get_preferences()
     
-    def execute_aggregation(self, plan):
+    def _parse_condition(self, condition_str):
         """
-        Execute aggregation queries.
+        Parse a condition string into a MongoDB query filter.
+        
+        Examples:
+        - "age > 30" -> {"age": {"$gt": 30}}
+        - "name = 'John'" -> {"name": "John"}
         """
-        if plan['type'] == "AVG":
-            return self.execute_avg(plan)
-        elif plan['type'] == "MIN":
-            return self.execute_min(plan)
-        elif plan['type'] == "MAX":
-            return self.execute_max(plan)
-        else:
-            raise ValueError("Unsupported aggregation type.")
+        if not condition_str:
+            return {}
+        
+        # Basic operators mapping
+        operators = {
+            '=': '$eq',
+            '>': '$gt',
+            '<': '$lt',
+            '>=': '$gte',
+            '<=': '$lte',
+            '!=': '$ne',
+            '<>': '$ne'
+        }
+        
+        # Try to match an operator
+        for op in sorted(operators.keys(), key=len, reverse=True):  # Process longer ops first
+            if op in condition_str:
+                column, value = condition_str.split(op, 1)
+                column = column.strip()
+                value = value.strip()
+                
+                # Handle quoted strings
+                if value.startswith("'") and value.endswith("'"):
+                    value = value[1:-1]
+                # Handle numbers
+                elif value.isdigit():
+                    value = int(value)
+                elif re.match(r'^[0-9]*\.[0-9]+$', value):
+                    value = float(value)
+                
+                # Build MongoDB query
+                if op == '=':
+                    return {column: value}
+                else:
+                    return {column: {operators[op]: value}}
+        
+        # If no operator found, return an empty filter
+        return {}
     
-    def execute_avg(self, plan):
+    def execute_aggregate(self, plan):
         """
-        Execute AVG aggregation.
+        Execute an aggregation function (COUNT, SUM, AVG, MIN, MAX).
         """
-        table_name = plan['table']
+        function = plan['function']
         column = plan['column']
+        table = plan['table']
+        condition = plan.get('condition')
         
         db = self.client['dbms_project']
-        collection = db[table_name]
+        collection = db[table]
         
-        total = 0
-        count = 0
-        for doc in collection.find():
-            total += int(doc[column])
-            count += 1
+        # Apply condition if present
+        query_filter = {}
+        if condition:
+            query_filter = self._parse_condition(condition)
         
-        return total / count if count > 0 else 0
-    
-    def execute_min(self, plan):
-        """
-        Execute MIN aggregation.
-        """
-        table_name = plan['table']
-        column = plan['column']
+        # Execute the aggregation
+        result = None
+        documents = list(collection.find(query_filter))
         
-        db = self.client['dbms_project']
-        collection = db[table_name]
+        if function == 'COUNT':
+            if column:
+                # Count non-null values in specified column
+                result = sum(1 for doc in documents if column in doc and doc[column] is not None)
+            else:
+                # Count all documents
+                result = len(documents)
         
-        min_val = None
-        for doc in collection.find():
-            if min_val is None or doc[column] < min_val:
-                min_val = doc[column]
+        elif function == 'SUM':
+            # Sum values in specified column
+            result = sum(doc.get(column, 0) for doc in documents if column in doc)
         
-        return min_val
-    
-    def execute_max(self, plan):
-        """
-        Execute MAX aggregation.
-        """
-        table_name = plan['table']
-        column = plan['column']
+        elif function == 'AVG':
+            # Calculate average of values in specified column
+            values = [doc.get(column) for doc in documents if column in doc]
+            if values:
+                result = sum(values) / len(values)
+            else:
+                result = None
         
-        db = self.client['dbms_project']
-        collection = db[table_name]
+        elif function == 'MIN':
+            # Find minimum value in specified column
+            values = [doc.get(column) for doc in documents if column in doc]
+            if values:
+                result = min(values)
+            else:
+                result = None
         
-        max_val = None
-        for doc in collection.find():
-            if max_val is None or doc[column] > max_val:
-                max_val = doc[column]
+        elif function == 'MAX':
+            # Find maximum value in specified column
+            values = [doc.get(column) for doc in documents if column in doc]
+            if values:
+                result = max(values)
+            else:
+                result = None
         
-        return max_val
-    
-    def execute_sum(self, plan):
-        """
-        Execute SUM aggregation.
-        """
-        table_name = plan['table']
-        column = plan['column']
-        
-        db = self.client['dbms_project']
-        collection = db[table_name]
-        
-        total = 0
-        for doc in collection.find():
-            total += int(doc[column])
-        
-        return total
-    
-    def execute_count(self, plan):
-        """
-        Execute COUNT aggregation.
-        """
-        table_name = plan['table']
-        
-        db = self.client['dbms_project']
-        collection = db[table_name]
-        
-        return collection.count_documents({})
-    
-    def execute_top(self, plan):
-        """
-        Execute TOP N aggregation.
-        """
-        table_name = plan['table']
-        column = plan['column']
-        n = plan['n']
-        
-        db = self.client['dbms_project']
-        collection = db[table_name]
-        
-        result = list(collection.find().sort(column, -1).limit(n))
-        return result
+        return {
+            "columns": [f"{function}({column or '*'})"],
+            "rows": [[result]]
+        }
     
     def execute_join(self, plan):
         """
         Execute a JOIN query.
         """
-        if plan['type'] == "HASH_JOIN":
-            return self.execute_hash_join(plan)
-        elif plan['type'] == "SORT_MERGE_JOIN":
-            return self.execute_sort_merge_join(plan)
-        elif plan['type'] == "INDEX_JOIN":
-            return self.execute_index_join(plan)
+        join_type = plan.get('type', 'HASH_JOIN')
+        
+        # Log the plan for debugging
+        logging.debug(f"Executing join with plan: {plan}")
+        
+        if join_type == "HASH_JOIN":
+            result = self.execute_hash_join(plan)
+        elif join_type == "SORT_MERGE_JOIN":
+            result = self.execute_sort_merge_join(plan)
+        elif join_type == "INDEX_JOIN":
+            result = self.execute_index_join(plan)
         else:
-            return self.execute_nested_loop_join(plan)
+            # Default to nested loop join
+            result = self.execute_nested_loop_join(plan)
+            
+        # Process any WHERE conditions on the joined result
+        if 'where_condition' in plan and plan['where_condition']:
+            filtered_result = []
+            condition = plan['where_condition']
+            query_filter = self._parse_condition(condition)
+            
+            for doc in result:
+                # Check if the document matches the condition
+                matches = True
+                for field, value in query_filter.items():
+                    if field not in doc or doc[field] != value:
+                        matches = False
+                        break
+                
+                if matches:
+                    filtered_result.append(doc)
+            
+            result = filtered_result
+        
+        # Format the result to match the expected output format
+        columns = plan.get('columns', ['*'])
+        if columns and '*' not in columns:
+            # Only include specified columns in the result
+            result_docs = []
+            for doc in result:
+                result_doc = {}
+                for col in columns:
+                    if col in doc:
+                        result_doc[col] = doc[col]
+                result_docs.append(result_doc)
+            result = result_docs
+        
+        return {
+            "columns": columns,
+            "rows": result
+        }
+
+    def execute_nested_loop_join(self, plan):
+        """
+        Execute a nested loop join.
+        """
+        table1 = plan['table1']
+        table2 = plan['table2']
+        condition = plan['condition']
+        
+        db = self.client['dbms_project']
+        collection1 = db[table1]
+        collection2 = db[table2]
+        
+        # Parse the join condition (e.g., "table1.id = table2.id")
+        col1, col2 = condition.split('=')
+        col1 = col1.strip().split('.')[1]  # Extract column name
+        col2 = col2.strip().split('.')[1]  # Extract column name
+        
+        # Perform the nested loop join
+        result = []
+        for doc1 in collection1.find():
+            for doc2 in collection2.find():
+                if doc1[col1] == doc2[col2]:
+                    combined = {**doc1, **doc2}
+                    result.append(combined)
+        
+        return result
     
     def execute_hash_join(self, plan):
         """
@@ -259,58 +334,60 @@ class ExecutionEngine:
     
     def execute_select(self, plan):
         """
-        Execute a SELECT query.
+        Execute SELECT query.
         """
-        
-        max_results = self.preferences.get("max_results", 10)
-        
-        table_name = plan['table']
+        table_name = plan.get('table')
+        if not table_name:
+            return {"message": "No table specified"}
+            
+        columns = plan.get('columns', [])
         condition = plan.get('condition')
-        subquery = plan.get('subquery')
+        order_by = plan.get('order_by')
+        limit = plan.get('limit')
         
         db = self.client['dbms_project']
-        collection = db[plan['table']]
-        result = list(collection.find().limit(max_results))
+        collection = db[table_name]
         
-        if subquery:
-            # Execute the subquery first
-            subquery_result = self.execute_select(subquery)
-            if not subquery_result:
-                return []
-            
-            # Use the subquery result in the main query
-            column, value = condition.split('=')
-            column = column.strip()
-            value = subquery_result[0][column.strip()]
-            
-            # Query MongoDB
-            result = list(collection.find({column: value}))
-            
-            if self.preferences.get("pretty_print", False):
-                return json.dumps(result, indent=4)
-            else:
-                return result
-        elif condition:
-            # Parse the condition (e.g., "id = 1")
-            column, value = condition.split('=')
-            column = column.strip()
-            value = value.strip().strip("'")  # Remove quotes from strings
-            
-            # Query MongoDB
-            result = list(collection.find({column: value}))
-            
-            if self.preferences.get("pretty_print", False):
-                return json.dumps(result, indent=4)
-            else:
-                return result
-        else:
-            # Full table scan
-            result = list(collection.find())
-            
-            if self.preferences.get("pretty_print", False):
-                return json.dumps(result, indent=4)
-            else:
-                return result
+        # Parse and apply condition
+        query_filter = {}
+        if condition:
+            query_filter = self._parse_condition(condition)
+        
+        # Execute query
+        cursor = collection.find(query_filter)
+        
+        # Apply ORDER BY if specified
+        if order_by:
+            # Parse order_by string to determine field and direction
+            # Example: "age DESC" -> sort by age descending
+            parts = order_by.split()
+            field = parts[0]
+            direction = -1 if len(parts) > 1 and parts[1].upper() == 'DESC' else 1
+            cursor = cursor.sort(field, direction)
+        
+        # Apply LIMIT if specified
+        if limit and isinstance(limit, int) and limit > 0:
+            cursor = cursor.limit(limit)
+        
+        # Convert cursor to list
+        documents = list(cursor)
+        
+        # Project columns if specified
+        if columns and '*' not in columns:
+            # Only include specified columns in the result
+            result_docs = []
+            for doc in documents:
+                result_doc = {}
+                for col in columns:
+                    if col in doc:
+                        result_doc[col] = doc[col]
+                result_docs.append(result_doc)
+            documents = result_docs
+        
+        return {
+            "columns": columns if columns else ["*"],
+            "rows": documents
+        }
 
     def execute_set_preference(self, plan):
             """
@@ -331,7 +408,13 @@ class ExecutionEngine:
         Execute an INSERT query.
         """
         table_name = plan['table']
-        record = plan['record']
+        record = plan.get('record', {})
+        
+        # Handle the case where we have raw values but no record dictionary yet
+        if not record and 'columns' in plan and 'values' in plan:
+            cols = plan['columns']
+            vals = plan['values'][0] if plan['values'] else []
+            record = dict(zip(cols, vals))
         
         db = self.client['dbms_project']
         collection = db[table_name]
@@ -341,10 +424,11 @@ class ExecutionEngine:
         
         # Update B+ Tree index if applicable
         for column, index in self.catalog_manager.get_indexes(table_name).items():
-            index_name = f"{table_name}.idx_{column}"
-            self.index_manager.insert_into_index(index_name, record[column], str(result.inserted_id))
+            if column in record:
+                index_name = f"{table_name}.idx_{column}"
+                self.index_manager.insert_into_index(index_name, record[column], str(result.inserted_id))
         
-        return f"Inserted record into {table_name}."
+        return {"message": f"Inserted record into {table_name}.", "id": str(result.inserted_id)}
     
     def execute_update(self, plan):
         """
@@ -603,6 +687,39 @@ class ExecutionEngine:
                             for idx, info in indexes.items()]
                 }
         
+        elif object_type == "VIEWS":
+            # List all views
+            views = self.catalog_manager.get_views()
+            return {
+                "columns": ["View Name", "Query"],
+                "rows": [[view, query] for view, query in views.items()]
+            }
+        
+        elif object_type == "COLUMNS":
+            # Show columns for a specific table
+            table_name = plan.get('table')
+            if not table_name:
+                return {"error": "Table name must be specified for SHOW COLUMNS"}
+                
+            columns = self.catalog_manager.get_columns(table_name)
+            return {
+                "columns": ["Column Name", "Data Type", "Constraints"],
+                "rows": [[col["name"], col["type"], col.get("constraints", "")] 
+                        for col in columns]
+            }
+        
+        elif object_type == "CREATE":
+            # Show CREATE TABLE statement
+            table_name = plan.get('table')
+            if not table_name:
+                return {"error": "Table name must be specified for SHOW CREATE"}
+                
+            create_stmt = self.catalog_manager.get_create_statement(table_name)
+            return {
+                "columns": ["Table", "Create Statement"],
+                "rows": [[table_name, create_stmt]]
+            }
+        
         else:
             return {"message": f"Unknown object type: {object_type}"}
     
@@ -627,43 +744,65 @@ class ExecutionEngine:
         
         return {"message": f"Table '{table_name}' created successfully."}
     
+    def execute_drop_table(self, plan):
+        """
+        Execute DROP TABLE operation.
+        """
+        table_name = plan['table']
+        
+        # Check if the table exists
+        db = self.client['dbms_project']
+        if table_name not in db.list_collection_names():
+            return {"message": f"Table '{table_name}' does not exist."}
+        
+        # Drop the table (collection) in MongoDB
+        db.drop_collection(table_name)
+        
+        # Remove the table from the catalog
+        self.catalog_manager.drop_table(table_name)
+        
+        # Drop any associated indexes
+        indexes = self.catalog_manager.get_indexes_for_table(table_name)
+        for index_name in indexes:
+            self.index_manager.drop_index(f"{table_name}.{index_name}")
+        
+        return {"message": f"Table '{table_name}' dropped successfully."}
+    
     def execute(self, plan):
         """
-        Execute the given plan.
+        Execute a query plan.
         """
-        if plan['type'] == "SELECT":
+        plan_type = plan.get('type')
+        
+        if plan_type == 'SELECT':
             return self.execute_select(plan)
-        elif plan['type'] == "INSERT":
+        elif plan_type == 'INSERT':
             return self.execute_insert(plan)
-        elif plan['type'] == "UPDATE":
+        elif plan_type == 'UPDATE':
             return self.execute_update(plan)
-        elif plan['type'] == "DELETE":
+        elif plan_type == 'DELETE':
             return self.execute_delete(plan)
-        elif plan['type'] == "CREATE_TABLE":
+        elif plan_type == 'CREATE_TABLE':
             return self.execute_create_table(plan)
-        elif plan['type'] == "DROP_TABLE":
+        elif plan_type == 'DROP_TABLE':
             return self.execute_drop_table(plan)
-        elif plan['type'] == "CREATE_DATABASE":
-            return self.execute_create_database(plan)
-        elif plan['type'] == "DROP_DATABASE":
-            return self.execute_drop_database(plan)
-        elif plan['type'] == "CREATE_INDEX":
+        elif plan_type == 'CREATE_INDEX':
             return self.execute_create_index(plan)
-        elif plan['type'] == "DROP_INDEX":
+        elif plan_type == 'DROP_INDEX':
             return self.execute_drop_index(plan)
-        elif plan['type'] == "SHOW":
+        elif plan_type == 'SHOW':
             return self.execute_show(plan)
-        elif plan['type'] == "BEGIN_TRANSACTION":
-            return self.execute_begin_transaction()
-        elif plan['type'] == "COMMIT_TRANSACTION":
-            return self.execute_commit_transaction()
-        elif plan['type'] == "ROLLBACK_TRANSACTION":
-            return self.execute_rollback_transaction()
-        elif plan['type'] == "SET_PREFERENCE":
-            return self.execute_set_preference(plan)
-        elif plan['type'] == "CREATE_VIEW":
+        elif plan_type == 'AGGREGATE':
+            return self.execute_aggregate(plan)
+        elif plan_type in ['JOIN', 'HASH_JOIN', 'SORT_MERGE_JOIN', 'INDEX_JOIN', 'NESTED_LOOP_JOIN']:
+            return self.execute_join(plan)
+        elif plan_type == 'CREATE_DATABASE':
+            return self.execute_create_database(plan)
+        elif plan_type == 'DROP_DATABASE':
+            return self.execute_drop_database(plan)
+        elif plan_type == 'CREATE_VIEW':
             return self.execute_create_view(plan)
-        elif plan['type'] == "DROP_VIEW":
+        elif plan_type == 'DROP_VIEW':
             return self.execute_drop_view(plan)
         else:
-            raise ValueError(f"Unsupported plan type: {plan['type']}")
+            raise ValueError(f"Unknown plan type: {plan_type}")
