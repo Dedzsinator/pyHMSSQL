@@ -1,5 +1,6 @@
 from pymongo import MongoClient
 import logging
+from hashlib import sha256
 
 class CatalogManager:
     def __init__(self):
@@ -8,7 +9,38 @@ class CatalogManager:
         self.databases = self.db['databases']
         self.tables = self.db['tables']
         self.indexes = self.db['indexes']
+        self.preferences = self.db['preferences']
+        self.users = self.db['users']
         logging.info("CatalogManager initialized.")
+    
+    def register_user(self, username, password, role="user"):
+        """
+        Register a new user.
+        """
+        if self.users.find_one({"username": username}):
+            return "Username already exists."
+        
+        # Hash the password
+        hashed_password = sha256(password.encode()).hexdigest()
+        
+        # Insert the user into the database
+        self.users.insert_one({"username": username, "password": hashed_password, "role": role})
+        return "User registered successfully."
+    
+    def authenticate_user(self, username, password):
+        """
+        Authenticate a user.
+        """
+        user = self.users.find_one({"username": username})
+        if not user:
+            return None
+        
+        # Verify the password
+        hashed_password = sha256(password.encode()).hexdigest()
+        if user["password"] == hashed_password:
+            return user
+        else:
+            return None
     
     def create_database(self, db_name):
         logging.debug(f"Creating database: {db_name}")
@@ -84,3 +116,18 @@ class CatalogManager:
         indexes = self.indexes.find({"_id": {"$regex": f"^{table_name}."}})
         logging.info(f"Retrieved indexes for table: {table_name}")
         return {index['column']: index for index in indexes}
+    
+    def get_preferences(self, user_id=None):
+        """
+        Retrieve preferences for a user (or global preferences if user_id is None).
+        """
+        query = {"user_id": user_id} if user_id else {}
+        return self.preferences.find_one(query, {"_id": 0}) or {}
+    
+    def update_preferences(self, preferences, user_id=None):
+        """
+        Update preferences for a user (or global preferences if user_id is None).
+        """
+        query = {"user_id": user_id} if user_id else {}
+        self.preferences.update_one(query, {"$set": preferences}, upsert=True)
+        return "Preferences updated."

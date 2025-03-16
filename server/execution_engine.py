@@ -1,11 +1,14 @@
 from pymongo import MongoClient
 from bson import ObjectId
+import json
 
 class ExecutionEngine:
     def __init__(self, catalog_manager, index_manager):
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
         self.client = MongoClient('localhost', 27017)
+        self.transaction_stack = []
+        self.preferences = self.catalog_manager.get_preferences()
     
     def execute_aggregation(self, plan):
         """
@@ -229,16 +232,45 @@ class ExecutionEngine:
         
         return result
     
+    def execute_begin_transaction(self):
+        """
+        Begin a new transaction.
+        """
+        self.transaction_stack.append({})
+        return "Transaction started."
+    
+    def execute_commit_transaction(self):
+        """
+        Commit the current transaction.
+        """
+        if not self.transaction_stack:
+            return "No transaction to commit."
+        self.transaction_stack.pop()
+        return "Transaction committed."
+    
+    def execute_rollback_transaction(self):
+        """
+        Rollback the current transaction.
+        """
+        if not self.transaction_stack:
+            return "No transaction to rollback."
+        self.transaction_stack.pop()
+        return "Transaction rolled back."
+    
     def execute_select(self, plan):
         """
         Execute a SELECT query.
         """
+        
+        max_results = self.preferences.get("max_results", 10)
+        
         table_name = plan['table']
         condition = plan.get('condition')
         subquery = plan.get('subquery')
         
         db = self.client['dbms_project']
-        collection = db[table_name]
+        collection = db[plan['table']]
+        result = list(collection.find().limit(max_results))
         
         if subquery:
             # Execute the subquery first
@@ -253,7 +285,11 @@ class ExecutionEngine:
             
             # Query MongoDB
             result = list(collection.find({column: value}))
-            return result
+            
+            if self.preferences.get("pretty_print", False):
+                return json.dumps(result, indent=4)
+            else:
+                return result
         elif condition:
             # Parse the condition (e.g., "id = 1")
             column, value = condition.split('=')
@@ -262,10 +298,33 @@ class ExecutionEngine:
             
             # Query MongoDB
             result = list(collection.find({column: value}))
-            return result
+            
+            if self.preferences.get("pretty_print", False):
+                return json.dumps(result, indent=4)
+            else:
+                return result
         else:
             # Full table scan
-            return list(collection.find())
+            result = list(collection.find())
+            
+            if self.preferences.get("pretty_print", False):
+                return json.dumps(result, indent=4)
+            else:
+                return result
+
+    def execute_set_preference(self, plan):
+            """
+            Update user preferences.
+            """
+            preference = plan['preference']
+            value = plan['value']
+            user_id = plan.get('user_id')
+            
+            # Update preferences
+            self.preferences[preference] = value
+            self.catalog_manager.update_preferences({preference: value}, user_id)
+            
+            return f"Preference '{preference}' set to '{value}'."
     
     def execute_insert(self, plan):
         """
@@ -440,13 +499,23 @@ class ExecutionEngine:
         """
         if plan['type'] == "SELECT":
             return self.execute_select(plan)
-        elif plan['type'] == "JOIN":
-            return self.execute_join(plan)
         elif plan['type'] == "INSERT":
             return self.execute_insert(plan)
         elif plan['type'] == "UPDATE":
             return self.execute_update(plan)
         elif plan['type'] == "DELETE":
             return self.execute_delete(plan)
+        elif plan['type'] == "CREATE_TABLE":
+            return self.execute_create_table(plan)
+        elif plan['type'] == "DROP_TABLE":
+            return self.execute_drop_table(plan)
+        elif plan['type'] == "BEGIN_TRANSACTION":
+            return self.execute_begin_transaction()
+        elif plan['type'] == "COMMIT_TRANSACTION":
+            return self.execute_commit_transaction()
+        elif plan['type'] == "ROLLBACK_TRANSACTION":
+            return self.execute_rollback_transaction()
+        elif plan['type'] == "SET_PREFERENCE":
+            return self.execute_set_preference(plan)
         else:
             raise ValueError("Unsupported plan type.")

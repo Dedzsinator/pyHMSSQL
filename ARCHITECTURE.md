@@ -10,14 +10,15 @@ pyHMSSQL is a database management system built with a client-server architecture
 
 ### Client Side
 
-1. **CLI Client** (`cli_client.py`)
+1. **CLI Client** (`client/cli_client.py`)
    - Provides a command-line interface for interacting with the database
    - Parses user commands and sends them to the server
    - Displays results from the server
    - Handles connection management
    - Supports batch execution from files
+   - Implements session-based authentication
 
-2. **GUI Client** (`gui_client.py` & `main_window.py`)
+2. **GUI Client** (`client/gui_client.py` & `client/gui/main_window.py`)
    - Provides a graphical user interface for database operations
    - Offers form-based input for common database operations
    - Displays results and notifications to the user
@@ -28,61 +29,82 @@ pyHMSSQL is a database management system built with a client-server architecture
    - Implements network communication protocol (JSON over sockets)
    - Defines constants and utility functions
    - Handles JSON serialization/deserialization
+   - Provides custom JSON encoder for MongoDB ObjectId
 
 ### Server Side
 
-1. **Server** (`server.py`)
+1. **Server** (`server/server.py`)
    - Listens for client connections on a predefined port
    - Routes requests to appropriate components
    - Returns results to clients
    - Handles multiple concurrent client connections
    - Provides error handling and logging
+   - Manages user authentication and sessions
+   - Implements role-based access control
 
-2. **Catalog Manager** (`catalog_manager.py`)
+2. **Catalog Manager** (`server/catalog_manager.py`)
    - Manages database metadata (schemas, tables, columns)
    - Stores information about indexes
    - Provides CRUD operations for database objects
    - Uses MongoDB for persistent storage of metadata
+   - Handles user authentication and registration
+   - Manages user preferences
 
-3. **Index Manager** (`index_manager.py`)
+3. **Index Manager** (`server/index_manager.py`)
    - Creates and maintains indexes for fast data retrieval
    - Implements B+ Tree data structure for efficient lookups
    - Provides methods for updating and querying indexes
    - Handles serialization and deserialization of index structures
+   - Manages index files on disk
 
-4. **Planner** (`planner.py`)
+4. **B+ Tree Implementation** (`server/bptree.py`)
+   - Custom implementation of the B+ Tree data structure
+   - Provides efficient key-value lookups
+   - Supports range queries
+   - Implements node splitting and balancing
+   - Handles serialization for persistence
+
+5. **Planner** (`server/planner.py`)
    - Parses SQL queries (SELECT, INSERT, UPDATE, DELETE)
    - Generates execution plans for queries
    - Handles complex query structures (joins, subqueries)
    - Transforms SQL statements into executable operations
+   - Uses Haskell-based SQL parser (`SQLParser.hs`)
 
-5. **Optimizer** (`optimizer.py`)
+6. **Optimizer** (`server/optimizer.py`)
    - Analyzes execution plans to improve performance
    - Uses indexes for efficient data access
-   - Implements join optimizations (hash joins, index joins)
+   - Implements join optimizations (hash joins, index joins, sort-merge joins)
    - Applies techniques like filter pushdown, expression rewriting
    - Handles join reordering and index selection
+   - Optimizes sort operations and limit clauses
 
-6. **Execution Engine** (`execution_engine.py`)
+7. **Execution Engine** (`server/execution_engine.py`)
    - Executes query plans
    - Interacts with storage engine (MongoDB)
    - Returns results to the server
    - Performs CRUD operations on actual data
    - Implements join algorithms and aggregation functions
    - Handles set operations and logical operations
+   - Supports transactions (begin, commit, rollback)
+   - Respects user preferences
 
 ## Data Flow
 
-1. **Client Request Processing**:
-   - Client submits a command or query
-   - Command is serialized to JSON and sent to the server
-   - Server receives and deserializes the request
-   - Server determines the appropriate action
+1. **Authentication Flow**:
+   - Client sends login credentials
+   - Server authenticates against stored user records
+   - Server generates and returns a session ID
+   - Client includes session ID in subsequent requests
+   - Server validates the session ID before processing requests
 
 2. **Query Execution Pipeline**:
+   - Client submits a command or query
+   - Server validates user permissions for the operation
    - For schema operations (CREATE/DROP), the Catalog Manager handles the request
    - For data operations (SELECT/INSERT/DELETE/UPDATE):
-     - The Planner parses and creates an execution plan
+     - SQL is parsed using the Haskell parser
+     - The Planner creates an execution plan
      - The Optimizer improves the plan for efficiency
      - The Execution Engine executes the optimized plan
      - Results are returned to the client
@@ -118,6 +140,29 @@ The system uses a custom B+ Tree implementation for indexing:
   - Each index is stored in a separate file
   - Loaded on-demand to minimize memory usage
 
+## Join Algorithms
+
+The system implements multiple join algorithms:
+
+1. **Hash Join**:
+   - Builds a hash table on the smaller relation
+   - Probes the hash table with the larger relation
+   - Efficient for equality joins
+
+2. **Sort-Merge Join**:
+   - Sorts both relations on the join key
+   - Merges the sorted relations
+   - Efficient for sorted data
+
+3. **Index Join**:
+   - Uses an index on one relation
+   - Looks up matching records for each tuple in the other relation
+   - Efficient when an index exists on the join column
+
+4. **Nested Loop Join**:
+   - Fallback algorithm when others aren't applicable
+   - Iterates through both relations
+
 ## Query Optimization Techniques
 
 The Optimizer implements several strategies:
@@ -127,10 +172,9 @@ The Optimizer implements several strategies:
    - Avoids full table scans when possible
 
 2. **Join Optimization**:
-   - Hash join for equality conditions
-   - Sort-merge join for sorted data
-   - Index join when indexes are available
-   - Nested loop join as fallback
+   - Selects the most efficient join algorithm based on available indexes
+   - Reorders joins to minimize intermediate results
+   - Pushes filters down to reduce early result sizes
 
 3. **Predicate Pushdown**:
    - Pushes filter conditions closer to data sources
@@ -143,6 +187,30 @@ The Optimizer implements several strategies:
 5. **Expression Rewriting**:
    - Simplifies and normalizes expressions
    - Eliminates redundant conditions
+   - Merges multiple filters
+
+6. **Sort-Limit Optimization**:
+   - Converts sort + limit to top-N operation
+   - More efficient for retrieving top results
+
+## Security Model
+
+The system implements a role-based security model:
+
+1. **User Authentication**:
+   - Password-based authentication
+   - Secure password hashing (SHA-256)
+   - Session-based authorization
+
+2. **Role-Based Access Control**:
+   - Different user roles (admin, user)
+   - Permission checking for operations
+   - Query filtering based on user permissions
+
+3. **Session Management**:
+   - UUID-based session identifiers
+   - Session tracking on the server
+   - Session termination on logout
 
 ## Storage Layer
 
@@ -153,6 +221,7 @@ pyHMSSQL uses MongoDB as its storage engine:
 - Index information maintained in separate collections
 - Actual table data stored as documents in MongoDB collections
 - B+ Tree index files stored in the filesystem
+- User accounts and preferences stored in MongoDB
 
 ## Communication Protocol
 
@@ -162,7 +231,11 @@ The client and server communicate using a simple JSON-based protocol:
 
 ```json
 {
-  "action": "create_database|drop_database|create_table|drop_table|create_index|query",
+  "action": "login|register|logout|create_database|drop_database|create_table|drop_table|create_index|query",
+  "username": "username",
+  "password": "password",
+  "role": "admin|user",
+  "session_id": "uuid",
   "db_name": "database_name",
   "table_name": "table_name",
   "columns": { "column_name": {"type": "data_type"} },
@@ -176,7 +249,9 @@ The client and server communicate using a simple JSON-based protocol:
 
 ```json
 {
-  "response": "Success or error message or query results"
+  "response": "Success or error message or query results",
+  "session_id": "uuid for login responses",
+  "role": "user role for login responses"
 }
 ```
 
@@ -196,3 +271,10 @@ The client and server communicate using a simple JSON-based protocol:
    -Subquery processing
    -Join operations
    -Filter conditions
+5. Transaction Support:
+   -Begin, commit, and rollback operations
+   -Transaction state tracking
+6. User Preferences:
+   -Configurable result limits
+   -Pretty printing options
+   -Per-user preference storage

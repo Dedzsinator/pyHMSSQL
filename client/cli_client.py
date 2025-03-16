@@ -54,51 +54,56 @@ def execute_commands_from_file(file_path, client):
 
 def main():
     client = DBMSClient()
+    session_id = None
     
     while True:
         cmd = input("DBMS> ").strip()
         if not cmd:
             continue
         
-        if cmd.lower().startswith("files"):
-            # Handle the "files" command
+        if cmd.lower().startswith("login"):
+            # Handle the "login" command
             parts = cmd.split()
-            if len(parts) != 2:
-                print("Usage: files <file_path>")
+            if len(parts) != 3:
+                print("Usage: login <username> <password>")
             else:
-                file_path = parts[1]
-                execute_commands_from_file(file_path, client)
+                username = parts[1]
+                password = parts[2]
+                response = client.send_command({'action': 'login', 'username': username, 'password': password})
+                if isinstance(response, dict) and 'session_id' in response:
+                    session_id = response['session_id']
+                    print(f"Logged in as {username} with role {response['role']}")
+                else:
+                    print(response)
+        elif cmd.lower().startswith("register"):
+            # Handle the "register" command
+            parts = cmd.split()
+            if len(parts) < 3:
+                print("Usage: register <username> <password> [role]")
+            else:
+                username = parts[1]
+                password = parts[2]
+                role = parts[3] if len(parts) > 3 else "user"
+                response = client.send_command({'action': 'register', 'username': username, 'password': password, 'role': role})
+                print(response)
+        elif cmd.lower() == "logout":
+            # Handle the "logout" command
+            if session_id:
+                response = client.send_command({'action': 'logout', 'session_id': session_id})
+                print(response)
+                session_id = None
+            else:
+                print("Not logged in.")
         elif cmd.lower() == "exit":
             client.close()
             break
         else:
-            if cmd[0].lower() == 'create' and cmd[1].lower() == 'database':
-                client.send_command({'action': 'create_database', 'db_name': cmd[2]})
-            elif cmd[0].lower() == 'drop' and cmd[1].lower() == 'database':
-                client.send_command({'action': 'drop_database', 'db_name': cmd[2]})
-            elif cmd[0].lower() == 'create' and cmd[1].lower() == 'table':
-                db_name = cmd[2]
-                table_name = cmd[3]
-                columns = {}
-                for col_def in cmd[4:]:
-                    col_name, col_type = col_def.split(':')
-                    columns[col_name] = {'type': col_type}
-                client.send_command({'action': 'create_table', 'db_name': db_name, 'table_name': table_name, 'columns': columns})
-            elif cmd[0].lower() == 'drop' and cmd[1].lower() == 'table':
-                client.send_command({'action': 'drop_table', 'db_name': cmd[2], 'table_name': cmd[3]})
-            elif cmd[0].lower() == 'create' and cmd[1].lower() == 'index':
-                db_name = cmd[2]
-                table_name = cmd[3]
-                index_name = cmd[4]
-                column = cmd[5]
-                client.send_command({'action': 'create_index', 'db_name': db_name, 'table_name': table_name, 'index_name': index_name, 'column': column})
-            elif cmd[0].lower() == 'query':
-                query = ' '.join(cmd[1:])
-                client.send_command({'action': 'query', 'query': query})
-            elif cmd[0].lower() == 'exit':
-                break
+            # Handle regular commands
+            if not session_id:
+                print("Please log in first.")
             else:
-                print("Invalid command.")
+                response = client.send_command({'action': 'query', 'session_id': session_id, 'query': cmd})
+                print(response)
 
 if __name__ == "__main__":
     main()

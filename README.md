@@ -25,8 +25,7 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Create/Drop Tables
   - [x] SQL Query Support (SELECT, INSERT, DELETE, UPDATE)
   - [x] Basic joins and subqueries
-  - [ ] Transactions (planned)
-  - [ ] Stored Procedures (planned)
+  - [x] Transaction support (begin, commit, rollback)
 
 - [x] **Indexing**
   - [x] Custom B+ Tree Implementation
@@ -37,9 +36,10 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
 
 - [x] **Query Optimization**
   - [x] Index-based query planning
-  - [x] Join optimization (hash join, index join)
+  - [x] Join optimization (hash join, index join, sort-merge join)
   - [x] Filter pushdown
   - [x] Plan rewriting
+  - [x] Join reordering
 
 - [x] **Storage**
   - [x] MongoDB Integration
@@ -52,10 +52,20 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] TOP N queries
   - [x] DISTINCT operations
 
-- [ ] **Security Features**
-  - [ ] User authentication
-  - [ ] Access control
-  - [ ] Encryption
+- [x] **Security Features**
+  - [x] User authentication
+  - [x] Role-based access control
+  - [x] Session management
+  - [ ] Encryption (planned)
+
+- [x] **Set Operations**
+  - [x] UNION, INTERSECT, EXCEPT
+  - [x] Logical operations (AND, OR, NOT)
+
+- [x] **User Preferences**
+  - [x] Configurable result limits
+  - [x] Pretty printing options
+  - [x] Per-user preference storage
 
 ## 📋 Requirements
 
@@ -112,6 +122,9 @@ python gui_client.py
 ## 📝 Example Commands
 
 ```sql
+-- Login to the system
+DBMS> login username password
+
 -- Create a new database
 DBMS> create database mydb
 
@@ -138,16 +151,29 @@ DBMS> query DELETE FROM users WHERE id = 1
 
 -- Run SQL script from file
 DBMS> files path/to/script.sql
+
+-- Set user preferences
+DBMS> query SET PREFERENCE pretty_print true
+
+-- Begin a transaction
+DBMS> query BEGIN TRANSACTION
+
+-- Commit a transaction
+DBMS> query COMMIT
+
+-- Logout
+DBMS> logout
 ```
 
 ## 📊 Architecture
 
 pyHMSSQL follows a modular architecture with clear separation of concerns:
 
-Client Layer: Handles user interaction through CLI or GUI
-Server Layer: Processes requests and manages database operations
-Storage Layer: Persists data and metadata using MongoDB
-Index Layer: Optimizes data retrieval using B+ trees
+-Client Layer: Handles user interaction through CLI or GUI
+-Server Layer: Processes requests and manages database operations
+-Storage Layer: Persists data and metadata using MongoDB
+-Index Layer: Optimizes data retrieval using B+ trees
+
 For more details, see ARCHITECTURE.md.
 
 ## 🤝 Contributing
