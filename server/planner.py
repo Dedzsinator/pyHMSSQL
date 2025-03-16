@@ -24,6 +24,10 @@ class Planner:
             return self.plan_drop_table(parsed_query)
         elif parsed_query['type'] == "JOIN":
             return self.plan_join(parsed_query)
+        elif parsed_query['type'] == "CREATE_VIEW":
+            return self.plan_create_view(parsed_query)
+        elif parsed_query['type'] == "DROP_VIEW":
+            return self.plan_drop_view(parsed_query)
         else:
             raise ValueError("Unsupported query type.")
     
@@ -109,4 +113,25 @@ class Planner:
             'type': 'CREATE_TABLE',
             'table': parsed_query['table'],
             'columns': parsed_query['columns']
+        }
+    
+    def plan_create_view(self, parsed_query):
+        """
+        Plan for CREATE VIEW queries.
+        Example: CREATE VIEW view_name AS SELECT * FROM table
+        """
+        return {
+            'type': 'CREATE_VIEW',
+            'view_name': parsed_query['view_name'],
+            'query': parsed_query['query']
+        }
+    
+    def plan_drop_view(self, parsed_query):
+        """
+        Plan for DROP VIEW queries.
+        Example: DROP VIEW view_name
+        """
+        return {
+            'type': 'DROP_VIEW',
+            'view_name': parsed_query['view_name']
         }

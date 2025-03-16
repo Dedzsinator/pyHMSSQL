@@ -49,6 +49,9 @@ pyHMSSQL is a database management system built with a client-server architecture
    - Uses MongoDB for persistent storage of metadata
    - Handles user authentication and registration
    - Manages user preferences
+   - Manages views, stored procedures, functions, and triggers
+   - Handles temporary tables for sessions
+   - Provides management functions for all database objects
 
 3. **Index Manager** (`server/index_manager.py`)
    - Creates and maintains indexes for fast data retrieval
@@ -89,6 +92,24 @@ pyHMSSQL is a database management system built with a client-server architecture
    - Supports transactions (begin, commit, rollback)
    - Respects user preferences
 
+8. **Procedure Manager**
+   - Executes stored procedures
+   - Manages procedure context and variables
+   - Handles control flow (IF, WHILE, etc.)
+   - Supports transaction management within procedures
+
+9. **Function Manager**
+   - Executes user-defined functions
+   - Handles return values
+   - Supports function calls within SQL queries
+   - Manages function context and variables
+
+10. **Trigger Manager**
+    - Monitors database events (INSERT, UPDATE, DELETE)
+    - Executes associated triggers when events occur
+    - Provides access to OLD and NEW row values
+    - Handles trigger chaining and recursion prevention
+
 ## Data Flow
 
 1. **Authentication Flow**:
@@ -114,6 +135,12 @@ pyHMSSQL is a database management system built with a client-server architecture
    - B+ Tree indexes provide efficient key-based and range-based access
    - When data is modified, indexes are updated accordingly
    - The optimizer selects appropriate indexes for query conditions
+
+4. **Advanced Query Processing**:
+   - For views, the view definition is retrieved and executed
+   - For procedure calls, the procedure body is executed step by step
+   - For function calls, the function is executed and its result integrated into the query
+   - For triggers, associated triggers are executed when table events occur
 
 ## B+ Tree Implementation
 
@@ -162,6 +189,63 @@ The system implements multiple join algorithms:
 4. **Nested Loop Join**:
    - Fallback algorithm when others aren't applicable
    - Iterates through both relations
+
+## Advanced Features
+
+### Views Management
+
+The system supports database views:
+
+- **Creation and Storage**: Views are stored in the catalog
+- **Query Resolution**: When a view is referenced, its query is executed
+- **Metadata Management**: View definitions are accessible through the catalog
+- **Security**: Access to views follows the same permission model as tables
+
+### Stored Procedures and Functions
+
+The system supports stored procedures and functions:
+
+- **Procedure Execution**:
+  - Procedures are parsed and stored in the catalog
+  - When called, procedures are executed in a controlled environment
+  - Procedures can contain multiple SQL statements
+  - Parameters are supported for flexible execution
+
+- **Function Execution**:
+  - Functions are compiled and stored in the catalog
+  - Functions can be called from SQL statements
+  - Return values are integrated into the calling query
+  - Functions support parameters and local variables
+
+### Triggers
+
+The system implements database triggers:
+
+- **Event Monitoring**:
+  - INSERT, UPDATE, and DELETE events are monitored
+  - When an event occurs on a table with triggers, they are executed
+
+- **Execution Context**:
+  - Triggers have access to OLD and NEW row values
+  - Triggers execute in the context of the transaction
+  - Multiple triggers on the same event are executed in order
+
+- **Management**:
+  - Triggers can be created, dropped, and enabled/disabled
+  - Metadata about triggers is stored in the catalog
+
+### Temporary Tables
+
+The system supports temporary tables:
+
+- **Session Isolation**:
+  - Temporary tables are only visible to the creating session
+  - Tables are automatically dropped when the session ends
+
+- **Use Cases**:
+  - Complex query intermediate results
+  - Multi-step data processing
+  - Transaction-specific data storage
 
 ## Query Optimization Techniques
 
@@ -214,14 +298,17 @@ The system implements a role-based security model:
 
 ## Storage Layer
 
-pyHMSSQL uses MongoDB as its storage engine:
+pyHMSSQL uses MongoDB as its storage engine with these additions:
 
-- Database metadata stored in MongoDB collections
-- Table definitions stored as documents
-- Index information maintained in separate collections
-- Actual table data stored as documents in MongoDB collections
-- B+ Tree index files stored in the filesystem
-- User accounts and preferences stored in MongoDB
+- **Metadata Collections**:
+  - `views` collection for view definitions
+  - `procedures` collection for stored procedure definitions
+  - `functions` collection for function definitions
+  - `triggers` collection for trigger definitions
+
+- **In-Memory Storage**:
+  - Temporary tables stored in memory, linked to session ID
+  - Not persisted between server restarts
 
 ## Communication Protocol
 

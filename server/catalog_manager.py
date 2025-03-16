@@ -11,6 +11,11 @@ class CatalogManager:
         self.indexes = self.db['indexes']
         self.preferences = self.db['preferences']
         self.users = self.db['users']
+        self.views = self.db['views']
+        self.temp_tables = {}
+        self.procedures = self.db['procedures']
+        self.functions = self.db['functions']
+        self.triggers = self.db['triggers']
         logging.info("CatalogManager initialized.")
     
     def register_user(self, username, password, role="user"):
@@ -131,3 +136,131 @@ class CatalogManager:
         query = {"user_id": user_id} if user_id else {}
         self.preferences.update_one(query, {"$set": preferences}, upsert=True)
         return "Preferences updated."
+
+    def create_view(self, view_name, query):
+        """
+        Create a new view.
+        """
+        if self.views.find_one({"name": view_name}):
+            return f"View {view_name} already exists."
+        
+        self.views.insert_one({"name": view_name, "query": query})
+        return f"View {view_name} created."
+    
+    def drop_view(self, view_name):
+        """
+        Drop a view.
+        """
+        if not self.views.find_one({"name": view_name}):
+            return f"View {view_name} does not exist."
+        
+        self.views.delete_one({"name": view_name})
+        return f"View {view_name} dropped."
+    
+    def get_view_query(self, view_name):
+        """
+        Retrieve the query for a view.
+        """
+        view = self.views.find_one({"name": view_name})
+        return view["query"] if view else None
+
+    def create_temp_table(self, session_id, table_name, columns):
+        """
+        Create a temporary table.
+        """
+        if session_id not in self.temp_tables:
+            self.temp_tables[session_id] = {}
+        
+        if table_name in self.temp_tables[session_id]:
+            return f"Temporary table {table_name} already exists."
+        
+        self.temp_tables[session_id][table_name] = {"columns": columns, "data": []}
+        return f"Temporary table {table_name} created."
+    
+    def drop_temp_table(self, session_id, table_name):
+        """
+        Drop a temporary table.
+        """
+        if session_id not in self.temp_tables or table_name not in self.temp_tables[session_id]:
+            return f"Temporary table {table_name} does not exist."
+        
+        del self.temp_tables[session_id][table_name]
+        return f"Temporary table {table_name} dropped."
+
+    def create_procedure(self, procedure_name, procedure_body):
+        """
+        Create a stored procedure.
+        """
+        if self.procedures.find_one({"name": procedure_name}):
+            return f"Procedure {procedure_name} already exists."
+        
+        self.procedures.insert_one({"name": procedure_name, "body": procedure_body})
+        return f"Procedure {procedure_name} created."
+    
+    def drop_procedure(self, procedure_name):
+        """
+        Drop a stored procedure.
+        """
+        if not self.procedures.find_one({"name": procedure_name}):
+            return f"Procedure {procedure_name} does not exist."
+        
+        self.procedures.delete_one({"name": procedure_name})
+        return f"Procedure {procedure_name} dropped."
+    
+    def get_procedure(self, procedure_name):
+        """
+        Retrieve a stored procedure.
+        """
+        return self.procedures.find_one({"name": procedure_name})
+    
+    def create_function(self, function_name, function_body):
+        """
+        Create a function.
+        """
+        if self.functions.find_one({"name": function_name}):
+            return f"Function {function_name} already exists."
+        
+        self.functions.insert_one({"name": function_name, "body": function_body})
+        return f"Function {function_name} created."
+    
+    def drop_function(self, function_name):
+        """
+        Drop a function.
+        """
+        if not self.functions.find_one({"name": function_name}):
+            return f"Function {function_name} does not exist."
+        
+        self.functions.delete_one({"name": function_name})
+        return f"Function {function_name} dropped."
+    
+    def get_function(self, function_name):
+        """
+        Retrieve a function.
+        """
+        return self.functions.find_one({"name": function_name})
+    
+    def create_trigger(self, trigger_name, event, table_name, trigger_body):
+        """
+        Create a trigger.
+        """
+        if self.triggers.find_one({"name": trigger_name}):
+            return f"Trigger {trigger_name} already exists."
+        
+        self.triggers.insert_one({"name": trigger_name, "event": event, "table": table_name, "body": trigger_body})
+        return f"Trigger {trigger_name} created."
+    
+    def drop_trigger(self, trigger_name):
+        """
+        Drop a trigger.
+        """
+        if not self.triggers.find_one({"name": trigger_name}):
+            return f"Trigger {trigger_name} does not exist."
+        
+        self.triggers.delete_one({"name": trigger_name})
+        return f"Trigger {trigger_name} dropped."
+    
+    def get_trigger(self, trigger_name):
+        """
+        Retrieve a trigger.
+        """
+        return self.triggers.find_one({"name": trigger_name})

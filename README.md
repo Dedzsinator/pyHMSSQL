@@ -24,6 +24,8 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Create/Drop Databases
   - [x] Create/Drop Tables
   - [x] SQL Query Support (SELECT, INSERT, DELETE, UPDATE)
+  - [x] Views (CREATE VIEW, DROP VIEW)
+  - [x] Temporary tables
   - [x] Basic joins and subqueries
   - [x] Transaction support (begin, commit, rollback)
 
@@ -66,6 +68,23 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Configurable result limits
   - [x] Pretty printing options
   - [x] Per-user preference storage
+
+- [x] **Stored Procedures and Functions**
+  - [x] Create/Drop Stored Procedures
+  - [x] Create/Drop Functions
+  - [x] Procedure execution
+  - [x] Function calls in queries
+
+- [x] **Triggers**
+  - [x] Create/Drop Triggers
+  - [x] Event-based execution (INSERT, UPDATE, DELETE)
+  - [x] Table-specific triggers
+
+- [x] **Advanced Query Features**
+  - [x] Views for logical data abstraction
+  - [x] Temporary tables for intermediate results
+  - [x] Complex subquery support
+  - [x] Multiple aggregation functions
 
 ## 📋 Requirements
 
@@ -163,6 +182,36 @@ DBMS> query COMMIT
 
 -- Logout
 DBMS> logout
+
+-- Create a view
+DBMS> query CREATE VIEW active_users AS SELECT * FROM users WHERE active = true
+
+-- Drop a view
+DBMS> query DROP VIEW active_users
+
+-- Create a stored procedure
+DBMS> query CREATE PROCEDURE add_user(name VARCHAR, age INT) 
+      BEGIN 
+        INSERT INTO users (name, age) VALUES (name, age); 
+      END
+
+-- Execute a stored procedure
+DBMS> query CALL add_user('John', 25)
+
+-- Create a function
+DBMS> query CREATE FUNCTION get_age(user_id INT) 
+      RETURNS INT 
+      BEGIN 
+        RETURN (SELECT age FROM users WHERE id = user_id); 
+      END
+
+-- Create a trigger
+DBMS> query CREATE TRIGGER update_log 
+      AFTER UPDATE ON users 
+      FOR EACH ROW 
+      BEGIN 
+        INSERT INTO logs VALUES (NEW.id, 'updated'); 
+      END
 ```
 
 ## 📊 Architecture

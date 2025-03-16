@@ -493,6 +493,18 @@ class ExecutionEngine:
         all_docs = list(self.client['dbms_project'][plan['table']].find())
         return [doc for doc in all_docs if doc not in result]
     
+    def execute_create_view(self, plan):
+        """
+        Execute CREATE VIEW queries.
+        """
+        return self.catalog_manager.create_view(plan['view_name'], plan['query'])
+    
+    def execute_drop_view(self, plan):
+        """
+        Execute DROP VIEW queries.
+        """
+        return self.catalog_manager.drop_view(plan['view_name'])
+    
     def execute(self, plan):
         """
         Execute the given plan.
@@ -517,5 +529,9 @@ class ExecutionEngine:
             return self.execute_rollback_transaction()
         elif plan['type'] == "SET_PREFERENCE":
             return self.execute_set_preference(plan)
+        elif plan['type'] == "CREATE_VIEW":
+            return self.execute_create_view(plan)
+        elif plan['type'] == "DROP_VIEW":
+            return self.execute_drop_view(plan)
         else:
             raise ValueError("Unsupported plan type.")
