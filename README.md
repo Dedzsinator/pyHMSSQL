@@ -142,6 +142,7 @@ Start the java client (experimental):
 
 ```bash
 cd e:\Programming\pyHMSSQL\client\java_client
+mvn -U clean install
 mvn javafx:run
 ```
 
