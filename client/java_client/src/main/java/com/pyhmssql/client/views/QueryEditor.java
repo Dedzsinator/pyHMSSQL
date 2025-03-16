@@ -1,6 +1,6 @@
-package views;
+package com.pyhmssql.client.views;
 
-import main.ConnectionManager;
+import com.pyhmssql.client.main.ConnectionManager;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.geometry.Insets;
@@ -22,6 +22,11 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.List;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import javafx.stage.FileChooser;
 
 public class QueryEditor extends BorderPane {
     private CodeArea codeArea;
@@ -93,11 +98,17 @@ public class QueryEditor extends BorderPane {
         codeArea = new CodeArea();
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
         
-        // Add syntax highlighting
         codeArea.multiPlainChanges()
             .successionEnds(Duration.ofMillis(500))
             .retainLatestUntilLater(executor)
-            .supplyTask(() -> computeHighlighting(codeArea.getText()))
+            .supplyTask(() -> {
+                return new javafx.concurrent.Task<StyleSpans<Collection<String>>>() {
+                    @Override
+                    protected StyleSpans<Collection<String>> call() throws Exception {
+                        return computeHighlighting(codeArea.getText());
+                    }
+                };
+            })
             .awaitLatest(codeArea.multiPlainChanges())
             .filterMap(t -> {
                 if (t.isSuccess()) {

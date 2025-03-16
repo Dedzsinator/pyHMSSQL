@@ -1,15 +1,15 @@
-package model;
+package com.pyhmssql.client.model;
 
 import java.util.Objects;
 
 /**
- * Model class representing a database column's metadata
+ * Model class for column metadata
  */
-public class ColumnMetadata {
-    private final String name;
-    private final String type;
-    private final boolean primaryKey;
-    private final boolean nullable;
+public class ColumnMetadata implements DatabaseObject {
+    private String name;
+    private String type;
+    private boolean primaryKey;
+    private boolean nullable;
     
     public ColumnMetadata(String name, String type, boolean primaryKey, boolean nullable) {
         this.name = name;
@@ -22,10 +22,6 @@ public class ColumnMetadata {
         return name;
     }
     
-    public String getType() {
-        return type;
-    }
-    
     public boolean isPrimaryKey() {
         return primaryKey;
     }
@@ -34,14 +30,14 @@ public class ColumnMetadata {
         return nullable;
     }
     
-    /**
-     * Determines if this column can be used in a join condition.
-     * Typically primary keys and foreign keys are used in joins.
-     * 
-     * @return true if the column is suitable for joins
-     */
-    public boolean isJoinable() {
-        return primaryKey || name.toLowerCase().endsWith("_id") || name.toLowerCase().equals("id");
+    @Override
+    public DatabaseObjectType getType() {
+        return DatabaseObjectType.COLUMN;
+    }
+    
+    @Override
+    public String getDisplayName() {
+        return name;
     }
     
     @Override
@@ -49,16 +45,19 @@ public class ColumnMetadata {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ColumnMetadata that = (ColumnMetadata) o;
-        return Objects.equals(name, that.name);
+        return primaryKey == that.primaryKey && 
+               nullable == that.nullable && 
+               Objects.equals(name, that.name) && 
+               Objects.equals(type, that.type);
     }
     
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(name, type, primaryKey, nullable);
     }
     
     @Override
     public String toString() {
-        return name + " (" + type + ")";
+        return name + " (" + type + ")" + (primaryKey ? " PK" : "");
     }
 }

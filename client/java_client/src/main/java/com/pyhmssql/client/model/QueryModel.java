@@ -1,6 +1,7 @@
-package model;
+package com.pyhmssql.client.model;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Model class representing a SQL query with all its components
@@ -174,6 +175,82 @@ public class QueryModel {
     
     public void setLimit(int limit) {
         this.limit = limit;
+    }
+
+    /**
+     * Generate SQL query from the model
+     * @return SQL query text
+     */
+    public String toSql() {
+        StringBuilder sql = new StringBuilder();
+        
+        // Add query type
+        switch (type) {
+            case SELECT:
+                sql.append("SELECT ");
+                if (distinct) {
+                    sql.append("DISTINCT ");
+                }
+                
+                // Add columns
+                if (columns.isEmpty()) {
+                    sql.append("*");
+                } else {
+                    List<String> selectedColumns = columns.stream()
+                        .filter(ColumnSelectionModel::isSelected)
+                        .map(ColumnSelectionModel::toSql)
+                        .collect(Collectors.toList());
+                    
+                    sql.append(String.join(", ", selectedColumns));
+                }
+                
+                // Add tables
+                if (!tables.isEmpty()) {
+                    sql.append(" FROM ");
+                    sql.append(String.join(", ", tables));
+                }
+                
+                // Add joins
+                for (JoinModel join : joins) {
+                    sql.append(" ").append(join.toSql());
+                }
+                
+                // Add where conditions
+                if (!whereConditions.isEmpty()) {
+                    sql.append(" WHERE ");
+                    List<String> conditions = whereConditions.stream()
+                        .map(ConditionModel::toSql)
+                        .collect(Collectors.toList());
+                    
+                    sql.append(String.join(" AND ", conditions));
+                }
+                
+                // Add order by
+                if (orderByColumn != null && !orderByColumn.isEmpty()) {
+                    sql.append(" ORDER BY ").append(orderByColumn);
+                    sql.append(orderAscending ? " ASC" : " DESC");
+                }
+                
+                // Add limit
+                if (limit > 0) {
+                    sql.append(" LIMIT ").append(limit);
+                }
+                break;
+                
+            case INSERT:
+                // Implementation for INSERT
+                break;
+                
+            case UPDATE:
+                // Implementation for UPDATE
+                break;
+                
+            case DELETE:
+                // Implementation for DELETE
+                break;
+        }
+        
+        return sql.toString();
     }
     
     /**

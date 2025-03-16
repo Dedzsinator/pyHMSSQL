@@ -1,4 +1,4 @@
-package model;
+package com.pyhmssql.client.model;
 
 import java.util.Objects;
 

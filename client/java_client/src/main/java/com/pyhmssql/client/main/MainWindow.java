@@ -1,14 +1,13 @@
-package main;
+package com.pyhmssql.client.main;
 
-import views.DbExplorer;
-import views.LoginPanel;
-import views.VisualQueryBuilder;
-import views.QueryEditor;
-import views.ResultPane;
+import com.pyhmssql.client.views.DbExplorer;
+import com.pyhmssql.client.views.LoginPanel;
+import com.pyhmssql.client.views.VisualQueryBuilder;
+import com.pyhmssql.client.views.QueryEditor;
+import com.pyhmssql.client.views.ResultPane;
 
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.geometry.Insets;
 
 public class MainWindow extends BorderPane {
     
@@ -93,6 +92,42 @@ public class MainWindow extends BorderPane {
         dialog.showAndWait();
     }
     
+    /**
+     * Opens a new query tab with the given SQL
+     * @param title Tab title
+     * @param sql SQL query to display
+     */
+    private void openNewQueryTab(String title, String sql) {
+        Tab queryTab = new Tab(title);
+        queryTab.setClosable(true);
+        
+        // Create query editor with results pane
+        SplitPane splitPane = new SplitPane();
+        splitPane.setOrientation(javafx.geometry.Orientation.VERTICAL);
+        
+        QueryEditor queryEditor = new QueryEditor(connectionManager);
+        ResultPane resultPane = new ResultPane();
+        
+        // Set the query text
+        queryEditor.setQuery(sql);
+        
+        // Set the database if available
+        String selectedDb = dbExplorer.getSelectedDatabase();
+        if (selectedDb != null && !selectedDb.isEmpty()) {
+            queryEditor.setDatabase(selectedDb);
+        }
+        
+        // Connect editor to results pane
+        queryEditor.setOnExecuteQuery(resultPane::displayResults);
+        
+        splitPane.getItems().addAll(queryEditor, resultPane);
+        splitPane.setDividerPositions(0.5);
+        
+        queryTab.setContent(splitPane);
+        tabPane.getTabs().add(queryTab);
+        tabPane.getSelectionModel().select(queryTab);
+    }
+
     private void openNewQueryTab() {
         Tab queryTab = new Tab("New Query");
         queryTab.setClosable(true);
@@ -119,9 +154,14 @@ public class MainWindow extends BorderPane {
         Tab builderTab = new Tab("Query Builder");
         builderTab.setClosable(true);
         
-        QueryBuilder queryBuilder = new QueryBuilder(connectionManager, dbExplorer.getSelectedDatabase());
-        builderTab.setContent(queryBuilder);
+        // Create a VisualQueryBuilder directly instead of QueryBuilder
+        VisualQueryBuilder visualBuilder = new VisualQueryBuilder(connectionManager, 
+            sql -> {
+                // Open the generated SQL in a new query tab
+                openNewQueryTab("Query", sql);
+            });
         
+        builderTab.setContent(visualBuilder);
         tabPane.getTabs().add(builderTab);
         tabPane.getSelectionModel().select(builderTab);
     }

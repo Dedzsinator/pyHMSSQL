@@ -1,7 +1,6 @@
-package controllers;
+package com.pyhmssql.client.controllers;
 
-import model.TableMetadata;
-import model.ColumnMetadata;
+import com.pyhmssql.client.model.TableMetadata;
 import javafx.geometry.Point2D;
 
 import java.util.HashMap;

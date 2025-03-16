@@ -1,12 +1,11 @@
-package controllers;
+package com.pyhmssql.client.controllers;
 
-import main.ConnectionManager;
-import model.ColumnSelectionModel;
-import model.ConditionModel;
-import model.JoinModel;
-import model.QueryModel;
-import model.TableMetadata;
-import utils.QueryValidator;
+import com.pyhmssql.client.main.ConnectionManager;
+import com.pyhmssql.client.model.ColumnSelectionModel;
+import com.pyhmssql.client.model.ConditionModel;
+import com.pyhmssql.client.model.QueryModel;
+import com.pyhmssql.client.model.TableMetadata;
+import com.pyhmssql.client.utils.QueryValidator;
 
 import java.util.List;
 import java.util.Map;

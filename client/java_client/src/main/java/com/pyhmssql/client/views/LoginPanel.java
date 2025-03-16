@@ -1,18 +1,14 @@
-package views;
+package com.pyhmssql.client.views;
 
-import main.ConnectionManager;
+import com.pyhmssql.client.main.ConnectionManager;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.util.Callback;
-import java.util.Map;
-import java.util.function.Consumer;
 
 public class LoginPanel extends GridPane {
     private TextField usernameField;
     private PasswordField passwordField;
     private Button loginButton;
-    private Button cancelButton;
     private ConnectionManager connectionManager;
     private Runnable onLoginSuccess;
     

@@ -1,12 +1,13 @@
-package model;
-
-import java.util.Objects;
+package com.pyhmssql.client.model;
 
 /**
- * Model class representing a database object (database, table, column, etc.)
+ * Interface for all database objects
  */
-public class DatabaseObject {
-    public enum ObjectType {
+public interface DatabaseObject {
+    /**
+     * The type of database object (table, column, etc.)
+     */
+    public enum DatabaseObjectType {
         DATABASE,
         TABLE,
         VIEW,
@@ -19,81 +20,15 @@ public class DatabaseObject {
         UNKNOWN
     }
     
-    private final String name;
-    private final ObjectType type;
-    private final String database;
-    private final String parent;  // parent object name (e.g., table name for a column)
-    
-    public DatabaseObject(String name, ObjectType type) {
-        this(name, type, null, null);
-    }
-    
-    public DatabaseObject(String name, ObjectType type, String database) {
-        this(name, type, database, null);
-    }
-    
-    public DatabaseObject(String name, ObjectType type, String database, String parent) {
-        this.name = name;
-        this.type = type;
-        this.database = database;
-        this.parent = parent;
-    }
-    
-    public String getName() {
-        return name;
-    }
-    
-    public ObjectType getType() {
-        return type;
-    }
-    
-    public String getDatabase() {
-        return database;
-    }
-    
-    public String getParent() {
-        return parent;
-    }
+    /**
+     * Gets the type of this database object
+     * @return The database object type
+     */
+    DatabaseObjectType getType();
     
     /**
-     * Gets the full name of this object including database and parent if applicable
-     * @return The full name
+     * Gets the display name of this object
+     * @return The name to display in UI
      */
-    public String getFullName() {
-        StringBuilder fullName = new StringBuilder();
-        
-        if (database != null && !database.isEmpty()) {
-            fullName.append(database).append(".");
-            
-            if (type == ObjectType.COLUMN && parent != null && !parent.isEmpty()) {
-                fullName.append(parent).append(".");
-            }
-        } else if (type == ObjectType.COLUMN && parent != null && !parent.isEmpty()) {
-            fullName.append(parent).append(".");
-        }
-        
-        fullName.append(name);
-        return fullName.toString();
-    }
-    
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DatabaseObject that = (DatabaseObject) o;
-        return Objects.equals(name, that.name) && 
-               type == that.type && 
-               Objects.equals(database, that.database) && 
-               Objects.equals(parent, that.parent);
-    }
-    
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, type, database, parent);
-    }
-    
-    @Override
-    public String toString() {
-        return getFullName();
-    }
+    String getDisplayName();
 }

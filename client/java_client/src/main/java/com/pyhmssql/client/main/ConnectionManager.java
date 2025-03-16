@@ -1,4 +1,4 @@
-package main;
+package com.pyhmssql.client.main;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;

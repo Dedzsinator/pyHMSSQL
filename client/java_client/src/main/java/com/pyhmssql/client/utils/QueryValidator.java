@@ -1,8 +1,8 @@
-package utils;
+package com.pyhmssql.client.utils;
 
-import model.ColumnSelectionModel;
-import model.JoinModel;
-import model.QueryModel;
+import com.pyhmssql.client.model.ColumnSelectionModel;
+import com.pyhmssql.client.model.JoinModel;
+import com.pyhmssql.client.model.QueryModel;
 
 import java.util.ArrayList;
 import java.util.List;

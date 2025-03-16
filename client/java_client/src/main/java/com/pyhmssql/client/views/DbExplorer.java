@@ -1,6 +1,6 @@
-package views;
+package com.pyhmssql.client.views;
 
-import main.ConnectionManager;
+import com.pyhmssql.client.main.ConnectionManager;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.input.MouseEvent;
@@ -13,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 public class DbExplorer extends VBox {
     private TreeView<String> treeView;
     private TreeItem<String> rootItem;
+    private TreeItem<String> tableNode = null;
     private ConnectionManager connectionManager;
     private String selectedDatabase;
     
@@ -112,7 +113,6 @@ public class DbExplorer extends VBox {
         if (dbNode == null) return;
         
         // Find the table node
-        TreeItem<String> tableNode = null;
         for (TreeItem<String> node : dbNode.getChildren()) {
             if (node.getValue().equals(table)) {
                 tableNode = node;
@@ -222,31 +222,29 @@ public class DbExplorer extends VBox {
     }
     
     private void showNewDatabaseDialog() {
-        // Implementation for creating a new database dialog
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Create Database");
         dialog.setHeaderText("Create a new database");
         dialog.setContentText("Database name:");
         
-        dialog.showAndWait().ifPresent(dbName -> {
-            if (!dbName.isEmpty()) {
-                executeQuery("CREATE DATABASE " + dbName);
+        dialog.showAndWait().ifPresent(inputName -> {
+            // Create a final copy of the variable that can be used in the lambda
+            if (!inputName.isEmpty()) {
+                executeQuery("CREATE DATABASE " + inputName);
             }
         });
     }
-    
+
     private void showNewTableDialog(String dbName) {
-        // Implementation for creating a new table dialog
-        // This would be a more complex dialog with fields for column definitions
-        // For simplicity, we'll just show a text input for a SQL create table statement
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Create Table");
         dialog.setHeaderText("Create a new table in database " + dbName);
         dialog.setContentText("SQL Statement:");
         
-        dialog.showAndWait().ifPresent(sql -> {
-            if (!sql.isEmpty()) {
-                executeQuery(sql);
+        dialog.showAndWait().ifPresent(inputSql -> {
+            // Create a final copy of the variable that can be used in the lambda
+            if (!inputSql.isEmpty()) {
+                executeQuery(inputSql);
             }
         });
     }

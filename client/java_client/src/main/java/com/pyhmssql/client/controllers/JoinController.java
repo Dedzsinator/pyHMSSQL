@@ -1,7 +1,6 @@
-package controllers;
+package com.pyhmssql.client.controllers;
 
-import model.JoinModel;
-import model.TableMetadata;
+import com.pyhmssql.client.model.JoinModel;
 
 import java.util.HashMap;
 import java.util.List;
@@ -79,7 +78,7 @@ public class JoinController {
                 join.getRightTable().equals(rightTable) && 
                 join.getRightColumn().equals(rightColumn)) {
                 
-                join.setJoinType(JoinModel.JoinType.fromString(joinType));
+                join.setType(JoinModel.JoinType.fromString(joinType));
                 return;
             }
         }

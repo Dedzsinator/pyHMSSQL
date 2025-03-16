@@ -1,4 +1,4 @@
-package utils;
+package com.pyhmssql.client.utils;
 
 import java.util.Arrays;
 import java.util.HashSet;

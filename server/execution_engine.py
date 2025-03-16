@@ -504,6 +504,128 @@ class ExecutionEngine:
         Execute DROP VIEW queries.
         """
         return self.catalog_manager.drop_view(plan['view_name'])
+
+    def execute_create_database(self, plan):
+        """Execute CREATE DATABASE operation"""
+        database_name = plan['database']
+        result = self.catalog_manager.create_database(database_name)
+        return {"message": result}
+
+    def execute_drop_database(self, plan):
+        """Execute DROP DATABASE operation"""
+        database_name = plan['database']
+        result = self.catalog_manager.drop_database(database_name)
+        return {"message": result}
+    
+    def execute_create_index(self, plan):
+        """
+        Execute CREATE INDEX operation.
+        """
+        index_name = plan['index_name']
+        table_name = plan['table']
+        column = plan['column']
+        is_unique = plan.get('unique', False)
+        
+        # First, check if table exists
+        db = self.client['dbms_project']
+        if table_name not in db.list_collection_names():
+            return {"message": f"Table '{table_name}' does not exist."}
+        
+        # Register the index in the catalog
+        self.catalog_manager.create_index(table_name, column, index_name, is_unique)
+        
+        # Create the actual B+ tree index
+        collection = db[table_name]
+        index = self.index_manager.create_index(f"{table_name}.{index_name}", is_unique)
+        
+        # Populate the index with existing data
+        for doc in collection.find():
+            if column in doc:
+                index.insert(doc[column], str(doc['_id']))
+        
+        return {"message": f"Index '{index_name}' created on '{table_name}.{column}'"}
+
+    def execute_drop_index(self, plan):
+        """
+        Execute DROP INDEX operation.
+        """
+        index_name = plan['index_name']
+        table_name = plan['table']
+        
+        # Remove the index from the catalog
+        result = self.catalog_manager.drop_index(table_name, index_name)
+        
+        # Remove the actual B+ tree index
+        if result:
+            self.index_manager.drop_index(f"{table_name}.{index_name}")
+            return {"message": f"Index '{index_name}' dropped from '{table_name}'"}
+        else:
+            return {"message": f"Index '{index_name}' does not exist on '{table_name}'"}
+
+    def execute_show(self, plan):
+        """
+        Execute SHOW commands.
+        """
+        object_type = plan['object']
+        
+        if object_type == "DATABASES":
+            # List all databases
+            databases = self.catalog_manager.get_databases()
+            return {
+                "columns": ["Database Name"],
+                "rows": [[db] for db in databases]
+            }
+        
+        elif object_type == "TABLES":
+            # List all tables
+            tables = self.catalog_manager.get_tables()
+            return {
+                "columns": ["Table Name"],
+                "rows": [[table] for table in tables]
+            }
+        
+        elif object_type == "INDEXES":
+            # List indexes for a specific table or all indexes
+            table_name = plan.get('table')
+            if table_name:
+                indexes = self.catalog_manager.get_indexes_for_table(table_name)
+                return {
+                    "columns": ["Index Name", "Column", "Unique"],
+                    "rows": [[idx, info['column'], "Yes" if info['unique'] else "No"] 
+                            for idx, info in indexes.items()]
+                }
+            else:
+                all_indexes = self.catalog_manager.get_all_indexes()
+                return {
+                    "columns": ["Table", "Index Name", "Column", "Unique"],
+                    "rows": [[table, idx, info['column'], "Yes" if info['unique'] else "No"] 
+                            for table, indexes in all_indexes.items() 
+                            for idx, info in indexes.items()]
+                }
+        
+        else:
+            return {"message": f"Unknown object type: {object_type}"}
+    
+    def execute_create_table(self, plan):
+        """
+        Execute CREATE TABLE operation.
+        """
+        table_name = plan['table']
+        columns = plan['columns']
+        constraints = plan.get('constraints', [])
+        
+        # Check if the table already exists
+        db = self.client['dbms_project']
+        if table_name in db.list_collection_names():
+            return {"message": f"Table '{table_name}' already exists."}
+        
+        # Create the table (collection) in MongoDB
+        collection = db[table_name]
+        
+        # Register the table and its schema in the catalog
+        self.catalog_manager.create_table(table_name, columns, constraints)
+        
+        return {"message": f"Table '{table_name}' created successfully."}
     
     def execute(self, plan):
         """
@@ -521,6 +643,16 @@ class ExecutionEngine:
             return self.execute_create_table(plan)
         elif plan['type'] == "DROP_TABLE":
             return self.execute_drop_table(plan)
+        elif plan['type'] == "CREATE_DATABASE":
+            return self.execute_create_database(plan)
+        elif plan['type'] == "DROP_DATABASE":
+            return self.execute_drop_database(plan)
+        elif plan['type'] == "CREATE_INDEX":
+            return self.execute_create_index(plan)
+        elif plan['type'] == "DROP_INDEX":
+            return self.execute_drop_index(plan)
+        elif plan['type'] == "SHOW":
+            return self.execute_show(plan)
         elif plan['type'] == "BEGIN_TRANSACTION":
             return self.execute_begin_transaction()
         elif plan['type'] == "COMMIT_TRANSACTION":
@@ -534,4 +666,4 @@ class ExecutionEngine:
         elif plan['type'] == "DROP_VIEW":
             return self.execute_drop_view(plan)
         else:
-            raise ValueError("Unsupported plan type.")
+            raise ValueError(f"Unsupported plan type: {plan['type']}")

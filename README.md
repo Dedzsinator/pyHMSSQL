@@ -142,7 +142,7 @@ Start the java client (experimental):
 
 ```bash
 cd e:\Programming\pyHMSSQL\client\java_client
-mvn -U clean install
+mvn clean compile
 mvn javafx:run
 ```
 
@@ -162,77 +162,241 @@ mvn clean package
 ## 📝 Example Commands
 
 ```sql
--- Login to the system
-DBMS> login username password
+-- Create a regular user
+register user1 user
 
--- Create a new database
-DBMS> create database mydb
+-- Create an admin user
+register admin admin
 
--- Create a table
-DBMS> create table mydb users id:int name:varchar age:int
+-- Login as user
+login user1
+Password: *****
 
--- Create an index on the name column
-DBMS> create index mydb users idx_name name
+-- Login as admin
+login admin
+Password: *****
 
--- Insert data
-DBMS> query INSERT INTO users (id, name, age) VALUES (1, 'Alice', 30)
-
--- Query data
-DBMS> query SELECT * FROM users WHERE name = 'Alice'
-
--- Join example
-DBMS> query SELECT * FROM users INNER JOIN orders ON users.id = orders.user_id
-
--- Aggregation example
-DBMS> query SELECT AVG(age) FROM users
-
--- Delete data
-DBMS> query DELETE FROM users WHERE id = 1
-
--- Run SQL script from file
-DBMS> files path/to/script.sql
-
--- Set user preferences
-DBMS> query SET PREFERENCE pretty_print true
-
--- Begin a transaction
-DBMS> query BEGIN TRANSACTION
-
--- Commit a transaction
-DBMS> query COMMIT
+-- Check current status
+status
 
 -- Logout
-DBMS> logout
+logout
+
+-- Create a database (admin only)
+query CREATE DATABASE test_db
+
+-- List all databases
+query SHOW DATABASES
+
+-- Drop a database (admin only)
+query DROP DATABASE test_db
+
+-- Create database for testing
+query CREATE DATABASE test_db
+
+-- Create a simple table
+query CREATE TABLE customers (id INT PRIMARY KEY, name TEXT, email VARCHAR(100), age INT)
+
+-- Create a table with constraints
+query CREATE TABLE orders (
+    id INT PRIMARY KEY,
+    customer_id INT,
+    order_date DATETIME,
+    total DECIMAL(10,2),
+    status VARCHAR(20),
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+)
+
+-- Show all tables
+query SHOW TABLES
+
+-- Drop a table
+query DROP TABLE orders
+
+-- Create a non-unique index
+query CREATE INDEX idx_customer_name ON customers (name)
+
+-- Create a unique index
+query CREATE UNIQUE INDEX idx_customer_email ON customers (email)
+
+-- Show all indexes
+query SHOW INDEXES
+
+-- Show indexes for a specific table
+query SHOW INDEXES FOR customers
+
+-- Drop an index
+query DROP INDEX idx_customer_name ON customers
+
+-- Insert single record
+query INSERT INTO customers (id, name, email, age) VALUES (1, 'John Doe', 'john@example.com', 30)
+
+-- Insert multiple records
+query INSERT INTO customers (id, name, email, age) VALUES (2, 'Jane Smith', 'jane@example.com', 25)
+query INSERT INTO customers (id, name, email, age) VALUES (3, 'Bob Johnson', 'bob@example.com', 45)
+query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'alice@example.com', 35)
+
+-- Simple SELECT
+query SELECT * FROM customers
+
+-- SELECT with column projection
+query SELECT id, name FROM customers
+
+-- SELECT with WHERE condition
+query SELECT * FROM customers WHERE age > 30
+
+-- SELECT with sorting
+query SELECT * FROM customers ORDER BY age DESC
+
+-- SELECT with LIMIT
+query SELECT * FROM customers LIMIT 2
+
+-- Update records
+query UPDATE customers SET age = 31 WHERE id = 1
+
+-- Delete a record
+query DELETE FROM customers WHERE id = 4
+
+-- Delete all records
+query DELETE FROM customers
+
+-- Insert test data
+query INSERT INTO customers (id, name, email, age) VALUES (1, 'John Doe', 'john@example.com', 30)
+query INSERT INTO customers (id, name, email, age) VALUES (2, 'Jane Smith', 'jane@example.com', 25)
+query INSERT INTO customers (id, name, email, age) VALUES (3, 'Bob Johnson', 'bob@example.com', 45)
+query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'alice@example.com', 35)
+
+-- AVG function
+query SELECT AVG(age) FROM customers
+
+-- COUNT function
+query SELECT COUNT(*) FROM customers
+
+-- MAX function
+query SELECT MAX(age) FROM customers
+
+-- MIN function
+query SELECT MIN(age) FROM customers
+
+-- SUM function
+query SELECT SUM(age) FROM customers
+
+-- TOP N query
+query SELECT TOP 2 * FROM customers ORDER BY age DESC
+
+-- Create tables for join testing
+query CREATE TABLE departments (id INT PRIMARY KEY, name VARCHAR(100))
+query CREATE TABLE employees (
+    id INT PRIMARY KEY,
+    name VARCHAR(100),
+    dept_id INT,
+    salary DECIMAL(10,2),
+    FOREIGN KEY (dept_id) REFERENCES departments(id)
+)
+
+-- Insert test data
+query INSERT INTO departments (id, name) VALUES (1, 'Engineering')
+query INSERT INTO departments (id, name) VALUES (2, 'Marketing')
+query INSERT INTO departments (id, name) VALUES (3, 'Finance')
+
+query INSERT INTO employees (id, name, dept_id, salary) VALUES (1, 'Alice', 1, 75000)
+query INSERT INTO employees (id, name, dept_id, salary) VALUES (2, 'Bob', 1, 70000)
+query INSERT INTO employees (id, name, dept_id, salary) VALUES (3, 'Charlie', 2, 65000)
+query INSERT INTO employees (id, name, dept_id, salary) VALUES (4, 'Dave', 2, 68000)
+query INSERT INTO employees (id, name, dept_id, salary) VALUES (5, 'Eve', 3, 78000)
+
+-- Join Operations
+query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id
+
+-- Hash Join
+query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id
+
+-- Sort-Merge Join
+query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id
+
+-- Subquery
+query SELECT * FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE name = 'Engineering')
+
+-- UNION
+query SELECT id, name FROM employees UNION SELECT id, name FROM departments
+
+-- INTERSECT
+query SELECT dept_id FROM employees INTERSECT SELECT id FROM departments
+
+-- EXCEPT
+query SELECT id FROM departments EXCEPT SELECT dept_id FROM employees
+
+-- AND operation
+query SELECT * FROM employees WHERE salary > 70000 AND dept_id = 1
+
+-- OR operation
+query SELECT * FROM employees WHERE salary > 75000 OR dept_id = 3
+
+-- NOT operation
+query SELECT * FROM departments WHERE NOT id IN (SELECT dept_id FROM employees)
+
+-- Start a transaction
+query BEGIN TRANSACTION
+
+-- Make changes within transaction
+query INSERT INTO departments (id, name) VALUES (4, 'HR')
+query UPDATE employees SET salary = 80000 WHERE id = 1
+
+-- Commit transaction
+query COMMIT TRANSACTION
+
+-- Test rollback
+query BEGIN TRANSACTION
+query DELETE FROM departments WHERE id = 3
+query ROLLBACK TRANSACTION
 
 -- Create a view
-DBMS> query CREATE VIEW active_users AS SELECT * FROM users WHERE active = true
+query CREATE VIEW engineering_staff AS SELECT * FROM employees WHERE dept_id = 1
 
--- Drop a view
-DBMS> query DROP VIEW active_users
+-- Query the view
+query SELECT * FROM engineering_staff
 
--- Create a stored procedure
-DBMS> query CREATE PROCEDURE add_user(name VARCHAR, age INT) 
-      BEGIN 
-        INSERT INTO users (name, age) VALUES (name, age); 
-      END
+-- Drop the view
+query DROP VIEW engineering_staff
 
--- Execute a stored procedure
-DBMS> query CALL add_user('John', 25)
+-- Get distinct departments
+query SELECT DISTINCT dept_id FROM employees
 
--- Create a function
-DBMS> query CREATE FUNCTION get_age(user_id INT) 
-      RETURNS INT 
-      BEGIN 
-        RETURN (SELECT age FROM users WHERE id = user_id); 
-      END
+-- Set display preferences
+query SET PREFERENCE max_results 50
+query SET PREFERENCE pretty_print true
 
--- Create a trigger
-DBMS> query CREATE TRIGGER update_log 
-      AFTER UPDATE ON users 
-      FOR EACH ROW 
-      BEGIN 
-        INSERT INTO logs VALUES (NEW.id, 'updated'); 
-      END
+-- Test preferences are applied
+query SELECT * FROM employees
+
+-- Show databases
+query SHOW DATABASES
+
+-- Show tables
+query SHOW TABLES
+
+-- Show indexes
+query SHOW INDEXES
+
+-- Show indexes for a specific table
+query SHOW INDEXES FOR employees
+
+-- Query with multiple joins, conditions and sorting
+query SELECT e.name, d.name, e.salary 
+FROM employees e 
+JOIN departments d ON e.dept_id = d.id 
+WHERE e.salary > 65000 
+ORDER BY e.salary DESC
+LIMIT 3
+
+-- Query with aggregation and grouping
+query SELECT dept_id, AVG(salary) as avg_salary, COUNT(*) as emp_count 
+FROM employees 
+GROUP BY dept_id
+
+-- Nested subqueries
+query SELECT * FROM employees 
+WHERE salary > (SELECT AVG(salary) FROM employees)
 ```
 
 ## 📊 Architecture

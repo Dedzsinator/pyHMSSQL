@@ -1,4 +1,4 @@
-package views;
+package com.pyhmssql.client.views;
 
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -6,13 +6,14 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import java.util.Map;
 import java.util.List;
-import java.util.ArrayList;
+import javafx.beans.property.SimpleStringProperty;
 
 public class ResultPane extends BorderPane {
     private TableView<ObservableList<String>> tableView;
     private TextArea messageArea;
     private TabPane tabPane;
-    
+    private Label statusLabel;
+
     public ResultPane() {
         // Set up the UI
         tabPane = new TabPane();
@@ -111,14 +112,20 @@ public class ResultPane extends BorderPane {
         tabPane.getSelectionModel().select(1);
     }
     
-    private void showError(String error) {
-        messageArea.appendText("ERROR: " + error + "\n");
-        tabPane.getSelectionModel().select(1);
-    }
-    
     public void clear() {
         tableView.getColumns().clear();
         tableView.getItems().clear();
         messageArea.clear();
+    }
+
+    public void showLoading() {
+        tableView.setPlaceholder(new ProgressIndicator());
+        statusLabel.setText("Executing query...");
+    }
+    
+    // Fix the showError method:
+    public void showError(String message) {
+        tableView.setPlaceholder(new Label("Error: " + message));
+        statusLabel.setText("Error: " + message);
     }
 }

@@ -1,4 +1,4 @@
-package main;
+package com.pyhmssql.client.main;
 
 import javafx.application.Application;
 import javafx.scene.Scene;

@@ -1,6 +1,6 @@
-package utils;
+package com.pyhmssql.client.utils;
 
-import model.QueryHistoryItem;
+import com.pyhmssql.client.model.QueryHistoryItem;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ public class QueryHistoryManager {
         );
         
         // Remove duplicates of the same query
-        queryHistory.removeIf(h -> h.getSql().equals(sql));
+        queryHistory.removeIf(h -> h.getQuery().equals(sql));
         
         // Add to the start of the list
         queryHistory.add(0, item);

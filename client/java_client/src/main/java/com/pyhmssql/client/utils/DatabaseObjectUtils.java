@@ -1,8 +1,8 @@
-package utils;
+package com.pyhmssql.client.utils;
 
-import model.DatabaseObject;
-import model.TableMetadata;
-import model.ColumnMetadata;
+import com.pyhmssql.client.model.DatabaseObject;
+import com.pyhmssql.client.model.TableMetadata;
+import com.pyhmssql.client.model.ColumnMetadata;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +38,7 @@ public class DatabaseObjectUtils {
      * @param object DatabaseObject
      * @return Icon name for the object type
      */
+    // Fix the incompatible type error with a proper type check:
     public static String getIconForDatabaseObject(DatabaseObject object) {
         switch (object.getType()) {
             case DATABASE:
@@ -47,12 +48,13 @@ public class DatabaseObjectUtils {
             case VIEW:
                 return "view-icon";
             case COLUMN:
-                ColumnMetadata col = (ColumnMetadata) object;
-                if (col.isPrimaryKey()) {
-                    return "primary-key-icon";
-                } else {
-                    return "column-icon";
+                if (object instanceof ColumnMetadata) {
+                    ColumnMetadata colMetadata = (ColumnMetadata) object;
+                    if (colMetadata.isPrimaryKey()) {
+                        return "primary-key-icon";
+                    }
                 }
+                return "column-icon";
             case INDEX:
                 return "index-icon";
             case PROCEDURE:

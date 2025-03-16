@@ -1,4 +1,4 @@
-package model;
+package com.pyhmssql.client.model;
 
 import java.util.Objects;
 
@@ -20,6 +20,26 @@ public class JoinModel {
         
         public String getSql() {
             return sql;
+        }
+        
+        /**
+         * Convert a string to a JoinType
+         * @param type The string representation of the join type
+         * @return The corresponding JoinType enum value
+         */
+        public static JoinType fromString(String type) {
+            if (type == null || type.isEmpty()) {
+                return INNER;
+            }
+            
+            for (JoinType joinType : values()) {
+                if (joinType.name().equalsIgnoreCase(type) || 
+                    joinType.getSql().equalsIgnoreCase(type)) {
+                    return joinType;
+                }
+            }
+            
+            return INNER;
         }
         
         @Override
@@ -47,8 +67,20 @@ public class JoinModel {
         return type;
     }
     
+    /**
+     * Set the join type
+     * @param type The JoinType enum value
+     */
     public void setType(JoinType type) {
         this.type = type;
+    }
+
+    /**
+     * Set the join type from a string representation
+     * @param typeStr String representation of join type
+     */
+    public void setJoinType(String typeStr) {
+        this.type = JoinType.fromString(typeStr);
     }
     
     public String getLeftTable() {
@@ -115,19 +147,7 @@ public class JoinModel {
                type.toString() + " " + 
                rightTable + "." + rightColumn;
     }
-
-    public static JoinType fromString(String type) {
-        switch (type.toUpperCase()) {
-            case "INNER JOIN":
-                return JoinType.INNER;
-            case "LEFT JOIN":
-                return JoinType.LEFT;
-            case "RIGHT JOIN":
-                return JoinType.RIGHT;
-            case "FULL JOIN":
-                return JoinType.FULL;
-            default:
-                throw new IllegalArgumentException("Invalid join type: " + type);
-        }
-    }
+    
+    // Remove this duplicate static method - it's already in the JoinType enum
+    // public static JoinType fromString(String type) { ... }
 }

@@ -1,6 +1,6 @@
-package controllers;
+package com.pyhmssql.client.controllers;
 
-import model.ColumnSelectionModel;
+import com.pyhmssql.client.model.ColumnSelectionModel;
 
 import java.util.HashMap;
 import java.util.List;

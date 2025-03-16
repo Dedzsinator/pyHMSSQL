@@ -1,9 +1,9 @@
-package views;
+package com.pyhmssql.client.views;
 
-import main.ConnectionManager;
-import model.TableMetadata;
-import model.ColumnMetadata;
-import utils.SQLFormatter;
+import com.pyhmssql.client.main.ConnectionManager;
+import com.pyhmssql.client.model.TableMetadata;
+import com.pyhmssql.client.model.ColumnMetadata;
+import com.pyhmssql.client.utils.SQLFormatter;
 
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -20,6 +20,7 @@ import javafx.scene.shape.Line;
 import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.scene.Node;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -394,7 +395,7 @@ public class VisualQueryBuilder extends BorderPane {
                 for (ColumnMetadata column : metadata.getColumns()) {
                     Map<String, String> row = new HashMap<>();
                     row.put("name", column.getName());
-                    row.put("type", column.getType());
+                    row.put("type", column.getType().toString());
                     data.add(row);
                     
                     // Also update the ORDER BY combobox
@@ -823,6 +824,10 @@ public class VisualQueryBuilder extends BorderPane {
             updateColumnComboForTable(tableCombo.getValue(), columnCombo);
         });
         
+        // Value field - moved up before it's referenced
+        TextField valueField = new TextField();
+        valueField.setPromptText("Value");
+        
         // Operator selection
         ComboBox<String> operatorCombo = new ComboBox<>();
         operatorCombo.getItems().addAll("=", "<>", ">", "<", ">=", "<=", "LIKE", "IN", "NOT IN", "IS NULL", "IS NOT NULL");
@@ -832,9 +837,6 @@ public class VisualQueryBuilder extends BorderPane {
             updateValueFieldVisibility(operatorCombo.getValue(), valueField, conditionRow);
         });
         
-        // Value field
-        TextField valueField = new TextField();
-        valueField.setPromptText("Value");
         valueField.textProperty().addListener((obs, oldVal, newVal) -> 
             condition.setValue(newVal)
         );

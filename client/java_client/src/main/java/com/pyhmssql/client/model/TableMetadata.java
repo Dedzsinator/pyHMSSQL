@@ -1,8 +1,10 @@
-package model;
+package com.pyhmssql.client.model;
 
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.Map;
 
 /**
  * Model class representing a database table's metadata
@@ -36,6 +38,19 @@ public class TableMetadata {
             .filter(col -> columnName.equals(col.getName()))
             .findFirst()
             .orElse(null);
+    }
+
+    public static TableMetadata fromColumnsData(String tableName, List<Map<String, Object>> columnsData) {
+        List<ColumnMetadata> columns = columnsData.stream()
+            .map(data -> new ColumnMetadata(
+                (String) data.get("name"),
+                (String) data.get("type"),
+                (Boolean) data.getOrDefault("primary_key", false),
+                (Boolean) data.getOrDefault("nullable", true)
+            ))
+            .collect(Collectors.toList());
+        
+        return new TableMetadata(tableName, columns);
     }
     
     /**

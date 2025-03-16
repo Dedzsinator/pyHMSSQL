@@ -67,19 +67,20 @@ class CatalogManager:
         logging.info(f"Database {db_name} dropped.")
         return f"Database {db_name} dropped."
     
-    def create_table(self, db_name, table_name, columns):
-        logging.debug(f"Creating table: {table_name} in database: {db_name} with columns: {columns}")
-        if not self.databases.find_one({"_id": db_name}):
-            logging.warning(f"Database {db_name} does not exist.")
-            return f"Database {db_name} does not exist."
-        table_id = f"{db_name}.{table_name}"
-        if self.tables.find_one({"_id": table_id}):
-            logging.warning(f"Table {table_name} already exists in database {db_name}.")
-            return f"Table {table_name} already exists in database {db_name}."
-        self.tables.insert_one({"_id": table_id, "columns": columns})
-        self.databases.update_one({"_id": db_name}, {"$push": {"tables": table_name}})
-        logging.info(f"Table {table_name} created in database {db_name}.")
-        return f"Table {table_name} created in database {db_name}."
+    def create_table(self, table_name, columns, constraints):
+        """
+        Register a new table and its schema in the catalog.
+        """
+        schema = {
+            "columns": columns,
+            "constraints": constraints
+        }
+        
+        # Store the schema in a special collection
+        self.db['catalog'].insert_one({
+            "table_name": table_name,
+            "schema": schema
+        })
     
     def drop_table(self, db_name, table_name):
         logging.debug(f"Dropping table: {table_name} from database: {db_name}")
