@@ -185,51 +185,56 @@ status
 -- Logout
 logout
 
+-- Visualize a specific index
+VISUALIZE INDEX idx_customer_email ON customers;
+
+-- Visualize all indexes on a table
+VISUALIZE INDEX ON customers;
+
+-- Visualize all indexes in the database
+VISUALIZE INDEX;
+
 -- Create a database (admin only)
-query CREATE DATABASE test_db
+query CREATE DATABASE test_db ✅
 
 -- List all databases
-query SHOW DATABASES
+query SHOW DATABASES ✅
 
 -- Drop a database (admin only)
-query DROP DATABASE test_db
+query DROP DATABASE test_db ✅
 
 -- Create database for testing
-query CREATE DATABASE test_db
+query CREATE DATABASE test_db ✅
+
+-- Use the test database
+query USE test_db ✅
 
 -- Create a simple table
-query CREATE TABLE customers (id INT PRIMARY KEY, name TEXT, email VARCHAR(100), age INT)
+query CREATE TABLE customers (id INT PRIMARY KEY, name String, email VARCHAR(100), age INT) ✅
 
 -- Create a table with constraints
-query CREATE TABLE orders (
-    id INT PRIMARY KEY,
-    customer_id INT,
-    order_date DATETIME,
-    total DECIMAL(10,2),
-    status VARCHAR(20),
-    FOREIGN KEY (customer_id) REFERENCES customers(id)
-)
+query CREATE TABLE orders (id INT PRIMARY KEY,customer_id INT,order_date DATETIME,total DECIMAL(10,2),status VARCHAR(20),FOREIGN KEY (customer_id) REFERENCES customers(id)) ✅
 
 -- Show all tables
-query SHOW TABLES
+query SHOW TABLES ✅
 
 -- Drop a table
-query DROP TABLE orders
+query DROP TABLE orders ✅
 
 -- Create a non-unique index
-query CREATE INDEX idx_customer_name ON customers (name)
+query CREATE INDEX idx_customer_name ON customers (name) ✅
 
 -- Create a unique index
-query CREATE UNIQUE INDEX idx_customer_email ON customers (email)
+query CREATE UNIQUE INDEX idx_customer_email ON customers (email) ✅
 
 -- Show all indexes
-query SHOW INDEXES
+query SHOW INDEXES ✅
 
 -- Show indexes for a specific table
-query SHOW INDEXES FOR customers
+query SHOW INDEXES FOR customers ✅
 
 -- Drop an index
-query DROP INDEX idx_customer_name ON customers
+query DROP INDEX idx_customer_name ON customers ✅
 
 -- Insert single record
 query INSERT INTO customers (id, name, email, age) VALUES (1, 'John Doe', 'john@example.com', 30)
@@ -240,28 +245,28 @@ query INSERT INTO customers (id, name, email, age) VALUES (3, 'Bob Johnson', 'bo
 query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'alice@example.com', 35)
 
 -- Simple SELECT
-query SELECT * FROM customers
+query SELECT * FROM customers ~
 
 -- SELECT with column projection
-query SELECT id, name FROM customers
+query SELECT id, name FROM customers ~
 
 -- SELECT with WHERE condition
-query SELECT * FROM customers WHERE age > 30
+query SELECT * FROM customers WHERE age > 30 ~
 
 -- SELECT with sorting
-query SELECT * FROM customers ORDER BY age DESC
+query SELECT * FROM customers ORDER BY age DESC ~
 
 -- SELECT with LIMIT
-query SELECT * FROM customers LIMIT 2
+query SELECT * FROM customers LIMIT 2 ~
 
 -- Update records
 query UPDATE customers SET age = 31 WHERE id = 1
 
 -- Delete a record
-query DELETE FROM customers WHERE id = 4
+query DELETE FROM customers WHERE id = 4 ~
 
 -- Delete all records
-query DELETE FROM customers
+query DELETE FROM customers ~
 
 -- Insert test data
 query INSERT INTO customers (id, name, email, age) VALUES (1, 'John Doe', 'john@example.com', 30)
@@ -270,32 +275,28 @@ query INSERT INTO customers (id, name, email, age) VALUES (3, 'Bob Johnson', 'bo
 query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'alice@example.com', 35)
 
 -- AVG function
-query SELECT AVG(age) FROM customers
+query SELECT AVG(age) FROM customers ~
 
 -- COUNT function
-query SELECT COUNT(*) FROM customers
+query SELECT COUNT(*) FROM customers ~
 
 -- MAX function
-query SELECT MAX(age) FROM customers
+query SELECT MAX(age) FROM customers ~
 
 -- MIN function
-query SELECT MIN(age) FROM customers
+query SELECT MIN(age) FROM customers ~
 
 -- SUM function
-query SELECT SUM(age) FROM customers
+query SELECT SUM(age) FROM customers ~
 
 -- TOP N query
-query SELECT TOP 2 * FROM customers ORDER BY age DESC
+query SELECT TOP 2 * FROM customers ORDER BY age DESC ~
+
+---
 
 -- Create tables for join testing
 query CREATE TABLE departments (id INT PRIMARY KEY, name VARCHAR(100))
-query CREATE TABLE employees (
-    id INT PRIMARY KEY,
-    name VARCHAR(100),
-    dept_id INT,
-    salary DECIMAL(10,2),
-    FOREIGN KEY (dept_id) REFERENCES departments(id)
-)
+query CREATE TABLE employees (id INT PRIMARY KEY,name VARCHAR(100),dept_id INT,salary DECIMAL(10,2),FOREIGN KEY (dept_id) REFERENCES departments(id))
 
 -- Insert test data
 query INSERT INTO departments (id, name) VALUES (1, 'Engineering')
@@ -309,7 +310,7 @@ query INSERT INTO employees (id, name, dept_id, salary) VALUES (4, 'Dave', 2, 68
 query INSERT INTO employees (id, name, dept_id, salary) VALUES (5, 'Eve', 3, 78000)
 
 -- Join Operations
-query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id
+query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id !!!!
 
 -- Hash Join
 query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id

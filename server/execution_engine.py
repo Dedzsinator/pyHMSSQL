@@ -8,7 +8,8 @@ class ExecutionEngine:
     def __init__(self, catalog_manager, index_manager):
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
-        self.client = MongoClient('localhost', 27017)
+        self.client = catalog_manager.client
+        self.current_database = catalog_manager.get_current_database()
         self.transaction_stack = []
         self.preferences = self.catalog_manager.get_preferences()
     
@@ -130,6 +131,9 @@ class ExecutionEngine:
         # Log the plan for debugging
         logging.debug(f"Executing join with plan: {plan}")
         
+        # Initialize result
+        result = []
+        
         if join_type == "HASH_JOIN":
             result = self.execute_hash_join(plan)
         elif join_type == "SORT_MERGE_JOIN":
@@ -208,23 +212,63 @@ class ExecutionEngine:
         """
         Execute a hash join.
         """
-        table1 = plan['table1']
-        table2 = plan['table2']
-        condition = plan['condition']
+        # Extract tables and condition
+        table1 = plan.get('table1', '')
+        table2 = plan.get('table2', '')
+        condition = plan.get('condition')
         
-        db = self.client['dbms_project']
-        collection1 = db[table1]
-        collection2 = db[table2]
+        # If condition is None, try to extract it from table2 (which may contain "ON clause")
+        if condition is None and ' ON ' in table2.upper():
+            parts = table2.split(' ON ', 1)
+            table2 = parts[0].strip()
+            condition = parts[1].strip()
         
-        # Parse the join condition (e.g., "table1.id = table2.id")
+        # Handle table aliases
+        table1_parts = table1.split()
+        table1_name = table1_parts[0]
+        table1_alias = table1_parts[1] if len(table1_parts) > 1 else table1_name
+        
+        table2_parts = table2.split()
+        table2_name = table2_parts[0]
+        table2_alias = table2_parts[1] if len(table2_parts) > 1 else table2_name
+        
+        # Get the current database
+        db_name = self.catalog_manager.get_current_database()
+        db = self.client[db_name]
+        
+        # Check if collections exist
+        if table1_name not in db.list_collection_names():
+            return {"error": f"Table '{table1_name}' does not exist in database '{db_name}'"}
+        if table2_name not in db.list_collection_names():
+            return {"error": f"Table '{table2_name}' does not exist in database '{db_name}'"}
+        
+        collection1 = db[table1_name]
+        collection2 = db[table2_name]
+        
+        # Parse join condition (e.g., "e.dept_id = d.id")
+        if not condition:
+            return {"error": "No join condition specified"}
+        
+        logging.debug(f"Join condition: {condition}")
         col1, col2 = condition.split('=')
-        col1 = col1.strip().split('.')[1]  # Extract column name
-        col2 = col2.strip().split('.')[1]  # Extract column name
+        col1 = col1.strip()
+        col2 = col2.strip()
         
-        # Build hash table for the smaller table
+        # Handle column references with aliases (e.g., "e.dept_id")
+        if '.' in col1:
+            alias1, col1_name = col1.split('.')
+        else:
+            col1_name = col1
+            
+        if '.' in col2:
+            alias2, col2_name = col2.split('.')
+        else:
+            col2_name = col2
+        
+        # Build hash table for the smaller table (typically collection1)
         hash_table = {}
         for doc in collection1.find():
-            key = doc[col1]
+            key = doc.get(col1_name.lower())  # MongoDB field names are case-sensitive
             if key not in hash_table:
                 hash_table[key] = []
             hash_table[key].append(doc)
@@ -232,13 +276,55 @@ class ExecutionEngine:
         # Perform the join
         result = []
         for doc in collection2.find():
-            key = doc[col2]
+            key = doc.get(col2_name.lower())  # MongoDB field names are case-sensitive
             if key in hash_table:
                 for match in hash_table[key]:
-                    combined = {**match, **doc}
+                    # Create a combined document with aliased fields if needed
+                    combined = {}
+                    
+                    # Add fields from first table with alias prefix
+                    for field, value in match.items():
+                        if field != '_id':  # Skip MongoDB internal IDs
+                            combined[f"{table1_alias.lower()}.{field}"] = value
+                    
+                    # Add fields from second table with alias prefix
+                    for field, value in doc.items():
+                        if field != '_id':  # Skip MongoDB internal IDs
+                            combined[f"{table2_alias.lower()}.{field}"] = value
+                    
                     result.append(combined)
         
-        return result
+        # Process the result based on the requested columns
+        columns = plan.get('columns', ['*'])
+        formatted_result = []
+        
+        for doc in result:
+            row = []
+            for col in columns:
+                if col == '*':
+                    # Include all columns
+                    row.extend(doc.values())
+                else:
+                    # Include only the specified column
+                    col = col.lower()  # Case-insensitive matching
+                    if col in doc:
+                        row.append(doc[col])
+                    else:
+                        # Try with alias.column format
+                        found = False
+                        for key in doc:
+                            if key.lower() == col.lower():
+                                row.append(doc[key])
+                                found = True
+                                break
+                        if not found:
+                            row.append(None)
+            formatted_result.append(row)
+        
+        return {
+            "columns": columns,
+            "rows": formatted_result
+        }
     
     def execute_sort_merge_join(self, plan):
         """
@@ -405,30 +491,50 @@ class ExecutionEngine:
     
     def execute_insert(self, plan):
         """
-        Execute an INSERT query.
+        Execute INSERT operation.
         """
-        table_name = plan['table']
-        record = plan.get('record', {})
+        table_name = plan.get('table')
+        columns = plan.get('columns', [])
+        values_list = plan.get('values', [])
         
-        # Handle the case where we have raw values but no record dictionary yet
-        if not record and 'columns' in plan and 'values' in plan:
-            cols = plan['columns']
-            vals = plan['values'][0] if plan['values'] else []
-            record = dict(zip(cols, vals))
+        # Validate that we have a table name
+        if not table_name:
+            return {"error": "No table name specified for INSERT"}
         
-        db = self.client['dbms_project']
+        # Get the current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first."}
+        
+        db = self.client[db_name]
+        
+        # Validate that the table exists
+        if table_name not in db.list_collection_names():
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'."}
+        
+        # Get the collection
         collection = db[table_name]
         
-        # Insert into MongoDB
-        result = collection.insert_one(record)
+        # Format values into documents
+        docs = []
+        for values in values_list:
+            doc = {}
+            if len(columns) != len(values):
+                return {"error": "Column count doesn't match value count"}
+            
+            for i, col in enumerate(columns):
+                doc[col] = values[i]
+            
+            docs.append(doc)
         
-        # Update B+ Tree index if applicable
-        for column, index in self.catalog_manager.get_indexes(table_name).items():
-            if column in record:
-                index_name = f"{table_name}.idx_{column}"
-                self.index_manager.insert_into_index(index_name, record[column], str(result.inserted_id))
-        
-        return {"message": f"Inserted record into {table_name}.", "id": str(result.inserted_id)}
+        # Insert the documents
+        if docs:
+            result = collection.insert_many(docs)
+            return {
+                "message": f"Inserted {len(result.inserted_ids)} document(s) into '{db_name}.{table_name}'"
+            }
+        else:
+            return {"error": "No values to insert"}
     
     def execute_update(self, plan):
         """
@@ -436,28 +542,55 @@ class ExecutionEngine:
         """
         table_name = plan['table']
         condition = plan.get('condition')
-        updates = plan.get('updates')
+        updates = plan.get('set', {})  # This should match the field in the plan
         
-        db = self.client['dbms_project']
+        # Get the current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first."}
+            
+        db = self.client[db_name]
+        
+        # Validate that the table exists
+        if table_name not in db.list_collection_names():
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'."}
+        
         collection = db[table_name]
         
-        if condition:
-            # Parse the condition (e.g., "id = 1")
-            column, value = condition.split('=')
-            column = column.strip()
-            value = value.strip().strip("'")  # Remove quotes from strings
+        if not condition:
+            return {"error": "No condition provided for UPDATE query."}
+        
+        try:
+            # Parse the condition using existing utility method
+            query_filter = self._parse_condition(condition)
             
-            # Parse updates (e.g., "name = 'Bob'")
+            # Parse updates from the 'set' field in the plan
             update_dict = {}
-            for update in updates:
-                key, val = update.split('=')
-                update_dict[key.strip()] = val.strip().strip("'")
+            if isinstance(updates, dict):
+                update_dict = updates
+            else:
+                # Fallback for string format like "name = 'Bob'"
+                for update in updates if isinstance(updates, list) else [updates]:
+                    key, val = update.split('=', 1)
+                    key = key.strip()
+                    val = val.strip()
+                    
+                    # Handle quoted strings
+                    if val.startswith("'") and val.endswith("'"):
+                        val = val[1:-1]
+                    # Handle numbers
+                    elif val.isdigit():
+                        val = int(val)
+                    elif re.match(r'^[0-9]*\.[0-9]+$', val):
+                        val = float(val)
+                        
+                    update_dict[key] = val
             
             # Update MongoDB
-            result = collection.update_many({column: value}, {"$set": update_dict})
-            return f"Updated {result.modified_count} records in {table_name}."
-        else:
-            return "No condition provided for UPDATE query."
+            result = collection.update_many(query_filter, {"$set": update_dict})
+            return {"message": f"Updated {result.modified_count} records in {db_name}.{table_name}."}
+        except Exception as e:
+            return {"error": f"Error in UPDATE operation: {str(e)}"}
     
     def execute_delete(self, plan):
         """
@@ -596,10 +729,34 @@ class ExecutionEngine:
         return {"message": result}
 
     def execute_drop_database(self, plan):
-        """Execute DROP DATABASE operation"""
-        database_name = plan['database']
-        result = self.catalog_manager.drop_database(database_name)
-        return {"message": result}
+        """
+        Execute DROP DATABASE operation.
+        """
+        database_name = plan.get('database')
+        
+        if not database_name:
+            return {"error": "No database name specified"}
+        
+        # Check if the database exists
+        client = self.client
+        all_dbs = client.list_database_names()
+        
+        if database_name not in all_dbs:
+            return {"message": f"Database '{database_name}' does not exist."}
+        
+        # Drop the database
+        client.drop_database(database_name)
+        
+        # If this was the current database, reset to dbms_project
+        if self.catalog_manager.get_current_database() == database_name:
+            self.catalog_manager.set_current_database('dbms_project')
+        
+        # Clean up catalog entries for this database
+        catalog_db = self.client['dbms_project']
+        catalog_db.catalog.delete_many({"database": database_name})
+        catalog_db.indexes.delete_many({"database": database_name})
+        
+        return {"message": f"Database '{database_name}' dropped."}
     
     def execute_create_index(self, plan):
         """
@@ -610,25 +767,31 @@ class ExecutionEngine:
         column = plan['column']
         is_unique = plan.get('unique', False)
         
+        if not table_name:
+            return {"error": "Table name must be specified for CREATE INDEX"}
+        
         # First, check if table exists
-        db = self.client['dbms_project']
+        db_name = self.catalog_manager.get_current_database()
+        db = self.client[db_name]
+        
         if table_name not in db.list_collection_names():
-            return {"message": f"Table '{table_name}' does not exist."}
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'."}
+        
+        # Check if index already exists
+        indexes = self.catalog_manager.get_indexes_for_table(table_name)
+        if index_name in indexes:
+            return {"error": f"Index '{index_name}' already exists on '{table_name}'."}
         
         # Register the index in the catalog
-        self.catalog_manager.create_index(table_name, column, index_name, is_unique)
-        
-        # Create the actual B+ tree index
-        collection = db[table_name]
-        index = self.index_manager.create_index(f"{table_name}.{index_name}", is_unique)
-        
-        # Populate the index with existing data
-        for doc in collection.find():
-            if column in doc:
-                index.insert(doc[column], str(doc['_id']))
-        
-        return {"message": f"Index '{index_name}' created on '{table_name}.{column}'"}
-
+        try:
+            result = self.catalog_manager.create_index(table_name, index_name, column, is_unique)
+            if result:
+                return {"message": f"Index '{index_name}' created on '{table_name}.{column}'"}
+            else:
+                return {"error": f"Failed to create index '{index_name}' on '{table_name}'."}
+        except Exception as e:
+            return {"error": f"Error creating index: {str(e)}"}
+    
     def execute_drop_index(self, plan):
         """
         Execute DROP INDEX operation.
@@ -636,124 +799,145 @@ class ExecutionEngine:
         index_name = plan['index_name']
         table_name = plan['table']
         
-        # Remove the index from the catalog
-        result = self.catalog_manager.drop_index(table_name, index_name)
+        if not table_name:
+            return {"error": "Table name must be specified for DROP INDEX"}
+            
+        if not index_name:
+            return {"error": "Index name must be specified for DROP INDEX"}
         
-        # Remove the actual B+ tree index
-        if result:
-            self.index_manager.drop_index(f"{table_name}.{index_name}")
-            return {"message": f"Index '{index_name}' dropped from '{table_name}'"}
-        else:
-            return {"message": f"Index '{index_name}' does not exist on '{table_name}'"}
+        # Drop the index in MongoDB
+        db_name = self.catalog_manager.get_current_database()
+        
+        # Remove the index from the catalog
+        try:
+            result = self.catalog_manager.drop_index(table_name, index_name)
+            if result:
+                # Also remove from the index manager
+                self.index_manager.drop_index(f"{table_name}.{index_name}")
+                return {"message": f"Index '{index_name}' dropped from table '{table_name}'."}
+            else:
+                return {"error": f"Failed to drop index '{index_name}' from table '{table_name}'."}
+        except Exception as e:
+            return {"error": f"Error dropping index: {str(e)}"}
 
     def execute_show(self, plan):
         """
         Execute SHOW commands.
         """
-        object_type = plan['object']
+        object_type = plan.get('object')
         
-        if object_type == "DATABASES":
-            # List all databases
+        if not object_type:
+            return {"error": "No object type specified for SHOW command"}
+        
+        if object_type.upper() == 'DATABASES':
+            # List all user databases
             databases = self.catalog_manager.get_databases()
             return {
                 "columns": ["Database Name"],
                 "rows": [[db] for db in databases]
             }
         
-        elif object_type == "TABLES":
-            # List all tables
+        elif object_type.upper() == "TABLES":
+            # List all tables in the current database
             tables = self.catalog_manager.get_tables()
             return {
                 "columns": ["Table Name"],
                 "rows": [[table] for table in tables]
             }
         
-        elif object_type == "INDEXES":
-            # List indexes for a specific table or all indexes
+        elif object_type.upper() == "INDEXES":
+            # List indexes
             table_name = plan.get('table')
+            
             if table_name:
+                # Show indexes for a specific table
                 indexes = self.catalog_manager.get_indexes_for_table(table_name)
                 return {
                     "columns": ["Index Name", "Column", "Unique"],
-                    "rows": [[idx, info['column'], "Yes" if info['unique'] else "No"] 
+                    "rows": [[idx, info.get('column', ''), "Yes" if info.get('unique', False) else "No"] 
                             for idx, info in indexes.items()]
                 }
             else:
+                # Show all indexes
                 all_indexes = self.catalog_manager.get_all_indexes()
                 return {
                     "columns": ["Table", "Index Name", "Column", "Unique"],
-                    "rows": [[table, idx, info['column'], "Yes" if info['unique'] else "No"] 
+                    "rows": [[table, idx, info.get('column', ''), "Yes" if info.get('unique', False) else "No"] 
                             for table, indexes in all_indexes.items() 
                             for idx, info in indexes.items()]
                 }
         
-        elif object_type == "VIEWS":
-            # List all views
-            views = self.catalog_manager.get_views()
-            return {
-                "columns": ["View Name", "Query"],
-                "rows": [[view, query] for view, query in views.items()]
-            }
-        
-        elif object_type == "COLUMNS":
-            # Show columns for a specific table
-            table_name = plan.get('table')
-            if not table_name:
-                return {"error": "Table name must be specified for SHOW COLUMNS"}
-                
-            columns = self.catalog_manager.get_columns(table_name)
-            return {
-                "columns": ["Column Name", "Data Type", "Constraints"],
-                "rows": [[col["name"], col["type"], col.get("constraints", "")] 
-                        for col in columns]
-            }
-        
-        elif object_type == "CREATE":
-            # Show CREATE TABLE statement
-            table_name = plan.get('table')
-            if not table_name:
-                return {"error": "Table name must be specified for SHOW CREATE"}
-                
-            create_stmt = self.catalog_manager.get_create_statement(table_name)
-            return {
-                "columns": ["Table", "Create Statement"],
-                "rows": [[table_name, create_stmt]]
-            }
-        
         else:
-            return {"message": f"Unknown object type: {object_type}"}
-    
+            return {"error": f"Unknown object type: {object_type} for SHOW command"}
+
     def execute_create_table(self, plan):
         """
         Execute CREATE TABLE operation.
         """
-        table_name = plan['table']
-        columns = plan['columns']
-        constraints = plan.get('constraints', [])
+        table_name = plan.get('table')
+        column_strings = plan.get('columns', [])
         
-        # Check if the table already exists
-        db = self.client['dbms_project']
+        if not table_name:
+            return {"error": "No table name specified"}
+        
+        # Get the current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first."}
+        
+        db = self.client[db_name]
+        
+        # Check if table already exists
         if table_name in db.list_collection_names():
-            return {"message": f"Table '{table_name}' already exists."}
+            return {"error": f"Table '{table_name}' already exists in database '{db_name}'"}
         
-        # Create the table (collection) in MongoDB
-        collection = db[table_name]
+        # Parse column definitions
+        columns = []
+        constraints = []
         
-        # Register the table and its schema in the catalog
-        self.catalog_manager.create_table(table_name, columns, constraints)
+        for col_str in column_strings:
+            if col_str.upper().startswith(('PRIMARY', 'FOREIGN', 'UNIQUE', 'CHECK', 'CONSTRAINT')):
+                constraints.append(col_str)
+                continue
+            
+            parts = col_str.split()
+            if len(parts) >= 2:
+                col_name = parts[0]
+                col_type = parts[1]
+                
+                # Extract any inline constraints
+                col_constraints = ' '.join(parts[2:]) if len(parts) > 2 else ''
+                
+                columns.append({
+                    'name': col_name,
+                    'type': col_type,
+                    'constraints': col_constraints
+                })
         
-        return {"message": f"Table '{table_name}' created successfully."}
-    
+        # Create the table in MongoDB and catalog
+        try:
+            self.catalog_manager.create_table(table_name, columns, constraints)
+            return {"message": f"Table '{table_name}' created in database '{db_name}'"}
+        except Exception as e:
+            logging.error(f"Error creating table: {str(e)}")
+            return {"error": f"Error creating table: {str(e)}"}
+
     def execute_drop_table(self, plan):
         """
         Execute DROP TABLE operation.
         """
         table_name = plan['table']
         
+        # Get the current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first."}
+        
+        db = self.client[db_name]
+        
         # Check if the table exists
-        db = self.client['dbms_project']
         if table_name not in db.list_collection_names():
-            return {"message": f"Table '{table_name}' does not exist."}
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'."}
         
         # Drop the table (collection) in MongoDB
         db.drop_collection(table_name)
@@ -766,12 +950,115 @@ class ExecutionEngine:
         for index_name in indexes:
             self.index_manager.drop_index(f"{table_name}.{index_name}")
         
-        return {"message": f"Table '{table_name}' dropped successfully."}
+        return {"message": f"Table '{table_name}' dropped successfully from database '{db_name}'."}
+    
+    def execute_visualize(self, plan):
+        """
+        Execute a VISUALIZE command.
+        """
+        object_type = plan.get('object')
+        
+        if object_type == "INDEX":
+            return self.execute_visualize_index(plan)
+        
+        return {"error": f"Unknown visualization object: {object_type}"}
+
+    def execute_visualize_index(self, plan):
+        """
+        Execute a VISUALIZE INDEX command.
+        """
+        index_name = plan.get('index_name')
+        table_name = plan.get('table')
+        
+        # Get the current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first."}
+        
+        # Determine the index name format based on parameters
+        if table_name and index_name:
+            full_index_name = f"{table_name}.{index_name}"
+        elif table_name:
+            # Visualize all indexes for the table
+            indexes = self.catalog_manager.get_indexes_for_table(table_name)
+            if not indexes:
+                return {"error": f"No indexes found for table '{table_name}'"}
+                
+            results = []
+            for idx_name in indexes:
+                full_index_name = f"{table_name}.{idx_name}"
+                result = self.visualize_index(full_index_name)
+                if result:
+                    results.append(result)
+                    
+            return {
+                "message": f"Visualized {len(results)} indexes for table '{table_name}'",
+                "visualizations": results
+            }
+        else:
+            # Visualize all indexes
+            count = self.visualize_all_indexes()
+            return {"message": f"Visualized {count} indexes"}
+        
+        # Visualize specific index
+        result = self.visualize_index(full_index_name)
+        
+        if result:
+            return {
+                "message": f"Index '{full_index_name}' visualized successfully",
+                "visualization": result
+            }
+        else:
+            return {"error": f"Failed to visualize index '{full_index_name}'"}
+        
+    def visualize_index(self, index_name):
+        """
+        Visualize a single index.
+        """
+        # Get the index from the index manager
+        index = self.index_manager.get_index(index_name)
+        if not index:
+            return None
+            
+        # Generate a visualization
+        visualization_path = f"visualizations/{index_name}_visualization.png"
+        try:
+            # Check if we have the BPlusTreeVisualizer
+            from bptree import BPlusTreeVisualizer
+            visualizer = BPlusTreeVisualizer()
+            actual_path = index.visualize(visualizer, output_name=index_name)
+            
+            return {
+                "index_name": index_name,
+                "visualization_path": actual_path or visualization_path
+            }
+        except ImportError:
+            logging.warning("BPlusTreeVisualizer not available. Install graphviz for visualizations.")
+            return {
+                "index_name": index_name,
+                "error": "Visualization libraries not available"
+            }
+        
+    def visualize_all_indexes(self):
+        """
+        Visualize all indexes in the current database.
+        """
+        try:
+            # Check if we're running the visualization code
+            count = self.index_manager.visualize_all_indexes()
+            return count
+        except Exception as e:
+            logging.error(f"Error visualizing all indexes: {str(e)}")
+            return 0
     
     def execute(self, plan):
         """
         Execute a query plan.
         """
+        
+        if not plan:
+            return {"error": "No execution plan provided"}
+        
         plan_type = plan.get('type')
         
         if plan_type == 'SELECT':
@@ -804,5 +1091,36 @@ class ExecutionEngine:
             return self.execute_create_view(plan)
         elif plan_type == 'DROP_VIEW':
             return self.execute_drop_view(plan)
+        elif plan_type == 'USE_DATABASE':
+            return self.execute_use_database(plan)
+        elif plan_type == "VISUALIZE":
+            return self.execute_visualize(plan)
         else:
-            raise ValueError(f"Unknown plan type: {plan_type}")
+            return {"error": f"Unknown plan type: {plan_type}"}
+
+    def execute_use_database(self, plan):
+        """
+        Execute USE DATABASE operation.
+        """
+        database_name = plan.get('database')
+        
+        if not database_name:
+            return {"error": "No database name specified"}
+        
+        # Check if the database exists
+        client = self.client
+        all_dbs = client.list_database_names()
+        
+        # MongoDB is case-sensitive, so check exact match
+        if database_name not in all_dbs:
+            # Try to create it if it doesn't exist
+            client[database_name]
+            logging.info(f"Database '{database_name}' not found, created.")
+        
+        # Set the current database
+        self.current_database = database_name
+        
+        # Also store in catalog manager
+        self.catalog_manager.set_current_database(database_name)
+        
+        return {"message": f"Now using database '{database_name}'"}

@@ -1,55 +1,189 @@
 import logging
 import re
+import os
 
 class Planner:
     def __init__(self, catalog_manager, index_manager):
+        """
+        Initialize the query planner.
+        """
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
-        logging.basicConfig(level=logging.DEBUG)
+        
+        # Configure detailed logging
+        log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        
+        # Create a logs directory if it doesn't exist
+        if not os.path.exists('server/logs'):
+            os.makedirs('server/logs')
+        
+        # Set up file handler
+        file_handler = logging.FileHandler('server/logs/query_planner.log')
+        file_handler.setFormatter(logging.Formatter(log_format))
+        
+        # Set up console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter(log_format))
+        
+        # Configure logger
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        
+        # Remove existing handlers if any
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+        
+        # Add handlers
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
     
+    def log_execution_plan(self, plan):
+        """
+        Log the execution plan in logical order.
+        """
+        if not plan:
+            return plan
+            
+        plan_type = plan.get('type')
+        query_steps = []
+        
+        # Create a meaningful representation of the plan
+        if plan_type == 'CREATE_TABLE':
+            table = plan.get('table', '')
+            columns = plan.get('columns', [])
+            
+            query_steps.append(f"CREATE TABLE: {table}")
+            if columns:
+                if isinstance(columns[0], dict):
+                    cols_str = ', '.join([f"{col.get('name')} {col.get('type')}" for col in columns])
+                else:
+                    cols_str = ', '.join(columns)
+                query_steps.append(f"COLUMNS: {cols_str}")
+        
+        elif plan_type == 'CREATE_INDEX':
+            index_name = plan.get('index_name', '')
+            table_name = plan.get('table', '')
+            column_name = plan.get('column', '')
+            is_unique = plan.get('unique', False)
+            
+            query_steps.append(f"CREATE {'UNIQUE ' if is_unique else ''}INDEX: {index_name}")
+            query_steps.append(f"ON: {table_name}({column_name})")
+        
+        elif plan_type == 'DROP_TABLE':
+            table = plan.get('table', '')
+            query_steps.append(f"DROP TABLE: {table}")
+        
+        elif plan_type == 'DROP_INDEX':
+            index_name = plan.get('index_name', '')
+            table_name = plan.get('table', '')
+            query_steps.append(f"DROP INDEX: {index_name} ON {table_name}")
+        
+        elif plan_type == 'CREATE_DATABASE':
+            db_name = plan.get('database', '')
+            query_steps.append(f"CREATE DATABASE: {db_name}")
+        
+        elif plan_type == 'DROP_DATABASE':
+            db_name = plan.get('database', '')
+            query_steps.append(f"DROP DATABASE: {db_name}")
+        
+        elif plan_type == 'USE_DATABASE':
+            db_name = plan.get('database', '')
+            query_steps.append(f"USE DATABASE: {db_name}")
+        
+        elif plan_type == 'INSERT':
+            table = plan.get('table', '')
+            columns = plan.get('columns', [])
+            values = plan.get('values', [])
+            
+            query_steps.append(f"INSERT INTO: {table}")
+            if columns:
+                cols_str = ', '.join(columns)
+                query_steps.append(f"COLUMNS: {cols_str}")
+            
+            if values:
+                vals_str = str(values[0]) if values else ""
+                query_steps.append(f"VALUES: {vals_str}")
+        
+        # Log the execution plan steps
+        logging.info("=============================================")
+        logging.info(f"EXECUTION PLAN - {plan_type}")
+        logging.info("=============================================")
+        for step in query_steps:
+            logging.info(step)
+        logging.info("=============================================")
+        
+        # Log the plan objects for debugging
+        logging.info(f"Initial plan: {plan}")
+        
+        # Apply optimizations (placeholder for now)
+        optimized_plan = plan
+        logging.info(f"Optimized plan: {optimized_plan}")
+        
+        return optimized_plan
+
     def plan_query(self, parsed_query):
         """
         Generate an execution plan from the parsed query.
         """
+        plan = None
+        
         if parsed_query['type'] == "SELECT":
-            return self.plan_select(parsed_query)
+            plan = self.plan_select(parsed_query)
         elif parsed_query['type'] == "INSERT":
-            return self.plan_insert(parsed_query)
+            plan = self.plan_insert(parsed_query)
         elif parsed_query['type'] == "UPDATE":
-            return self.plan_update(parsed_query)
+            plan = self.plan_update(parsed_query)
         elif parsed_query['type'] == "DELETE":
-            return self.plan_delete(parsed_query)
+            plan = self.plan_delete(parsed_query)
         elif parsed_query['type'] == "CREATE":
-            # Check if this is a CREATE DATABASE, CREATE TABLE, or CREATE INDEX
-            if "table" in parsed_query and parsed_query["table"]:
-                return self.plan_create_table(parsed_query)
-            elif "database" in parsed_query and parsed_query["database"]:
-                return self.plan_create_database(parsed_query)
-            elif "index" in parsed_query and parsed_query["index"]:
-                return self.plan_create_index(parsed_query)
+            # Check what type of CREATE statement this is
+            create_type = parsed_query.get('create_type')
+            if create_type == "TABLE":
+                plan = self.plan_create_table(parsed_query)
+            elif create_type == "DATABASE":
+                plan = self.plan_create_database(parsed_query)
+            elif create_type == "INDEX":
+                plan = self.plan_create_index(parsed_query)
             else:
                 raise ValueError("Unsupported CREATE statement type.")
         elif parsed_query['type'] == "DROP":
-            # Check if this is a DROP DATABASE, DROP TABLE, or DROP INDEX
-            if "table" in parsed_query and parsed_query["table"]:
-                return self.plan_drop_table(parsed_query)
-            elif "database" in parsed_query and parsed_query["database"]:
-                return self.plan_drop_database(parsed_query)
-            elif "index" in parsed_query and parsed_query["index"]:
-                return self.plan_drop_index(parsed_query)
+            # Check what type of DROP statement this is
+            drop_type = parsed_query.get('drop_type')
+            if drop_type == "TABLE":
+                plan = self.plan_drop_table(parsed_query)
+            elif drop_type == "DATABASE":
+                plan = self.plan_drop_database(parsed_query)
+            elif drop_type == "INDEX":
+                plan = self.plan_drop_index(parsed_query)
             else:
                 raise ValueError("Unsupported DROP statement type.")
         elif parsed_query['type'] == "JOIN":
-            return self.plan_join(parsed_query)
+            plan = self.plan_join(parsed_query)
         elif parsed_query['type'] == "CREATE_VIEW":
-            return self.plan_create_view(parsed_query)
+            plan = self.plan_create_view(parsed_query)
         elif parsed_query['type'] == "DROP_VIEW":
-            return self.plan_drop_view(parsed_query)
+            plan = self.plan_drop_view(parsed_query)
         elif parsed_query['type'] == "SHOW":
-            return self.plan_show(parsed_query)
+            plan = self.plan_show(parsed_query)
+        elif parsed_query['type'] == "USE":
+            plan = self.plan_use_database(parsed_query)
         else:
             raise ValueError("Unsupported query type.")
-    
+        
+        # Log the execution plan
+        return self.log_execution_plan(plan)
+
+    def plan_use_database(self, parsed_query):
+        """
+        Plan for USE DATABASE queries.
+        Example: USE database_name
+        """
+        logging.debug(f"Planning USE DATABASE query: {parsed_query}")
+        return {
+            'type': 'USE_DATABASE',
+            'database': parsed_query['database']
+        }
+
     def plan_create_database(self, parsed_query):
         """
         Plan for CREATE DATABASE queries.
@@ -78,12 +212,19 @@ class Planner:
         Example: CREATE INDEX idx_name ON table_name (column_name)
         """
         logging.debug(f"Planning CREATE INDEX query: {parsed_query}")
+        
+        # Extract data from the parsed query
+        index_name = parsed_query.get('index')
+        table_name = parsed_query.get('table')
+        column_name = parsed_query.get('column')
+        is_unique = parsed_query.get('unique', False)
+        
         return {
             'type': 'CREATE_INDEX',
-            'index_name': parsed_query['index'],
-            'table': parsed_query['table'],
-            'column': parsed_query['column'],
-            'unique': parsed_query.get('unique', False)
+            'index_name': index_name,
+            'table': table_name,
+            'column': column_name,
+            'unique': is_unique
         }
     
     def plan_drop_index(self, parsed_query):
@@ -92,10 +233,15 @@ class Planner:
         Example: DROP INDEX idx_name ON table_name
         """
         logging.debug(f"Planning DROP INDEX query: {parsed_query}")
+        
+        # Extract data from the parsed query
+        index_name = parsed_query.get('index')
+        table_name = parsed_query.get('table')
+        
         return {
             'type': 'DROP_INDEX',
-            'index_name': parsed_query['index'],
-            'table': parsed_query['table']
+            'index_name': index_name,
+            'table': table_name
         }
     
     def plan_show(self, parsed_query):
@@ -136,37 +282,34 @@ class Planner:
         
         # Check for aggregation functions in columns
         columns = parsed_query.get('columns', [])
-        aggregate_function = None
-        aggregate_column = None
-        
         for col in columns:
-            if '(' in col and ')' in col:
-                # This might be an aggregate function
-                func_match = re.match(r'(\w+)\((\w+|\*)\)', col)
+            # Check if this is an aggregate function
+            if isinstance(col, str) and '(' in col and ')' in col:
+                func_match = re.match(r'(\w+)\(([^)]*)\)', col)
                 if func_match:
                     func_name = func_match.group(1).upper()
                     if func_name in ('COUNT', 'SUM', 'AVG', 'MIN', 'MAX'):
-                        aggregate_function = func_name
-                        aggregate_column = func_match.group(2)
+                        # This is an aggregation query
+                        col_name = func_match.group(2).strip()
+                        if col_name == '*' and func_name != 'COUNT':
+                            col_name = None  # Only COUNT(*) is valid
+                        
+                        return {
+                            'type': 'AGGREGATE',
+                            'function': func_name,
+                            'column': col_name,
+                            'table': table,
+                            'condition': condition
+                        }
         
-        if aggregate_function:
-            return {
-                'type': 'AGGREGATE',
-                'function': aggregate_function,
-                'column': aggregate_column if aggregate_column != '*' else None,
-                'table': table,
-                'condition': condition
-            }
-        
+        # No aggregation, regular SELECT
         return {
             'type': 'SELECT',
             'table': table,
             'columns': columns,
             'condition': condition,
             'order_by': order_by,
-            'limit': limit,
-            'use_index': False,
-            'index_column': None
+            'limit': limit
         }
 
     def plan_join(self, parsed_query):
@@ -182,12 +325,13 @@ class Planner:
         # Default to hash join strategy
         join_strategy = 'HASH_JOIN'
         preferences = self.catalog_manager.get_preferences()
-        if preferences.get('join_strategy') == 'sort_merge':
-            join_strategy = 'SORT_MERGE_JOIN'
-        elif preferences.get('join_strategy') == 'index':
-            join_strategy = 'INDEX_JOIN'
-        elif preferences.get('join_strategy') == 'nested_loop':
-            join_strategy = 'NESTED_LOOP_JOIN'
+        if preferences and isinstance(preferences, dict):
+            if preferences.get('join_strategy') == 'sort_merge':
+                join_strategy = 'SORT_MERGE_JOIN'
+            elif preferences.get('join_strategy') == 'index':
+                join_strategy = 'INDEX_JOIN'
+            elif preferences.get('join_strategy') == 'nested_loop':
+                join_strategy = 'NESTED_LOOP_JOIN'
         
         # Determine which tables are being joined
         table1 = tables[0]

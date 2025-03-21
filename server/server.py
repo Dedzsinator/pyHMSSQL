@@ -5,6 +5,7 @@ import json
 import traceback
 import logging
 import uuid
+import re
 import datetime
 from logging.handlers import RotatingFileHandler
 
@@ -65,90 +66,152 @@ def setup_logging():
 log_file = setup_logging()
 
 class DBMSServer:
-    def __init__(self):
-        self.catalog_manager = CatalogManager()
+    def __init__(self, host='localhost', port=9999, mongo_uri='mongodb://localhost:27017/'):
+        # Create MongoDB client
+        from pymongo import MongoClient
+        self.mongo_client = MongoClient(mongo_uri)
+        self.catalog_manager = CatalogManager(self.mongo_client)
         self.index_manager = IndexManager('indexes')
         self.planner = Planner(self.catalog_manager, self.index_manager)
         self.optimizer = Optimizer(self.catalog_manager, self.index_manager)
         self.execution_engine = ExecutionEngine(self.catalog_manager, self.index_manager)
         self.sessions = {}
+        
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        # Configure root logger
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        
+        # Remove any existing handlers
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        
+        # Add file handler
+        log_file = os.path.join(log_dir, 'query_planner.log')
+        file_handler = RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=5)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        root_logger.addHandler(file_handler)
+    
+        class NullHandler(logging.Handler):
+            def emit(self, record):
+                pass
+        
+        console_handler = NullHandler()
+        root_logger.addHandler(console_handler)
     
     def handle_request(self, data):
-        action = data.get('action')
-        logging.info(f"Handling request: {action}")
-        
-        if action == 'login':
-            return self.handle_login(data)
-        elif action == 'register':
-            return self.handle_register(data)
-        elif action == 'logout':
-            return self.handle_logout(data)
-        elif action == 'query':
-            return self.handle_query(data)
-        else:
-            logging.warning(f"Invalid action: {action}")
-            return "Invalid action."
-
-    def parse_sql(self, query):
         """
-        Parse SQL query using sqlparse library and return structured representation.
+        Handle incoming request.
+        """
+        request_type = data.get('type')
+        
+        if request_type == 'login':
+            return self.handle_login(data)
+        elif request_type == 'query':
+            return self.handle_query(data)
+        elif request_type == 'visualize':
+            # New handler for visualization requests
+            return self.handle_visualize(data)
+        elif request_type == 'logout':
+            return self.handle_logout(data)
+        else:
+            return {"error": f"Unknown request type: {request_type}"}
+
+    def handle_visualize(self, data):
+        """
+        Handle visualization requests.
+        """
+        session_token = data.get('session_token')
+        if not self._validate_session(session_token):
+            return {"error": "Invalid or expired session"}
+        
+        user_info = self.sessions.get(session_token)
+        username = user_info.get('username')
+        
+        # Parse as a visualization command
+        query = data.get('query', '')
+        parsed = self.parse_sql(query)
+        
+        if parsed:
+            # Log the visualization request
+            logging.info(f"Visualization request from {username}: {query}")
+            
+            # Execute the visualization
+            result = self.execution_engine.execute(parsed)
+            return result
+        else:
+            return {"error": "Failed to parse visualization command"}
+
+    def parse_sql(self, sql):
+        """
+        Parse SQL query into a structured format.
         """
         try:
-            logging.debug(f"Parsing SQL query: {query}")
-            parsed = sqlparse.parse(query)
-            
+            # Parse SQL query
+            parsed = sqlparse.parse(sql)
             if not parsed:
+                return {"error": "Failed to parse SQL statement"}
+            
+            # Get the first statement (we only support one at a time)
+            stmt = parsed[0]
+            
+            # Handle SHOW commands specially since sqlparse may not recognize them correctly
+            if sql.strip().upper().startswith("SHOW "):
+                result = {"type": "SHOW", "query": sql}
+                self._extract_show_elements(stmt, result)
+                return result
+            
+            # Handle USE DATABASE command
+            if sql.strip().upper().startswith("USE "):
+                db_name = sql.strip()[4:].strip()
                 return {
-                    "type": "UNKNOWN",
-                    "error": "Empty or invalid SQL query"
+                    "type": "USE",
+                    "database": db_name,
+                    "query": sql
                 }
-                
-            parsed = parsed[0]
-            stmt_type = parsed.get_type()
             
-            # Handle special case for SHOW commands which sqlparse may not recognize properly
-            if query.upper().startswith("SHOW "):
-                stmt_type = "SHOW"
+            if sql.upper().startswith("VISUALIZE"):
+                return self._parse_visualize_command(sql)
             
-            # Create a result structure that's compatible with what our query planner expects
-            result = {
-                "type": stmt_type,
-                "query": query,  # Store the original query for reference
-            }
+            # Initialize result with the query
+            result = {"type": None, "query": sql}
             
-            # Extract common elements based on statement type
-            try:
-                if stmt_type == "SELECT":
-                    self._extract_select_elements(parsed, result)
-                elif stmt_type == "INSERT":
-                    self._extract_insert_elements(parsed, result)
-                elif stmt_type == "UPDATE":
-                    self._extract_update_elements(parsed, result)
-                elif stmt_type == "DELETE":
-                    self._extract_delete_elements(parsed, result)
-                elif stmt_type == "CREATE":
-                    self._extract_create_elements(parsed, result)
-                elif stmt_type == "DROP":
-                    self._extract_drop_elements(parsed, result)
-                elif stmt_type == "SHOW":
-                    self._extract_show_elements(parsed, result)
-            except Exception as extract_err:
-                logging.error(f"Error extracting elements: {str(extract_err)}")
-                logging.error(traceback.format_exc())
-                result["error"] = f"Error extracting SQL elements: {str(extract_err)}"
+            # Determine statement type
+            stmt_type = stmt.get_type()
             
-            logging.debug(f"Parsed SQL result: {result}")
+            if stmt_type == "SELECT":
+                result["type"] = "SELECT"
+                self._extract_select_elements(stmt, result)
+            elif stmt_type == "INSERT":
+                result["type"] = "INSERT"
+                self._extract_insert_elements(stmt, result)
+            elif stmt_type == "UPDATE":
+                result["type"] = "UPDATE"
+                self._extract_update_elements(stmt, result)
+            elif stmt_type == "DELETE":
+                result["type"] = "DELETE"
+                self._extract_delete_elements(stmt, result)
+            elif stmt_type == "CREATE":
+                result["type"] = "CREATE"
+                self._extract_create_elements(stmt, result)
+            elif stmt_type == "DROP":
+                result["type"] = "DROP"
+                self._extract_drop_elements(stmt, result)
+            elif stmt_type == "SHOW":
+                result["type"] = "SHOW"
+                self._extract_show_elements(stmt, result)
+            else:
+                result["error"] = "Unsupported SQL statement type"
+            
             return result
-            
         except Exception as e:
-            logging.error(f"Error parsing SQL: {str(e)}")
+            logging.error(f"Error extracting elements: {str(e)}")
             logging.error(traceback.format_exc())
-            # Return minimal information on error
-            return {
-                "type": query.strip().split()[0].upper() if query and query.strip() else "UNKNOWN",
-                "error": str(e)
-            }
-    
+            return {"error": f"Error extracting SQL elements: {str(e)}"}
+
     def _extract_select_elements(self, parsed, result):
         """Extract elements from a SELECT query"""
         # Initialize components
@@ -160,97 +223,73 @@ class DBMSServer:
         join_type = None
         join_condition = None
         
-        # Extract main parts
-        for token in parsed.tokens:
-            # Skip whitespace
-            if token.is_whitespace:
-                continue
+        # First extract the table name(s) directly from the SQL
+        raw_sql = str(parsed).upper()
+        if " FROM " in raw_sql:
+            parts = raw_sql.split(" FROM ", 1)
+            if len(parts) > 1:
+                from_clause = parts[1].strip()
+                # Table part goes up to WHERE, ORDER BY, GROUP BY, HAVING, LIMIT, etc.
+                end_keywords = [" WHERE ", " ORDER BY ", " GROUP BY ", " HAVING ", " LIMIT "]
+                table_end = len(from_clause)
+                for keyword in end_keywords:
+                    pos = from_clause.find(keyword)
+                    if pos != -1 and pos < table_end:
+                        table_end = pos
                 
-            # Extract columns
-            if token.ttype is None and isinstance(token, sqlparse.sql.IdentifierList) and not 'FROM' in str(parsed).upper().split(str(token), 1)[0].split()[-1:]:
-                columns = [str(col).strip() for col in token.get_identifiers()]
-            
-            # Handle star projections and single columns
-            elif (token.ttype is sqlparse.tokens.Wildcard or 
-                (isinstance(token, sqlparse.sql.Identifier) and not 'FROM' in str(parsed).upper().split(str(token), 1)[0].split()[-1:])):
-                columns.append(str(token).strip())
+                tables_part = from_clause[:table_end].strip()
+                # Handle JOIN
+                if " JOIN " in tables_part:
+                    # This is a complex JOIN query, needs special handling
+                    tables = [t.strip() for t in re.split(r'\s+JOIN\s+|\s*,\s*', tables_part)]
+                else:
+                    # Simple table list
+                    tables = [t.strip() for t in tables_part.split(',')]
+        
+        # Now extract column names
+        col_part = raw_sql.split(" FROM ")[0].replace("SELECT", "", 1).strip()
+        if col_part == "*":
+            columns = ["*"]
+        else:
+            # Handle multiple columns
+            columns = [c.strip() for c in col_part.split(',')]
+        
+        # Extract WHERE condition
+        if " WHERE " in raw_sql:
+            where_parts = raw_sql.split(" WHERE ", 1)
+            if len(where_parts) > 1:
+                condition_part = where_parts[1]
+                # Condition ends at the next clause
+                end_keywords = [" ORDER BY ", " GROUP BY ", " HAVING ", " LIMIT "]
+                condition_end = len(condition_part)
+                for keyword in end_keywords:
+                    pos = condition_part.find(keyword)
+                    if pos != -1 and pos < condition_end:
+                        condition_end = pos
                 
-            # Find the table name (after FROM)
-            elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'FROM':
-                idx = parsed.token_index(token)
-                if idx < len(parsed.tokens) - 1:
-                    next_token = parsed.tokens[idx + 1]
-                    if next_token.ttype is None:
-                        if isinstance(next_token, sqlparse.sql.IdentifierList):
-                            tables = [str(ident).strip() for ident in next_token.get_identifiers()]
-                        else:
-                            tables = [str(next_token).strip()]
-            
-            # Find JOIN conditions
-            elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() in ('JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN'):
-                join_type = token.value.upper()
-                idx = parsed.token_index(token)
-                if idx < len(parsed.tokens) - 1:
-                    # Get the right table of the join
-                    next_token = parsed.tokens[idx + 1]
-                    if not next_token.is_whitespace:
-                        right_table = str(next_token).strip()
-                        if right_table not in tables:
-                            tables.append(right_table)
-                    
-                    # Look for ON clause
-                    for i in range(idx + 2, len(parsed.tokens)):
-                        if parsed.tokens[i].ttype is sqlparse.tokens.Keyword and parsed.tokens[i].value.upper() == 'ON':
-                            # Collect the join condition
-                            on_clause = []
-                            for j in range(i + 1, len(parsed.tokens)):
-                                t = parsed.tokens[j]
-                                if t.ttype is sqlparse.tokens.Keyword and t.value.upper() in ('WHERE', 'GROUP', 'ORDER', 'LIMIT'):
-                                    break
-                                if not t.is_whitespace:
-                                    on_clause.append(str(t))
-                            
-                            join_condition = ''.join(on_clause).strip()
-                            break
-            
-            # Find WHERE clause
-            elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'WHERE':
-                idx = parsed.token_index(token)
-                if idx < len(parsed.tokens) - 1:
-                    # Get all tokens until ORDER BY or LIMIT or end
-                    where_clause_tokens = []
-                    for i in range(idx + 1, len(parsed.tokens)):
-                        t = parsed.tokens[i]
-                        if t.ttype is sqlparse.tokens.Keyword and t.value.upper() in ('ORDER', 'LIMIT', 'GROUP'):
-                            break
-                        if not t.is_whitespace:
-                            where_clause_tokens.append(str(t))
-                    
-                    condition = ''.join(where_clause_tokens).strip()
-            
-            # Find ORDER BY clause
-            elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'ORDER':
-                idx = parsed.token_index(token)
-                if idx < len(parsed.tokens) - 2:  # Need at least "BY"
-                    if parsed.tokens[idx + 1].value.upper() == 'BY':
-                        order_tokens = []
-                        for i in range(idx + 2, len(parsed.tokens)):
-                            t = parsed.tokens[i]
-                            if t.ttype is sqlparse.tokens.Keyword and t.value.upper() in ('LIMIT',):
-                                break
-                            if not t.is_whitespace:
-                                order_tokens.append(str(t))
-                        
-                        order_by = ''.join(order_tokens).strip()
-            
-            # Find LIMIT clause
-            elif token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'LIMIT':
-                idx = parsed.token_index(token)
-                if idx < len(parsed.tokens) - 1:
-                    try:
-                        limit = int(str(parsed.tokens[idx + 1]).strip())
-                    except (ValueError, TypeError):
-                        limit = None
+                condition = condition_part[:condition_end].strip()
+        
+        # Extract ORDER BY
+        if " ORDER BY " in raw_sql:
+            order_parts = raw_sql.split(" ORDER BY ", 1)
+            if len(order_parts) > 1:
+                order_part = order_parts[1]
+                # Order by ends at LIMIT
+                limit_pos = order_part.find(" LIMIT ")
+                if limit_pos != -1:
+                    order_by = order_part[:limit_pos].strip()
+                else:
+                    order_by = order_part.strip()
+        
+        # Extract LIMIT
+        if " LIMIT " in raw_sql:
+            limit_parts = raw_sql.split(" LIMIT ", 1)
+            if len(limit_parts) > 1:
+                limit = limit_parts[1].strip()
+                try:
+                    limit = int(limit)
+                except:
+                    limit = None
         
         # Update result with extracted components
         result.update({
@@ -262,91 +301,57 @@ class DBMSServer:
             "join_type": join_type,
             "join_condition": join_condition
         })
-    
+
     def _extract_insert_elements(self, parsed, result):
         """Extract elements from an INSERT statement"""
-        table_name = None
+        # Get original SQL to preserve case
+        raw_sql = str(parsed)
+        
+        # Extract table name
+        table_match = re.search(r'INSERT\s+INTO\s+(\w+)', raw_sql, re.IGNORECASE)
+        table_name = table_match.group(1) if table_match else None
+        
+        # Extract column names
         columns = []
+        if "(" in raw_sql and ")" in raw_sql:
+            # First set of parentheses should be column names
+            cols_match = re.search(r'INSERT\s+INTO\s+\w+\s*\(([^)]+)\)', raw_sql, re.IGNORECASE)
+            if cols_match:
+                cols_str = cols_match.group(1)
+                columns = [col.strip() for col in cols_str.split(',')]
+        
+        # Extract values
         values = []
-        
-        in_column_list = False
-        in_values_list = False
-        current_value_list = []
-        
-        for token in parsed.tokens:
-            if token.is_whitespace or token.is_whitespace():
-                continue
+        values_match = re.search(r'VALUES\s*\(([^)]+)\)', raw_sql, re.IGNORECASE)
+        if values_match:
+            values_str = values_match.group(1)
+            value_list = []
             
-            # Get the table name
-            if token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'INTO':
-                idx = parsed.token_index(token)
-                if idx + 1 < len(parsed.tokens):
-                    table_token = parsed.tokens[idx + 1]
-                    if isinstance(table_token, sqlparse.sql.Identifier):
-                        table_name = str(table_token)
-                        
-            # Get column names
-            if str(token) == '(' and table_name and not in_values_list:
-                in_column_list = True
-                continue
+            # Parse individual values, handling strings and numbers
+            for val in values_str.split(','):
+                val = val.strip()
+                if val.startswith("'") and val.endswith("'"):
+                    # String value
+                    value_list.append(val[1:-1])
+                elif val.isdigit():
+                    # Integer
+                    value_list.append(int(val))
+                elif re.match(r'^[0-9]+\.[0-9]+$', val):
+                    # Float
+                    value_list.append(float(val))
+                else:
+                    # Other (keep as is)
+                    value_list.append(val)
             
-            if in_column_list:
-                if str(token) == ')':
-                    in_column_list = False
-                    continue
-                    
-                if isinstance(token, sqlparse.sql.Identifier):
-                    columns.append(str(token))
-                elif isinstance(token, sqlparse.sql.IdentifierList):
-                    for col in token.get_identifiers():
-                        columns.append(str(col))
-                        
-            # Get values
-            if token.ttype is sqlparse.tokens.Keyword and token.value.upper() == 'VALUES':
-                in_values_list = True
-                continue
-                
-            if in_values_list:
-                if str(token) == '(':
-                    current_value_list = []
-                    continue
-                    
-                if str(token) == ')':
-                    values.append(current_value_list)
-                    continue
-                    
-                if token.ttype in (sqlparse.tokens.Literal.String.Single, 
-                                sqlparse.tokens.Literal.Number.Integer,
-                                sqlparse.tokens.Literal.Number.Float):
-                    # Convert values to appropriate Python types
-                    val = str(token)
-                    if token.ttype is sqlparse.tokens.Literal.String.Single:
-                        val = val.strip("'")
-                    elif token.ttype is sqlparse.tokens.Literal.Number.Integer:
-                        val = int(val)
-                    elif token.ttype is sqlparse.tokens.Literal.Number.Float:
-                        val = float(val)
-                    current_value_list.append(val)
-                elif isinstance(token, sqlparse.sql.IdentifierList):
-                    for val in token.get_identifiers():
-                        val_str = str(val)
-                        if val_str.startswith("'") and val_str.endswith("'"):
-                            current_value_list.append(val_str.strip("'"))
-                        elif val_str.isdigit():
-                            current_value_list.append(int(val_str))
-                        else:
-                            try:
-                                current_value_list.append(float(val_str))
-                            except:
-                                current_value_list.append(val_str)
-                                
+            values.append(value_list)
+        
         # Update result with extracted components
         result.update({
             "table": table_name,
             "columns": columns,
             "values": values
         })
-    
+
     def _extract_update_elements(self, parsed, result):
         """Extract elements from an UPDATE statement"""
         table_name = None
@@ -407,15 +412,15 @@ class DBMSServer:
                 if idx < len(parsed.tokens) - 1:
                     where_tokens = [str(t) for t in parsed.tokens[idx+1:] if not t.is_whitespace]
                     where_clause = " ".join(where_tokens).strip()
-                    result["condition"] = where_clause  # Add a condition key for consistency
         
         # Update result with extracted components
         result.update({
             "table": table_name,
             "set": set_pairs,
-            "where": where_clause
+            "where": where_clause,
+            "condition": where_clause  # Also add as "condition" for consistency
         })
-    
+
     def _extract_delete_elements(self, parsed, result):
         """Extract elements from a DELETE statement"""
         table_name = None
@@ -453,7 +458,8 @@ class DBMSServer:
         # Update result with extracted components
         result.update({
             "table": table_name,
-            "where": where_clause
+            "where": where_clause,
+            "condition": where_clause  # Also add as "condition" for consistency
         })
 
     def _extract_create_elements(self, parsed, result):
@@ -466,118 +472,61 @@ class DBMSServer:
         columns = []
         constraints = []
         
-        # Process tokens
-        table_seen = False
-        database_seen = False
-        index_seen = False
-        unique_seen = False
-        on_seen = False
-        column_list_started = False
+        # Get original SQL to preserve case
+        raw_sql = str(parsed)
         
-        for token in parsed.tokens:
-            # Skip whitespace and punctuation
-            if token.is_whitespace or str(token) == ';':
-                continue
-                
-            # Check if it's a UNIQUE INDEX
-            if token.is_keyword and token.value.upper() == "UNIQUE":
-                unique_seen = True
-                is_unique = True
-                continue
-                
-            # Check if it's a CREATE INDEX statement
-            if token.is_keyword and token.value.upper() == "INDEX":
-                index_seen = True
-                continue
-                
-            # Check if it's a CREATE TABLE statement
-            if token.is_keyword and token.value.upper() == "TABLE":
-                table_seen = True
-                continue
-                
-            # Check if it's a CREATE DATABASE statement
-            if token.is_keyword and token.value.upper() == "DATABASE":
-                database_seen = True
-                continue
-                
-            # Check if it's the ON keyword (for CREATE INDEX ON table)
-            if token.is_keyword and token.value.upper() == "ON":
-                on_seen = True
-                continue
-                
-            # Find the index name after INDEX
-            if index_seen and token.ttype is None and not on_seen:
-                # This should be the index identifier
-                if hasattr(token, 'get_name'):
-                    index_name = token.get_name()
-                else:
-                    index_name = str(token)
-                index_seen = False
-                
-            # Find the table name after ON (for CREATE INDEX)
-            if on_seen and token.ttype is None and not column_list_started:
-                # This should be the table identifier
-                if hasattr(token, 'get_name'):
-                    table_name = token.get_name()
-                else:
-                    table_name = str(token)
-                on_seen = False
-                
-            # Find the table name after TABLE
-            if table_seen and token.ttype is None and not columns:
-                # This should be the table identifier
-                if hasattr(token, 'get_name'):
-                    table_name = token.get_name()
-                else:
-                    table_name = str(token)
-                table_seen = False
-                
-            # Find the database name after DATABASE
-            if database_seen and token.ttype is None:
-                # This should be the database identifier
-                if hasattr(token, 'get_name'):
-                    database_name = token.get_name()
-                else:
-                    database_name = str(token)
-                database_seen = False
+        # Check the statement type
+        create_type = None
+        if re.search(r'CREATE\s+TABLE', raw_sql, re.IGNORECASE):
+            create_type = "TABLE"
+        elif re.search(r'CREATE\s+DATABASE', raw_sql, re.IGNORECASE):
+            create_type = "DATABASE"
+        elif re.search(r'CREATE\s+UNIQUE\s+INDEX', raw_sql, re.IGNORECASE):
+            create_type = "INDEX"
+            is_unique = True
+        elif re.search(r'CREATE\s+INDEX', raw_sql, re.IGNORECASE):
+            create_type = "INDEX"
+        
+        # Extract index details
+        if create_type == "INDEX":
+            if is_unique:
+                pattern = r'CREATE\s+UNIQUE\s+INDEX\s+(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)'
+            else:
+                pattern = r'CREATE\s+INDEX\s+(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)'
             
-            # Extract column definitions for CREATE TABLE or column name for CREATE INDEX
-            if str(token) == "(" and (table_name or index_name):
-                column_list_started = True
-                idx = parsed.token_index(token)
-                # Look for closing parenthesis
-                for i in range(idx + 1, len(parsed.tokens)):
-                    if str(parsed.tokens[i]) == ")":
-                        # Extract everything between parentheses
-                        col_tokens = parsed.tokens[idx+1:i]
-                        
-                        if index_name:
-                            # For CREATE INDEX, get the column name
-                            for t in col_tokens:
-                                if not t.is_whitespace and str(t) != ',':
-                                    column_name = str(t).strip()
-                                    break
+            match = re.search(pattern, raw_sql, re.IGNORECASE)
+            if match:
+                index_name = match.group(1)
+                table_name = match.group(2)
+                column_name = match.group(3).strip()
+        
+        # Extract table details
+        elif create_type == "TABLE":
+            # Extract table name
+            match = re.search(r'CREATE\s+TABLE\s+(\w+)', raw_sql, re.IGNORECASE)
+            if match:
+                table_name = match.group(1)
+            
+            # Extract column definitions
+            if "(" in raw_sql and ")" in raw_sql:
+                col_text = raw_sql.split("(", 1)[1].rsplit(")", 1)[0]
+                col_defs = [c.strip() for c in col_text.split(',')]
+                for col_def in col_defs:
+                    if col_def:
+                        if re.match(r'^\s*(PRIMARY|FOREIGN|UNIQUE|CHECK|CONSTRAINT)', col_def, re.IGNORECASE):
+                            constraints.append(col_def)
                         else:
-                            # For CREATE TABLE, split by commas to get individual column definitions
-                            def_str = "".join(str(t) for t in col_tokens)
-                            col_defs = [d.strip() for d in def_str.split(',')]
-                            
-                            for col_def in col_defs:
-                                # Check if this is a column definition or constraint
-                                words = col_def.split()
-                                if not words:
-                                    continue
-                                    
-                                if words[0].upper() in ('PRIMARY', 'FOREIGN', 'UNIQUE', 'CHECK', 'CONSTRAINT'):
-                                    constraints.append(col_def)
-                                else:
-                                    # This is a column definition
-                                    columns.append(col_def)
-                        
-                        break
+                            columns.append(col_def)
+        
+        # Extract database name
+        elif create_type == "DATABASE":
+            match = re.search(r'CREATE\s+DATABASE\s+(\w+)', raw_sql, re.IGNORECASE)
+            if match:
+                database_name = match.group(1)
         
         # Update result with extracted components
         result.update({
+            "create_type": create_type,
             "table": table_name,
             "database": database_name,
             "index": index_name,
@@ -586,82 +535,50 @@ class DBMSServer:
             "columns": columns,
             "constraints": constraints
         })
-    
+
     def _extract_drop_elements(self, parsed, result):
         """Extract elements from a DROP statement"""
         table_name = None
         database_name = None
         index_name = None
         
-        # Process tokens
-        table_seen = False
-        database_seen = False
-        index_seen = False
-        on_seen = False
+        # Get original SQL to preserve case
+        raw_sql = str(parsed)
         
-        for token in parsed.tokens:
-            # Skip whitespace and punctuation
-            if token.is_whitespace or str(token) == ';':
-                continue
-                
-            # Check if it's a DROP TABLE statement
-            if token.is_keyword and token.value.upper() == "TABLE":
-                table_seen = True
-                continue
-                
-            # Check if it's a DROP DATABASE statement
-            if token.is_keyword and token.value.upper() == "DATABASE":
-                database_seen = True
-                continue
-                
-            # Check if it's a DROP INDEX statement
-            if token.is_keyword and token.value.upper() == "INDEX":
-                index_seen = True
-                continue
-                
-            # Check if it's the ON keyword (for DROP INDEX ON table)
-            if token.is_keyword and token.value.upper() == "ON":
-                on_seen = True
-                continue
-                
-            # Find the table name after TABLE
-            if table_seen and token.ttype is None:
-                # This should be the table identifier
-                if hasattr(token, 'get_name'):
-                    table_name = token.get_name()
-                else:
-                    table_name = str(token)
-                table_seen = False
-                
-            # Find the database name after DATABASE
-            if database_seen and token.ttype is None:
-                # This should be the database identifier
-                if hasattr(token, 'get_name'):
-                    database_name = token.get_name()
-                else:
-                    database_name = str(token)
-                database_seen = False
-                
-            # Find the index name after INDEX
-            if index_seen and token.ttype is None and not on_seen:
-                # This should be the index identifier
-                if hasattr(token, 'get_name'):
-                    index_name = token.get_name()
-                else:
-                    index_name = str(token)
-                index_seen = False
-                
-            # Find the table name after ON (for DROP INDEX)
-            if on_seen and token.ttype is None:
-                # This should be the table identifier for the index
-                if hasattr(token, 'get_name'):
-                    table_name = token.get_name()
-                else:
-                    table_name = str(token)
-                on_seen = False
+        # Determine what type of DROP statement this is
+        drop_type = None
+        if re.search(r'DROP\s+TABLE', raw_sql, re.IGNORECASE):
+            drop_type = "TABLE"
+        elif re.search(r'DROP\s+DATABASE', raw_sql, re.IGNORECASE):
+            drop_type = "DATABASE"
+        elif re.search(r'DROP\s+INDEX', raw_sql, re.IGNORECASE):
+            drop_type = "INDEX"
+        elif re.search(r'DROP\s+VIEW', raw_sql, re.IGNORECASE):
+            drop_type = "VIEW"
+        
+        # Extract the names based on the type
+        if drop_type == "TABLE":
+            # Format: DROP TABLE table_name
+            match = re.search(r'DROP\s+TABLE\s+(\w+)', raw_sql, re.IGNORECASE)
+            if match:
+                table_name = match.group(1)
+        
+        elif drop_type == "DATABASE":
+            # Format: DROP DATABASE db_name
+            match = re.search(r'DROP\s+DATABASE\s+(\w+)', raw_sql, re.IGNORECASE)
+            if match:
+                database_name = match.group(1)
+        
+        elif drop_type == "INDEX":
+            # Format: DROP INDEX index_name ON table_name
+            match = re.search(r'DROP\s+INDEX\s+(\w+)\s+ON\s+(\w+)', raw_sql, re.IGNORECASE)
+            if match:
+                index_name = match.group(1)
+                table_name = match.group(2)
         
         # Update result with extracted components
         result.update({
+            "drop_type": drop_type,
             "table": table_name,
             "database": database_name,
             "index": index_name
@@ -672,33 +589,112 @@ class DBMSServer:
         object_type = None
         table_name = None
         
-        # Process tokens
-        for token in parsed.tokens:
-            # Skip whitespace and punctuation
-            if token.is_whitespace or str(token) == ';':
-                continue
-                
-            # The token right after "SHOW" is what we want to show
-            if token.is_keyword:
-                object_type = token.value.upper()
-                
-            # Check if we're showing indexes FOR a specific table
-            if token.is_keyword and token.value.upper() == "FOR" and object_type == "INDEXES":
-                # The next token should be the table name
-                idx = parsed.token_index(token)
-                if idx < len(parsed.tokens) - 1:
-                    table_token = parsed.tokens[idx + 1]
-                    if hasattr(table_token, 'get_name'):
-                        table_name = table_token.get_name()
-                    else:
-                        table_name = str(table_token)
+        # Get the raw SQL directly
+        raw_sql = str(parsed).upper()
         
-        # Update result with extracted components
+        if "SHOW DATABASES" in raw_sql:
+            object_type = "DATABASES"
+        elif "SHOW TABLES" in raw_sql:
+            object_type = "TABLES"
+        elif "SHOW INDEXES FOR" in raw_sql:
+            object_type = "INDEXES"
+            # Extract table name after FOR 
+            parts = str(parsed).split("FOR", 1)
+            if len(parts) > 1:
+                table_name = parts[1].strip()
+        elif "SHOW INDEXES" in raw_sql or "SHOW INDICES" in raw_sql:
+            object_type = "INDEXES"
+        elif "SHOW COLUMNS" in raw_sql:
+            object_type = "COLUMNS"
+            # Extract table name
+            if "FROM" in raw_sql:
+                parts = str(parsed).split("FROM", 1)
+                if len(parts) > 1:
+                    table_name = parts[1].strip()
+        
+        # Update result
         result.update({
             "object": object_type,
             "table": table_name
         })
+        
+        # Log the extracted components for debugging
+        logging.debug(f"SHOW command: object_type={object_type}, table={table_name}")
 
+    def _extract_create_index_elements(self, parsed, result):
+        """Extract elements from a CREATE INDEX statement"""
+        index_name = None
+        table_name = None
+        column_name = None
+        is_unique = False
+        
+        # Check if it's a UNIQUE INDEX
+        for token in parsed.tokens:
+            if token.is_keyword and token.value.upper() == "UNIQUE":
+                is_unique = True
+                break
+        
+        # Process tokens to extract other elements
+        for i, token in enumerate(parsed.tokens):
+            if token.is_whitespace:
+                continue
+                
+            # Find the index name
+            if token.ttype is None and isinstance(token, sqlparse.sql.Identifier) and not index_name:
+                # This should be right after CREATE INDEX
+                index_name = str(token)
+                
+            # Find the ON keyword and the table name after it
+            if token.ttype is sqlparse.tokens.Keyword and token.value.upper() == "ON":
+                if i + 1 < len(parsed.tokens):
+                    table_token = parsed.tokens[i + 1]
+                    if not table_token.is_whitespace:
+                        table_name = str(table_token)
+            
+            # Find the column in parentheses
+            if str(token) == "(" and table_name:
+                if i + 1 < len(parsed.tokens):
+                    column_token = parsed.tokens[i + 1]
+                    if isinstance(column_token, sqlparse.sql.Identifier):
+                        column_name = str(column_token)
+                    elif isinstance(column_token, sqlparse.sql.IdentifierList):
+                        # For now, just take the first column if there are multiple
+                        identifiers = list(column_token.get_identifiers())
+                        if identifiers:
+                            column_name = str(identifiers[0])
+        
+        # Update result
+        result.update({
+            "index": index_name,
+            "table": table_name,
+            "column": column_name,
+            "unique": is_unique
+        })
+    
+    def _parse_visualize_command(self, query):
+        """
+        Parse a VISUALIZE command.
+        """
+        result = {"type": "VISUALIZE"}
+        
+        # Check for VISUALIZE INDEX
+        if "INDEX" in query.upper():
+            result["object"] = "INDEX"
+            
+            # Extract index name if specified
+            match = re.search(r'VISUALIZE\s+INDEX\s+(\w+)', query, re.IGNORECASE)
+            if match:
+                result["index_name"] = match.group(1)
+                
+            # Check for ON table
+            match = re.search(r'ON\s+(\w+)', query, re.IGNORECASE)
+            if match:
+                result["table"] = match.group(1)
+        
+        # Add more visualization types as needed
+        
+        return result
+    
     def handle_login(self, data):
         """Handle user login."""
         username = data.get('username')

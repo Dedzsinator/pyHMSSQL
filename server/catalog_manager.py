@@ -1,10 +1,13 @@
-from pymongo import MongoClient
+import pymongo
+from pymongo import MongoClient, ASCENDING
 import logging
 from hashlib import sha256
+import datetime
 
 class CatalogManager:
-    def __init__(self):
-        self.client = MongoClient('localhost', 27017)
+    def __init__(self, client):
+        self.client = client
+        self.current_database = None
         self.db = self.client['dbms_project']
         self.databases = self.db['databases']
         self.tables = self.db['tables']
@@ -16,6 +19,13 @@ class CatalogManager:
         self.procedures = self.db['procedures']
         self.functions = self.db['functions']
         self.triggers = self.db['triggers']
+        db = self.client['dbms_project']
+        if 'preferences' not in db.list_collection_names():
+            db.create_collection('preferences')
+            
+        pref = db.preferences.find_one({"name": "current_database"})
+        if pref and 'value' in pref:
+            self.current_database = pref['value']
         logging.info("CatalogManager initialized.")
     
     def register_user(self, username, password, role="user"):
@@ -67,62 +77,145 @@ class CatalogManager:
         logging.info(f"Database {db_name} dropped.")
         return f"Database {db_name} dropped."
     
-    def create_table(self, table_name, columns, constraints):
+    def create_table(self, table_name, columns, constraints=None):
         """
-        Register a new table and its schema in the catalog.
+        Create a table in the catalog.
         """
-        schema = {
-            "columns": columns,
-            "constraints": constraints
-        }
+        if constraints is None:
+            constraints = []
         
-        # Store the schema in a special collection
-        self.db['catalog'].insert_one({
-            "table_name": table_name,
-            "schema": schema
+        db_name = self.get_current_database()
+        db = self.client[db_name]
+        
+        # Create the table in current database
+        if table_name not in db.list_collection_names():
+            db.create_collection(table_name)
+        
+        # Register in catalog
+        catalog_db = self.client['dbms_project']
+        catalog_db.catalog.insert_one({
+            "database": db_name,
+            "name": table_name,
+            "columns": columns,
+            "constraints": constraints,
+            "created_at": datetime.datetime.now()
         })
+        
+        return True
+
+    def drop_table(self, table_name):
+        """
+        Drop a table from the catalog and the database.
+        """
+        db_name = self.get_current_database()
+        db = self.client[db_name]
+        
+        # Drop the collection in MongoDB
+        if table_name in db.list_collection_names():
+            db.drop_collection(table_name)
+        
+        # Remove from catalog
+        catalog_db = self.client['dbms_project']
+        catalog_db.catalog.delete_one({"database": db_name, "name": table_name})
+        
+        # Also remove any indexes for this table
+        catalog_db.indexes.delete_many({"database": db_name, "table": table_name})
+        
+        return True
     
-    def drop_table(self, db_name, table_name):
-        logging.debug(f"Dropping table: {table_name} from database: {db_name}")
-        if not self.databases.find_one({"_id": db_name}):
-            logging.warning(f"Database {db_name} does not exist.")
-            return f"Database {db_name} does not exist."
-        table_id = f"{db_name}.{table_name}"
-        if not self.tables.find_one({"_id": table_id}):
-            logging.warning(f"Table {table_name} does not exist in database {db_name}.")
-            return f"Table {table_name} does not exist in database {db_name}."
-        self.tables.delete_one({"_id": table_id})
-        self.databases.update_one({"_id": db_name}, {"$pull": {"tables": table_name}})
-        self.indexes.delete_many({"_id": {"$regex": f"^{db_name}.{table_name}."}})
-        logging.info(f"Table {table_name} dropped from database {db_name}.")
-        return f"Table {table_name} dropped from database {db_name}."
+    def create_index(self, table_name, index_name, column, is_unique=False):
+        """
+        Create an index in the catalog.
+        """
+        db_name = self.get_current_database()
+        
+        # Register in catalog
+        catalog_db = self.client['dbms_project']
+        catalog_db.indexes.insert_one({
+            "database": db_name,
+            "table": table_name,
+            "name": index_name,
+            "column": column,
+            "unique": is_unique,
+            "created_at": datetime.datetime.now()
+        })
+        
+        # Create actual index in MongoDB
+        db = self.client[db_name]
+        if table_name in db.list_collection_names():
+            collection = db[table_name]
+            collection.create_index([(column, pymongo.ASCENDING)], 
+                                unique=is_unique, 
+                                name=index_name)
+        
+        return True
+
+    def drop_index(self, table_name, index_name):
+        """
+        Drop an index from the catalog.
+        """
+        db_name = self.get_current_database()
+        
+        # Remove from catalog
+        catalog_db = self.client['dbms_project']
+        catalog_db.indexes.delete_one({
+            "database": db_name,
+            "table": table_name,
+            "name": index_name
+        })
+        
+        # Drop actual index in MongoDB
+        db = self.client[db_name]
+        if table_name in db.list_collection_names():
+            collection = db[table_name]
+            collection.drop_index(index_name)
+        
+        return True
+
+    def set_current_database(self, database_name):
+        """
+        Set the current database for subsequent operations.
+        """
+        # Store the current database name
+        self.current_database = database_name
+        
+        # Save to preferences in MongoDB
+        db = self.client['dbms_project']
+        db.preferences.update_one(
+            {"name": "current_database"},
+            {"$set": {"value": database_name}},
+            upsert=True
+        )
+        
+        logging.info(f"Current database set to: {database_name}")
+        return True
+
+    def get_current_database(self):
+        """
+        Get the current database name.
+        """
+        return self.current_database or 'dbms_project'
     
-    def create_index(self, db_name, table_name, index_name, column):
-        logging.debug(f"Creating index: {index_name} on column: {column} in table: {table_name} of database: {db_name}")
-        if not self.databases.find_one({"_id": db_name}):
-            logging.warning(f"Database {db_name} does not exist.")
-            return f"Database {db_name} does not exist."
-        table_id = f"{db_name}.{table_name}"
-        if not self.tables.find_one({"_id": table_id}):
-            logging.warning(f"Table {table_name} does not exist in database {db_name}.")
-            return f"Table {table_name} does not exist in database {db_name}."
-        if column not in self.tables.find_one({"_id": table_id})['columns']:
-            logging.warning(f"Column {column} does not exist in table {table_name}.")
-            return f"Column {column} does not exist in table {table_name}."
-        index_id = f"{db_name}.{table_name}.{index_name}"
-        self.indexes.insert_one({"_id": index_id, "column": column, "type": "B+ Tree"})
-        logging.info(f"Index {index_name} created on column {column} in table {table_name}.")
-        return f"Index {index_name} created on column {column} in table {table_name}."
-    
+    def get_databases(self):
+        """
+        Get all user databases (excluding system databases).
+        """
+        dbs = [db for db in self.client.list_database_names() 
+            if db not in ['admin', 'config', 'local']]
+        return dbs
+
     def get_tables(self):
         """
-        Get all tables in the database.
+        Get all tables in the current database.
         """
-        db = self.client['dbms_project']
+        db_name = self.get_current_database()
+        db = self.client[db_name]
+        
+        # Get list of collections in the current database
         collections = db.list_collection_names()
         
         # Filter out system collections
-        tables = [col for col in collections if not col.startswith('system.') and col != 'catalog' and col != 'users' and col != 'preferences']
+        tables = [col for col in collections if not col.startswith('system.')]
         
         return tables
 
@@ -130,11 +223,13 @@ class CatalogManager:
         """
         Get all indexes for a specific table.
         """
-        db = self.client['dbms_project']
+        db_name = self.get_current_database()
+        
+        # Get from catalog
+        catalog_db = self.client['dbms_project']
         indexes = {}
         
-        # Get all indexes registered in our custom index collection
-        for idx_doc in db.indexes.find({"table": table_name}):
+        for idx_doc in catalog_db.indexes.find({"database": db_name, "table": table_name}):
             index_name = idx_doc.get("name")
             indexes[index_name] = {
                 "column": idx_doc.get("column"),
@@ -145,13 +240,15 @@ class CatalogManager:
 
     def get_all_indexes(self):
         """
-        Get all indexes in the database.
+        Get all indexes in the current database.
         """
-        db = self.client['dbms_project']
+        db_name = self.get_current_database()
+        
+        # Get from catalog
+        catalog_db = self.client['dbms_project']
         index_map = {}
         
-        # Get all indexes registered in our custom index collection
-        for idx_doc in db.indexes.find():
+        for idx_doc in catalog_db.indexes.find({"database": db_name}):
             table_name = idx_doc.get("table")
             index_name = idx_doc.get("name")
             
@@ -164,6 +261,51 @@ class CatalogManager:
             }
         
         return index_map
+
+    def get_views(self):
+        """
+        Get all views in the database.
+        """
+        db = self.client['dbms_project']
+        views = {}
+        
+        for view_doc in db.views.find():
+            views[view_doc.get("name")] = view_doc.get("query")
+        
+        return views
+
+    def get_columns(self, table_name):
+        """
+        Get all columns for a specific table.
+        """
+        db = self.client['dbms_project']
+        table_info = db.catalog.find_one({"name": table_name})
+        
+        if not table_info:
+            return []
+        
+        return table_info.get("columns", [])
+
+    def get_create_statement(self, table_name):
+        """
+        Get the CREATE TABLE statement for a specific table.
+        """
+        db = self.client['dbms_project']
+        table_info = db.catalog.find_one({"name": table_name})
+        
+        if not table_info:
+            return ""
+        
+        columns = table_info.get("columns", [])
+        col_stmts = []
+        
+        for col in columns:
+            col_stmt = f"{col['name']} {col['type']}"
+            if 'constraints' in col:
+                col_stmt += f" {col['constraints']}"
+            col_stmts.append(col_stmt)
+        
+        return f"CREATE TABLE {table_name} ({', '.join(col_stmts)});"
     
     def get_indexes(self, table_name):
         """

@@ -15,7 +15,7 @@ from shared.utils import send_data, receive_data
 class DBMSClient(cmd.Cmd):
     intro = textwrap.dedent("""
     ╔═══════════════════════════════════════════════════╗
-    ║           Welcome to HMS-SQL Database CLI          ║
+    ║           Welcome to HMS-SQL Database CLI         ║
     ╠═══════════════════════════════════════════════════╣
     ║ Type 'help' for a list of commands                ║
     ║ Type 'login <username>' to log in                 ║
