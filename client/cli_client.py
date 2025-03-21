@@ -130,11 +130,11 @@ class DBMSClient(cmd.Cmd):
         Example: query SELECT * FROM users
         """
         if not sql_query:
-            print("Please provide an SQL query")
+            print("Error: SQL query cannot be empty.")
             return
-            
+                
         if not self.session_id:
-            print("You must log in first")
+            print("Error: You are not logged in. Please login first.")
             return
         
         # Prepare request
@@ -152,7 +152,36 @@ class DBMSClient(cmd.Cmd):
             self.display_result(response)
         else:
             print(response)
-    
+
+    def do_visualize(self, arg):
+        """
+        Execute a visualization query.
+        Usage: visualize <visualization command>
+        Example: visualize INDEX idx_customer_email ON customers
+        """
+        if not self.session_id:
+            print("Error: You are not logged in. Please login first.")
+            return
+        
+        # Full command
+        command = "VISUALIZE " + arg
+        
+        # Prepare request
+        request = {
+            "action": "query",
+            "session_id": self.session_id,
+            "query": command
+        }
+        
+        # Send request to server
+        response = self.send_request(request)
+        
+        # Handle response
+        if isinstance(response, dict):
+            self.display_result(response)
+        else:
+            print(response)
+
     def do_exit(self, arg):
         """
         Exit the CLI client.
@@ -205,32 +234,57 @@ class DBMSClient(cmd.Cmd):
     
     def display_result(self, result):
         """Display the result of a query in a formatted table"""
-        if "rows" in result and "columns" in result:
-            # Display results as a table
+        # Remove type field if present to avoid confusion
+        if isinstance(result, dict) and 'type' in result:
+            del result['type']
+        
+        # First check if there's a simple message to display
+        if isinstance(result, dict) and "message" in result:
+            print(result["message"])
+            return
+            
+        # Then check for rows and columns (table data)
+        if isinstance(result, dict) and "rows" in result and "columns" in result:
             columns = result["columns"]
             rows = result["rows"]
             
+            # If no rows, show a simple message
+            if not rows:
+                print("Query executed successfully. No results to display.")
+                return
+                
             # Calculate column widths
-            col_widths = [len(col) for col in columns]
+            col_widths = [len(str(col)) for col in columns]
             for row in rows:
-                for i, val in enumerate(row):
-                    col_widths[i] = max(col_widths[i], len(str(val)))
+                for i, cell in enumerate(row):
+                    if i < len(col_widths):
+                        col_widths[i] = max(col_widths[i], len(str(cell)))
             
             # Print header
-            header = " | ".join(col.ljust(col_widths[i]) for i, col in enumerate(columns))
+            header = " | ".join(str(col).ljust(col_widths[i]) for i, col in enumerate(columns))
             separator = "-+-".join("-" * width for width in col_widths)
             print(header)
             print(separator)
             
             # Print rows
             for row in rows:
-                row_str = " | ".join(str(val).ljust(col_widths[i]) for i, val in enumerate(row))
+                row_str = " | ".join(str(cell).ljust(col_widths[i]) if i < len(col_widths) else str(cell) 
+                                    for i, cell in enumerate(row))
                 print(row_str)
             
             print(f"\n{len(rows)} row(s) returned")
+        # Handle error messages
+        elif isinstance(result, dict) and "error" in result:
+            print(f"Error: {result['error']}")
+        # Handle any other data formats
         else:
-            # Just print the result as is
-            print(json.dumps(result, indent=2))
+            # Just print key-value pairs without status or type fields
+            if isinstance(result, dict):
+                for key, value in result.items():
+                    if key not in ["status", "type"]:
+                        print(f"{key}: {value}")
+            else:
+                print(result)
 
 def main():
     # Get server host and port from command line arguments if provided

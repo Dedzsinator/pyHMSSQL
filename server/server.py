@@ -23,8 +23,6 @@ from shared.utils import send_data, receive_data
 # Import sqlparse for SQL parsing
 import sqlparse
 
-# Configure logging
-# Configure logging to file
 def setup_logging():
     # Create logs directory if it doesn't exist
     logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -34,7 +32,15 @@ def setup_logging():
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(logs_dir, f'dbms_server_{timestamp}.log')
     
-    # Create a rotating file handler (max 10MB per file, keep 5 backup files)
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    
+    # Remove any existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Create a rotating file handler
     file_handler = RotatingFileHandler(
         log_file, 
         maxBytes=10*1024*1024,  # 10MB
@@ -45,16 +51,14 @@ def setup_logging():
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
     
-    # Configure root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
-    
-    # Remove any existing handlers (like stdout handlers)
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-    
-    # Add our file handler
+    # Add file handler
     root_logger.addHandler(file_handler)
+    
+    # Add console handler for warnings and errors only
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.WARNING)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
     
     # Log startup message
     logging.info("==== DBMS Server Starting ====")
@@ -72,16 +76,16 @@ class DBMSServer:
         self.mongo_client = MongoClient(mongo_uri)
         self.catalog_manager = CatalogManager(self.mongo_client)
         self.index_manager = IndexManager('indexes')
-        self.planner = Planner(self.catalog_manager, self.index_manager)
-        self.optimizer = Optimizer(self.catalog_manager, self.index_manager)
-        self.execution_engine = ExecutionEngine(self.catalog_manager, self.index_manager)
-        self.sessions = {}
         
+        # Set up unified logging
         log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         
-        # Configure root logger
+        # Use a single log file for all components
+        log_file = os.path.join(log_dir, 'query_planner.log')
+        
+        # Configure root logger once
         root_logger = logging.getLogger()
         root_logger.setLevel(logging.INFO)
         
@@ -90,60 +94,90 @@ class DBMSServer:
             root_logger.removeHandler(handler)
         
         # Add file handler
-        log_file = os.path.join(log_dir, 'query_planner.log')
         file_handler = RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=5)
         file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         root_logger.addHandler(file_handler)
-    
+        
+        # Silent console handler
         class NullHandler(logging.Handler):
             def emit(self, record):
                 pass
         
         console_handler = NullHandler()
         root_logger.addHandler(console_handler)
+        
+        # Initialize components with the logging already set up
+        self.planner = Planner(self.catalog_manager, self.index_manager)
+        self.optimizer = Optimizer(self.catalog_manager, self.index_manager)
+        self.execution_engine = ExecutionEngine(self.catalog_manager, self.index_manager)
+        self.sessions = {}
+    
+    def _validate_session(self, session_token):
+        """Validate a session token"""
+        return session_token in self.sessions
     
     def handle_request(self, data):
         """
         Handle incoming request.
         """
-        request_type = data.get('type')
+        # Only use 'action' field for determining request type
+        request_type = data.get('action')
         
+        if not request_type:
+            logging.error(f"Missing 'action' field in request: {data}")
+            return {"error": "Missing 'action' field in request", "status": "error"}
+        
+        # Process the request based on action
         if request_type == 'login':
             return self.handle_login(data)
         elif request_type == 'query':
+            # Check if this is a VISUALIZE query and redirect
+            query = data.get('query', '').strip().upper()
+            if query.startswith('VISUALIZE'):
+                return self.handle_visualize(data)
             return self.handle_query(data)
+        elif request_type == 'register':
+            return self.handle_register(data)
         elif request_type == 'visualize':
-            # New handler for visualization requests
             return self.handle_visualize(data)
         elif request_type == 'logout':
             return self.handle_logout(data)
         else:
-            return {"error": f"Unknown request type: {request_type}"}
+            logging.error(f"Unknown request type: {request_type}")
+            return {"error": f"Unknown request type: {request_type}", "status": "error"}
 
     def handle_visualize(self, data):
-        """
-        Handle visualization requests.
-        """
-        session_token = data.get('session_token')
-        if not self._validate_session(session_token):
-            return {"error": "Invalid or expired session"}
+        """Handle visualization requests."""
+        session_id = data.get('session_id')
+        if session_id not in self.sessions:
+            logging.warning(f"Unauthorized visualize attempt with invalid session ID: {session_id}")
+            return {"error": "Unauthorized. Please log in.", "status": "error"}
         
-        user_info = self.sessions.get(session_token)
-        username = user_info.get('username')
+        user = self.sessions[session_id]
+        query = data.get('query', '')
+        logging.info(f"Visualization request from {user.get('username', 'Unknown')}: {query}")
         
         # Parse as a visualization command
-        query = data.get('query', '')
-        parsed = self.parse_sql(query)
+        parsed = self._parse_visualize_command(query)
         
         if parsed:
-            # Log the visualization request
-            logging.info(f"Visualization request from {username}: {query}")
-            
             # Execute the visualization
-            result = self.execution_engine.execute(parsed)
-            return result
+            try:
+                result = self.execution_engine.execute(parsed)
+                if isinstance(result, dict) and 'type' in result:
+                    del result['type']  # Remove type field from response
+                
+                # Ensure proper response format
+                if isinstance(result, dict) and "status" not in result:
+                    result["status"] = "success"
+                    
+                return result
+            except Exception as e:
+                error_msg = f"Error executing visualization: {str(e)}"
+                logging.error(error_msg)
+                return {"error": error_msg, "status": "error"}
         else:
-            return {"error": "Failed to parse visualization command"}
+            return {"error": "Failed to parse visualization command", "status": "error"}
 
     def parse_sql(self, sql):
         """
@@ -358,60 +392,32 @@ class DBMSServer:
         set_pairs = {}
         where_clause = None
         
-        # Process tokens
-        update_seen = False
-        set_seen = False
+        # Get original SQL to preserve case
+        raw_sql = str(parsed)
         
-        for token in parsed.tokens:
-            # Skip whitespace and punctuation
-            if token.is_whitespace or str(token) == ';':
-                continue
-                
-            # Find the table name after UPDATE
-            if token.is_keyword and token.value.upper() == "UPDATE":
-                update_seen = True
-                continue
-                
-            if update_seen and token.ttype is None:
-                # This should be the table identifier
-                if hasattr(token, 'get_name'):
-                    table_name = token.get_name()
-                else:
-                    table_name = str(token)
-                update_seen = False
+        # Extract table name (comes after UPDATE keyword)
+        table_match = re.search(r'UPDATE\s+(\w+)', raw_sql, re.IGNORECASE)
+        if table_match:
+            table_name = table_match.group(1)
+        
+        # Extract SET clause - improved regex to properly match everything between SET and WHERE (or end of string)
+        set_match = re.search(r'SET\s+(.*?)(?:\s+WHERE\s+|$)', raw_sql, re.IGNORECASE)
+        if set_match:
+            set_clause = set_match.group(1).strip()
+            logging.debug(f"Extracted SET clause: {set_clause}")
             
-            # Extract SET pairs
-            if token.is_keyword and token.value.upper() == "SET":
-                set_seen = True
-                continue
-                
-            if set_seen and token.ttype is None:
-                # This is the assignments list
-                assignments = []
-                if hasattr(token, 'tokens'):
-                    # This handles multiple assignments
-                    for item in token.tokens:
-                        if not item.is_whitespace and str(item) != ',':
-                            assignments.append(str(item))
-                else:
-                    # This is a single assignment
-                    assignments.append(str(token))
-                
-                # Parse each assignment as column=value
-                for assignment in assignments:
-                    if '=' in assignment:
-                        column, value = assignment.split('=', 1)
-                        set_pairs[column.strip()] = value.strip()
-                
-                set_seen = False
-            
-            # Extract WHERE clause
-            if token.is_keyword and token.value.upper() == "WHERE":
-                # Find the next token which should be the condition
-                idx = parsed.token_index(token)
-                if idx < len(parsed.tokens) - 1:
-                    where_tokens = [str(t) for t in parsed.tokens[idx+1:] if not t.is_whitespace]
-                    where_clause = " ".join(where_tokens).strip()
+            # Process each assignment (column = value)
+            for assignment in set_clause.split(','):
+                if '=' in assignment:
+                    column, value = assignment.split('=', 1)
+                    set_pairs[column.strip()] = value.strip()
+                    
+            logging.debug(f"Final SET pairs: {set_pairs}")
+        
+        # Extract WHERE clause
+        where_match = re.search(r'WHERE\s+(.+)$', raw_sql, re.IGNORECASE)
+        if where_match:
+            where_clause = where_match.group(1).strip()
         
         # Update result with extracted components
         result.update({
@@ -426,34 +432,18 @@ class DBMSServer:
         table_name = None
         where_clause = None
         
-        # Process tokens
-        from_seen = False
+        # Get original SQL to preserve case
+        raw_sql = str(parsed)
         
-        for token in parsed.tokens:
-            # Skip whitespace and punctuation
-            if token.is_whitespace or str(token) == ';':
-                continue
-                
-            # Find the table name after FROM
-            if token.is_keyword and token.value.upper() == "FROM":
-                from_seen = True
-                continue
-                
-            if from_seen and token.ttype is None:
-                # This should be the table identifier
-                if hasattr(token, 'get_name'):
-                    table_name = token.get_name()
-                else:
-                    table_name = str(token)
-                from_seen = False
-            
-            # Extract WHERE clause
-            if token.is_keyword and token.value.upper() == "WHERE":
-                # Find the next token which should be the condition
-                idx = parsed.token_index(token)
-                if idx < len(parsed.tokens) - 1:
-                    where_tokens = parsed.tokens[idx+1:]
-                    where_clause = " ".join(str(t) for t in where_tokens if not t.is_whitespace).strip()
+        # Extract table name (comes after FROM keyword)
+        table_match = re.search(r'DELETE\s+FROM\s+(\w+)', raw_sql, re.IGNORECASE)
+        if table_match:
+            table_name = table_match.group(1)
+        
+        # Extract WHERE clause
+        where_match = re.search(r'WHERE\s+(.+)$', raw_sql, re.IGNORECASE)
+        if where_match:
+            where_clause = where_match.group(1).strip()
         
         # Update result with extracted components
         result.update({
@@ -708,11 +698,28 @@ class DBMSServer:
             session_id = str(uuid.uuid4())
             self.sessions[session_id] = user
             logging.info(f"User {username} logged in successfully (role: {user['role']})")
-            return {"session_id": session_id, "role": user["role"]}
+            return {
+                "session_id": session_id, 
+                "role": user["role"],
+                "status": "success",
+                "message": f"Login successful as {username} ({user['role']})"
+            }
         else:
             logging.warning(f"Failed login attempt for user: {username}")
-            return "Invalid username or password."
+            return {"error": "Invalid username or password.", "status": "error"}
     
+    def handle_logout(self, data):
+        """Handle user logout."""
+        session_id = data.get('session_id')
+        if session_id in self.sessions:
+            username = self.sessions[session_id].get('username', 'Unknown')
+            del self.sessions[session_id]
+            logging.info(f"User {username} logged out successfully")
+            return {"message": "Logged out successfully.", "status": "success"}
+        else:
+            logging.warning(f"Invalid logout attempt with session ID: {session_id}")
+            return {"error": "Invalid session ID.", "status": "error"}
+
     def handle_register(self, data):
         """Handle user registration."""
         username = data.get('username')
@@ -724,28 +731,19 @@ class DBMSServer:
         result = self.catalog_manager.register_user(username, password, role)
         if "error" not in str(result).lower():
             logging.info(f"User {username} registered successfully with role: {role}")
+            return {"message": f"User {username} registered successfully as {role}", "status": "success"}
         else:
             logging.warning(f"Failed registration for user {username}: {result}")
-        return result
-
-    def handle_logout(self, data):
-        """Handle user logout."""
-        session_id = data.get('session_id')
-        if session_id in self.sessions:
-            username = self.sessions[session_id].get('username', 'Unknown')
-            del self.sessions[session_id]
-            logging.info(f"User {username} logged out successfully")
-            return "Logged out successfully."
-        else:
-            logging.warning(f"Invalid logout attempt with session ID: {session_id}")
-            return "Invalid session ID."
+            if isinstance(result, str):
+                return {"error": result, "status": "error"}
+            return result
 
     def handle_query(self, data):
         """Handle query execution with role-based access control."""
         session_id = data.get('session_id')
         if session_id not in self.sessions:
             logging.warning(f"Unauthorized query attempt with invalid session ID: {session_id}")
-            return "Unauthorized. Please log in."
+            return {"error": "Unauthorized. Please log in.", "status": "error"}
         
         user = self.sessions[session_id]
         query = data.get('query')
@@ -758,38 +756,110 @@ class DBMSServer:
             if "error" in parsed_query:
                 error_msg = f"Error parsing SQL query: {parsed_query['error']}"
                 logging.error(error_msg)
-                return error_msg
+                return {"error": error_msg, "status": "error"}
             
-            # Plan and optimize the query
-            logging.debug("Planning query...")
-            plan = self.planner.plan_query(parsed_query)
-            logging.debug("Optimizing query...")
-            optimized_plan = self.optimizer.optimize(plan)
-            
-            # Execute the query
-            logging.debug("Executing query...")
-            result = self.execution_engine.execute(optimized_plan)
-            logging.info(f"Query executed successfully")
-            return result
+            try:
+                # Plan and optimize the query
+                logging.debug("Planning query...")
+                plan = self.planner.plan_query(parsed_query)
+                logging.debug("Optimizing query...")
+                optimized_plan = self.optimizer.optimize(plan)
+                
+                # Execute the query
+                logging.debug("Executing query...")
+                result = self.execution_engine.execute(optimized_plan)
+                logging.info(f"Query executed successfully")
+                
+                # Ensure proper response format
+                if isinstance(result, str):
+                    result = {"message": result, "status": "success"}
+                elif isinstance(result, dict) and "status" not in result:
+                    result["status"] = "success"
+                
+                # Don't check for type field in logging - it's removed intentionally
+                return result
+            except Exception as e:
+                error_msg = f"Error executing query: {str(e)}"
+                logging.error(error_msg)
+                return {"error": error_msg, "status": "error"}
         else:
             logging.warning(f"Access denied for query: {query}")
-            return "Access denied. You do not have permission to execute this query."
-
+            return {"error": "Access denied. You do not have permission to execute this query.", "status": "error"}
+        
     def is_query_allowed(self, role, query):
-        """Check if the query is allowed for the given role."""
-        # Only admins can perform these operations
-        if role != "admin" and (
-            "CREATE TABLE" in query.upper() or 
-            "DROP TABLE" in query.upper() or
-            "CREATE DATABASE" in query.upper() or
-            "DROP DATABASE" in query.upper() or
-            "CREATE INDEX" in query.upper() or
-            "DROP INDEX" in query.upper()
-        ):
-            logging.warning(f"Permission denied: {role} role attempted restricted operation")
+        """
+        Check if a query is allowed for the user's role.
+        """
+        # Admin can do anything
+        if role == "admin":
+            return True
+            
+        # Convert to uppercase for case-insensitive comparison
+        query_upper = query.upper().strip()
+        
+        # Regular users cannot do certain operations
+        if any(query_upper.startswith(prefix) for prefix in [
+                "DROP DATABASE", 
+                "CREATE DATABASE", 
+                "CREATE USER",
+                "DROP USER",
+                "ALTER USER",
+                "GRANT",
+                "REVOKE"
+            ]):
             return False
+        
+        # All other queries are allowed for all roles
         return True
     
+    def display_result(self, result):
+        """Display the result of a query in a formatted table"""
+        # Handle string responses for backward compatibility
+        if isinstance(result, str):
+            print(result)
+            return
+            
+        # First check if there's a simple message to display
+        if "message" in result:
+            print(result["message"])
+            return
+            
+        # Then check for rows and columns (table data)
+        if "rows" in result and "columns" in result:
+            # Display results as a table
+            columns = result["columns"]
+            rows = result["rows"]
+            
+            # Calculate column widths
+            col_widths = [len(str(col)) for col in columns]
+            for row in rows:
+                for i, cell in enumerate(row):
+                    if i < len(col_widths):
+                        col_widths[i] = max(col_widths[i], len(str(cell)))
+            
+            # Print header
+            header = " | ".join(str(col).ljust(col_widths[i]) for i, col in enumerate(columns))
+            separator = "-+-".join("-" * width for width in col_widths)
+            print(header)
+            print(separator)
+            
+            # Print rows
+            for row in rows:
+                row_str = " | ".join(str(cell).ljust(col_widths[i]) if i < len(col_widths) else str(cell) 
+                                    for i, cell in enumerate(row))
+                print(row_str)
+            
+            print(f"\n{len(rows)} row(s) returned")
+        # Handle error messages
+        elif "error" in result:
+            print(f"Error: {result['error']}")
+        # Handle any other data formats
+        else:
+            # If it's just key-value pairs without a clear format, print them nicely
+            for key, value in result.items():
+                if key not in ["status", "type"]:  # Skip non-content fields
+                    print(f"{key}: {value}")
+
 def start_server():
     # Make sure sqlparse is installed
     try:

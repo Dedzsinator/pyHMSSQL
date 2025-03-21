@@ -202,10 +202,10 @@ class BPlusTree:
         """
         if visualizer is None:
             # Create a new visualizer if not provided
-            from bptree_visualizer import BPlusTreeVisualizer
+            from bptreeGraph import BPlusTreeVisualizer
             visualizer = BPlusTreeVisualizer()
     
-    return visualizer.visualize_tree(self, output_name)
+        return visualizer.visualize_tree(self, output_name)
     
     def _get_tree_structure_json(self):
         """Generate a JSON representation of the tree structure for debugging"""

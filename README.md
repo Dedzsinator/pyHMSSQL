@@ -186,13 +186,13 @@ status
 logout
 
 -- Visualize a specific index
-VISUALIZE INDEX idx_customer_email ON customers;
+query VISUALIZE INDEX idx_customer_email ON customers
 
 -- Visualize all indexes on a table
-VISUALIZE INDEX ON customers;
+query VISUALIZE INDEX ON customers
 
 -- Visualize all indexes in the database
-VISUALIZE INDEX;
+query VISUALIZE INDEX
 
 -- Create a database (admin only)
 query CREATE DATABASE test_db ✅
@@ -245,28 +245,28 @@ query INSERT INTO customers (id, name, email, age) VALUES (3, 'Bob Johnson', 'bo
 query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'alice@example.com', 35)
 
 -- Simple SELECT
-query SELECT * FROM customers ~
+query SELECT * FROM customers ✅
 
 -- SELECT with column projection
-query SELECT id, name FROM customers ~
+query SELECT id, name FROM customers ✅
 
 -- SELECT with WHERE condition
-query SELECT * FROM customers WHERE age > 30 ~
+query SELECT * FROM customers WHERE age > 30 ✅
 
 -- SELECT with sorting
-query SELECT * FROM customers ORDER BY age DESC ~
+query SELECT * FROM customers ORDER BY age DESC ✅
 
 -- SELECT with LIMIT
-query SELECT * FROM customers LIMIT 2 ~
+query SELECT * FROM customers LIMIT 2 ✅
 
 -- Update records
-query UPDATE customers SET age = 31 WHERE id = 1
+query UPDATE customers SET age = 31 WHERE id = 2 ✅
 
 -- Delete a record
-query DELETE FROM customers WHERE id = 4 ~
+query DELETE FROM customers WHERE id = 4 ✅
 
 -- Delete all records
-query DELETE FROM customers ~
+query DELETE FROM customers ✅
 
 -- Insert test data
 query INSERT INTO customers (id, name, email, age) VALUES (1, 'John Doe', 'john@example.com', 30)

@@ -191,10 +191,20 @@ class CatalogManager:
         return True
 
     def get_current_database(self):
-        """
-        Get the current database name.
-        """
-        return self.current_database or 'dbms_project'
+        """Get the currently selected database"""
+        # Check the instance attribute first
+        if self.current_database:
+            return self.current_database
+        
+        # If not found in instance, try to get from database
+        db = self.client['dbms_project']
+        pref = db.preferences.find_one({"name": "current_database"})
+        if pref and 'value' in pref:
+            # Cache it in the instance for future calls
+            self.current_database = pref['value']
+            return pref['value']
+        
+        return None
     
     def get_databases(self):
         """
