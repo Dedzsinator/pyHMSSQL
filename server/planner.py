@@ -9,33 +9,6 @@ class Planner:
         """
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
-        
-        # Configure detailed logging
-        log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        
-        # Create a logs directory if it doesn't exist
-        if not os.path.exists('server/logs'):
-            os.makedirs('server/logs')
-        
-        # Set up file handler
-        file_handler = logging.FileHandler('server/logs/query_planner.log')
-        file_handler.setFormatter(logging.Formatter(log_format))
-        
-        # Set up console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(logging.Formatter(log_format))
-        
-        # Configure logger
-        logger = logging.getLogger()
-        logger.setLevel(logging.INFO)
-        
-        # Remove existing handlers if any
-        for handler in logger.handlers[:]:
-            logger.removeHandler(handler)
-        
-        # Add handlers
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
     
     def log_execution_plan(self, plan):
         """
@@ -104,7 +77,7 @@ class Planner:
                 vals_str = str(values[0]) if values else ""
                 query_steps.append(f"VALUES: {vals_str}")
         
-        # Log the execution plan steps
+        # Log the execution plan steps with a specific logger name
         logging.info("=============================================")
         logging.info(f"EXECUTION PLAN - {plan_type}")
         logging.info("=============================================")
@@ -113,11 +86,11 @@ class Planner:
         logging.info("=============================================")
         
         # Log the plan objects for debugging
-        logging.info(f"Initial plan: {plan}")
+        logging.debug(f"Initial plan: {plan}")
         
         # Apply optimizations (placeholder for now)
         optimized_plan = plan
-        logging.info(f"Optimized plan: {optimized_plan}")
+        logging.debug(f"Optimized plan: {optimized_plan}")
         
         return optimized_plan
 
@@ -167,11 +140,31 @@ class Planner:
             plan = self.plan_show(parsed_query)
         elif parsed_query['type'] == "USE":
             plan = self.plan_use_database(parsed_query)
+        elif parsed_query['type'] == "VISUALIZE":
+            return self.plan_visualize(parsed_query)
         else:
             raise ValueError("Unsupported query type.")
         
         # Log the execution plan
         return self.log_execution_plan(plan)
+
+    def plan_visualize(self, parsed_query):
+        """Plan a visualization query."""
+        plan = {'type': 'VISUALIZE'}
+        
+        object_type = parsed_query.get('object')
+        if object_type == 'BPTREE':
+            plan['object'] = 'BPTREE'
+            plan['index_name'] = parsed_query.get('index_name')
+            plan['table'] = parsed_query.get('table')
+        elif object_type == 'INDEX':
+            plan['object'] = 'INDEX'
+            plan['index_name'] = parsed_query.get('index_name')
+            plan['table'] = parsed_query.get('table')
+        else:
+            plan['error'] = f"Unknown visualization object: {object_type}"
+        
+        return plan
 
     def plan_use_database(self, parsed_query):
         """

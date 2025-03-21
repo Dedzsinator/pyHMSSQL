@@ -157,7 +157,7 @@ class DBMSClient(cmd.Cmd):
         """
         Execute a visualization query.
         Usage: visualize <visualization command>
-        Example: visualize INDEX idx_customer_email ON customers
+        Example: visualize BPTREE idx_customer_email ON customers
         """
         if not self.session_id:
             print("Error: You are not logged in. Please login first.")
@@ -176,9 +176,9 @@ class DBMSClient(cmd.Cmd):
         # Send request to server
         response = self.send_request(request)
         
-        # Handle response
+        # Handle response specifically for visualizations
         if isinstance(response, dict):
-            self.display_result(response)
+            self.handle_visualization_response(response)
         else:
             print(response)
 
@@ -285,6 +285,35 @@ class DBMSClient(cmd.Cmd):
                         print(f"{key}: {value}")
             else:
                 print(result)
+
+    def handle_visualization_response(self, response):
+        """Handle visualization response from server"""
+        if response.get("status") == "success":
+            if "visualization_path" in response:
+                print(f"Visualization saved to: {response['visualization_path']}")
+                
+                # On Windows, try to open the image
+                if os.name == 'nt' and response['visualization_path'].endswith('.png'):
+                    import subprocess
+                    try:
+                        subprocess.Popen(['start', response['visualization_path']], shell=True)
+                        print(f"Opening visualization file: {response['visualization_path']}")
+                    except Exception as e:
+                        print(f"Error opening visualization: {str(e)}")
+                
+            if "text_representation" in response:
+                print("\nB+ Tree Text Representation:")
+                print(response["text_representation"])
+                
+            if "node_count" in response:
+                print(f"\nB+ Tree Statistics:")
+                print(f"Nodes: {response['node_count']}")
+                print(f"Leaf nodes: {response.get('leaf_count', 'N/A')}")
+                print(f"Height: {response.get('height', 'N/A')}")
+        elif "error" in response:
+            print(f"Error: {response['error']}")
+        else:
+            print(f"Unknown response format: {response}")
 
 def main():
     # Get server host and port from command line arguments if provided

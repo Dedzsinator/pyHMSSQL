@@ -6,25 +6,12 @@ from datetime import datetime
 
 # Create a dedicated B+ tree logger
 def setup_bptree_logger():
-    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-        
+    """
+    Instead of creating a separate logger, get a child logger from the root
+    """
+    # Get a child logger from the root logger
     logger = logging.getLogger('bptree')
-    logger.setLevel(logging.DEBUG)
-    
-    # Create a file handler for the B+ tree logger
-    log_file = os.path.join(log_dir, 'bptree_operations.log')
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    
-    # Remove any existing handlers
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-        
-    logger.addHandler(file_handler)
-    logger.propagate = False  # Don't propagate to root logger
-    
+    # Don't set level or handlers - inherit from root
     return logger
 
 bptree_logger = setup_bptree_logger()
@@ -190,21 +177,10 @@ class BPlusTree:
         return result
         
     def visualize(self, visualizer=None, output_name=None):
-        """
-        Visualize the B+ tree structure
-        
-        Args:
-            visualizer: Optional BPlusTreeVisualizer instance
-            output_name: Optional name for the output file
-        
-        Returns:
-            Path to the visualization file or None if visualization failed
-        """
         if visualizer is None:
-            # Create a new visualizer if not provided
-            from bptreeGraph import BPlusTreeVisualizer
-            visualizer = BPlusTreeVisualizer()
-    
+            # Update to use the new visualizer
+            from bptree_visualizer import BPTreeVisualizer
+            visualizer = BPTreeVisualizer()
         return visualizer.visualize_tree(self, output_name)
     
     def _get_tree_structure_json(self):

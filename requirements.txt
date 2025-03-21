@@ -2,3 +2,5 @@ pymongo
 sqlparse
 re
 graphviz
+networkx
+matplotlib

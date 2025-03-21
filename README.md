@@ -185,14 +185,14 @@ status
 -- Logout
 logout
 
--- Visualize a specific index
-query VISUALIZE INDEX idx_customer_email ON customers
+-- Show all indexes in the current database
+query VISUALIZE BPTREE
 
--- Visualize all indexes on a table
-query VISUALIZE INDEX ON customers
+-- Show all indexes on a specific table
+query VISUALIZE BPTREE ON customers
 
--- Visualize all indexes in the database
-query VISUALIZE INDEX
+-- Show a specific index
+query VISUALIZE BPTREE idx_customer_email ON customers
 
 -- Create a database (admin only)
 query CREATE DATABASE test_db ✅
@@ -214,6 +214,12 @@ query CREATE TABLE customers (id INT PRIMARY KEY, name String, email VARCHAR(100
 
 -- Create a table with constraints
 query CREATE TABLE orders (id INT PRIMARY KEY,customer_id INT,order_date DATETIME,total DECIMAL(10,2),status VARCHAR(20),FOREIGN KEY (customer_id) REFERENCES customers(id)) ✅
+
+-- Create an index on the customers table
+CREATE INDEX idx_customer_email ON customers (email)
+
+-- Create an index on the orders table  
+CREATE INDEX idx_order_date ON orders (order_date)
 
 -- Show all tables
 query SHOW TABLES ✅

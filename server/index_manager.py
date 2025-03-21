@@ -1,5 +1,4 @@
 from bptree import BPlusTree, setup_bptree_logger
-from bptreeGraph import BPlusTreeVisualizer
 import os
 import logging
 
@@ -9,9 +8,10 @@ class IndexManager:
         if not os.path.exists(index_dir):
             os.makedirs(index_dir)
             
-        # Initialize the visualizer
+        # Initialize the unified visualizer
         viz_dir = os.path.join(index_dir, 'visualizations')
-        self.visualizer = BPlusTreeVisualizer(output_dir=viz_dir)
+        from bptree_visualizer import BPTreeVisualizer
+        self.visualizer = BPTreeVisualizer(output_dir=viz_dir)
         
         logging.info(f"IndexManager initialized with directory: {index_dir}")
     
@@ -118,3 +118,62 @@ class IndexManager:
                 
         logging.info(f"Visualized {len(index_files)} indexes")
         return len(index_files)
+    
+    def build_index(self, table_name, index_name, column_name, is_unique=False, db_name=None):
+        """
+        Build or rebuild an index from table data.
+        
+        Args:
+            table_name: Name of the table to index
+            index_name: Name of the index
+            column_name: Name of the column to index
+            is_unique: Whether this is a unique index
+            db_name: Database name (optional)
+        """
+        from pymongo import MongoClient
+        import os
+        
+        logging.info(f"Building index: {index_name} on {table_name}.{column_name}")
+        
+        # Create a full index name for the file
+        full_index_name = f"{table_name}.{index_name}"
+        
+        # Create a new B+ tree
+        tree = BPlusTree(order=50, name=full_index_name)
+        
+        # Connect to MongoDB to get the data
+        client = MongoClient()
+        
+        if not db_name:
+            # Try to get the current database from the catalog
+            from catalog_manager import CatalogManager
+            catalog = CatalogManager(client)
+            db_name = catalog.get_current_database()
+            
+        if not db_name:
+            logging.error("No database selected for index building")
+            return None
+        
+        # Get the data from MongoDB
+        db = client[db_name]
+        collection = db[table_name]
+        
+        # Get all documents
+        documents = collection.find({})
+        record_count = 0
+        
+        # Build the index by adding each document's column value
+        for doc in documents:
+            if column_name in doc:
+                key = doc[column_name]
+                document_id = str(doc.get('_id', record_count))
+                tree.insert(key, document_id)
+                record_count += 1
+        
+        # Save the index to a file
+        os.makedirs(self.index_dir, exist_ok=True)
+        index_file = os.path.join(self.index_dir, f"{full_index_name}.idx")
+        tree.save_to_file(index_file)
+        
+        logging.info(f"Built index {index_name} with {record_count} records")
+        return tree
