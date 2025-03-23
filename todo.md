@@ -1,11 +1,11 @@
 login register ✅
 logout ✅
 status ✅
-insert
-update
-delete
+insert ✅
+update ✅
+delete ✅
 SHOW
-select
+select ✅
 alter
 create
 drop
