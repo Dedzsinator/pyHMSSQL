@@ -323,14 +323,15 @@ query INSERT INTO employees (id, name, dept_id, salary) VALUES (3, 'Charlie', 2,
 query INSERT INTO employees (id, name, dept_id, salary) VALUES (4, 'Dave', 2, 68000)
 query INSERT INTO employees (id, name, dept_id, salary) VALUES (5, 'Eve', 3, 78000)
 
--- Join Operations
-query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id !!!!
-
--- Hash Join
+-- Hash Join (default)
 query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id
 
 -- Sort-Merge Join
-query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id
+query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='MERGE')
+
+-- Index Join (needs an index)
+query CREATE INDEX idx_dept_id ON employees(dept_id)
+query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='INDEX')
 
 -- Subquery
 query SELECT * FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE name = 'Engineering')

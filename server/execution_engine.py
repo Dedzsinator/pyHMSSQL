@@ -116,7 +116,7 @@ class ExecutionEngine:
         tables = self.catalog_manager.list_tables(db_name)
         for db_table in tables:
             if db_table.lower() == table_name.lower():
-                table_name = db_table
+                table_name = db_table  # Use the correct case
                 table_found = True
                 break
         
@@ -135,28 +135,30 @@ class ExecutionEngine:
             
             # Column name mapping for case insensitivity
             column_map = {}
-            if results:
-                for key in results[0].keys():
-                    column_map[key.lower()] = key
+            if results and len(results) > 0:
+                for col in results[0]:
+                    column_map[col.lower()] = col
             
             # Map the requested column to its actual case in the data
             actual_column = None
             if column != '*':
-                col_lower = column.lower()
-                if col_lower in column_map:
-                    actual_column = column_map[col_lower]
-                else:
-                    actual_column = column  # Use as-is if not found
+                for col_lower, col_actual in column_map.items():
+                    if col_lower == column.lower():
+                        actual_column = col_actual
+                        break
             
             # Calculate the aggregate result
             aggregate_result = None
             
             if function == 'COUNT':
+                # Count records or non-null values in specified column
                 if column == '*':
-                    # Count all records
                     aggregate_result = len(results)
                 else:
-                    # Count non-null values in specified column
+                    if not actual_column:
+                        return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                    
+                    # Count non-null values in the column
                     count = 0
                     for record in results:
                         if actual_column in record and record[actual_column] is not None:
@@ -165,47 +167,65 @@ class ExecutionEngine:
             
             elif function == 'SUM':
                 # Sum values in specified column
+                if column == '*':
+                    return {"error": "Cannot use SUM with *", "status": "error", "type": "error"}
+                
                 if not actual_column:
                     return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
-                    
-                total = 0
+                
+                sum_value = 0
+                num_values = 0
+                
                 for record in results:
                     if actual_column in record and record[actual_column] is not None:
                         try:
-                            total += float(record[actual_column])
-                        except (ValueError, TypeError):
-                            # Skip non-numeric values
-                            pass
-                aggregate_result = total
-            
-            elif function == 'AVG':
-                # Calculate average of values in specified column
-                if not actual_column:
-                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
-                    
-                total = 0
-                count = 0
-                for record in results:
-                    if actual_column in record and record[actual_column] is not None:
-                        try:
-                            total += float(record[actual_column])
-                            count += 1
+                            value = float(record[actual_column])
+                            sum_value += value
+                            num_values += 1
                         except (ValueError, TypeError):
                             # Skip non-numeric values
                             pass
                 
-                aggregate_result = total / count if count > 0 else 0
+                aggregate_result = sum_value if num_values > 0 else None
+            
+            elif function == 'AVG':
+                # Calculate average of values in specified column
+                if column == '*':
+                    return {"error": "Cannot use AVG with *", "status": "error", "type": "error"}
+                
+                if not actual_column:
+                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                
+                sum_value = 0
+                num_values = 0
+                
+                for record in results:
+                    if actual_column in record and record[actual_column] is not None:
+                        try:
+                            value = float(record[actual_column])
+                            sum_value += value
+                            num_values += 1
+                        except (ValueError, TypeError):
+                            # Skip non-numeric values
+                            pass
+                
+                aggregate_result = sum_value / num_values if num_values > 0 else None
             
             elif function == 'MIN':
                 # Find minimum value in specified column
+                if column == '*':
+                    return {"error": "Cannot use MIN with *", "status": "error", "type": "error"}
+                
                 if not actual_column:
                     return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
-                    
+                
                 min_value = None
+                
                 for record in results:
                     if actual_column in record and record[actual_column] is not None:
                         value = record[actual_column]
                         try:
+                            # Try to compare as number
                             value_float = float(value)
                             if min_value is None or value_float < min_value:
                                 min_value = value_float
@@ -218,14 +238,19 @@ class ExecutionEngine:
             
             elif function == 'MAX':
                 # Find maximum value in specified column
+                if column == '*':
+                    return {"error": "Cannot use MAX with *", "status": "error", "type": "error"}
+                
                 if not actual_column:
                     return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
-                    
+                
                 max_value = None
+                
                 for record in results:
                     if actual_column in record and record[actual_column] is not None:
                         value = record[actual_column]
                         try:
+                            # Try to compare as number
                             value_float = float(value)
                             if max_value is None or value_float > max_value:
                                 max_value = value_float
@@ -249,7 +274,7 @@ class ExecutionEngine:
             
             logging.debug(f"Aggregate result: {result_column} = {aggregate_result}")
             
-            # Very important! Return a single row with the aggregate result
+            # Return a single row with the aggregate result
             return {
                 "columns": [result_column],
                 "rows": [[aggregate_result]],  # Single row with single value
@@ -266,103 +291,17 @@ class ExecutionEngine:
                 "status": "error",
                 "type": "error"
             }
-    
+
     def execute_join(self, plan):
         """
-        Execute a JOIN query.
+        Execute a JOIN query using the appropriate join algorithm.
         """
-        join_type = plan.get('type', 'HASH_JOIN')
-        
-        # Log the plan for debugging
-        logging.debug(f"Executing join with plan: {plan}")
-        
-        # Initialize result
-        result = []
-        
-        if join_type == "HASH_JOIN":
-            result = self.execute_hash_join(plan)
-        elif join_type == "SORT_MERGE_JOIN":
-            result = self.execute_sort_merge_join(plan)
-        elif join_type == "INDEX_JOIN":
-            result = self.execute_index_join(plan)
-        else:
-            # Default to nested loop join
-            result = self.execute_nested_loop_join(plan)
-            
-        # Process any WHERE conditions on the joined result
-        if 'where_condition' in plan and plan['where_condition']:
-            filtered_result = []
-            condition = plan['where_condition']
-            query_filter = self._parse_condition(condition)
-            
-            for doc in result:
-                # Check if the document matches the condition
-                matches = True
-                for field, value in query_filter.items():
-                    if field not in doc or doc[field] != value:
-                        matches = False
-                        break
-                
-                if matches:
-                    filtered_result.append(doc)
-            
-            result = filtered_result
-        
-        # Format the result to match the expected output format
-        columns = plan.get('columns', ['*'])
-        if columns and '*' not in columns:
-            # Only include specified columns in the result
-            result_docs = []
-            for doc in result:
-                result_doc = {}
-                for col in columns:
-                    if col in doc:
-                        result_doc[col] = doc[col]
-                result_docs.append(result_doc)
-            result = result_docs
-        
-        return {
-            "columns": columns,
-            "rows": result
-        }
-
-    def execute_nested_loop_join(self, plan):
-        """
-        Execute a nested loop join.
-        """
-        table1 = plan['table1']
-        table2 = plan['table2']
-        condition = plan['condition']
-        
-        db = self.client['dbms_project']
-        collection1 = db[table1]
-        collection2 = db[table2]
-        
-        # Parse the join condition (e.g., "table1.id = table2.id")
-        col1, col2 = condition.split('=')
-        col1 = col1.strip().split('.')[1]  # Extract column name
-        col2 = col2.strip().split('.')[1]  # Extract column name
-        
-        # Perform the nested loop join
-        result = []
-        for doc1 in collection1.find():
-            for doc2 in collection2.find():
-                if doc1[col1] == doc2[col2]:
-                    combined = {**doc1, **doc2}
-                    result.append(combined)
-        
-        return result
-    
-    def execute_hash_join(self, plan):
-        """
-        Execute a hash join.
-        """
-        # Extract tables and condition
+        join_type = plan.get('join_type', 'HASH').upper()
         table1 = plan.get('table1', '')
         table2 = plan.get('table2', '')
         condition = plan.get('condition')
         
-        # If condition is None, try to extract it from table2 (which may contain "ON clause")
+        # Handle ON clause in table2 if condition not provided separately
         if condition is None and ' ON ' in table2.upper():
             parts = table2.split(' ON ', 1)
             table2 = parts[0].strip()
@@ -377,165 +316,458 @@ class ExecutionEngine:
         table2_name = table2_parts[0]
         table2_alias = table2_parts[1] if len(table2_parts) > 1 else table2_name
         
-        # Get the current database
+        # Get current database
         db_name = self.catalog_manager.get_current_database()
-        db = self.client[db_name]
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first.", 
+                    "status": "error", "type": "error"}
         
-        # Check if collections exist
-        if table1_name not in db.list_collection_names():
-            return {"error": f"Table '{table1_name}' does not exist in database '{db_name}'"}
-        if table2_name not in db.list_collection_names():
-            return {"error": f"Table '{table2_name}' does not exist in database '{db_name}'"}
-        
-        collection1 = db[table1_name]
-        collection2 = db[table2_name]
+        # Verify tables exist
+        tables = self.catalog_manager.list_tables(db_name)
+        if table1_name not in tables:
+            return {"error": f"Table '{table1_name}' does not exist in database '{db_name}'",
+                    "status": "error", "type": "error"}
+        if table2_name not in tables:
+            return {"error": f"Table '{table2_name}' does not exist in database '{db_name}'",
+                    "status": "error", "type": "error"}
         
         # Parse join condition (e.g., "e.dept_id = d.id")
         if not condition:
-            return {"error": "No join condition specified"}
+            return {"error": "No join condition specified", "status": "error", "type": "error"}
         
         logging.debug(f"Join condition: {condition}")
-        col1, col2 = condition.split('=')
-        col1 = col1.strip()
-        col2 = col2.strip()
         
-        # Handle column references with aliases (e.g., "e.dept_id")
-        if '.' in col1:
-            alias1, col1_name = col1.split('.')
-        else:
-            col1_name = col1
+        # Parse the join condition
+        try:
+            col1, col2 = condition.split('=')
+            col1 = col1.strip()
+            col2 = col2.strip()
             
-        if '.' in col2:
-            alias2, col2_name = col2.split('.')
-        else:
-            col2_name = col2
-        
-        # Build hash table for the smaller table (typically collection1)
-        hash_table = {}
-        for doc in collection1.find():
-            key = doc.get(col1_name.lower())  # MongoDB field names are case-sensitive
-            if key not in hash_table:
-                hash_table[key] = []
-            hash_table[key].append(doc)
-        
-        # Perform the join
-        result = []
-        for doc in collection2.find():
-            key = doc.get(col2_name.lower())  # MongoDB field names are case-sensitive
-            if key in hash_table:
-                for match in hash_table[key]:
-                    # Create a combined document with aliased fields if needed
-                    combined = {}
-                    
-                    # Add fields from first table with alias prefix
-                    for field, value in match.items():
-                        if field != '_id':  # Skip MongoDB internal IDs
-                            combined[f"{table1_alias.lower()}.{field}"] = value
-                    
-                    # Add fields from second table with alias prefix
-                    for field, value in doc.items():
-                        if field != '_id':  # Skip MongoDB internal IDs
-                            combined[f"{table2_alias.lower()}.{field}"] = value
-                    
-                    result.append(combined)
-        
-        # Process the result based on the requested columns
-        columns = plan.get('columns', ['*'])
-        formatted_result = []
-        
-        for doc in result:
-            row = []
-            for col in columns:
-                if col == '*':
-                    # Include all columns
-                    row.extend(doc.values())
-                else:
-                    # Include only the specified column
-                    col = col.lower()  # Case-insensitive matching
-                    if col in doc:
-                        row.append(doc[col])
+            # Handle column references with aliases (e.g., "e.dept_id")
+            if '.' in col1:
+                alias1, col1_name = col1.split('.')
+            else:
+                col1_name = col1
+                alias1 = None
+                
+            if '.' in col2:
+                alias2, col2_name = col2.split('.')
+            else:
+                col2_name = col2
+                alias2 = None
+            
+            # Determine which column belongs to which table
+            if (alias1 == table1_alias or alias1 == table1_name) and (alias2 == table2_alias or alias2 == table2_name):
+                left_column = col1_name
+                right_column = col2_name
+            elif (alias1 == table2_alias or alias1 == table2_name) and (alias2 == table1_alias or alias2 == table1_name):
+                left_column = col2_name
+                right_column = col1_name
+            else:
+                return {"error": f"Invalid join condition: {condition}. Column references don't match table aliases.",
+                        "status": "error", "type": "error"}
+            
+            # Get data from both tables
+            table1_data = self.catalog_manager.query_with_condition(table1_name, [], ['*'])
+            table2_data = self.catalog_manager.query_with_condition(table2_name, [], ['*'])
+            
+            # Choose join algorithm
+            if join_type == 'HASH':
+                result = self._execute_hash_join(
+                    table1_data, table2_data, 
+                    left_column, right_column,
+                    table1_alias, table2_alias
+                )
+            elif join_type == 'MERGE':
+                result = self._execute_merge_join(
+                    table1_data, table2_data, 
+                    left_column, right_column,
+                    table1_alias, table2_alias
+                )
+            elif join_type == 'INDEX':
+                result = self._execute_index_join(
+                    table1_name, table2_name,
+                    left_column, right_column,
+                    table1_alias, table2_alias
+                )
+            else:  # Default to hash join
+                result = self._execute_hash_join(
+                    table1_data, table2_data, 
+                    left_column, right_column,
+                    table1_alias, table2_alias
+                )
+            
+            # Get columns for the result
+            columns = plan.get('columns', ['*'])
+            if '*' in columns:
+                # Get all columns from both tables with table aliases
+                if result and len(result) > 0:
+                    columns = list(result[0].keys())
+
+            # Format result rows
+            result_rows = []
+            for record in result:
+                row = []
+                for col in columns:
+                    if col == '*':
+                        # Include all fields in order
+                        row.extend(record.values())
                     else:
-                        # Try with alias.column format
-                        found = False
-                        for key in doc:
-                            if key.lower() == col.lower():
-                                row.append(doc[key])
-                                found = True
-                                break
-                        if not found:
-                            row.append(None)
-            formatted_result.append(row)
+                        # Include specific column
+                        value = record.get(col, None)
+                        row.append(value)
+                result_rows.append(row)
+            
+            return {
+                "columns": columns,
+                "rows": result_rows,
+                "status": "success",
+                "type": "join_result"
+            }
         
-        return {
-            "columns": columns,
-            "rows": formatted_result
-        }
-    
-    def execute_sort_merge_join(self, plan):
+        except Exception as e:
+            logging.error(f"Error executing join: {str(e)}")
+            import traceback
+            logging.error(traceback.format_exc())
+            return {"error": f"Error executing join: {str(e)}", 
+                    "status": "error", "type": "error"}
+
+    def _execute_hash_join(self, table1_data, table2_data, left_column, right_column, table1_alias, table2_alias):
         """
-        Execute a sort-merge join.
+        Execute a hash join between two tables.
+        
+        Args:
+            table1_data: Records from the first table
+            table2_data: Records from the second table
+            left_column: Join column in first table
+            right_column: Join column in second table
+            table1_alias: Alias for the first table
+            table2_alias: Alias for the second table
+            
+        Returns:
+            List of joined records
         """
-        table1 = plan['table1']
-        table2 = plan['table2']
-        condition = plan['condition']
+        logging.debug(f"Executing hash join: {table1_alias}.{left_column} = {table2_alias}.{right_column}")
+        logging.debug(f"Table sizes: {table1_alias}={len(table1_data)} records, {table2_alias}={len(table2_data)} records")
         
-        db = self.client['dbms_project']
-        collection1 = db[table1]
-        collection2 = db[table2]
+        # Choose the smaller table for building the hash table
+        if len(table1_data) <= len(table2_data):
+            build_table = table1_data
+            build_column = left_column
+            build_alias = table1_alias
+            probe_table = table2_data
+            probe_column = right_column
+            probe_alias = table2_alias
+        else:
+            build_table = table2_data
+            build_column = right_column
+            build_alias = table2_alias
+            probe_table = table1_data
+            probe_column = left_column
+            probe_alias = table1_alias
         
-        # Parse the join condition (e.g., "table1.id = table2.id")
-        col1, col2 = condition.split('=')
-        col1 = col1.strip().split('.')[1]  # Extract column name
-        col2 = col2.strip().split('.')[1]  # Extract column name
+        # Build the hash table on the smaller table
+        hash_table = {}
+        for record in build_table:
+            # Handle case-insensitive column matching
+            join_value = None
+            for col_name in record:
+                if col_name.lower() == build_column.lower():
+                    join_value = record[col_name]
+                    break
+            
+            if join_value is not None:
+                # Use the value as a hash key
+                if join_value not in hash_table:
+                    hash_table[join_value] = []
+                hash_table[join_value].append(record)
         
-        # Sort both collections
-        sorted1 = list(collection1.find().sort(col1, 1))
-        sorted2 = list(collection2.find().sort(col2, 1))
+        logging.debug(f"Hash table built with {len(hash_table)} unique keys")
         
-        # Perform the merge
+        # Probe the hash table with each record from the probe table
         result = []
-        i, j = 0, 0
-        while i < len(sorted1) and j < len(sorted2):
-            if sorted1[i][col1] == sorted2[j][col2]:
-                combined = {**sorted1[i], **sorted2[j]}
-                result.append(combined)
-                i += 1
-                j += 1
-            elif sorted1[i][col1] < sorted2[j][col2]:
+        for probe_record in probe_table:
+            # Find the join column value
+            probe_value = None
+            for col_name in probe_record:
+                if col_name.lower() == probe_column.lower():
+                    probe_value = probe_record[col_name]
+                    break
+            
+            if probe_value is not None and probe_value in hash_table:
+                # Join with all matching records
+                for build_record in hash_table[probe_value]:
+                    # Create a joined record
+                    joined_record = {}
+                    
+                    # Add fields from build table with alias prefix
+                    for field, value in build_record.items():
+                        joined_record[f"{build_alias}.{field}"] = value
+                    
+                    # Add fields from probe table with alias prefix
+                    for field, value in probe_record.items():
+                        joined_record[f"{probe_alias}.{field}"] = value
+                    
+                    result.append(joined_record)
+        
+        logging.debug(f"Hash join produced {len(result)} results")
+        return result
+    
+    def _execute_merge_join(self, table1_data, table2_data, left_column, right_column, table1_alias, table2_alias):
+        """
+        Execute a sort-merge join between two tables.
+        
+        Args:
+            table1_data: Records from the first table
+            table2_data: Records from the second table
+            left_column: Join column in first table
+            right_column: Join column in second table
+            table1_alias: Alias for the first table
+            table2_alias: Alias for the second table
+            
+        Returns:
+            List of joined records
+        """
+        logging.debug(f"Executing merge join: {table1_alias}.{left_column} = {table2_alias}.{right_column}")
+        
+        # Sort both tables on the join columns
+        def get_key(record, column_name):
+            # Find column case-insensitively
+            for col in record:
+                if col.lower() == column_name.lower():
+                    return record[col]
+            return None
+        
+        # Sort the datasets
+        sorted_table1 = sorted(table1_data, key=lambda r: get_key(r, left_column) or "")
+        sorted_table2 = sorted(table2_data, key=lambda r: get_key(r, right_column) or "")
+        
+        # Merge phase
+        result = []
+        i = j = 0
+        
+        while i < len(sorted_table1) and j < len(sorted_table2):
+            # Get current values for comparison
+            val1 = get_key(sorted_table1[i], left_column)
+            val2 = get_key(sorted_table2[j], right_column)
+            
+            if val1 is None or val2 is None:
+                # Skip records with missing join values
+                if val1 is None:
+                    i += 1
+                if val2 is None:
+                    j += 1
+                continue
+            
+            # Compare the values and join if equal
+            if val1 == val2:
+                # Handle multiple matches on one side
+                # First, collect all matching records from table1
+                matches1 = [i]
+                next_i = i + 1
+                while next_i < len(sorted_table1) and get_key(sorted_table1[next_i], left_column) == val1:
+                    matches1.append(next_i)
+                    next_i += 1
+                    
+                # Then, collect all matching records from table2
+                matches2 = [j]
+                next_j = j + 1
+                while next_j < len(sorted_table2) and get_key(sorted_table2[next_j], right_column) == val2:
+                    matches2.append(next_j)
+                    next_j += 1
+                
+                # Join all pairs
+                for idx1 in matches1:
+                    for idx2 in matches2:
+                        # Create joined record
+                        joined_record = {}
+                        
+                        # Add fields from table1
+                        for field, value in sorted_table1[idx1].items():
+                            joined_record[f"{table1_alias}.{field}"] = value
+                        
+                        # Add fields from table2
+                        for field, value in sorted_table2[idx2].items():
+                            joined_record[f"{table2_alias}.{field}"] = value
+                        
+                        result.append(joined_record)
+                
+                # Move both pointers past all matching records
+                i = next_i
+                j = next_j
+            
+            # If values don't match, move the pointer of the smaller value forward
+            elif val1 < val2:
                 i += 1
             else:
                 j += 1
         
+        logging.debug(f"Merge join produced {len(result)} results")
         return result
     
-    def execute_index_join(self, plan):
+    def _execute_index_join(self, table1_name, table2_name, left_column, right_column, table1_alias, table2_alias):
         """
-        Execute an index join.
+        Execute an index join between two tables using an existing index if available.
+        Uses the index to look up matching rows rather than scanning the entire table.
+        
+        Args:
+            table1_name: Name of the first table
+            table2_name: Name of the second table
+            left_column: Join column in first table
+            right_column: Join column in second table
+            table1_alias: Alias for the first table
+            table2_alias: Alias for the second table
+            
+        Returns:
+            List of joined records
         """
-        table1 = plan['table1']
-        table2 = plan['table2']
-        condition = plan['condition']
-        index = plan['index']
+        logging.debug(f"Executing index join: {table1_alias}.{left_column} = {table2_alias}.{right_column}")
         
-        db = self.client['dbms_project']
-        collection1 = db[table1]
-        collection2 = db[table2]
+        db_name = self.catalog_manager.get_current_database()
         
-        # Parse the join condition (e.g., "table1.id = table2.id")
-        col1, col2 = condition.split('=')
-        col1 = col1.strip().split('.')[1]  # Extract column name
-        col2 = col2.strip().split('.')[1]  # Extract column name
+        # Check if either table has an index on its join column
+        table1_indexes = self.catalog_manager.get_indexes_for_table(table1_name)
+        table2_indexes = self.catalog_manager.get_indexes_for_table(table2_name)
         
-        # Perform the join using the index
+        # Find an index on either join column
+        use_table1_index = False
+        use_table2_index = False
+        
+        for index_name, index_info in table1_indexes.items():
+            if index_info.get("column", "").lower() == left_column.lower():
+                use_table1_index = True
+                table1_index_name = index_name
+                break
+        
+        for index_name, index_info in table2_indexes.items():
+            if index_info.get("column", "").lower() == right_column.lower():
+                use_table2_index = True
+                table2_index_name = index_name
+                break
+        
+        # If no indexes, fall back to hash join
+        if not (use_table1_index or use_table2_index):
+            logging.debug("No usable index found, falling back to hash join")
+            table1_data = self.catalog_manager.query_with_condition(table1_name, [], ['*'])
+            table2_data = self.catalog_manager.query_with_condition(table2_name, [], ['*'])
+            return self._execute_hash_join(
+                table1_data, table2_data,
+                left_column, right_column,
+                table1_alias, table2_alias
+            )
+        
+        # Choose which index to use based on estimated cost (prefer smaller table)
+        if use_table1_index and use_table2_index:
+            # Simple heuristic: Choose index on the smaller table
+            # We can improve this later with statistics
+            table1_count = len(self.catalog_manager.query_with_condition(table1_name, [], [left_column]))
+            table2_count = len(self.catalog_manager.query_with_condition(table2_name, [], [right_column]))
+            
+            if table1_count <= table2_count:
+                use_table2_index = False  # Prioritize using table1's index
+            else:
+                use_table1_index = False  # Prioritize using table2's index
+        
         result = []
-        for doc in collection1.find():
-            key = doc[col1]
-            index_result = index.search(key)
-            if index_result:
-                for match in collection2.find({col2: key}):
-                    combined = {**doc, **match}
-                    result.append(combined)
         
+        # Execute the index join using the chosen index
+        if use_table1_index:
+            # Table 1 has an index on left_column
+            logging.debug(f"Using index on {table1_name}.{left_column}")
+            
+            # Get all records from table2 (non-indexed table)
+            table2_data = self.catalog_manager.query_with_condition(table2_name, [], ['*'])
+            
+            # Get the indexed table data
+            table1_data = self.catalog_manager.query_with_condition(table1_name, [], ['*'])
+            
+            # Create a dictionary from record_id to record for table1
+            table1_dict = {}
+            for record in table1_data:
+                # Find column value for matching
+                for col_name in record:
+                    if col_name.lower() == left_column.lower():
+                        join_value = record[col_name]
+                        if join_value is not None:
+                            # Store by join value for quick lookup
+                            if join_value not in table1_dict:
+                                table1_dict[join_value] = []
+                            table1_dict[join_value].append(record)
+            
+            # For each record in table2, find matches in table1 using the dictionary
+            for table2_record in table2_data:
+                # Get the join value from table2
+                join_value = None
+                for col_name in table2_record:
+                    if col_name.lower() == right_column.lower():
+                        join_value = table2_record[col_name]
+                        break
+                
+                if join_value is not None and join_value in table1_dict:
+                    # Join with all matching records from table1
+                    for table1_record in table1_dict[join_value]:
+                        # Create joined record
+                        joined_record = {}
+                        
+                        # Add fields from table1 with alias prefix
+                        for field, value in table1_record.items():
+                            joined_record[f"{table1_alias}.{field}"] = value
+                        
+                        # Add fields from table2 with alias prefix
+                        for field, value in table2_record.items():
+                            joined_record[f"{table2_alias}.{field}"] = value
+                        
+                        result.append(joined_record)
+        
+        else:  # Use table2 index
+            # Table 2 has an index on right_column
+            logging.debug(f"Using index on {table2_name}.{right_column}")
+            
+            # Get all records from table1 (non-indexed table)
+            table1_data = self.catalog_manager.query_with_condition(table1_name, [], ['*'])
+            
+            # Get the indexed table data
+            table2_data = self.catalog_manager.query_with_condition(table2_name, [], ['*'])
+            
+            # Create a dictionary from record_id to record for table2
+            table2_dict = {}
+            for record in table2_data:
+                # Find column value for matching
+                for col_name in record:
+                    if col_name.lower() == right_column.lower():
+                        join_value = record[col_name]
+                        if join_value is not None:
+                            # Store by join value for quick lookup
+                            if join_value not in table2_dict:
+                                table2_dict[join_value] = []
+                            table2_dict[join_value].append(record)
+            
+            # For each record in table1, find matches in table2 using the dictionary
+            for table1_record in table1_data:
+                # Get the join value from table1
+                join_value = None
+                for col_name in table1_record:
+                    if col_name.lower() == left_column.lower():
+                        join_value = table1_record[col_name]
+                        break
+                
+                if join_value is not None and join_value in table2_dict:
+                    # Join with all matching records from table2
+                    for table2_record in table2_dict[join_value]:
+                        # Create joined record
+                        joined_record = {}
+                        
+                        # Add fields from table1 with alias prefix
+                        for field, value in table1_record.items():
+                            joined_record[f"{table1_alias}.{field}"] = value
+                        
+                        # Add fields from table2 with alias prefix
+                        for field, value in table2_record.items():
+                            joined_record[f"{table2_alias}.{field}"] = value
+                        
+                        result.append(joined_record)
+        
+        logging.debug(f"Index join produced {len(result)} results")
         return result
     
     def execute_set_preference(self, plan):
