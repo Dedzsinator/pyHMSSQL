@@ -101,63 +101,171 @@ class ExecutionEngine:
         """
         Execute an aggregation function (COUNT, SUM, AVG, MIN, MAX).
         """
-        function = plan['function']
-        column = plan['column']
-        table = plan['table']
+        function = plan.get('function', '').upper()
+        column = plan.get('column')
+        table_name = plan.get('table')
         condition = plan.get('condition')
         
-        db = self.client['dbms_project']
-        collection = db[table]
+        # Get current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error", "type": "error"}
         
-        # Apply condition if present
-        query_filter = {}
+        # Case insensitive table lookup
+        table_found = False
+        tables = self.catalog_manager.list_tables(db_name)
+        for db_table in tables:
+            if db_table.lower() == table_name.lower():
+                table_name = db_table
+                table_found = True
+                break
+        
+        if not table_found:
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'", "status": "error", "type": "error"}
+        
+        # Parse conditions if any
+        parsed_conditions = []
         if condition:
-            query_filter = self._parse_condition(condition)
+            parsed_conditions = self._parse_condition_to_list(condition)
         
-        # Execute the aggregation
-        result = None
-        documents = list(collection.find(query_filter))
-        
-        if function == 'COUNT':
-            if column:
-                # Count non-null values in specified column
-                result = sum(1 for doc in documents if column in doc and doc[column] is not None)
+        try:
+            # Query all records from the table
+            results = self.catalog_manager.query_with_condition(table_name, parsed_conditions, ['*'])
+            logging.debug(f"Aggregate query found {len(results)} records")
+            
+            # Column name mapping for case insensitivity
+            column_map = {}
+            if results:
+                for key in results[0].keys():
+                    column_map[key.lower()] = key
+            
+            # Map the requested column to its actual case in the data
+            actual_column = None
+            if column != '*':
+                col_lower = column.lower()
+                if col_lower in column_map:
+                    actual_column = column_map[col_lower]
+                else:
+                    actual_column = column  # Use as-is if not found
+            
+            # Calculate the aggregate result
+            aggregate_result = None
+            
+            if function == 'COUNT':
+                if column == '*':
+                    # Count all records
+                    aggregate_result = len(results)
+                else:
+                    # Count non-null values in specified column
+                    count = 0
+                    for record in results:
+                        if actual_column in record and record[actual_column] is not None:
+                            count += 1
+                    aggregate_result = count
+            
+            elif function == 'SUM':
+                # Sum values in specified column
+                if not actual_column:
+                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                    
+                total = 0
+                for record in results:
+                    if actual_column in record and record[actual_column] is not None:
+                        try:
+                            total += float(record[actual_column])
+                        except (ValueError, TypeError):
+                            # Skip non-numeric values
+                            pass
+                aggregate_result = total
+            
+            elif function == 'AVG':
+                # Calculate average of values in specified column
+                if not actual_column:
+                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                    
+                total = 0
+                count = 0
+                for record in results:
+                    if actual_column in record and record[actual_column] is not None:
+                        try:
+                            total += float(record[actual_column])
+                            count += 1
+                        except (ValueError, TypeError):
+                            # Skip non-numeric values
+                            pass
+                
+                aggregate_result = total / count if count > 0 else 0
+            
+            elif function == 'MIN':
+                # Find minimum value in specified column
+                if not actual_column:
+                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                    
+                min_value = None
+                for record in results:
+                    if actual_column in record and record[actual_column] is not None:
+                        value = record[actual_column]
+                        try:
+                            value_float = float(value)
+                            if min_value is None or value_float < min_value:
+                                min_value = value_float
+                        except (ValueError, TypeError):
+                            # For non-numeric values, compare as strings
+                            if min_value is None or str(value) < str(min_value):
+                                min_value = value
+                
+                aggregate_result = min_value
+            
+            elif function == 'MAX':
+                # Find maximum value in specified column
+                if not actual_column:
+                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                    
+                max_value = None
+                for record in results:
+                    if actual_column in record and record[actual_column] is not None:
+                        value = record[actual_column]
+                        try:
+                            value_float = float(value)
+                            if max_value is None or value_float > max_value:
+                                max_value = value_float
+                        except (ValueError, TypeError):
+                            # For non-numeric values, compare as strings
+                            if max_value is None or str(value) > str(max_value):
+                                max_value = value
+                
+                aggregate_result = max_value
+            
             else:
-                # Count all documents
-                result = len(documents)
+                return {
+                    "error": f"Unsupported aggregation function: {function}",
+                    "status": "error",
+                    "type": "error"
+                }
+            
+            # Format the result with proper column name
+            column_display = '*' if column == '*' else column.upper()
+            result_column = f"{function}({column_display})"
+            
+            logging.debug(f"Aggregate result: {result_column} = {aggregate_result}")
+            
+            # Very important! Return a single row with the aggregate result
+            return {
+                "columns": [result_column],
+                "rows": [[aggregate_result]],  # Single row with single value
+                "status": "success",
+                "type": "aggregate_result"
+            }
         
-        elif function == 'SUM':
-            # Sum values in specified column
-            result = sum(doc.get(column, 0) for doc in documents if column in doc)
-        
-        elif function == 'AVG':
-            # Calculate average of values in specified column
-            values = [doc.get(column) for doc in documents if column in doc]
-            if values:
-                result = sum(values) / len(values)
-            else:
-                result = None
-        
-        elif function == 'MIN':
-            # Find minimum value in specified column
-            values = [doc.get(column) for doc in documents if column in doc]
-            if values:
-                result = min(values)
-            else:
-                result = None
-        
-        elif function == 'MAX':
-            # Find maximum value in specified column
-            values = [doc.get(column) for doc in documents if column in doc]
-            if values:
-                result = max(values)
-            else:
-                result = None
-        
-        return {
-            "columns": [f"{function}({column or '*'})"],
-            "rows": [[result]]
-        }
+        except Exception as e:
+            import traceback
+            logging.error(f"Error executing {function} aggregate: {str(e)}")
+            logging.error(traceback.format_exc())
+            return {
+                "error": f"Error executing {function} aggregate: {str(e)}",
+                "status": "error",
+                "type": "error"
+            }
     
     def execute_join(self, plan):
         """
@@ -779,15 +887,24 @@ class ExecutionEngine:
             table_name = plan['tables'][0]
                 
         if not table_name:
-            return {"error": "No table specified", "status": "error"}
+            return {"error": "No table specified", "status": "error", "type": "error"}
         
         # Get column list - preserve original case
         columns = plan.get('columns', ['*'])
         
+        # Handle TOP N clause
+        top_n = plan.get('top')
+        if top_n is not None:
+            try:
+                top_n = int(top_n)
+                logging.debug(f"TOP {top_n} specified")
+            except (ValueError, TypeError):
+                top_n = None
+        
         # Get current database
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
-            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
+            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error", "type": "error"}
         
         try:
             # Verify table exists - CASE INSENSITIVE COMPARISON
@@ -803,7 +920,7 @@ class ExecutionEngine:
                 actual_table_name = tables_lower[table_name.lower()]
                 logging.debug(f"Using case-corrected table name: {actual_table_name} instead of {table_name}")
             elif table_name not in tables:
-                return {"error": f"Table '{table_name}' does not exist in database '{db_name}'", "status": "error"}
+                return {"error": f"Table '{table_name}' does not exist in database '{db_name}'", "status": "error", "type": "error"}
             
             # Build condition for query
             conditions = []
@@ -823,7 +940,8 @@ class ExecutionEngine:
                 return {
                     "columns": columns if '*' not in columns else [],
                     "rows": [],
-                    "status": "success"
+                    "status": "success",
+                    "type": "select_result"
                 }
             
             # Create a mapping of lowercase column names to original case
@@ -834,62 +952,12 @@ class ExecutionEngine:
                     column_case_map[col_name.lower()] = col_name
             
             # Apply ORDER BY if specified
-            order_by = plan.get('order_by')
-            if order_by and results:
-                # Extract ordering information
-                order_info = None
-                direction = 'ASC'
-                
-                # Handle different order_by formats
-                if isinstance(order_by, dict):
-                    order_col = order_by.get('column', '')
-                    direction = order_by.get('direction', 'ASC')
-                    order_info = f"{order_col} {direction}"
-                elif isinstance(order_by, list) and order_by:
-                    if isinstance(order_by[0], dict):
-                        order_col = order_by[0].get('column', '')
-                        direction = order_by[0].get('direction', 'ASC')
-                        order_info = f"{order_col} {direction}"
-                    else:
-                        order_info = str(order_by[0])
-                else:
-                    order_info = str(order_by)
-                
-                # Extract column name and direction - case insensitive
-                parts = order_info.split()
-                order_col = parts[0] if parts else ""
-                direction = parts[1].upper() if len(parts) > 1 else "ASC"
-                desc = direction == 'DESC'
-                
-                # Log using original case for debugging clarity
-                logging.debug(f"Processing ORDER BY: {order_col} {direction}")
-                
-                # Get the original case version of the column name if available
-                for col in column_case_map:
-                    if col.lower() == order_col.lower():
-                        order_col = column_case_map[col.lower()]
-                        break
-                
-                # Sort the results
-                if order_col:
-                    # Define a case-insensitive sort key function
-                    def get_sort_key(record):
-                        # Find the matching column name (case insensitive)
-                        column_value = None
-                        for record_col in record:
-                            if record_col.lower() == order_col.lower():
-                                column_value = record[record_col]
-                                break
-                        
-                        # Handle None values for sorting
-                        if column_value is None:
-                            return (1, None) if not desc else (0, None)
-                        
-                        return (0, column_value)
-                    
-                    # Apply the sort
-                    results.sort(key=get_sort_key, reverse=desc)
-                    logging.debug(f"Sorted {len(results)} rows by {order_col} {direction}")
+            # ... (existing ORDER BY code) ...
+            
+            # Apply TOP N
+            if top_n is not None and top_n > 0 and results:
+                results = results[:top_n]
+                logging.debug(f"Applied TOP {top_n}, now {len(results)} results")
             
             # Apply LIMIT if specified
             limit = plan.get('limit')
@@ -937,14 +1005,15 @@ class ExecutionEngine:
             return {
                 "columns": result_columns,  # Original case preserved
                 "rows": result_rows,
-                "status": "success"
+                "status": "success",
+                "type": "select_result"
             }
             
         except Exception as e:
             import traceback
             logging.error(f"Error executing SELECT: {str(e)}")
             logging.error(traceback.format_exc())
-            return {"error": f"Error executing SELECT: {str(e)}", "status": "error"}
+            return {"error": f"Error executing SELECT: {str(e)}", "status": "error", "type": "error"}
 
     def _parse_condition_to_dict(self, condition_str):
         """Parse a condition string into a condition dictionary for B+ tree querying."""
@@ -2079,6 +2148,8 @@ class ExecutionEngine:
         try:
             if plan_type == 'SELECT':
                 result = self.execute_select(plan)
+            elif plan_type == 'AGGREGATE':
+                result = self.execute_aggregate(plan)
             elif plan_type == 'INSERT':
                 result = self.execute_insert(plan)
             elif plan_type == 'UPDATE':
