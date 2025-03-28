@@ -477,23 +477,23 @@ class ExecutionEngine:
         
         # Validate that we have a table name
         if not table_name:
-            return {"error": "No table name specified for INSERT", "status": "error"}
+            return {"error": "No table name specified for INSERT", "status": "error", "type": "error"}
         
         # Get the current database
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
-            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
+            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error", "type": "error"}
         
         # Validate table exists
         tables = self.catalog_manager.list_tables(db_name)
         if table_name not in tables:
-            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'", "status": "error"}
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'", "status": "error", "type": "error"}
         
         # Format values into records
         records = []
         for values in values_list:
             if len(columns) != len(values):
-                return {"error": f"Column count ({len(columns)}) does not match value count ({len(values)})", "status": "error"}
+                return {"error": f"Column count ({len(columns)}) does not match value count ({len(values)})", "status": "error", "type": "error"}
             
             record = {}
             for i, col in enumerate(columns):
@@ -503,12 +503,17 @@ class ExecutionEngine:
             try:
                 result = self.catalog_manager.insert_record(table_name, record)
                 if result is not True:
-                    return {"error": str(result), "status": "error"}
+                    return {"error": str(result), "status": "error", "type": "error"}
                 records.append(record)
             except Exception as e:
-                return {"error": f"Error inserting record: {str(e)}", "status": "error"}
+                return {"error": f"Error inserting record: {str(e)}", "status": "error", "type": "error"}
         
-        return {"message": f"Inserted {len(records)} record(s) into '{db_name}.{table_name}'", "status": "success"}
+        return {
+            "message": f"Inserted {len(records)} record(s) into '{db_name}.{table_name}'", 
+            "status": "success", 
+            "type": "insert_result",
+            "rows": records
+        }
 
     def _parse_condition_to_list(self, condition_str):
         """
@@ -1616,23 +1621,31 @@ class ExecutionEngine:
         # Get current database
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
-            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
+            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error", "type": "error"}
         
         # Verify table exists
         tables = self.catalog_manager.list_tables(db_name)
-        if table_name not in tables:
-            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'.", "status": "error"}
+        
+        # Case-insensitive table lookup
+        actual_table_name = table_name  # Default
+        if table_name.lower() in [t.lower() for t in tables]:
+            for t in tables:
+                if t.lower() == table_name.lower():
+                    actual_table_name = t
+                    break
+        elif table_name not in tables:
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'.", "status": "error", "type": "error"}
         
         try:
             # Parse condition into our format
             conditions = []
             if condition:
-                parsed_condition = self._parse_condition_to_dict(condition)
-                if parsed_condition:
-                    conditions.append(parsed_condition)
+                logging.debug(f"Parsing DELETE condition: {condition}")
+                conditions = self._parse_condition_to_list(condition)
+                logging.debug(f"Parsed DELETE conditions: {conditions}")
             
             # Delete records
-            result = self.catalog_manager.delete_records(table_name, conditions)
+            result = self.catalog_manager.delete_records(actual_table_name, conditions)
             
             # Extract count from result message
             count = 0
@@ -1642,12 +1655,17 @@ class ExecutionEngine:
                 except:
                     pass
                     
-            return {"message": f"Deleted {count} records from {table_name}.", "status": "success"}
+            return {
+                "message": f"Deleted {count} records from {actual_table_name}.", 
+                "status": "success", 
+                "type": "delete_result",
+                "count": count
+            }
         except Exception as e:
             logging.error(f"Error in DELETE operation: {str(e)}")
             logging.error(traceback.format_exc())
-            return {"error": f"Error in DELETE operation: {str(e)}", "status": "error"}
-    
+            return {"error": f"Error in DELETE operation: {str(e)}", "status": "error", "type": "error"}
+
     def execute_update(self, plan):
         """Execute an UPDATE query."""
         table_name = plan['table']
@@ -2071,9 +2089,12 @@ class ExecutionEngine:
             else:
                 return {"error": f"Unsupported operation type: {plan_type}", "status": "error"}
             
-            # If there's no explicit status, add success
             if isinstance(result, dict) and "status" not in result:
                 result["status"] = "success"
+            
+            # Ensure type field is present
+            if isinstance(result, dict) and "type" not in result:
+                result["type"] = f"{plan_type.lower()}_result"
                 
             return result
             
@@ -2081,4 +2102,4 @@ class ExecutionEngine:
             import traceback
             logging.error(f"Error executing {plan_type}: {str(e)}")
             logging.error(traceback.format_exc())
-            return {"error": f"Error executing {plan_type}: {str(e)}", "status": "error"}
+            return {"error": f"Error executing {plan_type}: {str(e)}", "status": "error", "type": "error"}

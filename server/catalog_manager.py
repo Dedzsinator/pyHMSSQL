@@ -453,15 +453,24 @@ class CatalogManager:
         if table_id not in self.tables:
             return f"Table {table_name} does not exist."
         
-        # Check primary key constraints
+        # Get table schema to check constraints
         table_schema = self.tables[table_id]
         pk_column = None
         
-        # Find primary key column
-        for col_name, col_def in table_schema.get("columns", {}).items():
-            if col_def.get("primary_key", False):
-                pk_column = col_name
-                break
+        # Find primary key column (if any) - handle both list and dict column definitions
+        columns_data = table_schema.get("columns", {})
+        
+        # Fix for the list issue - check the type and handle accordingly
+        if isinstance(columns_data, dict):
+            # Dictionary format - this is the expected case
+            for col_name, col_def in columns_data.items():
+                if isinstance(col_def, dict) and col_def.get("primary_key", False):
+                    pk_column = col_name
+                    break
+        elif isinstance(columns_data, list):
+            # List format - this is what's causing the error
+            # No primary key in this format, so we skip the check
+            logging.debug(f"Table {table_name} has columns in list format, skipping PK check")
         
         # Load the table file
         table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
@@ -490,9 +499,9 @@ class CatalogManager:
             if pk_column and pk_column in record:
                 record_id = record[pk_column]
             else:
-                record_id = int(datetime.datetime.now().timestamp() * 1000)  # Fallback to timestamp
+                record_id = int(datetime.datetime.now().timestamp() * 1000)  # Unique ID based on timestamp
             
-            # For B+ tree, we need a key - use the record_id as key
+            # Insert the record into the B+ tree
             tree.insert(record_id, record)
             
             # Save the updated tree
@@ -500,112 +509,183 @@ class CatalogManager:
             
             logging.info(f"Record inserted into {table_name} with ID {record_id}")
             
-            # Update any indexes for this table
+            # Update indexes if any
             self._update_indexes_after_insert(db_name, table_name, record_id, record)
             
             return True
                 
         except Exception as e:
-            logging.error(f"Error inserting record: {e}")
+            logging.error(f"Error inserting record: {str(e)}")
             import traceback
             logging.error(traceback.format_exc())
             return f"Error inserting record: {str(e)}"
 
-    def _update_indexes_after_insert(self, db_name, table_name, record_key, record):
+    def _update_indexes_after_insert(self, db_name, table_name, record_id, record):
         """Update indexes after a record is inserted."""
         table_id = f"{db_name}.{table_name}"
         
-        # Find all indexes for this table
+        # Check if we have any indexes to update
+        indexes_to_update = {}
         for index_id, index_info in self.indexes.items():
-            if not index_id.startswith(f"{table_id}."):
-                continue
+            if index_info.get("table") == table_id:
+                column = index_info.get("column")
+                if column and column in record:
+                    if index_id not in indexes_to_update:
+                        indexes_to_update[index_id] = index_info
+        
+        # Update each relevant index
+        for index_id, index_info in indexes_to_update.items():
+            column = index_info.get("column")
+            index_filename = f"{db_name}_{table_name}_{column}.idx"
+            index_path = os.path.join(self.indexes_dir, index_filename)
             
-            column_name = index_info.get("column")
-            if column_name in record:
-                # Get index file path
-                index_file = os.path.join(self.indexes_dir, f"{db_name}_{table_name}_{column_name}.idx")
-                
+            # Load or create the index
+            if os.path.exists(index_path):
                 try:
-                    # Load or create the index tree
-                    if os.path.exists(index_file):
-                        index_tree = BPlusTree.load_from_file(index_file)
-                    else:
-                        index_tree = BPlusTree(order=50, name=f"{table_name}_{column_name}_index")
-                    
-                    # Insert into index
-                    index_tree.insert(record[column_name], record_key)
-                    
-                    # Save the updated index
-                    index_tree.save_to_file(index_file)
-                except Exception as e:
-                    logging.error(f"Error updating index {index_id}: {e}")
+                    index_tree = BPlusTree.load_from_file(index_path)
+                    if index_tree is None:
+                        index_tree = BPlusTree(order=50, name=f"{table_name}_{column}_index")
+                except:
+                    index_tree = BPlusTree(order=50, name=f"{table_name}_{column}_index")
+            else:
+                index_tree = BPlusTree(order=50, name=f"{table_name}_{column}_index")
+            
+            # Add the record to the index
+            column_value = record.get(column)
+            if column_value is not None:
+                # For unique indexes, check if value already exists
+                if index_info.get("unique", False):
+                    existing = index_tree.search(column_value)
+                    if existing:
+                        # Already indexed, but could be the same record (update case)
+                        if existing != record_id:
+                            logging.warning(f"Unique constraint violation on {column}={column_value}")
+                            continue
+                
+                # Add or update the index entry
+                index_tree.insert(column_value, record_id)
+                
+                # Save the index
+                index_tree.save_to_file(index_path)
 
     def delete_records(self, table_name, conditions=None):
         """Delete records from a table based on conditions."""
         if conditions is None:
             conditions = []
-        
+            
         db_name = self.get_current_database()
         if not db_name:
             return "No database selected."
         
         table_id = f"{db_name}.{table_name}"
         
-        # Check if table exists
-        if table_id not in self.tables:
-            return f"Table {table_name} does not exist."
+        # Check if table exists with case-insensitive matching
+        actual_table_name = None
+        tables = self.list_tables(db_name)
         
-        # Load the table file
-        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+        if table_name in tables:
+            actual_table_name = table_name
+        else:
+            for t in tables:
+                if t.lower() == table_name.lower():
+                    actual_table_name = t
+                    break
+        
+        if not actual_table_name:
+            return f"Table '{table_name}' does not exist."
+        
+        # Load the B+ tree
+        table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
         if not os.path.exists(table_file):
-            return "Table data file not found."
+            return f"Table data file not found."
         
         try:
-            # Load B+ tree
+            # Load the B+ tree
             tree = BPlusTree.load_from_file(table_file)
             
             # Get all records
             all_records = tree.range_query(float('-inf'), float('inf'))
             
-            # Process records and apply conditions
+            # Track records to delete
             records_to_delete = []
+            
             for record_key, record in all_records:
                 # Check if record matches all conditions
                 matches = True
+                
                 for condition in conditions:
                     col = condition.get('column')
                     op = condition.get('operator')
                     val = condition.get('value')
                     
-                    if col not in record:
+                    # Case-insensitive column matching
+                    matching_col = None
+                    for record_col in record:
+                        if record_col.lower() == col.lower():
+                            matching_col = record_col
+                            break
+                    
+                    if matching_col is None:
                         matches = False
                         break
                     
+                    # Get the value using the matching column name
+                    record_val = record[matching_col]
+                    
                     # Apply operator
                     if op == '=':
-                        if record[col] != val:
+                        if record_val != val:
                             matches = False
                             break
-                    # Add other operators as needed
+                    elif op == '>':
+                        if record_val <= val:
+                            matches = False
+                            break
+                    elif op == '<':
+                        if record_val >= val:
+                            matches = False
+                            break
+                    elif op == '>=':
+                        if record_val < val:
+                            matches = False
+                            break
+                    elif op == '<=':
+                        if record_val > val:
+                            matches = False
+                            break
+                    elif op == '!=':
+                        if record_val == val:
+                            matches = False
+                            break
                 
-                if matches or not conditions:
+                # If record matches conditions, add it to the deletion list
+                if matches:
                     records_to_delete.append(record_key)
             
-            # Delete records
+            # Create a new tree without the deleted records
+            new_tree = BPlusTree(order=50, name=actual_table_name)
             deleted_count = 0
-            for key in records_to_delete:
-                tree.delete(key)
-                deleted_count += 1
+            
+            # Add all records except those marked for deletion
+            for record_key, record in all_records:
+                if record_key not in records_to_delete:
+                    new_tree.insert(record_key, record)
+                else:
+                    deleted_count += 1
             
             # Save the updated tree
-            tree.save_to_file(table_file)
+            new_tree.save_to_file(table_file)
             
             # Update indexes if needed
+            if hasattr(self, '_update_indexes_after_modify'):
+                remaining_records = new_tree.range_query(float('-inf'), float('inf'))
+                self._update_indexes_after_modify(db_name, actual_table_name, remaining_records)
             
             return f"{deleted_count} records deleted."
-        
         except Exception as e:
             logging.error(f"Error deleting records: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
             return f"Error deleting records: {str(e)}"
 
     def update_records(self, table_name, updates, conditions=None):

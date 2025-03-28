@@ -271,10 +271,10 @@ query SELECT * FROM customers LIMIT 2 ✅
 query UPDATE customers SET age = 31 WHERE id = 2 ✅
 
 -- Delete a record
-query DELETE FROM customers WHERE id = 4
+query DELETE FROM customers WHERE id = 4 ✅
 
 -- Delete all records
-query DELETE FROM customers
+query DELETE FROM customers ✅
 
 -- Insert test data
 query INSERT INTO customers (id, name, email, age) VALUES (1, 'John Doe', 'john@example.com', 30)
