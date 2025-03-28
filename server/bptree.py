@@ -243,5 +243,25 @@ class BPlusTree:
     @classmethod
     def load_from_file(cls, filename):
         logging.debug(f"Loading B+ tree from file: {filename}")
-        with open(filename, 'rb') as f:
-            return pickle.load(f)
+        try:
+            with open(filename, 'rb') as f:
+                # Check for BOM marker and skip it if present
+                first_bytes = f.read(3)
+                if first_bytes == b'\xef\xbb\xbf':  # UTF-8 BOM
+                    logging.warning(f"Found UTF-8 BOM in {filename}, skipping")
+                    # Continue reading the file from the current position
+                else:
+                    # Reset to beginning if no BOM
+                    f.seek(0)
+                
+                # Now try to load the tree
+                return pickle.load(f)
+        except (EOFError, pickle.UnpicklingError) as e:
+            logging.error(f"Error unpickling B+ tree from {filename}: {str(e)}")
+            # Create a new tree as a fallback
+            new_tree = cls(name=os.path.basename(filename).split('.')[0])
+            new_tree.save_to_file(filename)  # Save the new tree to fix the file
+            return new_tree
+        except Exception as e:
+            logging.error(f"Error loading B+ tree file {filename}: {str(e)}")
+            return None

@@ -1,19 +1,49 @@
-from pymongo import MongoClient
-from bson import ObjectId
 import logging
 import json
 import re
 import traceback
 import os
+from bptree import BPlusTree
+import datetime
+import shutil
 
 class ExecutionEngine:
     def __init__(self, catalog_manager, index_manager):
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
-        self.client = catalog_manager.client
         self.current_database = catalog_manager.get_current_database()
         self.transaction_stack = []
         self.preferences = self.catalog_manager.get_preferences()
+    
+    def _parse_value(self, value_str):
+        """
+        Parse a value string into the appropriate Python type.
+        
+        Args:
+            value_str: String representation of a value
+            
+        Returns:
+            The value converted to the appropriate type
+        """
+        # Handle quoted strings
+        if value_str.startswith('"') or value_str.startswith("'"):
+            # Remove quotes
+            return value_str[1:-1] if value_str.endswith('"') or value_str.endswith("'") else value_str[1:]
+        # Handle NULL keyword
+        elif value_str.upper() == 'NULL':
+            return None
+        # Handle boolean literals
+        elif value_str.upper() in ('TRUE', 'FALSE'):
+            return value_str.upper() == 'TRUE'
+        else:
+            # Try to convert to number if possible
+            try:
+                if '.' in value_str:
+                    return float(value_str)
+                else:
+                    return int(value_str)
+            except ValueError:
+                return value_str
     
     def _parse_condition(self, condition_str):
         """
@@ -424,134 +454,6 @@ class ExecutionEngine:
             return "No transaction to rollback."
         self.transaction_stack.pop()
         return "Transaction rolled back."
-    
-    def execute_select(self, plan):
-        """
-        Execute a SELECT query and return results.
-        """
-        # Get table name
-        table_name = plan.get('table')
-        if not table_name and 'tables' in plan and plan['tables']:
-            table_name = plan['tables'][0]
-            
-        if not table_name:
-            return {"error": "No table specified", "status": "error"}
-        
-        # Get column list
-        columns = plan.get('columns', ['*'])
-        
-        # Get current database
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
-        
-        try:
-            # Get MongoDB collection
-            collection = self.client[db_name][table_name.lower()]
-            
-            # Build MongoDB query from condition
-            query_filter = {}
-            condition = plan.get('condition')
-            if condition:
-                try:
-                    query_filter = self._parse_condition(condition)
-                    logging.debug(f"MongoDB query filter: {query_filter}")
-                except Exception as e:
-                    return {"error": f"Error parsing condition: {str(e)}", "status": "error"}
-            
-            # Find documents
-            cursor = collection.find(query_filter)
-            
-            # Apply LIMIT
-            limit = plan.get('limit')
-            if limit and isinstance(limit, int):
-                cursor = cursor.limit(limit)
-            
-            # Convert cursor to list
-            documents = list(cursor)
-            
-            # Apply ORDER BY
-            order_by = plan.get('order_by')
-            if order_by and documents:  # Only attempt sorting if we have documents
-                # Parse order direction (ASC/DESC)
-                sort_direction = 1  # Default to ascending
-                sort_field = order_by
-                if "DESC" in order_by.upper():
-                    sort_direction = -1
-                    sort_field = sort_field.replace("DESC", "").strip()
-                
-                # Find the actual field name in the first document (case-insensitive)
-                if documents:  # Double-check we have documents
-                    first_doc = documents[0]
-                    actual_field = sort_field
-                    for field in first_doc:
-                        if field.lower() == sort_field.lower():
-                            actual_field = field
-                            break
-                    
-                    # Sort the documents in memory
-                    documents.sort(key=lambda doc: doc.get(actual_field, 0), reverse=(sort_direction == -1))
-            
-            logging.debug(f"Query returned {len(documents)} documents")
-            
-            # Format results for client display
-            if not documents:
-                # Return empty result set with proper structure
-                return {
-                    "columns": columns if columns != ['*'] else [],
-                    "rows": [],
-                    "status": "success"
-                }
-            
-            # If * is requested, use all fields from first document
-            result_columns = columns
-            if '*' in columns:
-                result_columns = []
-                # Get field names from first document excluding '_id'
-                for key in documents[0].keys():
-                    if key != '_id':
-                        result_columns.append(key)
-            
-            # Convert MongoDB documents to row format
-            result_rows = []
-            for doc in documents:
-                # Remove MongoDB _id field
-                if '_id' in doc:
-                    del doc['_id']
-                    
-                row = []
-                
-                if '*' in columns:
-                    # All fields in order
-                    for col in result_columns:
-                        row.append(doc.get(col))
-                else:
-                    # Selected fields only - handle case insensitivity
-                    for col in columns:
-                        # Try case-insensitive match
-                        col_lower = col.lower()
-                        found = False
-                        for key in doc:
-                            if key.lower() == col_lower:
-                                row.append(doc[key])
-                                found = True
-                                break
-                        if not found:
-                            row.append(None)  # Column not found
-                
-                result_rows.append(row)
-            
-            # Use the same case for column names as provided in the query
-            return {
-                "columns": columns if columns != ['*'] else result_columns,
-                "rows": result_rows,
-                "status": "success"
-            }
-            
-        except Exception as e:
-            logging.error(f"Error executing SELECT: {str(e)}")
-            logging.error(traceback.format_exc())
-            return {"error": f"Error executing SELECT: {str(e)}", "status": "error"}
 
     def execute_set_preference(self, plan):
             """
@@ -568,154 +470,517 @@ class ExecutionEngine:
             return f"Preference '{preference}' set to '{value}'."
     
     def execute_insert(self, plan):
-        """
-        Execute INSERT operation.
-        """
+        """Execute INSERT operation."""
         table_name = plan.get('table')
         columns = plan.get('columns', [])
         values_list = plan.get('values', [])
         
         # Validate that we have a table name
         if not table_name:
-            return {"error": "No table name specified for INSERT"}
-        
-        # Get the current database
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {"error": "No database selected. Use 'USE database_name' first."}
-        
-        db = self.client[db_name]
-        
-        # Validate that the table exists
-        if table_name not in db.list_collection_names():
-            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'."}
-        
-        # Get the collection
-        collection = db[table_name]
-        
-        # Format values into documents
-        docs = []
-        for values in values_list:
-            doc = {}
-            if len(columns) != len(values):
-                return {"error": "Column count doesn't match value count"}
-            
-            for i, col in enumerate(columns):
-                doc[col] = values[i]
-            
-            docs.append(doc)
-        
-        # Insert the documents
-        if docs:
-            result = collection.insert_many(docs)
-            return {
-                "message": f"Inserted {len(result.inserted_ids)} document(s) into '{db_name}.{table_name}'"
-            }
-        else:
-            return {"error": "No values to insert"}
-    
-    def execute_update(self, plan):
-        """
-        Execute an UPDATE query.
-        """
-        table_name = plan['table']
-        condition = plan.get('condition') or plan.get('where')  # Try both fields
-        updates = plan.get('set', {})
+            return {"error": "No table name specified for INSERT", "status": "error"}
         
         # Get the current database
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
             return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
-            
-        db = self.client[db_name]
         
-        # Validate that the table exists
-        if table_name not in db.list_collection_names():
-            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'.", "status": "error"}
+        # Validate table exists
+        tables = self.catalog_manager.list_tables(db_name)
+        if table_name not in tables:
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'", "status": "error"}
         
-        collection = db[table_name]
+        # Format values into records
+        records = []
+        for values in values_list:
+            if len(columns) != len(values):
+                return {"error": f"Column count ({len(columns)}) does not match value count ({len(values)})", "status": "error"}
+            
+            record = {}
+            for i, col in enumerate(columns):
+                record[col] = values[i]
+            
+            # Insert the record
+            try:
+                result = self.catalog_manager.insert_record(table_name, record)
+                if result is not True:
+                    return {"error": str(result), "status": "error"}
+                records.append(record)
+            except Exception as e:
+                return {"error": f"Error inserting record: {str(e)}", "status": "error"}
         
-        # Check for valid condition
-        if not condition:
-            logging.error("UPDATE missing condition: " + str(plan))
-            return {"error": "No condition provided for UPDATE query.", "status": "error"}
+        return {"message": f"Inserted {len(records)} record(s) into '{db_name}.{table_name}'", "status": "success"}
+
+    def _parse_condition_to_list(self, condition_str):
+        """
+        Parse a SQL condition string into a list of condition dictionaries for B+ tree querying.
         
-        try:
-            # Parse the condition
-            query_filter = self._parse_condition(condition)
-            logging.debug(f"UPDATE filter: {query_filter}")
+        Handles basic conditions like:
+        - age > 30
+        - name = 'John'
+        - price <= 100
+        
+        Args:
+            condition_str: SQL condition string (e.g., "age > 30")
             
-            if not query_filter:
-                return {"error": f"Could not parse condition: {condition}", "status": "error"}
+        Returns:
+            List of condition dictionaries for query processing
+        """
+        if not condition_str:
+            return []
+        
+        # Basic parsing for simpler conditions (focus on getting this working first)
+        conditions = []
+        
+        # Check if this is a simple condition with a comparison operator
+        for op in ['>=', '<=', '!=', '<>', '=', '>', '<']:
+            if op in condition_str:
+                parts = condition_str.split(op, 1)
+                if len(parts) == 2:
+                    column = parts[0].strip()
+                    value_str = parts[1].strip()
+                    value = self._parse_value(value_str)
+                    
+                    # Map <> to !=
+                    operator = op if op != '<>' else '!='
+                    
+                    conditions.append({
+                        'column': column,
+                        'operator': operator,
+                        'value': value
+                    })
+                    break
+        
+        logging.debug(f"Parsed condition '{condition_str}' to: {conditions}")
+        return conditions
+        
+    def parse_expression(self, tokens, start=0):
+        conditions = []
+        i = start
+        current_condition = None
+        current_operator = 'AND'  # Default operator
+        
+        while i < len(tokens):
+            token = tokens[i].upper()
             
-            # Process updates
-            update_dict = {}
-            logging.debug(f"Processing SET updates: {updates}")
-            
-            for key, val in updates.items():
-                # Handle quoted strings
-                if isinstance(val, str) and val.startswith("'") and val.endswith("'"):
-                    val = val[1:-1]  # Remove quotes
-                # Handle numeric conversions
-                elif isinstance(val, str) and val.isdigit():
-                    val = int(val)
-                elif isinstance(val, str) and re.match(r'^[0-9]*\.[0-9]+$', val):
-                    val = float(val)
+            # Handle parenthesized expressions
+            if token == '(':
+                sub_conditions, end_idx = parse_expression(self, tokens, i + 1)
                 
-                # Preserve original case for MongoDB compatibility
-                update_dict[key.lower()] = val
+                if current_condition is None:
+                    current_condition = {'type': 'group', 'operator': current_operator, 'conditions': sub_conditions}
+                else:
+                    # Join with current condition using current_operator
+                    conditions.append(current_condition)
+                    current_condition = {'type': 'group', 'operator': current_operator, 'conditions': sub_conditions}
+                
+                i = end_idx + 1  # Skip past the closing parenthesis
+                continue
+            elif token == ')':
+                # End of parenthesized expression
+                if current_condition is not None:
+                    conditions.append(current_condition)
+                return conditions, i
             
-            logging.debug(f"Final update dictionary: {update_dict}")
+            # Handle logical operators
+            elif token in ('AND', 'OR'):
+                current_operator = token
+                i += 1
+                continue
             
-            if not update_dict:
-                return {"error": "No fields to update specified", "status": "error"}
+            # Handle NOT operator
+            elif token == 'NOT':
+                # Look ahead to handle NOT IN, NOT BETWEEN, NOT LIKE
+                if i + 1 < len(tokens) and tokens[i + 1].upper() in ('IN', 'BETWEEN', 'LIKE'):
+                    token = f"NOT {tokens[i + 1].upper()}"
+                    i += 1  # Skip the next token as we've combined it
+                else:
+                    # Standalone NOT - needs to be applied to the next condition
+                    next_cond, end_idx = parse_expression(self, tokens, i + 1)
+                    current_condition = {'type': 'NOT', 'condition': next_cond[0] if next_cond else {}}
+                    i = end_idx
+                    continue
             
-            # Update MongoDB
-            result = collection.update_many(query_filter, {"$set": update_dict})
-            return {"message": f"Updated {result.modified_count} records in {table_name}.", "status": "success"}
-        except Exception as e:
-            logging.error(f"Error in UPDATE operation: {str(e)}")
-            logging.error(traceback.format_exc())
-            return {"error": f"Error in UPDATE operation: {str(e)}", "status": "error"}
+            # Process condition based on operator
+            if i + 2 < len(tokens):  # Ensure we have at least 3 tokens (column, operator, value)
+                column = tokens[i]
+                operator = tokens[i + 1].upper()
+                
+                # Handle special operators
+                if operator in ('IN', 'NOT IN'):
+                    # Parse IN list: column IN (val1, val2, ...)
+                    values = []
+                    if i + 3 < len(tokens) and tokens[i + 2] == '(':
+                        j = i + 3
+                        while j < len(tokens) and tokens[j] != ')':
+                            if tokens[j] != ',':
+                                values.append(self._parse_value(tokens[j]))
+                            j += 1
+                        
+                        current_condition = {
+                            'column': column,
+                            'operator': operator,
+                            'value': values
+                        }
+                        i = j + 1  # Skip to after the closing parenthesis
+                        continue
+                
+                elif operator in ('BETWEEN', 'NOT BETWEEN'):
+                    # Parse BETWEEN: column BETWEEN value1 AND value2
+                    if i + 4 < len(tokens) and tokens[i + 3].upper() == 'AND':
+                        value1 = self._parse_value(tokens[i + 2])
+                        value2 = self._parse_value(tokens[i + 4])
+                        
+                        current_condition = {
+                            'column': column,
+                            'operator': operator,
+                            'value': [value1, value2]
+                        }
+                        i += 5  # Skip all processed tokens
+                        continue
+                
+                elif operator in ('LIKE', 'NOT LIKE'):
+                    # Handle LIKE operator
+                    pattern = self._parse_value(tokens[i + 2])
+                    
+                    current_condition = {
+                        'column': column,
+                        'operator': operator,
+                        'value': pattern
+                    }
+                    i += 3
+                    continue
+                
+                elif operator in ('IS'):
+                    # Handle IS NULL or IS NOT NULL
+                    if i + 2 < len(tokens) and tokens[i + 2].upper() == 'NULL':
+                        current_condition = {
+                            'column': column,
+                            'operator': 'IS NULL',
+                            'value': None
+                        }
+                        i += 3
+                    elif i + 3 < len(tokens) and tokens[i + 2].upper() == 'NOT' and tokens[i + 3].upper() == 'NULL':
+                        current_condition = {
+                            'column': column,
+                            'operator': 'IS NOT NULL',
+                            'value': None
+                        }
+                        i += 4
+                    continue
+                
+                # Standard comparison operators
+                elif operator in ('=', '>', '<', '>=', '<=', '!=', '<>'):
+                    value = self._parse_value(tokens[i + 2])
+                    
+                    # Map <> to !=
+                    if operator == '<>':
+                        operator = '!='
+                    
+                    current_condition = {
+                        'column': column,
+                        'operator': operator,
+                        'value': value
+                    }
+                    i += 3
+                    continue
+            
+            # If nothing matched, just advance
+            i += 1
+            
+        # Add the last condition if it exists
+        if current_condition is not None:
+            conditions.append(current_condition)
+        
+        return conditions, len(tokens) - 1
+
+    def _flatten_conditions(self, conditions):
+        """
+        Flatten nested condition structures into a list of simple conditions.
+        Used by query engine when not optimizing with complex expressions.
+        
+        Args:
+            conditions: Nested structure of conditions
+        
+        Returns:
+            List of simplified conditions for basic B+ tree queries
+        """
+        result = []
+        
+        # For single conditions
+        if isinstance(conditions, dict):
+            conditions = [conditions]
+        
+        for condition in conditions:
+            if condition.get('type') == 'group':
+                # Recursively process sub-conditions
+                sub_results = self._flatten_conditions(condition.get('conditions', []))
+                result.extend(sub_results)
+            elif condition.get('type') == 'NOT':
+                # Negate the condition and add it (if simple enough to negate)
+                sub_condition = condition.get('condition', {})
+                if 'operator' in sub_condition and 'column' in sub_condition:
+                    negated = self._negate_condition(sub_condition)
+                    if negated:
+                        result.append(negated)
+            elif 'column' in condition and 'operator' in condition:
+                # Standard condition
+                result.append(condition)
+        
+        return result
+
+    def _negate_condition(self, condition):
+        """
+        Negate a simple condition for the NOT operator.
+        
+        Args:
+            condition: Original condition dictionary
+        
+        Returns:
+            Negated condition dictionary
+        """
+        op_map = {
+            '=': '!=',
+            '!=': '=',
+            '<>': '=',
+            '>': '<=',
+            '<': '>=',
+            '>=': '<',
+            '<=': '>',
+            'LIKE': 'NOT LIKE',
+            'NOT LIKE': 'LIKE',
+            'IN': 'NOT IN',
+            'NOT IN': 'IN',
+            'BETWEEN': 'NOT BETWEEN',
+            'NOT BETWEEN': 'BETWEEN',
+            'IS NULL': 'IS NOT NULL',
+            'IS NOT NULL': 'IS NULL'
+        }
+        
+        if condition['operator'] in op_map:
+            return {
+                'column': condition['column'],
+                'operator': op_map[condition['operator']],
+                'value': condition['value']
+            }
+        
+        # If operator can't be simply negated
+        return None
     
-    def execute_delete(self, plan):
-        """
-        Execute a DELETE query.
-        """
-        table_name = plan['table']
-        condition = plan.get('condition') or plan.get('where')  # Try both fields
+    def execute_select(self, plan):
+        """Execute a SELECT query and return results."""
+        # Get table name
+        table_name = plan.get('table')
+        if not table_name and 'tables' in plan and plan['tables']:
+            table_name = plan['tables'][0]
+                
+        if not table_name:
+            return {"error": "No table specified", "status": "error"}
+        
+        # Get column list - preserve original case
+        columns = plan.get('columns', ['*'])
         
         # Get current database
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
             return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
         
-        # Get MongoDB collection
-        db = self.client[db_name]
-        
-        # Validate table exists
-        if table_name not in db.list_collection_names():
-            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'.", "status": "error"}
-        
-        collection = db[table_name]
-        
         try:
-            # Parse condition into MongoDB query
-            if not condition and "id = 4" not in str(plan):  # Make a special exception for the sample query
-                logging.warning("DELETE without explicit WHERE condition")
-                # For DELETE without WHERE, use empty filter (deletes all)
-                query_filter = {}
-            else:
-                query_filter = self._parse_condition(condition)
-                logging.debug(f"DELETE filter: {query_filter}")
+            # Verify table exists - CASE INSENSITIVE COMPARISON
+            tables = self.catalog_manager.list_tables(db_name)
             
-            # Execute delete with the specific filter
-            result = collection.delete_many(query_filter)
-            return {"message": f"Deleted {result.deleted_count} records from {table_name}.", "status": "success"}
+            # Create case-insensitive lookup for table names
+            tables_lower = {table.lower(): table for table in tables}
+            
+            # Try to find the table case-insensitively
+            actual_table_name = table_name  # Default
+            if table_name.lower() in tables_lower:
+                # Use the correct case from the tables list
+                actual_table_name = tables_lower[table_name.lower()]
+                logging.debug(f"Using case-corrected table name: {actual_table_name} instead of {table_name}")
+            elif table_name not in tables:
+                return {"error": f"Table '{table_name}' does not exist in database '{db_name}'", "status": "error"}
+            
+            # Build condition for query
+            conditions = []
+            condition = plan.get('condition')
+            if condition:
+                logging.debug(f"Parsing condition: {condition}")
+                conditions = self._parse_condition_to_list(condition)
+                logging.debug(f"Parsed conditions: {conditions}")
+            
+            # Query the data using catalog manager - always get all columns first
+            results = self.catalog_manager.query_with_condition(actual_table_name, conditions, ['*'])
+            
+            logging.debug(f"Query returned {len(results) if results else 0} results")
+            
+            # Format results for client display
+            if not results:
+                return {
+                    "columns": columns if '*' not in columns else [],
+                    "rows": [],
+                    "status": "success"
+                }
+            
+            # Create a mapping of lowercase column names to original case
+            column_case_map = {}
+            if results:
+                first_record = results[0]
+                for col_name in first_record:
+                    column_case_map[col_name.lower()] = col_name
+            
+            # Apply ORDER BY if specified
+            order_by = plan.get('order_by')
+            if order_by and results:
+                # Extract ordering information
+                order_info = None
+                direction = 'ASC'
+                
+                # Handle different order_by formats
+                if isinstance(order_by, dict):
+                    order_col = order_by.get('column', '')
+                    direction = order_by.get('direction', 'ASC')
+                    order_info = f"{order_col} {direction}"
+                elif isinstance(order_by, list) and order_by:
+                    if isinstance(order_by[0], dict):
+                        order_col = order_by[0].get('column', '')
+                        direction = order_by[0].get('direction', 'ASC')
+                        order_info = f"{order_col} {direction}"
+                    else:
+                        order_info = str(order_by[0])
+                else:
+                    order_info = str(order_by)
+                
+                # Extract column name and direction - case insensitive
+                parts = order_info.split()
+                order_col = parts[0] if parts else ""
+                direction = parts[1].upper() if len(parts) > 1 else "ASC"
+                desc = direction == 'DESC'
+                
+                # Log using original case for debugging clarity
+                logging.debug(f"Processing ORDER BY: {order_col} {direction}")
+                
+                # Get the original case version of the column name if available
+                for col in column_case_map:
+                    if col.lower() == order_col.lower():
+                        order_col = column_case_map[col.lower()]
+                        break
+                
+                # Sort the results
+                if order_col:
+                    # Define a case-insensitive sort key function
+                    def get_sort_key(record):
+                        # Find the matching column name (case insensitive)
+                        column_value = None
+                        for record_col in record:
+                            if record_col.lower() == order_col.lower():
+                                column_value = record[record_col]
+                                break
+                        
+                        # Handle None values for sorting
+                        if column_value is None:
+                            return (1, None) if not desc else (0, None)
+                        
+                        return (0, column_value)
+                    
+                    # Apply the sort
+                    results.sort(key=get_sort_key, reverse=desc)
+                    logging.debug(f"Sorted {len(results)} rows by {order_col} {direction}")
+            
+            # Apply LIMIT if specified
+            limit = plan.get('limit')
+            if limit is not None and isinstance(limit, int) and results and limit > 0:
+                results = results[:limit]
+                logging.debug(f"Applied LIMIT {limit}, now {len(results)} results")
+            
+            # Project columns (select specific columns or all)
+            result_columns = []
+            result_rows = []
+            
+            # Figure out which columns to include in the result, with original case
+            if '*' in columns:
+                # Use all columns from first record (original case)
+                result_columns = list(results[0].keys())
+            else:
+                # For specific columns, find the original case from data
+                result_columns = []
+                for col in columns:
+                    # Find matching column with original case
+                    original_case_col = None
+                    for actual_col in column_case_map:
+                        if actual_col.lower() == col.lower():
+                            original_case_col = column_case_map[actual_col]
+                            break
+                    
+                    # Use original case if found, otherwise use as provided
+                    result_columns.append(original_case_col or col)
+            
+            # Create rows with the selected columns
+            for record in results:
+                row = []
+                for column_name in result_columns:
+                    # Find the matching column case-insensitively
+                    value = None
+                    for record_col in record:
+                        if record_col.lower() == column_name.lower():
+                            value = record[record_col]
+                            break
+                    row.append(value)
+                result_rows.append(row)
+            
+            logging.debug(f"Final result: {len(result_rows)} rows, {len(result_columns)} columns")
+            
+            return {
+                "columns": result_columns,  # Original case preserved
+                "rows": result_rows,
+                "status": "success"
+            }
+            
         except Exception as e:
-            logging.error(f"Error in DELETE operation: {str(e)}")
+            import traceback
+            logging.error(f"Error executing SELECT: {str(e)}")
             logging.error(traceback.format_exc())
-            return {"error": f"Error in DELETE operation: {str(e)}", "status": "error"}
+            return {"error": f"Error executing SELECT: {str(e)}", "status": "error"}
+
+    def _parse_condition_to_dict(self, condition_str):
+        """Parse a condition string into a condition dictionary for B+ tree querying."""
+        if not condition_str:
+            return {}
+        
+        # Basic operators mapping
+        operators = {
+            '=': '=',
+            '>': '>',
+            '<': '<',
+            '>=': '>=',
+            '<=': '<=',
+            '!=': '!='
+        }
+        
+        # Try to match an operator
+        for op in sorted(operators.keys(), key=len, reverse=True):  # Process longer ops first
+            if op in condition_str:
+                column, value = condition_str.split(op, 1)
+                column = column.strip()
+                value = value.strip()
+                
+                # Handle quoted strings
+                if value.startswith("'") and value.endswith("'"):
+                    value = value[1:-1]  # Remove quotes
+                # Handle numbers
+                elif value.isdigit():
+                    value = int(value)
+                elif re.match(r'^[0-9]*\.[0-9]+$', value):
+                    value = float(value)
+                
+                return {
+                    'column': column,
+                    'operator': operators[op],
+                    'value': value
+                }
+        
+        # If no operator found, return empty filter with a warning
+        logging.warning(f"Could not parse condition: {condition_str}")
+        return {}
     
     def execute_distinct(self, plan):
         """
@@ -724,18 +989,29 @@ class ExecutionEngine:
         table_name = plan['table']
         column = plan['column']
         
-        db = self.client['dbms_project']
-        collection = db[table_name]
+        # Get current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
         
-        # Use index if available
-        index = self.index_manager.get_index(f"{table_name}.idx_{column}")
-        if index:
-            distinct_values = set()
-            for key in index.keys():
-                distinct_values.add(key)
-            return list(distinct_values)
-        else:
-            return list(collection.distinct(column))
+        # Verify the table exists
+        if not self.catalog_manager.list_tables(db_name) or table_name not in self.catalog_manager.list_tables(db_name):
+            return {"error": f"Table '{table_name}' does not exist", "status": "error"}
+        
+        # Use catalog manager to get data
+        results = self.catalog_manager.query_with_condition(table_name, [], [column])
+        
+        # Extract distinct values
+        distinct_values = set()
+        for record in results:
+            if column in record and record[column] is not None:
+                distinct_values.add(record[column])
+        
+        return {
+            "columns": [column],
+            "rows": [[value] for value in distinct_values],
+            "status": "success"
+        }
 
     def execute_set_operation(self, plan):
         """
@@ -808,7 +1084,12 @@ class ExecutionEngine:
         Execute NOT operation.
         """
         result = self.execute(plan['child'])
-        all_docs = list(self.client['dbms_project'][plan['table']].find())
+        
+        # Get all records from the table using catalog manager
+        table_name = plan['table']
+        all_docs = self.catalog_manager.query_with_condition(table_name, [], ['*'])
+        
+        # Filter out records that are in the result
         return [doc for doc in all_docs if doc not in result]
     
     def execute_create_view(self, plan):
@@ -830,151 +1111,130 @@ class ExecutionEngine:
         return {"message": result}
 
     def execute_drop_database(self, plan):
-        """
-        Execute DROP DATABASE operation.
-        """
+        """Execute DROP DATABASE operation."""
         database_name = plan.get('database')
         
         if not database_name:
             return {"error": "No database name specified"}
         
-        # Check if the database exists
-        client = self.client
-        all_dbs = client.list_database_names()
+        # Use catalog manager to drop database
+        result = self.catalog_manager.drop_database(database_name)
+        
+        # If this was the current database, reset it
+        if self.catalog_manager.get_current_database() == database_name:
+            # Choose another database if available
+            available_dbs = self.catalog_manager.list_databases()
+            if available_dbs:
+                self.catalog_manager.set_current_database(available_dbs[0])
+            else:
+                self.catalog_manager.set_current_database(None)
+        
+        return {"message": result}
+        
+    def execute_use_database(self, plan):
+        """Execute USE DATABASE operation."""
+        database_name = plan.get('database')
+        
+        if not database_name:
+            return {"error": "No database name specified"}
+        
+        # Check if database exists
+        all_dbs = self.catalog_manager.list_databases()
         
         if database_name not in all_dbs:
-            return {"message": f"Database '{database_name}' does not exist."}
+            return {"error": f"Database '{database_name}' does not exist"}
         
-        # Drop the database
-        client.drop_database(database_name)
+        # Set the current database
+        self.catalog_manager.set_current_database(database_name)
+        self.current_database = database_name
         
-        # If this was the current database, reset to dbms_project
-        if self.catalog_manager.get_current_database() == database_name:
-            self.catalog_manager.set_current_database('dbms_project')
-        
-        # Clean up catalog entries for this database
-        catalog_db = self.client['dbms_project']
-        catalog_db.catalog.delete_many({"database": database_name})
-        catalog_db.indexes.delete_many({"database": database_name})
-        
-        return {"message": f"Database '{database_name}' dropped."}
-    
-    def execute_create_index(self, plan):
-        """
-        Execute CREATE INDEX operation.
-        """
-        index_name = plan['index_name']
-        table_name = plan['table']
-        column = plan['column']
-        is_unique = plan.get('unique', False)
-        
-        if not table_name:
-            return {"error": "Table name must be specified for CREATE INDEX"}
-        
-        # First, check if table exists
-        db_name = self.catalog_manager.get_current_database()
-        db = self.client[db_name]
-        
-        if table_name not in db.list_collection_names():
-            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'."}
-        
-        # Check if index already exists
-        indexes = self.catalog_manager.get_indexes_for_table(table_name)
-        if index_name in indexes:
-            return {"error": f"Index '{index_name}' already exists on '{table_name}'."}
-        
-        # Register the index in the catalog
-        try:
-            result = self.catalog_manager.create_index(table_name, index_name, column, is_unique)
-            if result:
-                return {"message": f"Index '{index_name}' created on '{table_name}.{column}'"}
-            else:
-                return {"error": f"Failed to create index '{index_name}' on '{table_name}'."}
-        except Exception as e:
-            return {"error": f"Error creating index: {str(e)}"}
-    
-    def execute_drop_index(self, plan):
-        """
-        Execute DROP INDEX operation.
-        """
-        index_name = plan['index_name']
-        table_name = plan['table']
-        
-        if not table_name:
-            return {"error": "Table name must be specified for DROP INDEX"}
-            
-        if not index_name:
-            return {"error": "Index name must be specified for DROP INDEX"}
-        
-        # Drop the index in MongoDB
-        db_name = self.catalog_manager.get_current_database()
-        
-        # Remove the index from the catalog
-        try:
-            result = self.catalog_manager.drop_index(table_name, index_name)
-            if result:
-                # Also remove from the index manager
-                self.index_manager.drop_index(f"{table_name}.{index_name}")
-                return {"message": f"Index '{index_name}' dropped from table '{table_name}'."}
-            else:
-                return {"error": f"Failed to drop index '{index_name}' from table '{table_name}'."}
-        except Exception as e:
-            return {"error": f"Error dropping index: {str(e)}"}
+        return {"message": f"Now using database '{database_name}'"}
 
     def execute_show(self, plan):
-        """
-        Execute SHOW commands.
-        """
+        """Execute SHOW commands."""
         object_type = plan.get('object')
         
         if not object_type:
-            return {"error": "No object type specified for SHOW command"}
+            return {"error": "No object type specified for SHOW command", "status": "error"}
         
         if object_type.upper() == 'DATABASES':
-            # List all user databases
-            databases = self.catalog_manager.get_databases()
+            # List all databases
+            databases = self.catalog_manager.list_databases()
             return {
                 "columns": ["Database Name"],
-                "rows": [[db] for db in databases]
+                "rows": [[db] for db in databases],
+                "status": "success"
             }
         
         elif object_type.upper() == "TABLES":
             # List all tables in the current database
-            tables = self.catalog_manager.get_tables()
+            db_name = self.catalog_manager.get_current_database()
+            if not db_name:
+                return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
+                
+            tables = self.catalog_manager.list_tables(db_name)
             return {
                 "columns": ["Table Name"],
-                "rows": [[table] for table in tables]
+                "rows": [[table] for table in tables],
+                "status": "success"
             }
         
         elif object_type.upper() == "INDEXES":
-            # List indexes
+            # Show indexes
             table_name = plan.get('table')
+            db_name = self.catalog_manager.get_current_database()
+            if not db_name:
+                return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
             
             if table_name:
-                # Show indexes for a specific table
+                # Show indexes for specific table
                 indexes = self.catalog_manager.get_indexes_for_table(table_name)
+                if not indexes:
+                    return {
+                        "columns": ["Table", "Column", "Index Name", "Type"],
+                        "rows": [],
+                        "status": "success",
+                        "message": f"No indexes found for table '{table_name}'"
+                    }
+                    
+                rows = []
+                for idx_name, idx_info in indexes.items():
+                    rows.append([
+                        table_name,
+                        idx_info.get("column", ""),
+                        idx_name,
+                        idx_info.get("type", "BTREE")
+                    ])
+                
                 return {
-                    "columns": ["Index Name", "Column", "Unique"],
-                    "rows": [[idx, info.get('column', ''), "Yes" if info.get('unique', False) else "No"] 
-                            for idx, info in indexes.items()]
+                    "columns": ["Table", "Column", "Index Name", "Type"],
+                    "rows": rows,
+                    "status": "success"
                 }
             else:
-                # Show all indexes
-                all_indexes = self.catalog_manager.get_all_indexes()
+                # Show all indexes in the current database
+                all_indexes = []
+                for index_id, index_info in self.catalog_manager.indexes.items():
+                    if index_id.startswith(f"{db_name}."):
+                        parts = index_id.split('.')
+                        if len(parts) >= 3:
+                            table = parts[1]
+                            column = index_info.get("column", "")
+                            index_name = parts[2]
+                            index_type = index_info.get("type", "BTREE")
+                            all_indexes.append([table, column, index_name, index_type])
+                
                 return {
-                    "columns": ["Table", "Index Name", "Column", "Unique"],
-                    "rows": [[table, idx, info.get('column', ''), "Yes" if info.get('unique', False) else "No"] 
-                            for table, indexes in all_indexes.items() 
-                            for idx, info in indexes.items()]
+                    "columns": ["Table", "Column", "Index Name", "Type"],
+                    "rows": all_indexes,
+                    "status": "success"
                 }
         
         else:
-            return {"error": f"Unknown object type: {object_type} for SHOW command"}
+            return {"error": f"Unknown object type: {object_type} for SHOW command", "status": "error"}
 
     def execute_create_table(self, plan):
-        """
-        Execute CREATE TABLE operation.
-        """
+        """Execute CREATE TABLE operation."""
         table_name = plan.get('table')
         column_strings = plan.get('columns', [])
         
@@ -986,10 +1246,9 @@ class ExecutionEngine:
         if not db_name:
             return {"error": "No database selected. Use 'USE database_name' first."}
         
-        db = self.client[db_name]
-        
         # Check if table already exists
-        if table_name in db.list_collection_names():
+        existing_tables = self.catalog_manager.list_tables(db_name)
+        if table_name in existing_tables:
             return {"error": f"Table '{table_name}' already exists in database '{db_name}'"}
         
         # Parse column definitions
@@ -1015,43 +1274,495 @@ class ExecutionEngine:
                     'constraints': col_constraints
                 })
         
-        # Create the table in MongoDB and catalog
+        # Create the table through catalog manager
         try:
-            self.catalog_manager.create_table(table_name, columns, constraints)
+            result = self.catalog_manager.create_table(table_name, columns, constraints)
             return {"message": f"Table '{table_name}' created in database '{db_name}'"}
         except Exception as e:
             logging.error(f"Error creating table: {str(e)}")
             return {"error": f"Error creating table: {str(e)}"}
-
+    
     def execute_drop_table(self, plan):
-        """
-        Execute DROP TABLE operation.
-        """
-        table_name = plan['table']
+        """Execute DROP TABLE operation."""
+        table_name = plan.get('table')
+        
+        if not table_name:
+            return {"error": "No table name specified"}
         
         # Get the current database
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
             return {"error": "No database selected. Use 'USE database_name' first."}
         
-        db = self.client[db_name]
+        # Use catalog manager to drop the table
+        try:
+            result = self.catalog_manager.drop_table(table_name)
+            
+            if isinstance(result, str) and "does not exist" in result:
+                return {"error": result}
+                
+            return {"message": f"Table '{table_name}' dropped from database '{db_name}'"}
+        except Exception as e:
+            logging.error(f"Error dropping table: {str(e)}")
+            return {"error": f"Error dropping table: {str(e)}"}
+    
+    def execute_get_table_data(self, table_name):
+        """Get all data from a table."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
         
-        # Check if the table exists
-        if table_name not in db.list_collection_names():
-            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'."}
+        table_id = f"{db_name}.{table_name}"
         
-        # Drop the table (collection) in MongoDB
-        db.drop_collection(table_name)
+        # Check if table exists
+        if table_id not in self.tables:
+            return f"Table {table_name} does not exist."
         
-        # Remove the table from the catalog
-        self.catalog_manager.drop_table(table_name)
+        # Load the B+ tree
+        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+        if not os.path.exists(table_file):
+            return f"Table data file not found."
         
-        # Drop any associated indexes
-        indexes = self.catalog_manager.get_indexes_for_table(table_name)
-        for index_name in indexes:
-            self.index_manager.drop_index(f"{table_name}.{index_name}")
+        tree = BPlusTree.load_from_file(table_file)
         
-        return {"message": f"Table '{table_name}' dropped successfully from database '{db_name}'."}
+        # Get all records using a wide range query
+        results = tree.range_query(float('-inf'), float('inf'))
+        
+        return results
+
+    def execute_create_index(self, plan):
+        """Execute CREATE INDEX operation."""
+        index_name = plan.get('index_name')
+        table_name = plan.get('table')
+        column = plan.get('column')
+        is_unique = plan.get('unique', False)
+        
+        if not table_name:
+            return {"error": "Table name must be specified for CREATE INDEX"}
+        
+        if not column:
+            return {"error": "Column name must be specified for CREATE INDEX"}
+        
+        logging.info(f"Creating index '{index_name}' on {table_name}.{column}")
+        
+        # Get the current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first."}
+        
+        # Verify table exists
+        tables = self.catalog_manager.list_tables(db_name)
+        if table_name not in tables:
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'"}
+        
+        # Create the index
+        try:
+            result = self.catalog_manager.create_index(table_name, column, "BTREE", is_unique)
+            if isinstance(result, str) and "already exists" in result:
+                return {"error": result}
+                
+            return {"message": f"Index '{index_name}' created on '{table_name}.{column}'"}
+        except Exception as e:
+            logging.error(f"Error creating index: {str(e)}")
+            return {"error": f"Error creating index: {str(e)}"}
+    
+    def execute_drop_index(self, plan):
+        """Execute DROP INDEX operation."""
+        index_name = plan['index_name']
+        table_name = plan['table']
+        
+        if not table_name:
+            return {"error": "Table name must be specified for DROP INDEX"}
+            
+        if not index_name:
+            return {"error": "Index name must be specified for DROP INDEX"}
+        
+        # Get the current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first."}
+        
+        # Drop the index through catalog_manager
+        try:
+            result = self.catalog_manager.drop_index(table_name, index_name)
+            if isinstance(result, str) and "does not exist" in result:
+                return {"error": result}
+                
+            return {"message": f"Index '{index_name}' dropped from table '{table_name}'."}
+        except Exception as e:
+            logging.error(f"Error dropping index: {str(e)}")
+            return {"error": f"Error dropping index: {str(e)}"}
+    
+    def drop_index(self, table_name, column_name):
+        """Drop an index from a table column."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
+        
+        table_id = f"{db_name}.{table_name}"
+        index_id = f"{table_id}.{column_name}"
+        
+        # Check if index exists
+        if index_id not in self.indexes:
+            return f"Index on {table_name}.{column_name} does not exist."
+        
+        # Remove from indexes catalog
+        del self.indexes[index_id]
+        
+        # Remove physical file
+        index_file = os.path.join(self.indexes_dir, f"{db_name}_{table_name}_{column_name}.idx")
+        if os.path.exists(index_file):
+            os.remove(index_file)
+        
+        # Save changes
+        self._save_json(self.indexes_file, self.indexes)
+        
+        logging.info(f"Index dropped on {table_name}.{column_name}")
+        return f"Index dropped on {table_name}.{column_name}"
+    
+    def query_with_condition(self, table_name, conditions=None, columns=None):
+        """Query table data with conditions."""
+        if conditions is None:
+            conditions = []
+        if columns is None:
+            columns = ['*']
+        
+        db_name = self.get_current_database()
+        if not db_name:
+            return []
+        
+        # Case-insensitive table lookup
+        actual_table_name = None
+        db_tables = self.list_tables(db_name)
+        
+        # Direct match first
+        if table_name in db_tables:
+            actual_table_name = table_name
+        else:
+            # Try case-insensitive match
+            for db_table in db_tables:
+                if db_table.lower() == table_name.lower():
+                    actual_table_name = db_table
+                    break
+        
+        if not actual_table_name:
+            logging.warning(f"Table '{table_name}' not found in database '{db_name}'")
+            return []
+        
+        # Use the correct table name for the lookup
+        table_id = f"{db_name}.{actual_table_name}"
+        
+        # Check if table exists
+        if table_id not in self.tables:
+            return []
+        
+        # Load the table file
+        table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
+        if not os.path.exists(table_file):
+            return []
+        
+        try:
+            # Load B+ tree
+            tree = BPlusTree.load_from_file(table_file)
+            
+            # Rest of the method remains the same...
+            # Get all records
+            all_records = tree.range_query(float('-inf'), float('inf'))
+            
+            # Process records and apply conditions
+            results = []
+            for record_key, record in all_records:
+                # Check if record matches all conditions
+                matches = True
+                for condition in conditions:
+                    col = condition.get('column')
+                    op = condition.get('operator')
+                    val = condition.get('value')
+                    
+                    if col not in record:
+                        matches = False
+                        break
+                    
+                    # Apply operator
+                    if op == '=':
+                        if record[col] != val:
+                            matches = False
+                            break
+                    elif op == '>':
+                        if record[col] <= val:
+                            matches = False
+                            break
+                    elif op == '<':
+                        if record[col] >= val:
+                            matches = False
+                            break
+                    elif op == '>=':
+                        if record[col] < val:
+                            matches = False
+                            break
+                    elif op == '<=':
+                        if record[col] > val:
+                            matches = False
+                            break
+                    elif op == '!=':
+                        if record[col] == val:
+                            matches = False
+                            break
+                
+                if matches:
+                    # Project selected columns
+                    if columns == ['*']:
+                        results.append(record)
+                    else:
+                        projected = {}
+                        for col in columns:
+                            if col in record:
+                                projected[col] = record[col]
+                        results.append(projected)
+            
+            return results
+        
+        except Exception as e:
+            logging.error(f"Error querying table: {e}")
+            return []
+
+    def execute_begin_transaction(self):
+        """Begin a new transaction."""
+        result = self.catalog_manager.begin_transaction()
+        return {"message": result}
+    
+    def execute_commit_transaction(self):
+        """Commit the current transaction."""
+        result = self.catalog_manager.commit_transaction()
+        return {"message": result}
+    
+    def execute_rollback_transaction(self):
+        """Rollback the current transaction."""
+        result = self.catalog_manager.rollback_transaction()
+        return {"message": result}
+
+    def update_records(self, table_name, updates, conditions=None):
+        """Update records in a table based on conditions."""
+        if conditions is None:
+            conditions = []
+            
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
+        
+        table_id = f"{db_name}.{table_name}"
+        
+        # Check if table exists
+        if table_id not in self.tables:
+            return f"Table {table_name} does not exist."
+        
+        # Load the B+ tree
+        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+        if not os.path.exists(table_file):
+            return f"Table data file not found."
+        
+        tree = BPlusTree.load_from_file(table_file)
+        
+        # Get all records
+        all_records = tree.range_query(float('-inf'), float('inf'))
+        
+        # Apply updates based on conditions
+        records_updated = 0
+        for record_key, record in all_records:
+            # Check if record matches conditions
+            matches = True
+            for condition in conditions:
+                col = condition.get('column')
+                op = condition.get('operator')
+                val = condition.get('value')
+                
+                if col not in record:
+                    matches = False
+                    break
+                    
+                if op == '=':
+                    if record[col] != val:
+                        matches = False
+                        break
+                elif op == '>':
+                    if record[col] <= val:
+                        matches = False
+                        break
+                # ... (other operators)
+            
+            if matches:
+                # Apply updates
+                updated_record = record.copy()
+                for field, value in updates.items():
+                    updated_record[field] = value
+                
+                # Remove old record and insert updated one
+                tree.insert(record_key, updated_record)
+                records_updated += 1
+        
+        # Save the updated tree
+        tree.save_to_file(table_file)
+        
+        # Update indexes
+        self._update_indexes_after_modify(db_name, table_name, all_records)
+        
+        return f"{records_updated} records updated."
+    
+    def execute_delete(self, plan):
+        """Execute a DELETE query."""
+        table_name = plan['table']
+        condition = plan.get('condition') or plan.get('where')  # Try both fields
+        
+        # Get current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
+        
+        # Verify table exists
+        tables = self.catalog_manager.list_tables(db_name)
+        if table_name not in tables:
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'.", "status": "error"}
+        
+        try:
+            # Parse condition into our format
+            conditions = []
+            if condition:
+                parsed_condition = self._parse_condition_to_dict(condition)
+                if parsed_condition:
+                    conditions.append(parsed_condition)
+            
+            # Delete records
+            result = self.catalog_manager.delete_records(table_name, conditions)
+            
+            # Extract count from result message
+            count = 0
+            if isinstance(result, str):
+                try:
+                    count = int(result.split()[0])
+                except:
+                    pass
+                    
+            return {"message": f"Deleted {count} records from {table_name}.", "status": "success"}
+        except Exception as e:
+            logging.error(f"Error in DELETE operation: {str(e)}")
+            logging.error(traceback.format_exc())
+            return {"error": f"Error in DELETE operation: {str(e)}", "status": "error"}
+    
+    def execute_update(self, plan):
+        """Execute an UPDATE query."""
+        table_name = plan['table']
+        condition = plan.get('condition') or plan.get('where')  # Try both fields
+        updates = plan.get('set', {})
+        
+        # Get the current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error"}
+            
+        # Verify table exists
+        tables = self.catalog_manager.list_tables(db_name)
+        if table_name not in tables:
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'.", "status": "error"}
+        
+        try:
+            # Parse the condition
+            conditions = []
+            if condition:
+                parsed_condition = self._parse_condition_to_dict(condition)
+                if parsed_condition:
+                    conditions.append(parsed_condition)
+            
+            # Process updates
+            update_dict = {}
+            for key, val in updates.items():
+                # Handle quoted strings
+                if isinstance(val, str) and val.startswith("'") and val.endswith("'"):
+                    val = val[1:-1]  # Remove quotes
+                # Handle numeric conversions
+                elif isinstance(val, str) and val.isdigit():
+                    val = int(val)
+                elif isinstance(val, str) and re.match(r'^[0-9]*\.[0-9]+$', val):
+                    val = float(val)
+                
+                update_dict[key] = val
+            
+            if not update_dict:
+                return {"error": "No fields to update specified", "status": "error"}
+            
+            # Update records
+            result = self.catalog_manager.update_records(table_name, update_dict, conditions)
+            
+            # Extract count from result message
+            count = 0
+            if isinstance(result, str):
+                try:
+                    count = int(result.split()[0])
+                except:
+                    pass
+            
+            return {"message": f"Updated {count} records in {table_name}.", "status": "success"}
+        except Exception as e:
+            logging.error(f"Error in UPDATE operation: {str(e)}")
+            logging.error(traceback.format_exc())
+            return {"error": f"Error in UPDATE operation: {str(e)}", "status": "error"}
+    
+    def _update_indexes_after_modify(self, db_name, table_name, current_records):
+        """Update all indexes for a table after records are modified."""
+        table_id = f"{db_name}.{table_name}"
+        
+        # Find all indexes for this table
+        table_indexes = []
+        for index_id, index_def in self.indexes.items():
+            if index_def.get("table") == table_id:
+                table_indexes.append((index_id, index_def))
+        
+        # Rebuild each index
+        for index_id, index_def in table_indexes:
+            column_name = index_def.get("column")
+            index_file = os.path.join(self.indexes_dir, f"{db_name}_{table_name}_{column_name}.idx")
+            
+            # Create a new index tree
+            index_tree = BPlusTree(order=50, name=f"{table_name}_{column_name}_index")
+            
+            # Populate the index with current records
+            for record_key, record in current_records:
+                if column_name in record:
+                    index_tree.insert(record[column_name], record_key)
+            
+            # Save the updated index
+            index_tree.save_to_file(index_file)
+            
+    def list_databases(self):
+        """Get a list of all databases."""
+        return list(self.databases.keys())
+    
+    def list_tables(self, db_name=None):
+        """Get a list of tables in a database."""
+        if db_name is None:
+            db_name = self.get_current_database()
+            if not db_name:
+                return "No database selected."
+        
+        if db_name not in self.databases:
+            return f"Database {db_name} does not exist."
+        
+        return self.databases[db_name].get("tables", [])
+    
+    def get_table_schema(self, table_name):
+        """Get the schema of a table."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
+        
+        table_id = f"{db_name}.{table_name}"
+        
+        if table_id not in self.tables:
+            return f"Table {table_name} does not exist."
+        
+        return {
+            "columns": self.tables[table_id].get("columns", []),
+            "constraints": self.tables[table_id].get("constraints", [])
+        }
     
     def execute_visualize(self, plan):
         """
@@ -1304,7 +2015,7 @@ class ExecutionEngine:
         except Exception as e:
             logging.error(f"Error visualizing all indexes: {str(e)}")
             return 0
-    
+
     def execute(self, plan):
         """
         Execute the query plan.
@@ -1313,8 +2024,7 @@ class ExecutionEngine:
         plan_type = plan.get('type')
         
         if not plan_type:
-            logging.error(f"Missing 'type' in plan: {plan}")
-            return {"error": "Invalid query plan - missing type", "status": "error"}
+            return {"error": "No operation type specified in plan", "status": "error"}
         
         # Process based on query type
         result = None
@@ -1330,62 +2040,45 @@ class ExecutionEngine:
                 result = self.execute_delete(plan)
             elif plan_type == 'CREATE_TABLE':
                 result = self.execute_create_table(plan)
-            elif plan_type == 'CREATE_DATABASE':
-                result = self.execute_create_database(plan)
-            elif plan_type == 'CREATE_INDEX':
-                result = self.execute_create_index(plan)
             elif plan_type == 'DROP_TABLE':
                 result = self.execute_drop_table(plan)
+            elif plan_type == 'CREATE_DATABASE':
+                result = self.execute_create_database(plan)
             elif plan_type == 'DROP_DATABASE':
                 result = self.execute_drop_database(plan)
-            elif plan_type == 'DROP_INDEX':
-                result = self.execute_drop_index(plan)
             elif plan_type == 'USE_DATABASE':
                 result = self.execute_use_database(plan)
             elif plan_type == 'SHOW':
                 result = self.execute_show(plan)
+            elif plan_type == 'CREATE_INDEX':
+                result = self.execute_create_index(plan)
+            elif plan_type == 'DROP_INDEX':
+                result = self.execute_drop_index(plan)
             elif plan_type == 'VISUALIZE':
                 result = self.execute_visualize(plan)
+            elif plan_type == 'BEGIN_TRANSACTION':
+                result = self.execute_begin_transaction()
+            elif plan_type == 'COMMIT':
+                result = self.execute_commit_transaction()
+            elif plan_type == 'ROLLBACK':
+                result = self.execute_rollback_transaction()
+            elif plan_type == 'SET':
+                result = self.execute_set_preference(plan)
+            elif plan_type == 'CREATE_VIEW':
+                result = self.execute_create_view(plan)
+            elif plan_type == 'DROP_VIEW':
+                result = self.execute_drop_view(plan)
             else:
-                return {"error": f"Unsupported operation: {plan_type}", "status": "error"}
+                return {"error": f"Unsupported operation type: {plan_type}", "status": "error"}
             
-            # ALWAYS remove type field from response
-            if isinstance(result, dict) and 'type' in result:
-                del result['type']
-            
-            # Ensure result has a status
-            if isinstance(result, dict) and 'status' not in result:
-                result['status'] = 'success'
-            
+            # If there's no explicit status, add success
+            if isinstance(result, dict) and "status" not in result:
+                result["status"] = "success"
+                
             return result
+            
         except Exception as e:
-            logging.error(f"Error executing {plan_type} plan: {str(e)}")
+            import traceback
+            logging.error(f"Error executing {plan_type}: {str(e)}")
             logging.error(traceback.format_exc())
-            return {"error": f"Error executing query: {str(e)}", "status": "error"}
-
-    def execute_use_database(self, plan):
-        """
-        Execute USE DATABASE operation.
-        """
-        database_name = plan.get('database')
-        
-        if not database_name:
-            return {"error": "No database name specified"}
-        
-        # Check if the database exists
-        client = self.client
-        all_dbs = client.list_database_names()
-        
-        # MongoDB is case-sensitive, so check exact match
-        if database_name not in all_dbs:
-            # Try to create it if it doesn't exist
-            client[database_name]
-            logging.info(f"Database '{database_name}' not found, created.")
-        
-        # Set the current database
-        self.current_database = database_name
-        
-        # Also store in catalog manager
-        self.catalog_manager.set_current_database(database_name)
-        
-        return {"message": f"Now using database '{database_name}'"}
+            return {"error": f"Error executing {plan_type}: {str(e)}", "status": "error"}

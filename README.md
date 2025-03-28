@@ -253,6 +253,8 @@ query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'al
 -- Simple SELECT
 query SELECT * FROM customers ✅
 
+try this with appropiate table and dataset: WHERE age > 25 AND (department = 'Engineering' OR salary >= 80000) AND hire_date BETWEEN '2020-01-01' AND '2023-12-31'
+
 -- SELECT with column projection
 query SELECT id, name FROM customers ✅
 
@@ -269,10 +271,10 @@ query SELECT * FROM customers LIMIT 2 ✅
 query UPDATE customers SET age = 31 WHERE id = 2 ✅
 
 -- Delete a record
-query DELETE FROM customers WHERE id = 4 ✅
+query DELETE FROM customers WHERE id = 4
 
 -- Delete all records
-query DELETE FROM customers ✅
+query DELETE FROM customers
 
 -- Insert test data
 query INSERT INTO customers (id, name, email, age) VALUES (1, 'John Doe', 'john@example.com', 30)

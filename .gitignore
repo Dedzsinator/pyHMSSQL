@@ -2,3 +2,4 @@ client/java_client/target/
 server/logs/
 indexes/
 __pycache__/
+data/

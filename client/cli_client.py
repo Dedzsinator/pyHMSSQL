@@ -315,6 +315,25 @@ class DBMSClient(cmd.Cmd):
         else:
             print(f"Unknown response format: {response}")
 
+    # Add a method to handle index commands directly without the query prefix
+    def do_CREATE(self, arg):
+        """
+        Handle CREATE INDEX commands directly
+        Usage: CREATE INDEX idx_name ON table_name (column_name)
+        """
+        if arg.upper().startswith("INDEX"):
+            self.do_query(f"CREATE {arg}")
+        else:
+            # For other CREATE commands, use query prefix
+            self.do_query(f"CREATE {arg}")
+
+    def do_USE(self, arg):
+        """
+        Handle USE database command
+        Usage: USE database_name
+        """
+        self.do_query(f"USE {arg}")
+
 def main():
     # Get server host and port from command line arguments if provided
     host = SERVER_HOST

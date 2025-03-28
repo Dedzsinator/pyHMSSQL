@@ -8,6 +8,7 @@ import uuid
 import re
 import datetime
 from logging.handlers import RotatingFileHandler
+from command_handler import CommandHandler
 
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -71,21 +72,20 @@ def setup_logging():
 log_file = setup_logging()
 
 class DBMSServer:
-    def __init__(self, host='localhost', port=9999, mongo_uri='mongodb://localhost:27017/'):
-        # Create MongoDB client
-        from pymongo import MongoClient
-        self.mongo_client = MongoClient(mongo_uri)
-        self.catalog_manager = CatalogManager(self.mongo_client)
+    def __init__(self, host='localhost', port=9999, data_dir='data'):
+        self.catalog_manager = CatalogManager(data_dir)
         self.index_manager = IndexManager('indexes')
         
-        # Initialize SQL parser
         self.sql_parser = SQLParser()
         
-        # Initialize components with the logging already set up
         self.planner = Planner(self.catalog_manager, self.index_manager)
         self.optimizer = Optimizer(self.catalog_manager, self.index_manager)
         self.execution_engine = ExecutionEngine(self.catalog_manager, self.index_manager)
+        self.command_handler = CommandHandler(self.execution_engine)
+        self.command_handler.set_engine(self.execution_engine)
         self.sessions = {}
+        logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+        os.makedirs(logs_dir, exist_ok=True)
     
     def _validate_session(self, session_token):
         """Validate a session token"""
@@ -95,31 +95,37 @@ class DBMSServer:
         """
         Handle incoming request.
         """
-        # Only use 'action' field for determining request type
-        request_type = data.get('action')
-        
-        if not request_type:
-            logging.error(f"Missing 'action' field in request: {data}")
-            return {"error": "Missing 'action' field in request", "status": "error"}
-        
-        # Process the request based on action
-        if request_type == 'login':
-            return self.handle_login(data)
-        elif request_type == 'query':
-            # Check if this is a VISUALIZE query and redirect
-            query = data.get('query', '').strip().upper()
-            if query.startswith('VISUALIZE'):
+        try:
+            # Only use 'action' field for determining request type
+            request_type = data.get('action')
+            
+            if not request_type:
+                logging.error(f"Missing 'action' field in request: {data}")
+                return {"error": "Missing 'action' field in request", "status": "error"}
+            
+            # Process the request based on action
+            if request_type == 'login':
+                return self.handle_login(data)
+            elif request_type == 'query':
+                # Check if this is a VISUALIZE query and redirect
+                query = data.get('query', '').strip().upper()
+                if query.startswith('VISUALIZE'):
+                    return self.handle_visualize(data)
+                return self.handle_query(data)
+            elif request_type == 'register':
+                return self.handle_register(data)
+            elif request_type == 'visualize':
                 return self.handle_visualize(data)
-            return self.handle_query(data)
-        elif request_type == 'register':
-            return self.handle_register(data)
-        elif request_type == 'visualize':
-            return self.handle_visualize(data)
-        elif request_type == 'logout':
-            return self.handle_logout(data)
-        else:
-            logging.error(f"Unknown request type: {request_type}")
-            return {"error": f"Unknown request type: {request_type}", "status": "error"}
+            elif request_type == 'logout':
+                return self.handle_logout(data)
+            else:
+                logging.error(f"Unknown request type: {request_type}")
+                return {"error": f"Unknown request type: {request_type}", "status": "error"}
+        except Exception as e:
+            import traceback
+            logging.error(f"Error handling request: {str(e)}")
+            logging.error(traceback.format_exc())
+            return {"error": f"Server error: {str(e)}", "status": "error"}
 
     def handle_visualize(self, data):
         """Handle visualization requests."""
@@ -240,52 +246,98 @@ class DBMSServer:
                 return {"error": result, "status": "error"}
             return result
 
+    def _log_query(self, username, query):
+        """
+        Log a query for audit purposes.
+        
+        Args:
+            username: The username of the user executing the query
+            query: The SQL query string
+        """
+        try:
+            timestamp = datetime.datetime.now().isoformat()
+            log_entry = {
+                'timestamp': timestamp,
+                'username': username,
+                'query': query
+            }
+            
+            # Log to the audit log file
+            logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+            audit_log_file = os.path.join(logs_dir, 'query_audit.log')
+            
+            with open(audit_log_file, 'a') as f:
+                f.write(f"{timestamp} | {username} | {query}\n")
+            
+            # Also log to the standard logger
+            logging.info(f"AUDIT: User {username} executed: {query}")
+            
+            # Optionally store in a database for more advanced auditing
+            self._store_audit_log(log_entry)
+            
+        except Exception as e:
+            # Don't let logging errors affect query execution
+            logging.error(f"Failed to log query: {str(e)}")
+            
+    def _store_audit_log(self, log_entry):
+        """
+        Store audit log entry in a persistent store for advanced querying.
+        This is an optional enhancement for more sophisticated auditing.
+        
+        Args:
+            log_entry: Dictionary containing audit information
+        """
+        try:
+            # If you have a database connection for audit logs
+            # Example with a hypothetical audit_db:
+            # self.audit_db.audit_logs.insert_one(log_entry)
+            pass
+        except Exception as e:
+            logging.error(f"Failed to store audit log: {str(e)}")
+
     def handle_query(self, data):
-        """Handle query execution with role-based access control."""
+        """
+        Handle query requests.
+        """
         session_id = data.get('session_id')
         if session_id not in self.sessions:
             logging.warning(f"Unauthorized query attempt with invalid session ID: {session_id}")
             return {"error": "Unauthorized. Please log in.", "status": "error"}
         
         user = self.sessions[session_id]
-        query = data.get('query')
+        query = data.get('query', '')
+        
+        # First check if this is a special command
+        handled, result = self.command_handler.handle_command(query)
+        if handled:
+            return result
+        
+        # Continue with regular query processing
         logging.info(f"Query from {user.get('username', 'Unknown')}: {query}")
         
-        # Check role-based access control
-        if self.is_query_allowed(user["role"], query):
-            # Parse the SQL query using the Python parser
-            parsed_query = self.parse_sql(query)
-            if "error" in parsed_query:
-                error_msg = f"Error parsing SQL query: {parsed_query['error']}"
-                logging.error(error_msg)
-                return {"error": error_msg, "status": "error"}
+        # Log the query for audit
+        self._log_query(user.get('username'), query)
+        
+        # Print current database for debugging
+        current_db = self.catalog_manager.get_current_database()
+        logging.info(f"Current database: {current_db}")
+        
+        # Parse and execute
+        try:
+            parsed = self.sql_parser.parse_sql(query)
+            if 'error' in parsed:
+                logging.error(f"SQL parsing error: {parsed['error']}")
+                return {"error": parsed['error'], "status": "error"}
             
-            try:
-                # Plan and optimize the query
-                logging.debug("Planning query...")
-                plan = self.planner.plan_query(parsed_query)
-                logging.debug("Optimizing query...")
-                optimized_plan = self.optimizer.optimize(plan)
-                
-                # Execute the query
-                logging.debug("Executing query...")
-                result = self.execution_engine.execute(optimized_plan)
-                logging.info(f"Query executed successfully")
-                
-                # Ensure proper response format
-                if isinstance(result, str):
-                    result = {"message": result, "status": "success"}
-                elif isinstance(result, dict) and "status" not in result:
-                    result["status"] = "success"
-                
-                return result
-            except Exception as e:
-                error_msg = f"Error executing query: {str(e)}"
-                logging.error(error_msg)
-                return {"error": error_msg, "status": "error"}
-        else:
-            logging.warning(f"Access denied for query: {query}")
-            return {"error": "Access denied. You do not have permission to execute this query.", "status": "error"}
+            # Log the parsed query structure
+            logging.debug(f"Parsed query: {parsed}")
+            
+            result = self.execution_engine.execute(parsed)
+            return result
+        except Exception as e:
+            logging.error(f"Error executing query: {str(e)}")
+            logging.error(traceback.format_exc())
+            return {"error": str(e), "status": "error"}
         
     def is_query_allowed(self, role, query):
         """
@@ -371,7 +423,7 @@ def start_server():
         print("Please install it using: pip install sqlparse")
         sys.exit(1)
     
-    server = DBMSServer()
+    server = DBMSServer(data_dir='data')
     
     # Test the SQL parser
     test_queries = [

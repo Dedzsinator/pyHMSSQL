@@ -2,6 +2,7 @@ import re
 import logging
 import traceback
 import sqlparse
+from index_parser import IndexParser
 
 class SQLParser:
     """
@@ -11,7 +12,7 @@ class SQLParser:
     """
     
     def __init__(self):
-        # Ensure sqlparse is available
+        self.index_parser = IndexParser()
         try:
             import sqlparse
         except ImportError:
@@ -22,6 +23,9 @@ class SQLParser:
         Parse SQL query into a structured format.
         """
         try:
+            if sql.strip().upper().startswith("CREATE INDEX") or sql.strip().upper().startswith("CREATE UNIQUE INDEX"):
+                return self.index_parser.parse_create_index(sql)
+                
             # Parse SQL query
             parsed = sqlparse.parse(sql)
             if not parsed:
@@ -40,7 +44,7 @@ class SQLParser:
             if sql.strip().upper().startswith("USE "):
                 db_name = sql.strip()[4:].strip()
                 return {
-                    "type": "USE",
+                    "type": "USE_DATABASE",
                     "database": db_name,
                     "query": sql
                 }
@@ -83,7 +87,7 @@ class SQLParser:
             logging.error(f"Error extracting elements: {str(e)}")
             logging.error(traceback.format_exc())
             return {"error": f"Error extracting SQL elements: {str(e)}"}
-
+    
     def parse_visualize_command(self, query):
         """
         Parse a VISUALIZE command.
@@ -343,16 +347,46 @@ class SQLParser:
         
         # Extract index details
         if create_type == "INDEX":
-            if is_unique:
-                pattern = r'CREATE\s+UNIQUE\s+INDEX\s+(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)'
-            else:
-                pattern = r'CREATE\s+INDEX\s+(\w+)\s+ON\s+(\w+)\s*\(([^)]+)\)'
+            # Split into tokens for better parsing
+            tokens = raw_sql.split()
             
-            match = re.search(pattern, raw_sql, re.IGNORECASE)
-            if match:
-                index_name = match.group(1)
-                table_name = match.group(2)
-                column_name = match.group(3).strip()
+            # Find the index name - it will be after CREATE INDEX or CREATE UNIQUE INDEX
+            idx = 2
+            if is_unique:
+                idx = 3  # Skip UNIQUE
+            
+            if idx < len(tokens):
+                index_name = tokens[idx]
+                idx += 1
+                
+                # Look for ON keyword
+                if idx < len(tokens) and tokens[idx].upper() == "ON":
+                    idx += 1
+                    if idx < len(tokens):
+                        table_name = tokens[idx]
+                        idx += 1
+                        
+                        # Look for column in parentheses or as next token
+                        if idx < len(tokens):
+                            if '(' in tokens[idx]:
+                                # Extract column from parentheses
+                                column_text = ' '.join(tokens[idx:])
+                                match = re.search(r'\(\s*([^,\s\)]+)', column_text)
+                                if match:
+                                    column_name = match.group(1)
+                            else:
+                                # Take next token as column name
+                                column_name = tokens[idx]
+            
+            # Update result with the correct type for execution engine
+            result["type"] = "CREATE_INDEX"
+            result.update({
+                "index_name": index_name,
+                "table": table_name,
+                "column": column_name,
+                "unique": is_unique
+            })
+            return
         
         # Extract table details
         elif create_type == "TABLE":
@@ -371,25 +405,31 @@ class SQLParser:
                             constraints.append(col_def)
                         else:
                             columns.append(col_def)
+                            
+            # Update result type
+            result["type"] = "CREATE_TABLE"
         
         # Extract database name
         elif create_type == "DATABASE":
             match = re.search(r'CREATE\s+DATABASE\s+(\w+)', raw_sql, re.IGNORECASE)
             if match:
                 database_name = match.group(1)
+                
+            # Update result type
+            result["type"] = "CREATE_DATABASE"
         
         # Update result with extracted components
         result.update({
             "create_type": create_type,
             "table": table_name,
             "database": database_name,
-            "index": index_name,
+            "index_name": index_name,
             "column": column_name,
             "unique": is_unique,
             "columns": columns,
             "constraints": constraints
         })
-
+    
     def _extract_drop_elements(self, parsed, result):
         """Extract elements from a DROP statement"""
         table_name = None
@@ -524,3 +564,57 @@ class SQLParser:
             "column": column_name,
             "unique": is_unique
         })
+        
+    def parse_create_index(self, tokens):
+        """Parse CREATE INDEX statement."""
+        # Skip 'CREATE INDEX' tokens
+        idx = 2
+        is_unique = False
+        
+        # Check for UNIQUE keyword
+        if tokens[0].upper() == 'CREATE' and tokens[1].upper() == 'UNIQUE' and tokens[2].upper() == 'INDEX':
+            is_unique = True
+            idx = 3  # Skip the UNIQUE keyword
+        
+        # Get index name
+        if idx >= len(tokens):
+            return {'error': "Missing index name in CREATE INDEX statement"}
+        index_name = tokens[idx]
+        idx += 1
+        
+        # Skip 'ON' keyword
+        if idx >= len(tokens) or tokens[idx].upper() != 'ON':
+            return {'error': "Expected 'ON' after index name"}
+        idx += 1
+        
+        # Get table name
+        if idx >= len(tokens):
+            return {'error': "Missing table name in CREATE INDEX statement"}
+        table_name = tokens[idx]
+        idx += 1
+        
+        # Parse column specifications
+        column_name = None
+        if idx < len(tokens):
+            # Check for parentheses syntax: CREATE INDEX idx ON table (column)
+            if tokens[idx] == '(':
+                idx += 1  # Skip '('
+                if idx < len(tokens):
+                    column_name = tokens[idx].strip(',)')  # Remove potential comma or closing paren
+                    # Continue to closing parenthesis
+                    while idx < len(tokens) and ')' not in tokens[idx]:
+                        idx += 1
+            # Simple syntax without parentheses: CREATE INDEX idx ON table column
+            else:
+                column_name = tokens[idx]
+        
+        if not column_name:
+            return {'error': "No column specified for index"}
+        
+        return {
+            'type': 'CREATE_INDEX',
+            'index_name': index_name,
+            'table': table_name,
+            'column': column_name,
+            'unique': is_unique
+        }
