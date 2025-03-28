@@ -538,31 +538,6 @@ class ExecutionEngine:
         
         return result
     
-    def execute_begin_transaction(self):
-        """
-        Begin a new transaction.
-        """
-        self.transaction_stack.append({})
-        return "Transaction started."
-    
-    def execute_commit_transaction(self):
-        """
-        Commit the current transaction.
-        """
-        if not self.transaction_stack:
-            return "No transaction to commit."
-        self.transaction_stack.pop()
-        return "Transaction committed."
-    
-    def execute_rollback_transaction(self):
-        """
-        Rollback the current transaction.
-        """
-        if not self.transaction_stack:
-            return "No transaction to rollback."
-        self.transaction_stack.pop()
-        return "Transaction rolled back."
-
     def execute_set_preference(self, plan):
             """
             Update user preferences.
@@ -1087,85 +1062,6 @@ class ExecutionEngine:
             "status": "success"
         }
 
-    def execute_set_operation(self, plan):
-        """
-        Execute set operations.
-        """
-        if plan['type'] == "UNION":
-            return self.execute_union(plan)
-        elif plan['type'] == "INTERSECT":
-            return self.execute_intersect(plan)
-        elif plan['type'] == "EXCEPT":
-            return self.execute_except(plan)
-        else:
-            raise ValueError("Unsupported set operation.")
-    
-    def execute_union(self, plan):
-        """
-        Execute UNION operation.
-        """
-        result1 = self.execute(plan['left'])
-        result2 = self.execute(plan['right'])
-        return list(set(result1 + result2))
-    
-    def execute_intersect(self, plan):
-        """
-        Execute INTERSECT operation.
-        """
-        result1 = self.execute(plan['left'])
-        result2 = self.execute(plan['right'])
-        return list(set(result1) & set(result2))
-    
-    def execute_except(self, plan):
-        """
-        Execute EXCEPT operation.
-        """
-        result1 = self.execute(plan['left'])
-        result2 = self.execute(plan['right'])
-        return list(set(result1) - set(result2))
-
-    def execute_logical_operation(self, plan):
-        """
-        Execute logical operations.
-        """
-        if plan['type'] == "AND":
-            return self.execute_and(plan)
-        elif plan['type'] == "OR":
-            return self.execute_or(plan)
-        elif plan['type'] == "NOT":
-            return self.execute_not(plan)
-        else:
-            raise ValueError("Unsupported logical operation.")
-    
-    def execute_and(self, plan):
-        """
-        Execute AND operation.
-        """
-        result1 = self.execute(plan['left'])
-        result2 = self.execute(plan['right'])
-        return [doc for doc in result1 if doc in result2]
-    
-    def execute_or(self, plan):
-        """
-        Execute OR operation.
-        """
-        result1 = self.execute(plan['left'])
-        result2 = self.execute(plan['right'])
-        return list(set(result1 + result2))
-    
-    def execute_not(self, plan):
-        """
-        Execute NOT operation.
-        """
-        result = self.execute(plan['child'])
-        
-        # Get all records from the table using catalog manager
-        table_name = plan['table']
-        all_docs = self.catalog_manager.query_with_condition(table_name, [], ['*'])
-        
-        # Filter out records that are in the result
-        return [doc for doc in all_docs if doc not in result]
-    
     def execute_create_view(self, plan):
         """
         Execute CREATE VIEW queries.
@@ -1409,30 +1305,6 @@ class ExecutionEngine:
             logging.error(f"Error dropping table: {str(e)}")
             return {"error": f"Error dropping table: {str(e)}"}
     
-    def execute_get_table_data(self, table_name):
-        """Get all data from a table."""
-        db_name = self.get_current_database()
-        if not db_name:
-            return "No database selected."
-        
-        table_id = f"{db_name}.{table_name}"
-        
-        # Check if table exists
-        if table_id not in self.tables:
-            return f"Table {table_name} does not exist."
-        
-        # Load the B+ tree
-        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
-        if not os.path.exists(table_file):
-            return f"Table data file not found."
-        
-        tree = BPlusTree.load_from_file(table_file)
-        
-        # Get all records using a wide range query
-        results = tree.range_query(float('-inf'), float('inf'))
-        
-        return results
-
     def execute_create_index(self, plan):
         """Execute CREATE INDEX operation."""
         index_name = plan.get('index_name')
@@ -1496,139 +1368,6 @@ class ExecutionEngine:
             logging.error(f"Error dropping index: {str(e)}")
             return {"error": f"Error dropping index: {str(e)}"}
     
-    def drop_index(self, table_name, column_name):
-        """Drop an index from a table column."""
-        db_name = self.get_current_database()
-        if not db_name:
-            return "No database selected."
-        
-        table_id = f"{db_name}.{table_name}"
-        index_id = f"{table_id}.{column_name}"
-        
-        # Check if index exists
-        if index_id not in self.indexes:
-            return f"Index on {table_name}.{column_name} does not exist."
-        
-        # Remove from indexes catalog
-        del self.indexes[index_id]
-        
-        # Remove physical file
-        index_file = os.path.join(self.indexes_dir, f"{db_name}_{table_name}_{column_name}.idx")
-        if os.path.exists(index_file):
-            os.remove(index_file)
-        
-        # Save changes
-        self._save_json(self.indexes_file, self.indexes)
-        
-        logging.info(f"Index dropped on {table_name}.{column_name}")
-        return f"Index dropped on {table_name}.{column_name}"
-    
-    def query_with_condition(self, table_name, conditions=None, columns=None):
-        """Query table data with conditions."""
-        if conditions is None:
-            conditions = []
-        if columns is None:
-            columns = ['*']
-        
-        db_name = self.get_current_database()
-        if not db_name:
-            return []
-        
-        # Case-insensitive table lookup
-        actual_table_name = None
-        db_tables = self.list_tables(db_name)
-        
-        # Direct match first
-        if table_name in db_tables:
-            actual_table_name = table_name
-        else:
-            # Try case-insensitive match
-            for db_table in db_tables:
-                if db_table.lower() == table_name.lower():
-                    actual_table_name = db_table
-                    break
-        
-        if not actual_table_name:
-            logging.warning(f"Table '{table_name}' not found in database '{db_name}'")
-            return []
-        
-        # Use the correct table name for the lookup
-        table_id = f"{db_name}.{actual_table_name}"
-        
-        # Check if table exists
-        if table_id not in self.tables:
-            return []
-        
-        # Load the table file
-        table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
-        if not os.path.exists(table_file):
-            return []
-        
-        try:
-            # Load B+ tree
-            tree = BPlusTree.load_from_file(table_file)
-            
-            # Rest of the method remains the same...
-            # Get all records
-            all_records = tree.range_query(float('-inf'), float('inf'))
-            
-            # Process records and apply conditions
-            results = []
-            for record_key, record in all_records:
-                # Check if record matches all conditions
-                matches = True
-                for condition in conditions:
-                    col = condition.get('column')
-                    op = condition.get('operator')
-                    val = condition.get('value')
-                    
-                    if col not in record:
-                        matches = False
-                        break
-                    
-                    # Apply operator
-                    if op == '=':
-                        if record[col] != val:
-                            matches = False
-                            break
-                    elif op == '>':
-                        if record[col] <= val:
-                            matches = False
-                            break
-                    elif op == '<':
-                        if record[col] >= val:
-                            matches = False
-                            break
-                    elif op == '>=':
-                        if record[col] < val:
-                            matches = False
-                            break
-                    elif op == '<=':
-                        if record[col] > val:
-                            matches = False
-                            break
-                    elif op == '!=':
-                        if record[col] == val:
-                            matches = False
-                            break
-                
-                if matches:
-                    # Project selected columns
-                    if columns == ['*']:
-                        results.append(record)
-                    else:
-                        projected = {}
-                        for col in columns:
-                            if col in record:
-                                projected[col] = record[col]
-                        results.append(projected)
-            
-            return results
-        
-        except Exception as e:
-            logging.error(f"Error querying table: {e}")
-            return []
-
     def execute_begin_transaction(self):
         """Begin a new transaction."""
         result = self.catalog_manager.begin_transaction()
@@ -1847,23 +1586,7 @@ class ExecutionEngine:
             
             # Save the updated index
             index_tree.save_to_file(index_file)
-            
-    def list_databases(self):
-        """Get a list of all databases."""
-        return list(self.databases.keys())
-    
-    def list_tables(self, db_name=None):
-        """Get a list of tables in a database."""
-        if db_name is None:
-            db_name = self.get_current_database()
-            if not db_name:
-                return "No database selected."
-        
-        if db_name not in self.databases:
-            return f"Database {db_name} does not exist."
-        
-        return self.databases[db_name].get("tables", [])
-    
+
     def get_table_schema(self, table_name):
         """Get the schema of a table."""
         db_name = self.get_current_database()
