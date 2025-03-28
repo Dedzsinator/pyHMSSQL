@@ -1134,7 +1134,7 @@ class ExecutionEngine:
             else:
                 self.catalog_manager.set_current_database(None)
         
-        return {"message": result}
+        return {"message": result, "status": "success", "type": "drop_database_result"}
         
     def execute_use_database(self, plan):
         """Execute USE DATABASE operation."""
@@ -1244,17 +1244,17 @@ class ExecutionEngine:
         column_strings = plan.get('columns', [])
         
         if not table_name:
-            return {"error": "No table name specified"}
+            return {"error": "No table name specified", "status": "error", "type": "error"}
         
         # Get the current database
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
-            return {"error": "No database selected. Use 'USE database_name' first."}
+            return {"error": "No database selected. Use 'USE database_name' first.", "status": "error", "type": "error"}
         
         # Check if table already exists
         existing_tables = self.catalog_manager.list_tables(db_name)
         if table_name in existing_tables:
-            return {"error": f"Table '{table_name}' already exists in database '{db_name}'"}
+            return {"error": f"Table '{table_name}' already exists in database '{db_name}'", "status": "error", "type": "error"}
         
         # Parse column definitions
         columns = []
@@ -1265,28 +1265,57 @@ class ExecutionEngine:
                 constraints.append(col_str)
                 continue
             
+            # Extract column definition parts
             parts = col_str.split()
             if len(parts) >= 2:
                 col_name = parts[0]
                 col_type = parts[1]
                 
-                # Extract any inline constraints
-                col_constraints = ' '.join(parts[2:]) if len(parts) > 2 else ''
+                # Create column definition
+                col_def = {
+                    "name": col_name,
+                    "type": col_type
+                }
                 
-                columns.append({
-                    'name': col_name,
-                    'type': col_type,
-                    'constraints': col_constraints
-                })
+                # Check for additional column attributes
+                col_str_upper = col_str.upper()
+                
+                # Handle PRIMARY KEY
+                if "PRIMARY KEY" in col_str_upper:
+                    col_def["primary_key"] = True
+                
+                # Handle NOT NULL
+                if "NOT NULL" in col_str_upper:
+                    col_def["nullable"] = False
+                
+                # Handle IDENTITY(seed, increment)
+                if "IDENTITY" in col_str_upper:
+                    col_def["identity"] = True
+                    
+                    # Extract seed and increment values if specified
+                    identity_match = re.search(r"IDENTITY\s*\((\d+),\s*(\d+)\)", col_str, re.IGNORECASE)
+                    if identity_match:
+                        col_def["identity_seed"] = int(identity_match.group(1))
+                        col_def["identity_increment"] = int(identity_match.group(2))
+                    else:
+                        # Default seed=1, increment=1
+                        col_def["identity_seed"] = 1
+                        col_def["identity_increment"] = 1
+                
+                # Add the column definition
+                columns.append(col_def)
         
         # Create the table through catalog manager
         try:
             result = self.catalog_manager.create_table(table_name, columns, constraints)
-            return {"message": f"Table '{table_name}' created in database '{db_name}'"}
+            if result is True:
+                return {"message": f"Table '{table_name}' created in database '{db_name}'", "status": "success", "type": "create_table_result"}
+            else:
+                return {"error": result, "status": "error", "type": "error"}
         except Exception as e:
             logging.error(f"Error creating table: {str(e)}")
-            return {"error": f"Error creating table: {str(e)}"}
-    
+            return {"error": f"Error creating table: {str(e)}", "status": "error", "type": "error"}
+
     def execute_drop_table(self, plan):
         """Execute DROP TABLE operation."""
         table_name = plan.get('table')

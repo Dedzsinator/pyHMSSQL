@@ -4,7 +4,7 @@ import logging
 from hashlib import sha256
 import datetime
 from bptree import BPlusTree
-import pickle
+import re
 
 class CatalogManager:
     def __init__(self, data_dir='data'):
@@ -187,11 +187,52 @@ class CatalogManager:
         if table_id in self.tables:
             return f"Table {table_name} already exists."
         
+        # Process columns for IDENTITY
+        processed_columns = {}
+        for col_def in columns:
+            if isinstance(col_def, dict):
+                col_name = col_def.get("name", "")
+                processed_columns[col_name] = col_def
+                
+                # Check for IDENTITY attribute in column definition
+                if "identity" in col_def:
+                    logging.debug(f"Found IDENTITY column: {col_name}")
+            else:
+                # For string format, parse it to look for IDENTITY
+                parts = str(col_def).split()
+                if len(parts) >= 2:
+                    col_name = parts[0]
+                    col_type = parts[1]
+                    
+                    # Create column definition
+                    column_def = {"type": col_type}
+                    
+                    # Check for IDENTITY
+                    if "IDENTITY" in str(col_def).upper():
+                        column_def["identity"] = True
+                        
+                        # Extract seed and increment if specified
+                        identity_match = re.search(r"IDENTITY\s*\((\d+),\s*(\d+)\)", str(col_def), re.IGNORECASE)
+                        if identity_match:
+                            column_def["identity_seed"] = int(identity_match.group(1))
+                            column_def["identity_increment"] = int(identity_match.group(2))
+                        else:
+                            column_def["identity_seed"] = 1
+                            column_def["identity_increment"] = 1
+                        
+                        logging.debug(f"Parsed IDENTITY column: {col_name}")
+                    
+                    # Check for PRIMARY KEY
+                    if "PRIMARY KEY" in str(col_def).upper():
+                        column_def["primary_key"] = True
+                    
+                    processed_columns[col_name] = column_def
+        
         # Create table metadata
         self.tables[table_id] = {
             "database": db_name,
             "name": table_name,
-            "columns": columns,
+            "columns": processed_columns,
             "constraints": constraints,
             "created_at": datetime.datetime.now().isoformat()
         }
@@ -210,7 +251,7 @@ class CatalogManager:
         self._save_json(self.databases_file, self.databases)
         
         return True
-        
+    
     def get_preferences(self):
         """Get the current preferences."""
         return self.preferences
@@ -456,21 +497,50 @@ class CatalogManager:
         # Get table schema to check constraints
         table_schema = self.tables[table_id]
         pk_column = None
+        is_identity = False
+        identity_seed = 1
+        identity_increment = 1
         
-        # Find primary key column (if any) - handle both list and dict column definitions
+        # Find primary key column and check if it's an IDENTITY column
         columns_data = table_schema.get("columns", {})
         
-        # Fix for the list issue - check the type and handle accordingly
+        # Check the type and handle accordingly
         if isinstance(columns_data, dict):
-            # Dictionary format - this is the expected case
+            # Dictionary format - check for primary key
             for col_name, col_def in columns_data.items():
-                if isinstance(col_def, dict) and col_def.get("primary_key", False):
-                    pk_column = col_name
-                    break
+                if isinstance(col_def, dict):
+                    if col_def.get("primary_key", False):
+                        pk_column = col_name
+                    if col_def.get("identity", False):
+                        is_identity = True
+                        identity_seed = col_def.get("identity_seed", 1)
+                        identity_increment = col_def.get("identity_increment", 1)
+                        pk_column = col_name  # IDENTITY columns are typically primary keys
         elif isinstance(columns_data, list):
-            # List format - this is what's causing the error
-            # No primary key in this format, so we skip the check
-            logging.debug(f"Table {table_name} has columns in list format, skipping PK check")
+            # List format - check constraints for PRIMARY KEY
+            constraints = table_schema.get("constraints", [])
+            for constraint in constraints:
+                if isinstance(constraint, str):
+                    # Check for PRIMARY KEY constraint
+                    pk_match = re.search(r"PRIMARY\s+KEY\s*\(\s*(\w+)\s*\)", constraint, re.IGNORECASE)
+                    if pk_match:
+                        pk_column = pk_match.group(1)
+                    
+                    # Check for IDENTITY specification
+                    if "IDENTITY" in constraint.upper():
+                        identity_match = re.search(r"(\w+)\s+.*IDENTITY\s*(?:\((\d+),\s*(\d+)\))?", 
+                                                constraint, re.IGNORECASE)
+                        if identity_match:
+                            id_col = identity_match.group(1)
+                            is_identity = True
+                            pk_column = id_col  # IDENTITY columns are typically primary keys
+                            
+                            # Get seed and increment if specified
+                            if identity_match.group(2) and identity_match.group(3):
+                                identity_seed = int(identity_match.group(2))
+                                identity_increment = int(identity_match.group(3))
+        
+        logging.debug(f"Table {table_name} - PK: {pk_column}, Identity: {is_identity}")
         
         # Load the table file
         table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
@@ -485,21 +555,45 @@ class CatalogManager:
             else:
                 tree = BPlusTree(order=50, name=table_name)
             
-            # Check for primary key violation if needed
+            # Get all existing records to check constraints and get max identity value
+            all_records = tree.range_query(float('-inf'), float('inf'))
+            max_identity_value = identity_seed - identity_increment
+            
+            # Handle IDENTITY column if applicable
+            if is_identity and pk_column:
+                # Check if the column was explicitly provided
+                if pk_column in record:
+                    return f"Cannot insert explicit value for identity column '{pk_column}'"
+                
+                # Find the current max value for the identity column
+                for _, existing_record in all_records:
+                    if pk_column in existing_record:
+                        max_identity_value = max(max_identity_value, existing_record[pk_column])
+                
+                # Generate the next value
+                next_value = max_identity_value + identity_increment
+                record[pk_column] = next_value
+                logging.debug(f"Generated IDENTITY value: {next_value} for {pk_column}")
+            
+            # Check for primary key violation
             if pk_column and pk_column in record:
                 pk_value = record[pk_column]
+                logging.debug(f"Checking primary key constraint: {pk_column}={pk_value}")
                 
                 # Check if this primary key already exists
-                all_records = tree.range_query(float('-inf'), float('inf'))
                 for _, existing_record in all_records:
                     if pk_column in existing_record and existing_record[pk_column] == pk_value:
+                        logging.warning(f"Primary key violation: {pk_column}={pk_value} already exists")
                         return f"Primary key violation: {pk_column}={pk_value} already exists"
             
             # Generate a unique record ID (use primary key if available)
             if pk_column and pk_column in record:
                 record_id = record[pk_column]
             else:
-                record_id = int(datetime.datetime.now().timestamp() * 1000)  # Unique ID based on timestamp
+                # Generate a unique ID if no primary key
+                record_id = int(datetime.datetime.now().timestamp() * 1000000)
+            
+            logging.debug(f"Inserting record with ID {record_id}: {record}")
             
             # Insert the record into the B+ tree
             tree.insert(record_id, record)
@@ -577,46 +671,69 @@ class CatalogManager:
         if not db_name:
             return "No database selected."
         
-        table_id = f"{db_name}.{table_name}"
-        
-        # Check if table exists with case-insensitive matching
-        actual_table_name = None
+        # Handle case-insensitive table name lookup
         tables = self.list_tables(db_name)
+        actual_table_name = None
         
+        # Try exact match first
         if table_name in tables:
             actual_table_name = table_name
         else:
+            # Try case-insensitive match
             for t in tables:
                 if t.lower() == table_name.lower():
                     actual_table_name = t
                     break
         
         if not actual_table_name:
-            return f"Table '{table_name}' does not exist."
+            return f"Table {table_name} does not exist."
+            
+        table_id = f"{db_name}.{actual_table_name}"
         
-        # Load the B+ tree
+        # Check if table exists
+        if table_id not in self.tables:
+            return f"Table {actual_table_name} does not exist."
+        
+        # Load the table file
         table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
         if not os.path.exists(table_file):
-            return f"Table data file not found."
+            return "Table data file not found."
         
         try:
             # Load the B+ tree
             tree = BPlusTree.load_from_file(table_file)
+            if tree is None:
+                return f"Could not load table data for {actual_table_name}."
             
             # Get all records
             all_records = tree.range_query(float('-inf'), float('inf'))
             
-            # Track records to delete
-            records_to_delete = []
+            if not all_records:
+                return "0 records deleted."
             
+            # Track records to delete and keep
+            records_to_delete = []
+            records_to_keep = []
+            
+            # Identify records to delete based on conditions
             for record_key, record in all_records:
                 # Check if record matches all conditions
-                matches = True
+                should_delete = True
                 
+                # If no conditions, delete all records
+                if not conditions:
+                    records_to_delete.append(record_key)
+                    continue
+                    
+                # Otherwise, check each condition
                 for condition in conditions:
                     col = condition.get('column')
                     op = condition.get('operator')
                     val = condition.get('value')
+                    
+                    # Skip invalid conditions
+                    if not col or not op:
+                        continue
                     
                     # Case-insensitive column matching
                     matching_col = None
@@ -626,68 +743,89 @@ class CatalogManager:
                             break
                     
                     if matching_col is None:
-                        matches = False
+                        should_delete = False
                         break
                     
-                    # Get the value using the matching column name
+                    # Get the column value using the correct case
                     record_val = record[matching_col]
                     
                     # Apply operator
                     if op == '=':
                         if record_val != val:
-                            matches = False
+                            should_delete = False
                             break
                     elif op == '>':
-                        if record_val <= val:
-                            matches = False
-                            break
+                        try:
+                            if float(record_val) <= float(val):
+                                should_delete = False
+                                break
+                        except (ValueError, TypeError):
+                            # Fall back to string comparison
+                            if str(record_val) <= str(val):
+                                should_delete = False
+                                break
                     elif op == '<':
-                        if record_val >= val:
-                            matches = False
-                            break
+                        try:
+                            if float(record_val) >= float(val):
+                                should_delete = False
+                                break
+                        except (ValueError, TypeError):
+                            if str(record_val) >= str(val):
+                                should_delete = False
+                                break
                     elif op == '>=':
-                        if record_val < val:
-                            matches = False
-                            break
+                        try:
+                            if float(record_val) < float(val):
+                                should_delete = False
+                                break
+                        except (ValueError, TypeError):
+                            if str(record_val) < str(val):
+                                should_delete = False
+                                break
                     elif op == '<=':
-                        if record_val > val:
-                            matches = False
-                            break
+                        try:
+                            if float(record_val) > float(val):
+                                should_delete = False
+                                break
+                        except (ValueError, TypeError):
+                            if str(record_val) > str(val):
+                                should_delete = False
+                                break
                     elif op == '!=':
                         if record_val == val:
-                            matches = False
+                            should_delete = False
                             break
                 
-                # If record matches conditions, add it to the deletion list
-                if matches:
+                if should_delete:
                     records_to_delete.append(record_key)
-            
-            # Create a new tree without the deleted records
-            new_tree = BPlusTree(order=50, name=actual_table_name)
-            deleted_count = 0
-            
-            # Add all records except those marked for deletion
-            for record_key, record in all_records:
-                if record_key not in records_to_delete:
-                    new_tree.insert(record_key, record)
                 else:
-                    deleted_count += 1
+                    records_to_keep.append((record_key, record))
             
-            # Save the updated tree
+            if not records_to_delete:
+                return "0 records deleted."
+            
+            # Create a new tree with only the records to keep
+            new_tree = BPlusTree(order=50, name=actual_table_name)
+            
+            # Add records to keep to the new tree
+            for key, record in records_to_keep:
+                new_tree.insert(key, record)
+            
+            # Save the new tree
             new_tree.save_to_file(table_file)
             
-            # Update indexes if needed
-            if hasattr(self, '_update_indexes_after_modify'):
-                remaining_records = new_tree.range_query(float('-inf'), float('inf'))
-                self._update_indexes_after_modify(db_name, actual_table_name, remaining_records)
+            # Update any indexes
+            for key, record in records_to_keep:
+                self._update_indexes_after_insert(db_name, actual_table_name, key, record)
             
-            return f"{deleted_count} records deleted."
+            return f"{len(records_to_delete)} records deleted."
+            
         except Exception as e:
-            logging.error(f"Error deleting records: {e}")
+            logging.error(f"Error deleting records: {str(e)}")
             import traceback
             logging.error(traceback.format_exc())
             return f"Error deleting records: {str(e)}"
-
+    
     def update_records(self, table_name, updates, conditions=None):
         """Update records in a table based on conditions."""
         if conditions is None:
@@ -845,6 +983,53 @@ class CatalogManager:
         
         logging.info(f"Index {index_name} dropped from {table_name}")
         return f"Index {index_name} dropped from {table_name}"
+
+    def drop_table(self, table_name):
+        """Drop a table from the catalog."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
+        
+        table_id = f"{db_name}.{table_name}"
+        
+        # Check if table exists
+        if table_id not in self.tables:
+            return f"Table {table_name} does not exist."
+        
+        # Remove table from tables catalog
+        del self.tables[table_id]
+        
+        # Remove table from database's tables list
+        if table_name in self.databases[db_name]["tables"]:
+            self.databases[db_name]["tables"].remove(table_name)
+        
+        # Remove table file
+        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+        if os.path.exists(table_file):
+            os.remove(table_file)
+        
+        # Remove associated indexes
+        indexes_to_remove = []
+        for index_id, index_info in self.indexes.items():
+            if index_info.get("table") == table_id:
+                indexes_to_remove.append(index_id)
+                
+                # Remove index file
+                column_name = index_info.get("column")
+                index_file = os.path.join(self.indexes_dir, f"{db_name}_{table_name}_{column_name}.idx")
+                if os.path.exists(index_file):
+                    os.remove(index_file)
+        
+        for index_id in indexes_to_remove:
+            del self.indexes[index_id]
+        
+        # Save changes
+        self._save_json(self.tables_file, self.tables)
+        self._save_json(self.databases_file, self.databases)
+        self._save_json(self.indexes_file, self.indexes)
+        
+        logging.info(f"Table {table_name} dropped.")
+        return f"Table {table_name} dropped."
 
     def begin_transaction(self):
         """Begin a new transaction (stub for now)."""
