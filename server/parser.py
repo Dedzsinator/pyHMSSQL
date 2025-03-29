@@ -74,14 +74,28 @@ class SQLParser:
                 result["type"] = "CREATE"
                 self._extract_create_elements(stmt, result)
             elif stmt_type == "DROP":
-                result["type"] = "DROP"
-                self._extract_drop_elements(stmt, result)
+                # First extract the drop elements to determine drop_type
+                self._extract_drop_elements(stmt, result)             
+                # Now set the correct operation type based on drop_type
+                drop_type = result.get("drop_type")
+                if drop_type == "TABLE":
+                    result["type"] = "DROP_TABLE"
+                elif drop_type == "DATABASE":
+                    result["type"] = "DROP_DATABASE"
+                elif drop_type == "INDEX":
+                    result["type"] = "DROP_INDEX"
+                elif drop_type == "VIEW":
+                    result["type"] = "DROP_VIEW"
+                else:
+                    result["type"] = "DROP"  # Fallback
             elif stmt_type == "SHOW":
                 result["type"] = "SHOW"
                 self._extract_show_elements(stmt, result)
             else:
                 result["error"] = "Unsupported SQL statement type"
             
+            if "type" in result:
+                result["operation"] = result["type"]
             return result
         except Exception as e:
             logging.error(f"Error extracting elements: {str(e)}")

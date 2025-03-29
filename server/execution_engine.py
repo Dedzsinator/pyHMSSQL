@@ -1317,21 +1317,56 @@ class ExecutionEngine:
         database_name = plan.get('database')
         
         if not database_name:
-            return {"error": "No database name specified"}
+            return {"error": "No database name specified", "status": "error", "type": "error"}
+        
+        # Check if database exists (case-sensitive)
+        available_dbs = self.catalog_manager.list_databases()
+        if database_name not in available_dbs:
+            # Try case-insensitive match
+            found = False
+            for db in available_dbs:
+                if db.lower() == database_name.lower():
+                    database_name = db  # Use the correct case
+                    found = True
+                    break
+            
+            if not found:
+                return {
+                    "error": f"Database '{database_name}' does not exist", 
+                    "status": "error", 
+                    "type": "error"
+                }
         
         # Use catalog manager to drop database
-        result = self.catalog_manager.drop_database(database_name)
-        
-        # If this was the current database, reset it
-        if self.catalog_manager.get_current_database() == database_name:
-            # Choose another database if available
-            available_dbs = self.catalog_manager.list_databases()
-            if available_dbs:
-                self.catalog_manager.set_current_database(available_dbs[0])
-            else:
-                self.catalog_manager.set_current_database(None)
-        
-        return {"message": result, "status": "success", "type": "drop_database_result"}
+        try:
+            result = self.catalog_manager.drop_database(database_name)
+            
+            # If this was the current database, reset it
+            if self.catalog_manager.get_current_database() == database_name:
+                self.current_database = None  # Update the execution engine's current database
+                
+                # Choose another database if available
+                remaining_dbs = self.catalog_manager.list_databases()
+                if remaining_dbs:
+                    self.catalog_manager.set_current_database(remaining_dbs[0])
+                    self.current_database = remaining_dbs[0]
+                else:
+                    self.catalog_manager.set_current_database(None)
+            
+            return {
+                "message": f"Database '{database_name}' dropped successfully", 
+                "status": "success", 
+                "type": "drop_database_result"
+            }
+        except Exception as e:
+            logging.error(f"Error dropping database: {str(e)}")
+            import traceback
+            logging.error(traceback.format_exc())
+            return {
+                "error": f"Error dropping database: {str(e)}", 
+                "status": "error", 
+                "type": "error"
+            }
         
     def execute_use_database(self, plan):
         """Execute USE DATABASE operation."""
@@ -1518,25 +1553,48 @@ class ExecutionEngine:
         table_name = plan.get('table')
         
         if not table_name:
-            return {"error": "No table name specified"}
+            return {"error": "No table name specified", "status": "error", "type": "error"}
         
         # Get the current database
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
-            return {"error": "No database selected. Use 'USE database_name' first."}
+            return {"error": "No database selected. Use 'USE database_name' first.", 
+                    "status": "error", "type": "error"}
         
         # Use catalog manager to drop the table
         try:
-            result = self.catalog_manager.drop_table(table_name)
+            # Check for case-insensitive table match
+            tables = self.catalog_manager.list_tables(db_name)
+            actual_table_name = table_name  # Default
+            
+            # Try direct match first
+            if table_name not in tables:
+                # Try case-insensitive match
+                for db_table in tables:
+                    if db_table.lower() == table_name.lower():
+                        actual_table_name = db_table
+                        break
+            
+            result = self.catalog_manager.drop_table(actual_table_name)
             
             if isinstance(result, str) and "does not exist" in result:
-                return {"error": result}
+                return {"error": result, "status": "error", "type": "error"}
                 
-            return {"message": f"Table '{table_name}' dropped from database '{db_name}'"}
+            # Also remove any temporary data or caches related to this table
+            # (cleared from memory if any exists)
+            
+            return {
+                "message": f"Table '{actual_table_name}' dropped from database '{db_name}'",
+                "status": "success", 
+                "type": "drop_table_result"
+            }
         except Exception as e:
             logging.error(f"Error dropping table: {str(e)}")
-            return {"error": f"Error dropping table: {str(e)}"}
-    
+            import traceback
+            logging.error(traceback.format_exc())
+            return {"error": f"Error dropping table: {str(e)}", 
+                    "status": "error", "type": "error"}
+
     def execute_create_index(self, plan):
         """Execute CREATE INDEX operation."""
         index_name = plan.get('index_name')
