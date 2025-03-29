@@ -2,7 +2,6 @@ import re
 import logging
 import traceback
 import sqlparse
-from index_parser import IndexParser
 
 class SQLParser:
     """
@@ -11,12 +10,16 @@ class SQLParser:
     Also handles specialized visualization commands.
     """
     
-    def __init__(self):
-        self.index_parser = IndexParser()
+    def __init__(self, engine=None):
+        self.engine = engine
         try:
             import sqlparse
         except ImportError:
             raise ImportError("Required dependency 'sqlparse' is not installed. Please install with: pip install sqlparse")
+
+    def set_engine(self, engine):
+        """Set the execution engine reference"""
+        self.engine = engine
     
     def parse_sql(self, sql):
         """
@@ -24,7 +27,7 @@ class SQLParser:
         """
         try:
             if sql.strip().upper().startswith("CREATE INDEX") or sql.strip().upper().startswith("CREATE UNIQUE INDEX"):
-                return self.index_parser.parse_create_index(sql)
+                return self.parse_create_index(sql)
                 
             # Parse SQL query
             parsed = sqlparse.parse(sql)
@@ -579,51 +582,53 @@ class SQLParser:
             "unique": is_unique
         })
         
-    def parse_create_index(self, tokens):
-        """Parse CREATE INDEX statement."""
-        # Skip 'CREATE INDEX' tokens
-        idx = 2
-        is_unique = False
+    def parse_create_index(self, sql):
+        """Parse CREATE INDEX statement"""
+        logging.debug(f"Parsing CREATE INDEX: {sql}")
         
-        # Check for UNIQUE keyword
-        if tokens[0].upper() == 'CREATE' and tokens[1].upper() == 'UNIQUE' and tokens[2].upper() == 'INDEX':
-            is_unique = True
-            idx = 3  # Skip the UNIQUE keyword
+        # Check for UNIQUE index
+        is_unique = "UNIQUE" in sql.upper()
         
-        # Get index name
-        if idx >= len(tokens):
-            return {'error': "Missing index name in CREATE INDEX statement"}
-        index_name = tokens[idx]
-        idx += 1
+        # Extract index name
+        index_pattern = r'CREATE\s+(UNIQUE\s+)?INDEX\s+(\w+)'
+        index_match = re.search(index_pattern, sql, re.IGNORECASE)
+        if not index_match:
+            return {'error': "Could not parse index name"}
+        index_name = index_match.group(2)
         
-        # Skip 'ON' keyword
-        if idx >= len(tokens) or tokens[idx].upper() != 'ON':
-            return {'error': "Expected 'ON' after index name"}
-        idx += 1
+        # Extract table name
+        table_pattern = r'ON\s+(\w+)'
+        table_match = re.search(table_pattern, sql, re.IGNORECASE)
+        if not table_match:
+            return {'error': "Could not parse table name"}
+        table_name = table_match.group(1)
         
-        # Get table name
-        if idx >= len(tokens):
-            return {'error': "Missing table name in CREATE INDEX statement"}
-        table_name = tokens[idx]
-        idx += 1
+        # Extract column name
+        # Try both with and without parentheses
+        column_pattern = r'ON\s+\w+\s*\((\w+)\)'
+        column_match = re.search(column_pattern, sql, re.IGNORECASE)
         
-        # Parse column specifications
-        column_name = None
-        if idx < len(tokens):
-            # Check for parentheses syntax: CREATE INDEX idx ON table (column)
-            if tokens[idx] == '(':
-                idx += 1  # Skip '('
-                if idx < len(tokens):
-                    column_name = tokens[idx].strip(',)')  # Remove potential comma or closing paren
-                    # Continue to closing parenthesis
-                    while idx < len(tokens) and ')' not in tokens[idx]:
-                        idx += 1
-            # Simple syntax without parentheses: CREATE INDEX idx ON table column
+        if column_match:
+            column_name = column_match.group(1)
+        else:
+            # Try without parentheses - just the last word
+            words = sql.split()
+            if "(" in words[-1]:
+                # Handle case where there's no space: ON table(column)
+                column_name = words[-1].strip("()")
             else:
-                column_name = tokens[idx]
+                # Take the last word after table name
+                remaining = sql.split(f"ON {table_name}", 1)[1].strip()
+                if remaining.startswith("("):
+                    # Handle ON table (column)
+                    column_name = remaining.strip("() ")
+                else:
+                    # Just take the next word after table name
+                    parts = remaining.split()
+                    column_name = parts[0] if parts else None
         
         if not column_name:
-            return {'error': "No column specified for index"}
+            return {'error': "Could not parse column name"}
         
         return {
             'type': 'CREATE_INDEX',

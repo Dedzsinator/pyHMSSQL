@@ -884,7 +884,7 @@ class ExecutionEngine:
             
             # Handle parenthesized expressions
             if token == '(':
-                sub_conditions, end_idx = parse_expression(self, tokens, i + 1)
+                sub_conditions, end_idx = self.parse_expression(self, tokens, i + 1)
                 
                 if current_condition is None:
                     current_condition = {'type': 'group', 'operator': current_operator, 'conditions': sub_conditions}
@@ -915,7 +915,7 @@ class ExecutionEngine:
                     i += 1  # Skip the next token as we've combined it
                 else:
                     # Standalone NOT - needs to be applied to the next condition
-                    next_cond, end_idx = parse_expression(self, tokens, i + 1)
+                    next_cond, end_idx = self.parse_expression(self, tokens, i + 1)
                     current_condition = {'type': 'NOT', 'condition': next_cond[0] if next_cond else {}}
                     i = end_idx
                     continue

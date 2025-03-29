@@ -8,7 +8,6 @@ import uuid
 import re
 import datetime
 from logging.handlers import RotatingFileHandler
-from command_handler import CommandHandler
 
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,7 +26,7 @@ import sqlparse
 
 def setup_logging():
     # Create logs directory if it doesn't exist
-    logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../logs')
     os.makedirs(logs_dir, exist_ok=True)
     
     # Generate log filename with timestamp
@@ -76,15 +75,17 @@ class DBMSServer:
         self.catalog_manager = CatalogManager(data_dir)
         self.index_manager = IndexManager('indexes')
         
-        self.sql_parser = SQLParser()
+        # Create execution engine first
+        self.execution_engine = ExecutionEngine(self.catalog_manager, self.index_manager)
+        
+        # Then create SQL parser with reference to execution engine
+        self.sql_parser = SQLParser(self.execution_engine)
         
         self.planner = Planner(self.catalog_manager, self.index_manager)
         self.optimizer = Optimizer(self.catalog_manager, self.index_manager)
-        self.execution_engine = ExecutionEngine(self.catalog_manager, self.index_manager)
-        self.command_handler = CommandHandler(self.execution_engine)
-        self.command_handler.set_engine(self.execution_engine)
+        
         self.sessions = {}
-        logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+        logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../logs')
         os.makedirs(logs_dir, exist_ok=True)
     
     def _validate_session(self, session_token):
@@ -263,7 +264,7 @@ class DBMSServer:
             }
             
             # Log to the audit log file
-            logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+            logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../logs')
             audit_log_file = os.path.join(logs_dir, 'query_audit.log')
             
             with open(audit_log_file, 'a') as f:
@@ -307,12 +308,6 @@ class DBMSServer:
         user = self.sessions[session_id]
         query = data.get('query', '')
         
-        # First check if this is a special command
-        handled, result = self.command_handler.handle_command(query)
-        if handled:
-            return result
-        
-        # Continue with regular query processing
         logging.info(f"Query from {user.get('username', 'Unknown')}: {query}")
         
         # Log the query for audit

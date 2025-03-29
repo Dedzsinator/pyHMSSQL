@@ -6,6 +6,7 @@
 [![Last Commit](https://img.shields.io/github/last-commit/dedzsinator/pyhmssql/main)](https://github.com/dedzsinator/pyhmssql/commits/main)
 [![Lines of Code](https://img.shields.io/github/languages/code-size/dedzsinator/pyhmssql)](https://github.com/dedzsinator/pyhmssql)
 [![Lines of Code](https://sloc.xyz/github/dedzsinator/pyhmssql?category=code)](https://github.com/dedzsinator/pyhmssql)
+![Version](https://img.shields.io/badge/Version-1.5.0-orange)
 
 A lightweight, powerful database management system built in Python. pyHMSSQL implements a client-server architecture with B+ tree indexing for efficient data retrieval operations.
 
@@ -23,39 +24,38 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Batch processing via script files
   - [ ] REST API (planned)
 
-- [x] **Database Operations**
+- [ ] **Database Operations**
   - [x] Create/Drop Databases
   - [x] Create/Drop Tables
   - [x] SQL Query Support (SELECT, INSERT, DELETE, UPDATE)
-  - [x] Views (CREATE VIEW, DROP VIEW)
-  - [x] Temporary tables
-  - [x] Basic joins and subqueries
-  - [x] Transaction support (begin, commit, rollback)
+  - [ ] Views (CREATE VIEW, DROP VIEW)
+  - [ ] Temporary tables
+  - [ ] Basic joins and subqueries
+  - [ ] Transaction support (begin, commit, rollback)
 
 - [x] **Indexing**
   - [x] Custom B+ Tree Implementation
   - [x] Serialization for persistence
   - [x] Index-based lookups
   - [x] Range queries
-  - [x] Index-based optimizations
+  - [] Index-based optimizations
 
-- [x] **Query Optimization**
-  - [x] Index-based query planning
-  - [x] Join optimization (hash join, index join, sort-merge join)
-  - [x] Filter pushdown
-  - [x] Plan rewriting
-  - [x] Join reordering
+- [ ] **Query Optimization**
+  - [ ] Index-based query planning
+  - [ ] Join optimization (hash join, index join, sort-merge join)
+  - [ ] Filter pushdown
+  - [ ] Plan rewriting
+  - [ ] Join reordering
 
 - [x] **Storage**
-  - [x] MongoDB Integration
+  - [x] Binary file storage
   - [x] Schema management
   - [x] Index management
-  - [ ] Custom page-based storage engine (planned)
 
-- [x] **Aggregation Functions**
-  - [x] AVG, MIN, MAX, SUM, COUNT
-  - [x] TOP N queries
-  - [x] DISTINCT operations
+- [ ] **Aggregation Functions**
+  - [ ] AVG, MIN, MAX, SUM, COUNT
+  - [ ] TOP N queries
+  - [ ] DISTINCT operations
 
 - [x] **Security Features**
   - [x] User authentication
@@ -67,33 +67,35 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] UNION, INTERSECT, EXCEPT
   - [x] Logical operations (AND, OR, NOT)
 
-- [x] **User Preferences**
-  - [x] Configurable result limits
-  - [x] Pretty printing options
-  - [x] Per-user preference storage
+- [ ] **User Preferences**
+  - [ ] Configurable result limits
+  - [ ] Pretty printing options
+  - [ ] Per-user preference storage
 
-- [x] **Stored Procedures and Functions**
-  - [x] Create/Drop Stored Procedures
-  - [x] Create/Drop Functions
-  - [x] Procedure execution
-  - [x] Function calls in queries
+- [ ] **Stored Procedures and Functions**
+  - [ ] Create/Drop Stored Procedures
+  - [ ] Create/Drop Functions
+  - [ ] Procedure execution
+  - [ ] Function calls in queries
 
-- [x] **Triggers**
-  - [x] Create/Drop Triggers
-  - [x] Event-based execution (INSERT, UPDATE, DELETE)
-  - [x] Table-specific triggers
+- [ ] **Triggers**
+  - [ ] Create/Drop Triggers
+  - [ ] Event-based execution (INSERT, UPDATE, DELETE)
+  - [ ] Table-specific triggers
 
-- [x] **Advanced Query Features**
-  - [x] Views for logical data abstraction
-  - [x] Temporary tables for intermediate results
-  - [x] Complex subquery support
-  - [x] Multiple aggregation functions
+- [ ] **Advanced Query Features**
+  - [ ] Views for logical data abstraction
+  - [ ] Temporary tables for intermediate results
+  - [ ] Complex subquery support
+  - [ ] Multiple aggregation functions
 
 ## 📋 Requirements
 
 - Python 3.7+
-- MongoDB
-- pymongo
+- sqlparse
+- graphviz
+- networkx
+- matplotlib
 
 See requirements.txt for the full and updated list of dependencies.
 
@@ -111,12 +113,6 @@ cd pyHMSSQL
 ```bash
 pip install -r requirements.txt
 ```
-
-- On Windows:
-  - Ensure MongoDB is running
-
-- On Linux:
-  - Start MongoDB (sudo systemctl start mongodb)
 
 ## 🚀 Quick Start
 
@@ -222,10 +218,10 @@ query CREATE TABLE customers (id INT PRIMARY KEY, name String, email VARCHAR(100
 query CREATE TABLE orders (id INT PRIMARY KEY,customer_id INT,order_date DATETIME,total DECIMAL(10,2),status VARCHAR(20),FOREIGN KEY (customer_id) REFERENCES customers(id)) ✅
 
 -- Create an index on the customers table
-CREATE INDEX idx_customer_email ON customers (email)
+CREATE INDEX idx_customer_email ON customers (email) ✅
 
 -- Create an index on the orders table  
-CREATE INDEX idx_order_date ON orders (order_date)
+CREATE INDEX idx_order_date ON orders (order_date) ✅
 
 -- Show all tables
 query SHOW TABLES ✅
