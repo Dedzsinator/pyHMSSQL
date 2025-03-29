@@ -1,3 +1,5 @@
+from shared.utils import send_data, receive_data
+from shared.constants import SERVER_HOST, SERVER_PORT
 import sys
 import os
 import socket
@@ -9,8 +11,6 @@ import textwrap
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared.constants import SERVER_HOST, SERVER_PORT
-from shared.utils import send_data, receive_data
 
 class DBMSClient(cmd.Cmd):
     intro = textwrap.dedent("""
@@ -24,7 +24,7 @@ class DBMSClient(cmd.Cmd):
     ╚═══════════════════════════════════════════════════╝
     """)
     prompt = "hms-sql> "
-    
+
     def __init__(self, host=SERVER_HOST, port=SERVER_PORT):
         super().__init__()
         self.host = host
@@ -32,7 +32,7 @@ class DBMSClient(cmd.Cmd):
         self.session_id = None
         self.role = None
         self.username = None
-    
+
     def do_login(self, username):
         """
         Log in to the database.
@@ -41,19 +41,16 @@ class DBMSClient(cmd.Cmd):
         if not username:
             print("Please provide a username")
             return
-        
+
         password = getpass.getpass("Password: ")
-        
+
         # Prepare request
-        request = {
-            "action": "login",
-            "username": username,
-            "password": password
-        }
-        
+        request = {"action": "login",
+                   "username": username, "password": password}
+
         # Send request to server
         response = self.send_request(request)
-        
+
         # Handle response
         if isinstance(response, dict) and "session_id" in response:
             self.session_id = response["session_id"]
@@ -63,7 +60,7 @@ class DBMSClient(cmd.Cmd):
             self.prompt = f"hms-sql [{username}]> "
         else:
             print(f"Login failed: {response}")
-    
+
     def do_register(self, arg):
         """
         Register a new user account.
@@ -73,31 +70,32 @@ class DBMSClient(cmd.Cmd):
         if not args:
             print("Please provide a username")
             return
-            
+
         username = args[0]
-        role = "admin" if len(args) > 1 and args[1].lower() == "admin" else "user"
-        
+        role = "admin" if len(
+            args) > 1 and args[1].lower() == "admin" else "user"
+
         password = getpass.getpass("Password: ")
         confirm_pwd = getpass.getpass("Confirm Password: ")
-        
+
         if password != confirm_pwd:
             print("Passwords do not match")
             return
-        
+
         # Prepare request
         request = {
             "action": "register",
             "username": username,
             "password": password,
-            "role": role
+            "role": role,
         }
-        
+
         # Send request to server
         response = self.send_request(request)
-        
+
         # Handle response
         print(response)
-    
+
     def do_logout(self, arg):
         """
         Log out from the current session.
@@ -106,23 +104,20 @@ class DBMSClient(cmd.Cmd):
         if not self.session_id:
             print("You are not logged in")
             return
-        
+
         # Prepare request
-        request = {
-            "action": "logout",
-            "session_id": self.session_id
-        }
-        
+        request = {"action": "logout", "session_id": self.session_id}
+
         # Send request to server
         response = self.send_request(request)
-        
+
         # Handle response
         print(response)
         self.session_id = None
         self.role = None
         self.username = None
         self.prompt = "hms-sql> "
-    
+
     def do_query(self, sql_query):
         """
         Execute an SQL query.
@@ -132,21 +127,18 @@ class DBMSClient(cmd.Cmd):
         if not sql_query:
             print("Error: SQL query cannot be empty.")
             return
-                
+
         if not self.session_id:
             print("Error: You are not logged in. Please login first.")
             return
-        
+
         # Prepare request
-        request = {
-            "action": "query",
-            "session_id": self.session_id,
-            "query": sql_query
-        }
-        
+        request = {"action": "query",
+                   "session_id": self.session_id, "query": sql_query}
+
         # Send request to server
         response = self.send_request(request)
-        
+
         # Handle response
         if isinstance(response, dict):
             self.display_result(response)
@@ -162,20 +154,17 @@ class DBMSClient(cmd.Cmd):
         if not self.session_id:
             print("Error: You are not logged in. Please login first.")
             return
-        
+
         # Full command
         command = "VISUALIZE " + arg
-        
+
         # Prepare request
-        request = {
-            "action": "query",
-            "session_id": self.session_id,
-            "query": command
-        }
-        
+        request = {"action": "query",
+                   "session_id": self.session_id, "query": command}
+
         # Send request to server
         response = self.send_request(request)
-        
+
         # Handle response specifically for visualizations
         if isinstance(response, dict):
             self.handle_visualization_response(response)
@@ -190,10 +179,10 @@ class DBMSClient(cmd.Cmd):
         if self.session_id:
             print("Logging out before exit...")
             self.do_logout("")
-            
+
         print("Goodbye!")
         return True
-    
+
     def do_status(self, arg):
         """
         Display current connection status.
@@ -205,73 +194,79 @@ class DBMSClient(cmd.Cmd):
             print(f"Session ID: {self.session_id}")
         else:
             print("Not logged in")
-        
+
         print(f"Server: {self.host}:{self.port}")
-    
+
     def send_request(self, request):
         """Send a request to the server and return the response"""
         try:
             # Create a new socket for each request
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((self.host, self.port))
-            
+
             # Send request
             send_data(sock, request)
-            
+
             # Receive response
             response = receive_data(sock)
-            
+
             # Close the socket
             sock.close()
-            
+
             return response
         except ConnectionRefusedError:
-            print(f"Error: Could not connect to server at {self.host}:{self.port}")
+            print(f"Error: Could not connect to server at {
+                  self.host}:{self.port}")
             return None
         except Exception as e:
             print(f"Error: {str(e)}")
             return None
-    
+
     def display_result(self, result):
         """Display the result of a query in a formatted table"""
         # Remove type field if present to avoid confusion
-        if isinstance(result, dict) and 'type' in result:
-            del result['type']
-        
+        if isinstance(result, dict) and "type" in result:
+            del result["type"]
+
         # First check if there's a simple message to display
         if isinstance(result, dict) and "message" in result:
             print(result["message"])
             return
-            
+
         # Then check for rows and columns (table data)
         if isinstance(result, dict) and "rows" in result and "columns" in result:
             columns = result["columns"]
             rows = result["rows"]
-            
+
             # If no rows, show a simple message
             if not rows:
                 print("Query executed successfully. No results to display.")
                 return
-                
+
             # Calculate column widths
             col_widths = [len(str(col)) for col in columns]
             for row in rows:
                 for i, cell in enumerate(row):
                     if i < len(col_widths):
                         col_widths[i] = max(col_widths[i], len(str(cell)))
-            
+
             # Print header
-            header = " | ".join(str(col).ljust(col_widths[i]) for i, col in enumerate(columns))
+            header = " | ".join(
+                str(col).ljust(col_widths[i]) for i, col in enumerate(columns)
+            )
             separator = "-+-".join("-" * width for width in col_widths)
             print(header)
             print(separator)
-            
+
             # Print rows
             for row in rows:
-                row_str = " | ".join(str(cell).ljust(col_widths[i]) if i < len(col_widths) else str(cell) 
-                                    for i, cell in enumerate(row))
+                row_str = " | ".join(
+                    str(cell).ljust(col_widths[i]) if i < len(
+                        col_widths) else str(cell)
+                    for i, cell in enumerate(row)
+                )
                 print(row_str)
-            
+
             print(f"\n{len(rows)} row(s) returned")
         # Handle error messages
         elif isinstance(result, dict) and "error" in result:
@@ -290,21 +285,29 @@ class DBMSClient(cmd.Cmd):
         """Handle visualization response from server"""
         if response.get("status") == "success":
             if "visualization_path" in response:
-                print(f"Visualization saved to: {response['visualization_path']}")
-                
+                print(f"Visualization saved to: {
+                      response['visualization_path']}")
+
                 # On Windows, try to open the image
-                if os.name == 'nt' and response['visualization_path'].endswith('.png'):
+                if os.name == "nt" and response["visualization_path"].endswith(".png"):
                     import subprocess
+
                     try:
-                        subprocess.Popen(['start', response['visualization_path']], shell=True)
-                        print(f"Opening visualization file: {response['visualization_path']}")
+                        subprocess.Popen(
+                            ["start", response["visualization_path"]], shell=True
+                        )
+                        print(
+                            f"Opening visualization file: {
+                                response['visualization_path']
+                            }"
+                        )
                     except Exception as e:
                         print(f"Error opening visualization: {str(e)}")
-                
+
             if "text_representation" in response:
                 print("\nB+ Tree Text Representation:")
                 print(response["text_representation"])
-                
+
             if "node_count" in response:
                 print(f"\nB+ Tree Statistics:")
                 print(f"Nodes: {response['node_count']}")
@@ -334,11 +337,12 @@ class DBMSClient(cmd.Cmd):
         """
         self.do_query(f"USE {arg}")
 
+
 def main():
     # Get server host and port from command line arguments if provided
     host = SERVER_HOST
     port = SERVER_PORT
-    
+
     if len(sys.argv) > 1:
         host = sys.argv[1]
     if len(sys.argv) > 2:
@@ -347,10 +351,10 @@ def main():
         except ValueError:
             print(f"Invalid port number: {sys.argv[2]}")
             sys.exit(1)
-    
+
     # Create and run the client
     client = DBMSClient(host, port)
-    
+
     try:
         client.cmdloop()
     except KeyboardInterrupt:
@@ -358,5 +362,7 @@ def main():
     except Exception as e:
         print(f"Error: {str(e)}")
 
+
 if __name__ == "__main__":
     main()
+
