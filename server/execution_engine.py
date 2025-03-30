@@ -1303,7 +1303,46 @@ class ExecutionEngine:
                     column_case_map[col_name.lower()] = col_name
 
             # Apply ORDER BY if specified
-            # ... (existing ORDER BY code) ...
+            order_by = plan.get("order_by")
+            if order_by and results:
+                logging.debug(f"Applying ORDER BY: {order_by}")
+                
+                # Parse the ORDER BY clause
+                order_columns = []
+                reverse_flags = []
+                
+                # Split by comma for multiple columns
+                for order_part in order_by.split(','):
+                    order_part = order_part.strip()
+                    if ' DESC' in order_part.upper():
+                        col_name = order_part.upper().replace(' DESC', '').strip()
+                        reverse = True
+                    else:
+                        col_name = order_part.upper().replace(' ASC', '').strip()
+                        reverse = False
+                    
+                    # Find actual column name with correct case
+                    actual_col = None
+                    for record_col in results[0]:
+                        if record_col.lower() == col_name.lower():
+                            actual_col = record_col
+                            break
+                    
+                    if actual_col:
+                        order_columns.append(actual_col)
+                        reverse_flags.append(reverse)
+                
+                # Sort the results using the specified columns
+                if order_columns:
+                    for i, (col, reverse) in reversed(list(enumerate(zip(order_columns, reverse_flags)))):
+                        # Use a lambda for sorting that handles None values properly
+                        results = sorted(
+                            results,
+                            key=lambda x: (x.get(col) is None, x.get(col)),
+                            reverse=reverse
+                        )
+                    
+                    logging.debug(f"Results sorted by {order_columns}")
 
             # Apply TOP N
             if top_n is not None and top_n > 0 and results:

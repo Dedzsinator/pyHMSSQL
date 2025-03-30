@@ -264,7 +264,7 @@ query SELECT id, name FROM customers ✅
 query SELECT * FROM customers WHERE age > 30 ✅
 
 -- SELECT with sorting
-query SELECT * FROM customers ORDER BY age DESC 
+query SELECT * FROM customers ORDER BY age DESC ✅
 
 -- SELECT with LIMIT
 query SELECT * FROM customers LIMIT 2 ✅
