@@ -1175,3 +1175,35 @@ class CatalogManager:
         logging.info(f"View {view_name} dropped")
         return f"View {view_name} dropped"
 
+    def get_record_by_key(self, table_name, record_key):
+        """
+        Retrieve a record by its key from a table.
+        
+        Args:
+            table_name: The name of the table
+            record_key: The key of the record to retrieve
+            
+        Returns:
+            The record if found, otherwise None
+        """
+        db_name = self.get_current_database()
+        if not db_name:
+            return None
+        
+        # Load the table file
+        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+        if not os.path.exists(table_file):
+            return None
+        
+        try:
+            # Load the B+ tree
+            tree = BPlusTree.load_from_file(table_file)
+            if tree is None:
+                return None
+            
+            # Search for the record
+            return tree.search(record_key)
+        except Exception as e:
+            logging.error(f"Error retrieving record by key: {str(e)}")
+            return None
+    

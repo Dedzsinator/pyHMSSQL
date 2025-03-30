@@ -57,12 +57,6 @@ def setup_logging():
     # Add file handler
     root_logger.addHandler(file_handler)
 
-    # Add console handler for warnings and errors only
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.WARNING)
-    console_handler.setFormatter(formatter)
-    root_logger.addHandler(console_handler)
-
     # Log startup message
     logging.info("==== DBMS Server Starting ====")
     logging.info('Logging to: %s', log_file)
@@ -75,6 +69,8 @@ log_file = setup_logging()
 
 
 class DBMSServer:
+    """_summary_
+    """
     def __init__(self, host="localhost", port=9999, data_dir="data"):
         self.catalog_manager = CatalogManager(data_dir)
         self.index_manager = IndexManager("indexes")

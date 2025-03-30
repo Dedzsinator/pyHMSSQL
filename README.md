@@ -53,7 +53,7 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Index management
 
 - [ ] **Aggregation Functions**
-  - [ ] AVG, MIN, MAX, SUM, COUNT
+  - [x] AVG, MIN, MAX, SUM, COUNT
   - [ ] TOP N queries
   - [ ] DISTINCT operations
 
@@ -299,8 +299,32 @@ query SELECT MIN(age) FROM customers ✅
 -- SUM function
 query SELECT SUM(age) FROM customers ✅
 
+-- Test WHERE with aggregate
+query SELECT COUNT(*) FROM employees WHERE salary > 70000 ✅
+
+-- Test GCD with WHERE
+query SELECT GCD(salary) FROM employees WHERE dept_id = 1 ✅
+
+-- Test RAND with WHERE
+query SELECT RAND(2) FROM employees WHERE dept_id = 2 -- Check i dont thing this is correct
+
+-- Get 5 random records
+query SELECT RAND(5) FROM employees
+
+-- Get average of 10 random values between 1 and 100
+query SELECT RAND(10,1,100) FROM dual
+
+-- Calculate the GCD of all values in the salary column
+query SELECT GCD(salary) FROM employees ✅
+
 -- TOP N query
 query SELECT TOP 2 * FROM customers ORDER BY age DESC ~
+
+-- Test TOP with aggregate 
+SELECT TOP 5 AVG(salary) FROM employees WHERE department = 'Engineering'
+
+-- Test LIMIT with aggregate
+SELECT SUM(salary) FROM employees WHERE hire_date > '2020-01-01' LIMIT 10
 
 ---
 
@@ -318,6 +342,32 @@ query INSERT INTO employees (id, name, dept_id, salary) VALUES (2, 'Bob', 1, 700
 query INSERT INTO employees (id, name, dept_id, salary) VALUES (3, 'Charlie', 2, 65000)
 query INSERT INTO employees (id, name, dept_id, salary) VALUES (4, 'Dave', 2, 68000)
 query INSERT INTO employees (id, name, dept_id, salary) VALUES (5, 'Eve', 3, 78000)
+
+---
+-- JOIN SPECIFIC TESTS
+
+-- INNER JOIN (default)
+SELECT e.name, d.name FROM employees e INNER JOIN departments d ON e.dept_id = d.id
+
+-- LEFT OUTER JOIN
+SELECT e.name, d.name FROM employees e LEFT JOIN departments d ON e.dept_id = d.id
+
+-- RIGHT OUTER JOIN
+SELECT e.name, d.name FROM employees e RIGHT JOIN departments d ON e.dept_id = d.id
+
+-- FULL OUTER JOIN
+SELECT e.name, d.name FROM employees e FULL JOIN departments d ON e.dept_id = d.id
+
+-- CROSS JOIN (no condition needed)
+SELECT e.name, d.name FROM employees e CROSS JOIN departments d
+
+-- Specifying join algorithm with hints
+SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='HASH')
+SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='NESTED_LOOP')
+SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='MERGE')
+SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='INDEX')
+
+---
 
 -- Hash Join (default)
 query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id

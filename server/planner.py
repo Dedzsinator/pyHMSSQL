@@ -282,15 +282,19 @@ class Planner:
         if not column_str or column_str == "*":
             return (False, None, None)
 
+        # Add debug logging
+        logging.info(f"Checking for aggregate function in: '{column_str}'")
+
         # Directly check for common aggregate function syntax
-        for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX"]:
+        for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD"]:
             if column_str.upper().startswith(f"{func_name}("):
                 # Extract column name between parentheses
                 col_name = column_str[len(func_name)+1:].rstrip(")")
-                logging.error(f"DIRECTLY MATCHED {func_name}({col_name})")
+                logging.info(f"DIRECTLY MATCHED {func_name}({col_name})")
                 return (True, func_name, col_name)
         
         # No direct match found
+        logging.info(f"No aggregate function detected in: '{column_str}'")
         return (False, None, None)
 
     def plan_aggregate(self, parsed_query):
@@ -307,7 +311,7 @@ class Planner:
         col_str = str(columns[0])
 
         # Check for common aggregate functions with simple string operations
-        for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX"]:
+        for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD"]:
             if col_str.upper().startswith(f"{func_name}("):
                 # Extract column name between parentheses
                 col_name = col_str[len(func_name)+1:].rstrip(")")
@@ -367,7 +371,7 @@ class Planner:
                 continue
 
             # Direct string check for common aggregate functions
-            for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX"]:
+            for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD"]:
                 if col_str.upper().startswith(f"{func_name}("):
                     # Extract the column name between parentheses
                     col_name = col_str[len(func_name)+1:].rstrip(")")
@@ -378,6 +382,8 @@ class Planner:
                         "column": col_name,
                         "table": table,
                         "condition": condition,
+                        "top": parsed_query.get("top"),  # Add TOP n support
+                        "limit": parsed_query.get("limit")  # Add LIMIT support
                     }
 
             if "(" in col_str and ")" in col_str:
@@ -395,14 +401,14 @@ class Planner:
                     if func_match:
                         func_name = func_match.group(1).upper()
                         logging.error(f"Extracted function: {func_name}")
-                        
-                        if func_name in ("COUNT", "SUM", "AVG", "MIN", "MAX"):
+
+                        if func_name in ("COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD", "MEDIAN", "STDEV"):
                             # This is an aggregation query
                             col_name = func_match.group(2).strip()
                             if col_name == "*" and func_name != "COUNT":
                                 logging.error(f"Invalid: {func_name}(*) is not allowed")
                                 continue  # Skip this invalid combination
-                                
+
                             logging.error(f"Creating AGGREGATE plan for {func_name}({col_name})")
                             return {
                                 "type": "AGGREGATE",
@@ -425,33 +431,64 @@ class Planner:
         }
 
     def plan_join(self, parsed_query):
-        """
-        Plan for JOIN queries.
-        """
+        """Plan for JOIN queries with different join types and algorithms."""
+        logging.debug(f"Planning JOIN query: {parsed_query}")
+        
+        # Extract basic join information
         tables = parsed_query.get("tables", [])
-        join_type = parsed_query.get("join_type", "INNER JOIN")
-        join_condition = parsed_query.get("join_condition")
         columns = parsed_query.get("columns", [])
         condition = parsed_query.get("condition")
+        
+        # Get join-specific information if available
+        join_info = parsed_query.get("join_info", {})
+        join_type = join_info.get("type", "INNER").upper()
+        join_condition = join_info.get("condition") or parsed_query.get("join_condition")
+        
+        # Determine join algorithm - look for optimization hints first
+        join_algorithm = "HASH"  # Default algorithm
+        
+        # Check for hints like WITH (JOIN_TYPE='HASH')
+        if "WITH" in parsed_query.get("query", "").upper():
+            hint_match = re.search(r"WITH\s*\(\s*JOIN_TYPE\s*=\s*'(\w+)'\s*\)", 
+                                parsed_query.get("query", ""), re.IGNORECASE)
+            if hint_match:
+                algorithm_hint = hint_match.group(1).upper()
+                if algorithm_hint in ["HASH", "MERGE", "NESTED_LOOP", "INDEX"]:
+                    join_algorithm = algorithm_hint
+                    logging.debug(f"Using join algorithm from hint: {join_algorithm}")
+        
+        # If no hint was provided, let's choose the algorithm
+        if not join_algorithm or join_algorithm == "HASH":
+            join_algorithm = self._choose_join_algorithm(tables, join_condition)
 
-        # Default to hash join strategy
-        join_strategy = "HASH_JOIN"
-        preferences = self.catalog_manager.get_preferences()
-        if preferences and isinstance(preferences, dict):
-            if preferences.get("join_strategy") == "sort_merge":
-                join_strategy = "SORT_MERGE_JOIN"
-            elif preferences.get("join_strategy") == "index":
-                join_strategy = "INDEX_JOIN"
-            elif preferences.get("join_strategy") == "nested_loop":
-                join_strategy = "NESTED_LOOP_JOIN"
-
-        # Determine which tables are being joined
-        table1 = tables[0]
+        # Ensure we have at least two tables for join
+        if len(tables) < 2:
+            if len(tables) == 1 and isinstance(tables[0], str) and " " in tables[0]:
+                # Try to split on space (might be alias)
+                tables = [tables[0].split()[0]]
+                
+        # Get the first two tables (most common case)
+        table1 = tables[0] if tables else None
         table2 = tables[1] if len(tables) > 1 else None
+
+        # Remove any alias from table names if present
+        if table1 and " " in table1:
+            table1_parts = table1.split()
+            table_name = table1_parts[0]
+            table_alias = table1_parts[1] if len(table1_parts) > 1 else table_name
+            table1 = f"{table_name} {table_alias}"
+        
+        if table2 and " " in table2:
+            table2_parts = table2.split()
+            table_name = table2_parts[0]
+            table_alias = table2_parts[1] if len(table2_parts) > 1 else table_name
+            table2 = f"{table_name} {table_alias}"
 
         # Build the join plan
         join_plan = {
-            "type": join_strategy,
+            "type": "JOIN",
+            "join_type": join_type,
+            "join_algorithm": join_algorithm,
             "table1": table1,
             "table2": table2,
             "condition": join_condition,
@@ -461,6 +498,69 @@ class Planner:
 
         return join_plan
 
+    def _choose_join_algorithm(self, tables, join_condition):
+        """Choose the best join algorithm based on table statistics and available indexes."""
+        # Get current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return "HASH"  # Default
+        
+        # If no tables or we can't determine, use hash join
+        if not tables or len(tables) < 2:
+            return "HASH"
+            
+        table1 = tables[0].split()[0] if " " in tables[0] else tables[0]  # Remove alias
+        table2 = tables[1].split()[0] if " " in tables[1] else tables[1]
+        
+        # Check if tables exist
+        tables_in_db = self.catalog_manager.list_tables(db_name)
+        if table1 not in tables_in_db or table2 not in tables_in_db:
+            return "HASH"
+        
+        # Check if join condition exists
+        if not join_condition:
+            return "NESTED_LOOP"  # For cross joins, use nested loop
+        
+        # Extract column names from join condition (assuming format: col1 = col2)
+        column_match = re.search(r"(\w+\.\w+)\s*=\s*(\w+\.\w+)", join_condition)
+        if not column_match:
+            return "HASH"
+        
+        left_col = column_match.group(1).split(".")[-1]  # Get column name without table
+        right_col = column_match.group(2).split(".")[-1]
+        
+        # Check for indexes on join columns
+        table1_indexes = self.catalog_manager.get_indexes_for_table(table1)
+        table2_indexes = self.catalog_manager.get_indexes_for_table(table2)
+        
+        has_index1 = any(idx_info.get("column", "").lower() == left_col.lower() 
+                        for idx_info in table1_indexes.values())
+        has_index2 = any(idx_info.get("column", "").lower() == right_col.lower() 
+                        for idx_info in table2_indexes.values())
+        
+        # Use INDEX JOIN if we have an index on either join column
+        if has_index1 or has_index2:
+            return "INDEX"
+        
+        # If tables are small, nested loop might be efficient
+        # In a real system, you would use statistics to make this decision
+        try:
+            table1_data = self.catalog_manager.query_with_condition(table1, [], ["*"])
+            table2_data = self.catalog_manager.query_with_condition(table2, [], ["*"])
+            
+            table1_size = len(table1_data) if table1_data else 0
+            table2_size = len(table2_data) if table2_data else 0
+            
+            if table1_size < 100 and table2_size < 100:
+                return "NESTED_LOOP"
+            elif table1_size < 1000 and table2_size < 1000:
+                return "MERGE"
+            else:
+                return "HASH"
+        except:
+            # If we can't determine sizes, use hash join as a safe default
+            return "HASH"
+    
     def plan_insert(self, parsed_query):
         """
         Plan for INSERT queries.

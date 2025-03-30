@@ -288,16 +288,38 @@ class BPlusTree:
         self.insert(key, value)
 
     def get(self, key, default=None):
+        """_summary_
+
+        Args:
+            key (_type_): _description_
+            default (_type_, optional): _description_. Defaults to None.
+
+        Returns:
+            _type_: _description_
+        """
         result = self.search(key)
         return result if result is not None else default
 
     def save_to_file(self, filename):
+        """_summary_
+
+        Args:
+            filename (_type_): _description_
+        """
         logging.debug(f"Saving B+ tree to file: {filename}")
         with open(filename, "wb") as f:
             pickle.dump(self, f)
 
     @classmethod
     def load_from_file(cls, filename):
+        """_summary_
+
+        Args:
+            filename (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         logging.debug(f"Loading B+ tree from file: {filename}")
         try:
             with open(filename, "rb") as f:

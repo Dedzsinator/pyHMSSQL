@@ -13,12 +13,6 @@ class SQLParser:
 
     def __init__(self, engine=None):
         self.engine = engine
-        try:
-            import sqlparse
-        except ImportError:
-            raise ImportError(
-                "Required dependency 'sqlparse' is not installed. Please install with: pip install sqlparse"
-            )
 
     def set_engine(self, engine):
         """Set the execution engine reference"""
@@ -171,15 +165,57 @@ class SQLParser:
                     if pos != -1 and pos < table_end:
                         table_end = pos
 
+                # Improved JOIN handling
                 tables_part = from_clause[:table_end].strip()
-                # Handle JOIN
+                join_type = "INNER"  # Default join type
+                
+                # Handle different JOIN types
                 if " JOIN " in tables_part:
-                    # This is a complex JOIN query, needs special handling
-                    tables = [
-                        t.strip() for t in re.split(r"\s+JOIN\s+|\s*,\s*", tables_part)
-                    ]
+                    # Extract join information
+                    join_info = {}
+                    
+                    # Match different join patterns
+                    if " LEFT JOIN " in tables_part:
+                        join_type = "LEFT"
+                        tables = self._extract_join_tables(tables_part, " LEFT JOIN ")
+                    elif " RIGHT JOIN " in tables_part:
+                        join_type = "RIGHT"
+                        tables = self._extract_join_tables(tables_part, " RIGHT JOIN ")
+                    elif " FULL JOIN " in tables_part or " FULL OUTER JOIN " in tables_part:
+                        join_type = "FULL"
+                        tables = self._extract_join_tables(tables_part, " FULL JOIN ") or \
+                                self._extract_join_tables(tables_part, " FULL OUTER JOIN ")
+                    elif " CROSS JOIN " in tables_part:
+                        join_type = "CROSS" 
+                        tables = self._extract_join_tables(tables_part, " CROSS JOIN ")
+                    elif " INNER JOIN " in tables_part:
+                        join_type = "INNER"
+                        tables = self._extract_join_tables(tables_part, " INNER JOIN ")
+                    else:
+                        # Regular JOIN is INNER JOIN
+                        join_type = "INNER"
+                        tables = self._extract_join_tables(tables_part, " JOIN ")
+                    
+                    # Extract join condition from ON clause
+                    join_condition = None
+                    if " ON " in tables_part:
+                        on_parts = tables_part.split(" ON ", 1)
+                        if len(on_parts) > 1:
+                            join_condition = on_parts[1].strip()
+                            # Handle condition with ending clauses 
+                            for clause in [" WHERE ", " GROUP BY ", " HAVING ", " ORDER BY ", " LIMIT "]:
+                                if clause in join_condition:
+                                    join_condition = join_condition.split(clause, 1)[0].strip()
+                    
+                    join_info = {
+                        "type": join_type,
+                        "condition": join_condition,
+                        "tables": tables
+                    }
+
+                    result["join_info"] = join_info
                 else:
-                    # Simple table list
+                    # Simple table list without joins
                     tables = [t.strip() for t in tables_part.split(",")]
 
         # Now extract column names FROM THE ORIGINAL SQL to preserve case
@@ -258,6 +294,23 @@ class SQLParser:
                 "join_condition": join_condition,
             }
         )
+
+    def _extract_join_tables(self, tables_part, join_keyword):
+        """Extract table names from a JOIN clause"""
+        parts = tables_part.split(join_keyword)
+        if len(parts) < 2:
+            return []
+        
+        left_table = parts[0].strip().split()[-1]  # Get last word before JOIN
+        
+        # Get right table (up to ON clause or end)
+        right_part = parts[1]
+        if " ON " in right_part:
+            right_table = right_part.split(" ON ")[0].strip()
+        else:
+            right_table = right_part.strip()
+        
+        return [left_table, right_table]
 
     def _extract_insert_elements(self, parsed, result):
         """Extract elements from an INSERT statement"""

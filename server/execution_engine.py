@@ -9,6 +9,8 @@ import shutil
 
 
 class ExecutionEngine:
+    """_summary_
+    """
     def __init__(self, catalog_manager, index_manager):
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
@@ -104,33 +106,217 @@ class ExecutionEngine:
         logging.warning(f"Could not parse condition: {condition_str}")
         return {}
 
-    def execute_aggregate(self, plan):
-        """Execute an aggregation function (COUNT, SUM, AVG, MIN, MAX)."""
-        logging.error(f"AGGREGATE FUNCTION CALLED: {plan}")
+    def _execute_count(self, result, actual_column, column):
+        """Execute COUNT aggregate function."""
+        if column == "*":
+            return len(result)
+        else:
+            if not actual_column:
+                raise ValueError(f"Column '{column}' not found")
+            return sum(1 for record in result if actual_column in record and record[actual_column] is not None)
+
+    def _execute_sum(self, result, actual_column, column):
+        """Execute SUM aggregate function."""
+        if column == "*":
+            raise ValueError("Cannot use SUM with *")
+        if not actual_column:
+            raise ValueError(f"Column '{column}' not found")
+
+        total = 0
+        count = 0
+        for record in result:
+            if actual_column in record and record[actual_column] is not None:
+                try:
+                    total += float(record[actual_column])
+                    count += 1
+                except (ValueError, TypeError):
+                    pass  # Skip non-numeric values
+        return total if count > 0 else None
+
+    def _execute_avg(self, result, actual_column, column):
+        """Execute AVG aggregate function."""
+        if column == "*":
+            raise ValueError("Cannot use AVG with *")
+        if not actual_column:
+            raise ValueError(f"Column '{column}' not found")
+
+        total = 0
+        count = 0
+        for record in result:
+            if actual_column in record and record[actual_column] is not None:
+                try:
+                    total += float(record[actual_column])
+                    count += 1
+                except (ValueError, TypeError):
+                    pass  # Skip non-numeric values
+        return (total / count) if count > 0 else None
+
+    def _execute_min(self, result, actual_column, column):
+        """Execute MIN aggregate function."""
+        if column == "*":
+            raise ValueError("Cannot use MIN with *")
+        if not actual_column:
+            raise ValueError(f"Column '{column}' not found")
+
+        values = []
+        for record in result:
+            if actual_column in record and record[actual_column] is not None:
+                values.append(record[actual_column])
+        return min(values) if values else None
+
+    def _execute_max(self, result, actual_column, column):
+        """Execute MAX aggregate function."""
+        if column == "*":
+            raise ValueError("Cannot use MAX with *")
+        if not actual_column:
+            raise ValueError(f"Column '{column}' not found")
+
+        values = []
+        for record in result:
+            if actual_column in record and record[actual_column] is not None:
+                values.append(record[actual_column])
+        return max(values) if values else None
+
+    def _execute_rand(self, result, param_str):
+        """Execute RAND aggregate function."""
+        import random
         
+        logging.info(f"Executing RAND with params: '{param_str}'")
+        
+        # Parse parameters
+        params = [p.strip() for p in param_str.split(",")]
+        
+        try:
+            if len(params) == 1:
+                n = int(params[0])
+                if n <= 0:
+                    raise ValueError("Number of random records must be positive")
+                
+                if result and len(result) > 0:
+                    n = min(n, len(result))
+                    logging.info(f"Selecting {n} random records from {len(result)} total")
+                    selected = random.sample(range(len(result)), n)
+                    return n
+                else:
+                    logging.warning("No records to sample from")
+                    return 0
+                    
+            elif len(params) == 3:
+                n = int(params[0])
+                min_val = float(params[1])
+                max_val = float(params[2])
+                
+                logging.info(f"Generating {n} random values between {min_val} and {max_val}")
+                if n <= 0:
+                    raise ValueError("Number of random values must be positive")
+                
+                random_values = [random.uniform(min_val, max_val) for _ in range(n)]
+                avg = sum(random_values) / len(random_values)
+                logging.info(f"Generated values with average: {avg}")
+                return avg
+                
+            else:
+                raise ValueError("RAND requires either 1 parameter (n) or 3 parameters (n,min,max)")
+                
+        except ValueError as e:
+            logging.error(f"Error in RAND: {str(e)}")
+            raise ValueError(f"Invalid parameters for RAND: {str(e)}")
+
+    def _execute_gcd(self, result, actual_column, column):
+        """Execute GCD aggregate function."""
+        import math
+        
+        logging.info(f"Computing GCD for column '{column}' (actual: '{actual_column}')")
+        
+        if column == "*":
+            raise ValueError("Cannot use GCD with *")
+        if not actual_column:
+            raise ValueError(f"Column '{column}' not found")
+        
+        # Collect integer values
+        values = []
+        for record in result:
+            if actual_column in record and record[actual_column] is not None:
+                try:
+                    val = int(float(record[actual_column]))
+                    if val != 0:  # Skip zeros
+                        values.append(abs(val))
+                        logging.info(f"Added value {val} to GCD calculation")
+                except (ValueError, TypeError):
+                    logging.warning(f"Skipping non-numeric value: {record[actual_column]}")
+        
+        if not values:
+            logging.warning("No valid values found for GCD calculation")
+            return None
+        
+        gcd_result = values[0]
+        for value in values[1:]:
+            gcd_result = math.gcd(gcd_result, value)
+        
+        logging.info(f"GCD result: {gcd_result}")
+        return gcd_result
+
+    def execute_aggregate(self, plan):
+        """Execute an aggregation function (COUNT, SUM, AVG, MIN, MAX, RAND, GCD)."""
+        logging.info(f"===== AGGREGATE FUNCTION CALLED =====")
+        logging.info(f"Plan: {plan}")
+        logging.info(f"Function: {plan.get('function')}")
+        logging.info(f"Column: {plan.get('column')}")
+        logging.info(f"Table: {plan.get('table')}")
+        logging.info(f"Condition: {plan.get('condition')}")
+        logging.info(f"Top: {plan.get('top')}")
+        logging.info(f"Limit: {plan.get('limit')}")
+
         function = plan.get("function", "").upper()
         column = plan.get("column")
         table_name = plan.get("table")
         condition = plan.get("condition")
         
-        # First, get the data using execute_select to reuse that logic
-        select_plan = {
-            "type": "SELECT",
-            "table": table_name,
-            "tables": [table_name] if table_name else [], 
-            "columns": ["*"],  # Always get all columns to find the one we need
-            "condition": condition
-        }
-        
-        # Get raw data using the existing select functionality
-        result = self.catalog_manager.query_with_condition(
-            table_name, [], ["*"]
-        )
-        
+        # Handle TOP and LIMIT parameters
+        top_n = plan.get("top")
+        limit = plan.get("limit")
+        if top_n is not None:
+            try:
+                top_n = int(top_n)
+                logging.info(f"TOP {top_n} specified for aggregate")
+            except (ValueError, TypeError):
+                top_n = None
+                
+        if limit is not None:
+            try:
+                limit = int(limit)
+                logging.info(f"LIMIT {limit} specified for aggregate")
+            except (ValueError, TypeError):
+                limit = None
+
+        # Get raw data using catalog manager
         try:
-            # Calculate the aggregate result
-            aggregate_result = None
+            # Parse and apply conditions
+            conditions = self._parse_condition_to_list(condition) if condition else []
+            result = self.catalog_manager.query_with_condition(
+                table_name, conditions, ["*"]
+            )
+            logging.info(f"Queried {len(result) if result else 0} records from {table_name}")
             
+            # Apply TOP/LIMIT to the raw data before aggregation if appropriate
+            # For most aggregates, we need to aggregate all data first, then limit the results
+            # But some functions like RAND may benefit from limiting data first
+            if function == "RAND" and top_n is not None and top_n > 0 and result:
+                result = result[:top_n]
+                logging.info(f"Applied TOP {top_n} to raw data for RAND function")
+            elif function == "RAND" and limit is not None and limit > 0 and result:
+                result = result[:limit]
+                logging.info(f"Applied LIMIT {limit} to raw data for RAND function")
+            
+        except Exception as e:
+            logging.error(f"Error querying data: {str(e)}")
+            return {
+                "error": f"Error querying data: {str(e)}",
+                "status": "error",
+                "type": "error",
+            }
+
+        try:
             # Find the actual column name with original case
             actual_column = None
             if column != "*" and result and len(result) > 0:
@@ -138,86 +324,45 @@ class ExecutionEngine:
                     if col.lower() == column.lower():
                         actual_column = col
                         break
+                
+                if not actual_column and function not in ["COUNT"]:
+                    logging.warning(f"Column '{column}' not found in table {table_name}, available columns: {list(result[0].keys())}")
             
-            # Calculate based on the function type
+            logging.info(f"Using actual column name: '{actual_column}' for function {function}({column})")
+
+            # Dispatch to appropriate function handler
             if function == "COUNT":
-                if column == "*":
-                    aggregate_result = len(result)
-                else:
-                    if not actual_column:
-                        return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
-                    count = sum(1 for record in result if actual_column in record and record[actual_column] is not None)
-                    aggregate_result = count
-                    
+                aggregate_result = self._execute_count(result, actual_column, column)
             elif function == "SUM":
-                # Sum non-null numeric values
-                if column == "*":
-                    return {"error": "Cannot use SUM with *", "status": "error", "type": "error"}
-                if not actual_column:
-                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
-                
-                total = 0
-                count = 0
-                for record in result:
-                    if actual_column in record and record[actual_column] is not None:
-                        try:
-                            total += float(record[actual_column])
-                            count += 1
-                        except (ValueError, TypeError):
-                            pass  # Skip non-numeric values
-                aggregate_result = total if count > 0 else None
-                
+                aggregate_result = self._execute_sum(result, actual_column, column)
             elif function == "AVG":
-                # Average of non-null numeric values
-                if column == "*":
-                    return {"error": "Cannot use AVG with *", "status": "error", "type": "error"}
-                if not actual_column:
-                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
-                
-                total = 0
-                count = 0
-                for record in result:
-                    if actual_column in record and record[actual_column] is not None:
-                        try:
-                            total += float(record[actual_column])
-                            count += 1
-                        except (ValueError, TypeError):
-                            pass  # Skip non-numeric values
-                aggregate_result = (total / count) if count > 0 else None
-                
+                aggregate_result = self._execute_avg(result, actual_column, column)
             elif function == "MIN":
-                # Minimum non-null value
-                if column == "*":
-                    return {"error": "Cannot use MIN with *", "status": "error", "type": "error"}
-                if not actual_column:
-                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
-                
-                values = []
-                for record in result:
-                    if actual_column in record and record[actual_column] is not None:
-                        values.append(record[actual_column])
-                aggregate_result = min(values) if values else None
-                
+                aggregate_result = self._execute_min(result, actual_column, column)
             elif function == "MAX":
-                # Maximum non-null value
-                if column == "*":
-                    return {"error": "Cannot use MAX with *", "status": "error", "type": "error"}
-                if not actual_column:
-                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
-                
-                values = []
-                for record in result:
-                    if actual_column in record and record[actual_column] is not None:
-                        values.append(record[actual_column])
-                aggregate_result = max(values) if values else None
-                
+                aggregate_result = self._execute_max(result, actual_column, column)
+            elif function == "RAND":
+                aggregate_result = self._execute_rand(result, column)
+            elif function == "GCD":
+                aggregate_result = self._execute_gcd(result, actual_column, column)
+            else:
+                return {
+                    "error": f"Unsupported aggregation function: {function}",
+                    "status": "error",
+                    "type": "error",
+                }
+
             # Format result column name and value
             result_column = f"{function}({column})"
-            if isinstance(aggregate_result, float):
+            if aggregate_result is None:
+                display_value = "NULL"
+            elif isinstance(aggregate_result, float):
                 display_value = f"{aggregate_result:.2f}"
             else:
-                display_value = str(aggregate_result) if aggregate_result is not None else "NULL"
-            
+                display_value = str(aggregate_result)
+
+            logging.info(f"Aggregate result: {function}({column}) = {display_value}")
+
             # Return in the standard result format
             return {
                 "columns": [result_column],
@@ -226,43 +371,44 @@ class ExecutionEngine:
                 "type": "select_result",
                 "rowCount": 1
             }
-        
+
         except Exception as e:
             logging.error(f"Error executing aggregate: {str(e)}")
-            import traceback
             logging.error(traceback.format_exc())
             return {
-                "error": f"Error executing aggregate: {str(e)}",
+                "error": f"Error executing aggregate {function}: {str(e)}",
                 "status": "error",
                 "type": "error",
             }
 
     def execute_join(self, plan):
-        """
-        Execute a JOIN query using the appropriate join algorithm.
-        """
-        join_type = plan.get("join_type", "HASH").upper()
+        """Execute a JOIN query using the appropriate join algorithm."""
+        join_type = plan.get("join_type", "INNER").upper()
+        join_algorithm = plan.get("join_algorithm", "HASH").upper()
         table1 = plan.get("table1", "")
         table2 = plan.get("table2", "")
         condition = plan.get("condition")
-
+        
+        logging.info(f"Executing {join_type} JOIN using {join_algorithm} algorithm")
+        logging.info(f"Table 1: {table1}")
+        logging.info(f"Table 2: {table2}")
+        logging.info(f"Condition: {condition}")
+        
         # Handle ON clause in table2 if condition not provided separately
-        if condition is None and " ON " in table2.upper():
+        if condition is None and isinstance(table2, str) and " ON " in table2.upper():
             parts = table2.split(" ON ", 1)
             table2 = parts[0].strip()
             condition = parts[1].strip()
-
+        
         # Handle table aliases
-        table1_parts = table1.split()
-        table1_name = table1_parts[0]
-        table1_alias = table1_parts[1] if len(
-            table1_parts) > 1 else table1_name
-
-        table2_parts = table2.split()
-        table2_name = table2_parts[0]
-        table2_alias = table2_parts[1] if len(
-            table2_parts) > 1 else table2_name
-
+        table1_parts = table1.split() if isinstance(table1, str) else []
+        table1_name = table1_parts[0] if table1_parts else ""
+        table1_alias = table1_parts[1] if len(table1_parts) > 1 else table1_name
+        
+        table2_parts = table2.split() if isinstance(table2, str) else []
+        table2_name = table2_parts[0] if table2_parts else ""
+        table2_alias = table2_parts[1] if len(table2_parts) > 1 else table2_name
+        
         # Get current database
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
@@ -271,7 +417,7 @@ class ExecutionEngine:
                 "status": "error",
                 "type": "error",
             }
-
+        
         # Verify tables exist
         tables = self.catalog_manager.list_tables(db_name)
         if table1_name not in tables:
@@ -286,54 +432,18 @@ class ExecutionEngine:
                 "status": "error",
                 "type": "error",
             }
-
+        
         # Parse join condition (e.g., "e.dept_id = d.id")
-        if not condition:
+        if not condition and join_type != "CROSS":
             return {
                 "error": "No join condition specified",
                 "status": "error",
                 "type": "error",
             }
-
+        
         logging.debug(f"Join condition: {condition}")
-
-        # Parse the join condition
+        
         try:
-            col1, col2 = condition.split("=")
-            col1 = col1.strip()
-            col2 = col2.strip()
-
-            # Handle column references with aliases (e.g., "e.dept_id")
-            if "." in col1:
-                alias1, col1_name = col1.split(".")
-            else:
-                col1_name = col1
-                alias1 = None
-
-            if "." in col2:
-                alias2, col2_name = col2.split(".")
-            else:
-                col2_name = col2
-                alias2 = None
-
-            # Determine which column belongs to which table
-            if (alias1 == table1_alias or alias1 == table1_name) and (
-                alias2 == table2_alias or alias2 == table2_name
-            ):
-                left_column = col1_name
-                right_column = col2_name
-            elif (alias1 == table2_alias or alias1 == table2_name) and (
-                alias2 == table1_alias or alias2 == table1_name
-            ):
-                left_column = col2_name
-                right_column = col1_name
-            else:
-                return {
-                    "error": f"Invalid join condition: {condition}. Column references don't match table aliases.",
-                    "status": "error",
-                    "type": "error",
-                }
-
             # Get data from both tables
             table1_data = self.catalog_manager.query_with_condition(
                 table1_name, [], ["*"]
@@ -341,9 +451,13 @@ class ExecutionEngine:
             table2_data = self.catalog_manager.query_with_condition(
                 table2_name, [], ["*"]
             )
-
-            # Choose join algorithm
-            if join_type == "HASH":
+            
+            # Parse the join condition to extract column names
+            join_columns = self._parse_join_condition(condition) if condition else (None, None)
+            left_column, right_column = join_columns
+            
+            # Choose and execute join algorithm
+            if join_algorithm == "HASH":
                 result = self._execute_hash_join(
                     table1_data,
                     table2_data,
@@ -351,8 +465,9 @@ class ExecutionEngine:
                     right_column,
                     table1_alias,
                     table2_alias,
+                    join_type
                 )
-            elif join_type == "MERGE":
+            elif join_algorithm == "MERGE":
                 result = self._execute_merge_join(
                     table1_data,
                     table2_data,
@@ -360,8 +475,9 @@ class ExecutionEngine:
                     right_column,
                     table1_alias,
                     table2_alias,
+                    join_type
                 )
-            elif join_type == "INDEX":
+            elif join_algorithm == "INDEX":
                 result = self._execute_index_join(
                     table1_name,
                     table2_name,
@@ -369,8 +485,20 @@ class ExecutionEngine:
                     right_column,
                     table1_alias,
                     table2_alias,
+                    join_type
                 )
-            else:  # Default to hash join
+            elif join_algorithm == "NESTED_LOOP":
+                result = self._execute_nested_loop_join(
+                    table1_data,
+                    table2_data,
+                    left_column,
+                    right_column,
+                    table1_alias,
+                    table2_alias,
+                    join_type
+                )
+            else:
+                # Default to hash join
                 result = self._execute_hash_join(
                     table1_data,
                     table2_data,
@@ -378,16 +506,17 @@ class ExecutionEngine:
                     right_column,
                     table1_alias,
                     table2_alias,
+                    join_type
                 )
-
-            # Get columns for the result
+            
+            # Format columns for result
             columns = plan.get("columns", ["*"])
             if "*" in columns:
                 # Get all columns from both tables with table aliases
                 if result and len(result) > 0:
                     columns = list(result[0].keys())
-
-            # Format result rows
+            
+            # Format rows for result
             result_rows = []
             for record in result:
                 row = []
@@ -400,17 +529,17 @@ class ExecutionEngine:
                         value = record.get(col, None)
                         row.append(value)
                 result_rows.append(row)
-
+            
             return {
                 "columns": columns,
                 "rows": result_rows,
                 "status": "success",
                 "type": "join_result",
+                "rowCount": len(result_rows)
             }
-
+            
         except Exception as e:
             logging.error(f"Error executing join: {str(e)}")
-
             logging.error(traceback.format_exc())
             return {
                 "error": f"Error executing join: {str(e)}",
@@ -418,412 +547,578 @@ class ExecutionEngine:
                 "type": "error",
             }
 
+    def _parse_join_condition(self, condition):
+        """Parse a join condition like 'table1.col1 = table2.col2' into column names."""
+        if not condition:
+            return None, None
+        
+        # Try to match the pattern table.column = table.column
+        match = re.search(r"(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)", condition)
+        if match:
+            left_table, left_col = match.group(1), match.group(2)
+            right_table, right_col = match.group(3), match.group(4)
+            return left_col, right_col
+        
+        # Try simpler pattern column = column
+        match = re.search(r"(\w+)\s*=\s*(\w+)", condition)
+        if match:
+            return match.group(1), match.group(2)
+        
+        return None, None
+
     def _execute_hash_join(
         self,
-        table1_data,
-        table2_data,
+        left_table_data,
+        right_table_data,
         left_column,
         right_column,
-        table1_alias,
-        table2_alias,
+        left_alias,
+        right_alias,
+        join_type="INNER"
     ):
         """
-        Execute a hash join between two tables.
-
+        Execute a hash join with support for INNER, LEFT, RIGHT and FULL joins.
+        
         Args:
-            table1_data: Records from the first table
-            table2_data: Records from the second table
-            left_column: Join column in first table
-            right_column: Join column in second table
-            table1_alias: Alias for the first table
-            table2_alias: Alias for the second table
-
+            left_table_data: Records from the left table
+            right_table_data: Records from the right table
+            left_column: Join column in left table
+            right_column: Join column in right table
+            left_alias: Alias for the left table
+            right_alias: Alias for the right table
+            join_type: Type of join (INNER, LEFT, RIGHT, FULL)
+            
         Returns:
             List of joined records
         """
-        logging.debug(
-            f"Executing hash join: {table1_alias}.{
-                left_column} = {table2_alias}.{right_column}"
-        )
-        logging.debug(
-            f"Table sizes: {table1_alias}={len(table1_data)} records, {table2_alias}={
-                len(table2_data)} records"
-        )
-
-        # Choose the smaller table for building the hash table
-        if len(table1_data) <= len(table2_data):
-            build_table = table1_data
-            build_column = left_column
-            build_alias = table1_alias
-            probe_table = table2_data
-            probe_column = right_column
-            probe_alias = table2_alias
-        else:
-            build_table = table2_data
-            build_column = right_column
-            build_alias = table2_alias
-            probe_table = table1_data
-            probe_column = left_column
-            probe_alias = table1_alias
-
-        # Build the hash table on the smaller table
+        logging.info(f"Executing {join_type} hash join: {left_alias}.{left_column} = {right_alias}.{right_column}")
+        logging.info(f"Table sizes: {left_alias}={len(left_table_data)} records, {right_alias}={len(right_table_data)} records")
+        
+        # For INNER and LEFT joins, build hash table on right table
+        # For RIGHT joins, build hash table on left table
+        # For efficiency, always build hash table on the smaller table
+        if join_type == "RIGHT" or (join_type != "LEFT" and len(left_table_data) > len(right_table_data)):
+            # Swap tables to make implementation simpler
+            left_table_data, right_table_data = right_table_data, left_table_data
+            left_column, right_column = right_column, left_column
+            left_alias, right_alias = right_alias, left_alias
+            # Also swap join type if needed
+            if join_type == "LEFT":
+                join_type = "RIGHT"
+            elif join_type == "RIGHT":
+                join_type = "LEFT"
+        
+        # Build hash table from the smaller table (now always left_table_data)
         hash_table = {}
-        for record in build_table:
-            # Handle case-insensitive column matching
+        for record in left_table_data:
+            # Find the join value case-insensitively
             join_value = None
-            for col_name in record:
-                if col_name.lower() == build_column.lower():
-                    join_value = record[col_name]
+            for col in record:
+                if col.lower() == left_column.lower():
+                    join_value = record[col]
                     break
-
+            
             if join_value is not None:
-                # Use the value as a hash key
                 if join_value not in hash_table:
                     hash_table[join_value] = []
                 hash_table[join_value].append(record)
-
+        
         logging.debug(f"Hash table built with {len(hash_table)} unique keys")
-
-        # Probe the hash table with each record from the probe table
+        
+        # Probe the hash table with records from the larger table
         result = []
-        for probe_record in probe_table:
-            # Find the join column value
-            probe_value = None
-            for col_name in probe_record:
-                if col_name.lower() == probe_column.lower():
-                    probe_value = probe_record[col_name]
+        matched_left_records = set()  # Track which left records were matched (for LEFT/FULL joins)
+        
+        for right_record in right_table_data:
+            # Find the join value case-insensitively
+            join_value = None
+            for col in right_record:
+                if col.lower() == right_column.lower():
+                    join_value = right_record[col]
                     break
-
-            if probe_value is not None and probe_value in hash_table:
-                # Join with all matching records
-                for build_record in hash_table[probe_value]:
+            
+            found_match = False
+            if join_value is not None and join_value in hash_table:
+                # Match found - join with all matching records
+                for left_record in hash_table[join_value]:
                     # Create a joined record
                     joined_record = {}
-
-                    # Add fields from build table with alias prefix
-                    for field, value in build_record.items():
-                        joined_record[f"{build_alias}.{field}"] = value
-
-                    # Add fields from probe table with alias prefix
-                    for field, value in probe_record.items():
-                        joined_record[f"{probe_alias}.{field}"] = value
-
+                    
+                    # Add fields from left table with alias prefix
+                    for field, value in left_record.items():
+                        joined_record[f"{left_alias}.{field}"] = value
+                    
+                    # Add fields from right table with alias prefix
+                    for field, value in right_record.items():
+                        joined_record[f"{right_alias}.{field}"] = value
+                    
                     result.append(joined_record)
-
-        logging.debug(f"Hash join produced {len(result)} results")
+                    found_match = True
+                    
+                    # Track this left record as matched
+                    record_id = tuple(sorted(left_record.items()))
+                    matched_left_records.add(record_id)
+            
+            # For RIGHT or FULL join, include right records without matches
+            if not found_match and (join_type == "RIGHT" or join_type == "FULL"):
+                joined_record = {}
+                
+                # Add NULL values for left table
+                for left_record in left_table_data[:1]:  # Use first record to get field names
+                    for field in left_record:
+                        joined_record[f"{left_alias}.{field}"] = None
+                
+                # Add fields from right table
+                for field, value in right_record.items():
+                    joined_record[f"{right_alias}.{field}"] = value
+                
+                result.append(joined_record)
+        
+        # For LEFT or FULL join, include left records that weren't matched
+        if join_type == "LEFT" or join_type == "FULL":
+            for left_record in left_table_data:
+                record_id = tuple(sorted(left_record.items()))
+                if record_id not in matched_left_records:
+                    joined_record = {}
+                    
+                    # Add fields from left table
+                    for field, value in left_record.items():
+                        joined_record[f"{left_alias}.{field}"] = value
+                    
+                    # Add NULL values for right table
+                    for right_record in right_table_data[:1]:  # Use first record to get field names
+                        for field in right_record:
+                            joined_record[f"{right_alias}.{field}"] = None
+                    
+                    result.append(joined_record)
+        
+        logging.info(f"Hash join produced {len(result)} results")
         return result
+
+    def _execute_nested_loop_join(
+        self,
+        left_table_data,
+        right_table_data,
+        left_column,
+        right_column,
+        left_alias,
+        right_alias,
+        join_type="INNER"
+    ):
+        """
+        Execute a nested loop join with support for all join types.
+        
+        This is the simplest join algorithm but can be inefficient for large tables.
+        For each record in the outer table, it scans all records in the inner table.
+        """
+        logging.info(f"Executing {join_type} nested loop join")
+        
+        result = []
+        
+        # For cross joins, we don't need column matching
+        is_cross_join = join_type == "CROSS" or (left_column is None and right_column is None)
+        
+        # Track matched records for LEFT/RIGHT/FULL joins
+        matched_left = set()
+        matched_right = set()
+        
+        # Outer loop - iterate through left table
+        for left_record in left_table_data:
+            left_matched = False
+            
+            # Get join value from left record
+            left_value = None
+            if not is_cross_join:
+                for col in left_record:
+                    if col.lower() == left_column.lower():
+                        left_value = left_record[col]
+                        break
+            
+            # Inner loop - iterate through right table
+            for right_record in right_table_data:
+                # For cross join, match all records
+                if is_cross_join:
+                    joined_record = self._create_joined_record(
+                        left_record, right_record, left_alias, right_alias)
+                    result.append(joined_record)
+                    left_matched = True
+                    matched_right.add(id(right_record))
+                    continue
+                
+                # Get join value from right record
+                right_value = None
+                for col in right_record:
+                    if col.lower() == right_column.lower():
+                        right_value = right_record[col]
+                        break
+                
+                # Check if values match for join
+                if left_value == right_value:
+                    joined_record = self._create_joined_record(
+                        left_record, right_record, left_alias, right_alias)
+                    result.append(joined_record)
+                    left_matched = True
+                    matched_right.add(id(right_record))
+            
+            # LEFT or FULL join: include left records without matches
+            if not left_matched and (join_type == "LEFT" or join_type == "FULL"):
+                joined_record = {}
+                
+                # Add fields from left table
+                for field, value in left_record.items():
+                    joined_record[f"{left_alias}.{field}"] = value
+                
+                # Add NULL values for right table
+                if right_table_data:
+                    for field in right_table_data[0]:
+                        joined_record[f"{right_alias}.{field}"] = None
+                
+                result.append(joined_record)
+            
+            if left_matched:
+                matched_left.add(id(left_record))
+        
+        # RIGHT or FULL join: include right records without matches
+        if join_type == "RIGHT" or join_type == "FULL":
+            for right_record in right_table_data:
+                if id(right_record) not in matched_right:
+                    joined_record = {}
+                    
+                    # Add NULL values for left table
+                    if left_table_data:
+                        for field in left_table_data[0]:
+                            joined_record[f"{left_alias}.{field}"] = None
+                    
+                    # Add fields from right table
+                    for field, value in right_record.items():
+                        joined_record[f"{right_alias}.{field}"] = value
+                    
+                    result.append(joined_record)
+        
+        logging.info(f"Nested loop join produced {len(result)} results")
+        return result
+
+    def _create_joined_record(self, left_record, right_record, left_alias, right_alias):
+        """Helper method to create a joined record with proper field prefixes."""
+        joined_record = {}
+        
+        # Add fields from left record with table alias
+        for field, value in left_record.items():
+            joined_record[f"{left_alias}.{field}"] = value
+        
+        # Add fields from right record with table alias
+        for field, value in right_record.items():
+            joined_record[f"{right_alias}.{field}"] = value
+        
+        return joined_record
 
     def _execute_merge_join(
         self,
-        table1_data,
-        table2_data,
+        left_table_data,
+        right_table_data,
         left_column,
         right_column,
-        table1_alias,
-        table2_alias,
+        left_alias,
+        right_alias,
+        join_type="INNER"
     ):
         """
-        Execute a sort-merge join between two tables.
-
-        Args:
-            table1_data: Records from the first table
-            table2_data: Records from the second table
-            left_column: Join column in first table
-            right_column: Join column in second table
-            table1_alias: Alias for the first table
-            table2_alias: Alias for the second table
-
-        Returns:
-            List of joined records
+        Execute a sort-merge join with support for all join types.
+        
+        This algorithm works well when data is already sorted or when the dataset is too
+        large to fit in memory for a hash join.
         """
-        logging.debug(
-            f"Executing merge join: {table1_alias}.{
-                left_column} = {table2_alias}.{right_column}"
-        )
-
-        # Sort both tables on the join columns
+        logging.info(f"Executing {join_type} merge join")
+        
+        if not left_column or not right_column:
+            if join_type == "CROSS":
+                # For cross joins, fall back to nested loop
+                return self._execute_nested_loop_join(
+                    left_table_data, right_table_data, 
+                    left_column, right_column,
+                    left_alias, right_alias,
+                    join_type
+                )
+            else:
+                raise ValueError("Sort-merge join requires join columns")
+        
+        # Helper function to get join key from a record
         def get_key(record, column_name):
-            # Find column case-insensitively
             for col in record:
                 if col.lower() == column_name.lower():
                     return record[col]
             return None
-
-        # Sort the datasets
-        sorted_table1 = sorted(
-            table1_data, key=lambda r: get_key(r, left_column) or "")
-        sorted_table2 = sorted(
-            table2_data, key=lambda r: get_key(r, right_column) or ""
+        
+        # Sort both tables on join columns
+        sorted_left = sorted(
+            left_table_data, 
+            key=lambda r: (get_key(r, left_column) is None, get_key(r, left_column))
         )
-
-        # Merge phase
+        sorted_right = sorted(
+            right_table_data, 
+            key=lambda r: (get_key(r, right_column) is None, get_key(r, right_column))
+        )
+        
         result = []
         i = j = 0
-
-        while i < len(sorted_table1) and j < len(sorted_table2):
-            # Get current values for comparison
-            val1 = get_key(sorted_table1[i], left_column)
-            val2 = get_key(sorted_table2[j], right_column)
-
-            if val1 is None or val2 is None:
-                # Skip records with missing join values
-                if val1 is None:
-                    i += 1
-                if val2 is None:
-                    j += 1
+        
+        # Track matched records for outer joins
+        matched_left = [False] * len(sorted_left)
+        matched_right = [False] * len(sorted_right)
+        
+        # Merge sorted tables
+        while i < len(sorted_left) and j < len(sorted_right):
+            left_val = get_key(sorted_left[i], left_column)
+            right_val = get_key(sorted_right[j], right_column)
+            
+            # Skip null values in inner join
+            if left_val is None and join_type == "INNER":
+                i += 1
                 continue
-
-            # Compare the values and join if equal
-            if val1 == val2:
-                # Handle multiple matches on one side
-                # First, collect all matching records from table1
-                matches1 = [i]
-                next_i = i + 1
-                while (
-                    next_i < len(sorted_table1)
-                    and get_key(sorted_table1[next_i], left_column) == val1
-                ):
-                    matches1.append(next_i)
-                    next_i += 1
-
-                # Then, collect all matching records from table2
-                matches2 = [j]
-                next_j = j + 1
-                while (
-                    next_j < len(sorted_table2)
-                    and get_key(sorted_table2[next_j], right_column) == val2
-                ):
-                    matches2.append(next_j)
-                    next_j += 1
-
-                # Join all pairs
-                for idx1 in matches1:
-                    for idx2 in matches2:
-                        # Create joined record
-                        joined_record = {}
-
-                        # Add fields from table1
-                        for field, value in sorted_table1[idx1].items():
-                            joined_record[f"{table1_alias}.{field}"] = value
-
-                        # Add fields from table2
-                        for field, value in sorted_table2[idx2].items():
-                            joined_record[f"{table2_alias}.{field}"] = value
-
+            if right_val is None and join_type == "INNER":
+                j += 1
+                continue
+            
+            if left_val == right_val:
+                # Values match - find all matching records on both sides
+                
+                # First, collect all matching records from left side
+                left_matches = []
+                k = i
+                while k < len(sorted_left) and get_key(sorted_left[k], left_column) == left_val:
+                    left_matches.append(k)
+                    k += 1
+                
+                # Then, collect all matching records from right side
+                right_matches = []
+                l = j
+                while l < len(sorted_right) and get_key(sorted_right[l], right_column) == right_val:
+                    right_matches.append(l)
+                    l += 1
+                
+                # Join all matching pairs
+                for left_idx in left_matches:
+                    matched_left[left_idx] = True
+                    for right_idx in right_matches:
+                        matched_right[right_idx] = True
+                        joined_record = self._create_joined_record(
+                            sorted_left[left_idx], 
+                            sorted_right[right_idx],
+                            left_alias, right_alias
+                        )
                         result.append(joined_record)
-
-                # Move both pointers past all matching records
-                i = next_i
-                j = next_j
-
-            # If values don't match, move the pointer of the smaller value forward
-            elif val1 < val2:
+                
+                # Move pointers past all processed records
+                i = k
+                j = l
+            elif left_val < right_val:
                 i += 1
             else:
                 j += 1
-
-        logging.debug(f"Merge join produced {len(result)} results")
+        
+        # Handle outer joins - add unmatched records
+        if join_type in ["LEFT", "FULL"]:
+            for idx, record in enumerate(sorted_left):
+                if not matched_left[idx]:
+                    joined_record = {}
+                    
+                    # Add fields from left record
+                    for field, value in record.items():
+                        joined_record[f"{left_alias}.{field}"] = value
+                    
+                    # Add NULL values for right table
+                    if right_table_data:
+                        for field in right_table_data[0]:
+                            joined_record[f"{right_alias}.{field}"] = None
+                    
+                    result.append(joined_record)
+        
+        if join_type in ["RIGHT", "FULL"]:
+            for idx, record in enumerate(sorted_right):
+                if not matched_right[idx]:
+                    joined_record = {}
+                    
+                    # Add NULL values for left table
+                    if left_table_data:
+                        for field in left_table_data[0]:
+                            joined_record[f"{left_alias}.{field}"] = None
+                    
+                    # Add fields from right record
+                    for field, value in record.items():
+                        joined_record[f"{right_alias}.{field}"] = value
+                    
+                    result.append(joined_record)
+        
+        logging.info(f"Merge join produced {len(result)} results")
         return result
 
     def _execute_index_join(
         self,
-        table1_name,
-        table2_name,
+        left_table_name,
+        right_table_name,
         left_column,
         right_column,
-        table1_alias,
-        table2_alias,
+        left_alias,
+        right_alias,
+        join_type="INNER"
     ):
         """
         Execute an index join between two tables using an existing index if available.
-        Uses the index to look up matching rows rather than scanning the entire table.
-
-        Args:
-            table1_name: Name of the first table
-            table2_name: Name of the second table
-            left_column: Join column in first table
-            right_column: Join column in second table
-            table1_alias: Alias for the first table
-            table2_alias: Alias for the second table
-
-        Returns:
-            List of joined records
+        Supports all join types.
         """
-        logging.debug(
-            f"Executing index join: {table1_alias}.{
-                left_column} = {table2_alias}.{right_column}"
-        )
-
+        logging.info(f"Executing {join_type} index join")
+        
         db_name = self.catalog_manager.get_current_database()
-
-        # Check if either table has an index on its join column
-        table1_indexes = self.catalog_manager.get_indexes_for_table(
-            table1_name)
-        table2_indexes = self.catalog_manager.get_indexes_for_table(
-            table2_name)
-
-        # Find an index on either join column
-        use_table1_index = False
-        use_table2_index = False
-
-        for index_name, index_info in table1_indexes.items():
-            if index_info.get("column", "").lower() == left_column.lower():
-                use_table1_index = True
-                table1_index_name = index_name
-                break
-
-        for index_name, index_info in table2_indexes.items():
-            if index_info.get("column", "").lower() == right_column.lower():
-                use_table2_index = True
-                table2_index_name = index_name
-                break
-
-        # If no indexes, fall back to hash join
-        if not (use_table1_index or use_table2_index):
-            logging.debug("No usable index found, falling back to hash join")
-            table1_data = self.catalog_manager.query_with_condition(
-                table1_name, [], ["*"]
-            )
-            table2_data = self.catalog_manager.query_with_condition(
-                table2_name, [], ["*"]
-            )
+        if not db_name:
+            logging.error("No database selected for index join")
+            return []
+        
+        # Check for indexes on left and right tables
+        left_index = self.index_manager.get_index(f"{left_table_name}.{left_column}")
+        right_index = self.index_manager.get_index(f"{right_table_name}.{right_column}")
+        
+        # Determine which table has an index (prefer right table index for probe-build pattern)
+        if right_index:
+            # Use right table's index (optimal case)
+            indexed_table_name = right_table_name
+            indexed_column = right_column
+            indexed_alias = right_alias
+            probe_table_name = left_table_name
+            probe_column = left_column
+            probe_alias = left_alias
+            index = right_index
+            is_right_indexed = True
+        elif left_index:
+            # Use left table's index
+            indexed_table_name = left_table_name
+            indexed_column = left_column
+            indexed_alias = left_alias
+            probe_table_name = right_table_name
+            probe_column = right_column
+            probe_alias = right_alias
+            index = left_index
+            is_right_indexed = False
+        else:
+            # No index available, fall back to hash join
+            logging.warning(f"No index found for join columns, falling back to hash join")
             return self._execute_hash_join(
-                table1_data,
-                table2_data,
-                left_column,
-                right_column,
-                table1_alias,
-                table2_alias,
+                self.catalog_manager.query_with_condition(left_table_name, [], ["*"]),
+                self.catalog_manager.query_with_condition(right_table_name, [], ["*"]),
+                left_column, right_column, left_alias, right_alias, join_type
             )
-
-        # Choose which index to use based on estimated cost (prefer smaller table)
-        if use_table1_index and use_table2_index:
-            # Simple heuristic: Choose index on the smaller table
-            # We can improve this later with statistics
-            table1_count = len(
-                self.catalog_manager.query_with_condition(
-                    table1_name, [], [left_column]
-                )
-            )
-            table2_count = len(
-                self.catalog_manager.query_with_condition(
-                    table2_name, [], [right_column]
-                )
-            )
-
-            if table1_count <= table2_count:
-                use_table2_index = False  # Prioritize using table1's index
-            else:
-                use_table1_index = False  # Prioritize using table2's index
-
+        
+        # Get the probe table data (full scan of non-indexed table)
+        probe_data = self.catalog_manager.query_with_condition(probe_table_name, [], ["*"])
+        
+        # Initialize indexed_data with empty list for inner joins
+        indexed_data = []
+        
+        # For outer joins, we may need all data from the indexed table
+        if join_type in ["LEFT", "RIGHT", "FULL"]:
+            # Adjust join type based on which table is indexed
+            if (join_type == "LEFT" and is_right_indexed) or (join_type == "RIGHT" and not is_right_indexed):
+                # We need all data from indexed table
+                indexed_data = self.catalog_manager.query_with_condition(indexed_table_name, [], ["*"])
+            elif join_type == "FULL":
+                # For FULL joins, we always need all data from indexed table
+                indexed_data = self.catalog_manager.query_with_condition(indexed_table_name, [], ["*"])
+        
         result = []
-
-        # Execute the index join using the chosen index
-        if use_table1_index:
-            # Table 1 has an index on left_column
-            logging.debug(f"Using index on {table1_name}.{left_column}")
-
-            # Get all records from table2 (non-indexed table)
-            table2_data = self.catalog_manager.query_with_condition(
-                table2_name, [], ["*"]
-            )
-
-            # Get the indexed table data
-            table1_data = self.catalog_manager.query_with_condition(
-                table1_name, [], ["*"]
-            )
-
-            # Create a dictionary from record_id to record for table1
-            table1_dict = {}
-            for record in table1_data:
-                # Find column value for matching
-                for col_name in record:
-                    if col_name.lower() == left_column.lower():
-                        join_value = record[col_name]
-                        if join_value is not None:
-                            # Store by join value for quick lookup
-                            if join_value not in table1_dict:
-                                table1_dict[join_value] = []
-                            table1_dict[join_value].append(record)
-
-            # For each record in table2, find matches in table1 using the dictionary
-            for table2_record in table2_data:
-                # Get the join value from table2
-                join_value = None
-                for col_name in table2_record:
-                    if col_name.lower() == right_column.lower():
-                        join_value = table2_record[col_name]
+        matched_probe_records = set()  # Track which probe records were matched
+        matched_indexed_values = set()  # Track which indexed values were matched
+        
+        # Probe the index with each record from the probe table
+        for probe_record in probe_data:
+            # Find the join value in the probe record
+            probe_value = None
+            for col in probe_record:
+                if col.lower() == probe_column.lower():
+                    probe_value = probe_record[col]
+                    break
+            
+            found_match = False
+            
+            if probe_value is not None:
+                # Use the index to look up matching indexed records
+                try:
+                    matching_keys = index.search(probe_value)
+                    
+                    if matching_keys:
+                        found_match = True
+                        
+                        # Handle different return types from index search
+                        if not isinstance(matching_keys, list):
+                            matching_keys = [matching_keys]
+                        
+                        # Retrieve each matching indexed record
+                        for key in matching_keys:
+                            if key is None:
+                                continue
+                                
+                            # We need to fetch the actual record using the key
+                            indexed_record = self.catalog_manager.get_record_by_key(indexed_table_name, key)
+                            
+                            if indexed_record:
+                                # Create joined record
+                                if is_right_indexed:
+                                    joined_record = self._create_joined_record(probe_record, indexed_record, 
+                                                                            probe_alias, indexed_alias)
+                                else:
+                                    joined_record = self._create_joined_record(indexed_record, probe_record,
+                                                                            indexed_alias, probe_alias)
+                                
+                                result.append(joined_record)
+                                matched_indexed_values.add(probe_value)
+                except Exception as e:
+                    logging.error(f"Error searching index for value {probe_value}: {str(e)}")
+                    logging.error(traceback.format_exc())
+            
+            # For LEFT or FULL outer join, include probe records without matches
+            if not found_match and ((not is_right_indexed and (join_type == "LEFT" or join_type == "FULL")) or 
+                                (is_right_indexed and (join_type == "RIGHT" or join_type == "FULL"))):
+                joined_record = {}
+                
+                # Add fields from probe record
+                for field, value in probe_record.items():
+                    joined_record[f"{probe_alias}.{field}"] = value
+                
+                # Add NULL values for indexed table fields
+                # We need a sample record to get the field names
+                sample_indexed = next(iter(indexed_data), {})  # Safe now since indexed_data is always initialized
+                for field in sample_indexed:
+                    joined_record[f"{indexed_alias}.{field}"] = None
+                
+                result.append(joined_record)
+            
+            if found_match:
+                matched_probe_records.add(id(probe_record))
+        
+        # For RIGHT or FULL join, include indexed records without matches
+        if join_type in ["RIGHT", "FULL"] and indexed_data:  # Safe check now
+            for indexed_record in indexed_data:
+                # Get the join value from this indexed record
+                indexed_value = None
+                for col in indexed_record:
+                    if col.lower() == indexed_column.lower():
+                        indexed_value = indexed_record[col]
                         break
-
-                if join_value is not None and join_value in table1_dict:
-                    # Join with all matching records from table1
-                    for table1_record in table1_dict[join_value]:
-                        # Create joined record
-                        joined_record = {}
-
-                        # Add fields from table1 with alias prefix
-                        for field, value in table1_record.items():
-                            joined_record[f"{table1_alias}.{field}"] = value
-
-                        # Add fields from table2 with alias prefix
-                        for field, value in table2_record.items():
-                            joined_record[f"{table2_alias}.{field}"] = value
-
-                        result.append(joined_record)
-
-        else:  # Use table2 index
-            # Table 2 has an index on right_column
-            logging.debug(f"Using index on {table2_name}.{right_column}")
-
-            # Get all records from table1 (non-indexed table)
-            table1_data = self.catalog_manager.query_with_condition(
-                table1_name, [], ["*"]
-            )
-
-            # Get the indexed table data
-            table2_data = self.catalog_manager.query_with_condition(
-                table2_name, [], ["*"]
-            )
-
-            # Create a dictionary from record_id to record for table2
-            table2_dict = {}
-            for record in table2_data:
-                # Find column value for matching
-                for col_name in record:
-                    if col_name.lower() == right_column.lower():
-                        join_value = record[col_name]
-                        if join_value is not None:
-                            # Store by join value for quick lookup
-                            if join_value not in table2_dict:
-                                table2_dict[join_value] = []
-                            table2_dict[join_value].append(record)
-
-            # For each record in table1, find matches in table2 using the dictionary
-            for table1_record in table1_data:
-                # Get the join value from table1
-                join_value = None
-                for col_name in table1_record:
-                    if col_name.lower() == left_column.lower():
-                        join_value = table1_record[col_name]
-                        break
-
-                if join_value is not None and join_value in table2_dict:
-                    # Join with all matching records from table2
-                    for table2_record in table2_dict[join_value]:
-                        # Create joined record
-                        joined_record = {}
-
-                        # Add fields from table1 with alias prefix
-                        for field, value in table1_record.items():
-                            joined_record[f"{table1_alias}.{field}"] = value
-
-                        # Add fields from table2 with alias prefix
-                        for field, value in table2_record.items():
-                            joined_record[f"{table2_alias}.{field}"] = value
-
-                        result.append(joined_record)
-
-        logging.debug(f"Index join produced {len(result)} results")
+                
+                # Skip if this value was already matched
+                if indexed_value is not None and indexed_value not in matched_indexed_values:
+                    joined_record = {}
+                    
+                    # Add fields from indexed record
+                    for field, value in indexed_record.items():
+                        joined_record[f"{indexed_alias}.{field}"] = value
+                    
+                    # Add NULL values for probe table fields
+                    if probe_data:
+                        for field in probe_data[0]:
+                            joined_record[f"{probe_alias}.{field}"] = None
+                    
+                    result.append(joined_record)
+        
+        logging.info(f"Index join produced {len(result)} results")
         return result
 
     def execute_set_preference(self, plan):
@@ -1195,26 +1490,29 @@ class ExecutionEngine:
         """Execute a SELECT query and return results."""
         # Check for aggregate functions in column names
         columns = plan.get("columns", [])
-        for i, col in enumerate(columns):
+        for _, col in enumerate(columns):
             if isinstance(col, str) and col != "*":
                 # Check for standard aggregate functions
                 match = re.search(r"(\w+)\s*\(\s*([^)]*)\s*\)", col)
                 if match:
                     func_name = match.group(1).upper()
                     col_name = match.group(2).strip()
-                    
-                    if func_name in ("COUNT", "SUM", "AVG", "MIN", "MAX"):
+
+                    # Update this line to include RAND and GCD
+                    if func_name in ("COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD"):
                         logging.error(f"Detected aggregate function in execute_select: {func_name}({col_name})")
-                        
+
                         # Create a temporary aggregate plan
                         agg_plan = {
                             "type": "AGGREGATE",
                             "function": func_name,
                             "column": col_name,
                             "table": plan.get("table") or (plan.get("tables", [""])[0] if plan.get("tables") else ""),
-                            "condition": plan.get("condition")
+                            "condition": plan.get("condition"),  # Pass the condition
+                            "top": plan.get("top"),  # Pass TOP parameter 
+                            "limit": plan.get("limit")  # Pass LIMIT parameter
                         }
-                        
+
                         # Execute the aggregate plan instead
                         return self.execute_aggregate(agg_plan)
 
@@ -1306,11 +1604,11 @@ class ExecutionEngine:
             order_by = plan.get("order_by")
             if order_by and results:
                 logging.debug(f"Applying ORDER BY: {order_by}")
-                
+
                 # Parse the ORDER BY clause
                 order_columns = []
                 reverse_flags = []
-                
+
                 # Split by comma for multiple columns
                 for order_part in order_by.split(','):
                     order_part = order_part.strip()
@@ -1320,18 +1618,18 @@ class ExecutionEngine:
                     else:
                         col_name = order_part.upper().replace(' ASC', '').strip()
                         reverse = False
-                    
+
                     # Find actual column name with correct case
                     actual_col = None
                     for record_col in results[0]:
                         if record_col.lower() == col_name.lower():
                             actual_col = record_col
                             break
-                    
+
                     if actual_col:
                         order_columns.append(actual_col)
                         reverse_flags.append(reverse)
-                
+
                 # Sort the results using the specified columns
                 if order_columns:
                     for i, (col, reverse) in reversed(list(enumerate(zip(order_columns, reverse_flags)))):
@@ -1341,7 +1639,7 @@ class ExecutionEngine:
                             key=lambda x: (x.get(col) is None, x.get(col)),
                             reverse=reverse
                         )
-                    
+
                     logging.debug(f"Results sorted by {order_columns}")
 
             # Apply TOP N
@@ -1436,38 +1734,38 @@ class ExecutionEngine:
                 "type": "error",
             }
 
-    def _parse_condition_to_dict(self, condition_str):
-        """Parse a condition string into a condition dictionary for B+ tree querying."""
+    def _parse_condition_to_list(self, condition_str):
+        """
+        Parse a SQL condition string into a list of condition dictionaries for B+ tree querying.
+        """
         if not condition_str:
-            return {}
+            logging.debug("No condition string provided to parse")
+            return []
 
-        # Basic operators mapping
-        operators = {"=": "=", ">": ">", "<": "<",
-                     ">=": ">=", "<=": "<=", "!=": "!="}
+        logging.debug(f"Parsing condition string: '{condition_str}'")
+        # Basic parsing for simpler conditions (focus on getting this working first)
+        conditions = []
 
-        # Try to match an operator
-        for op in sorted(
-            operators.keys(), key=len, reverse=True
-        ):  # Process longer ops first
+        # Check if this is a simple condition with a comparison operator
+        for op in [">=", "<=", "!=", "<>", "=", ">", "<"]:
             if op in condition_str:
-                column, value = condition_str.split(op, 1)
-                column = column.strip()
-                value = value.strip()
+                parts = condition_str.split(op, 1)
+                if len(parts) == 2:
+                    column = parts[0].strip()
+                    value_str = parts[1].strip()
+                    value = self._parse_value(value_str)
 
-                # Handle quoted strings
-                if value.startswith("'") and value.endswith("'"):
-                    value = value[1:-1]  # Remove quotes
-                # Handle numbers
-                elif value.isdigit():
-                    value = int(value)
-                elif re.match(r"^[0-9]*\.[0-9]+$", value):
-                    value = float(value)
+                    # Map <> to !=
+                    operator = op if op != "<>" else "!="
 
-                return {"column": column, "operator": operators[op], "value": value}
+                    conditions.append(
+                        {"column": column, "operator": operator, "value": value}
+                    )
+                    logging.debug(f"Parsed condition: column='{column}', operator='{operator}', value='{value}'")
+                    break
 
-        # If no operator found, return empty filter with a warning
-        logging.warning(f"Could not parse condition: {condition_str}")
-        return {}
+        logging.debug(f"Final parsed conditions: {conditions}")
+        return conditions
 
     def execute_distinct(self, plan):
         """
@@ -1854,8 +2152,7 @@ class ExecutionEngine:
                 "type": "drop_table_result",
             }
         except Exception as e:
-            logging.error(f"Error dropping table: {str(e)}")
-            import traceback
+            logging.error('Error dropping table: %s', str(e))
 
             logging.error(traceback.format_exc())
             return {
@@ -1949,74 +2246,6 @@ class ExecutionEngine:
         """Rollback the current transaction."""
         result = self.catalog_manager.rollback_transaction()
         return {"message": result}
-
-    def update_records(self, table_name, updates, conditions=None):
-        """Update records in a table based on conditions."""
-        if conditions is None:
-            conditions = []
-
-        db_name = self.get_current_database()
-        if not db_name:
-            return "No database selected."
-
-        table_id = f"{db_name}.{table_name}"
-
-        # Check if table exists
-        if table_id not in self.tables:
-            return f"Table {table_name} does not exist."
-
-        # Load the B+ tree
-        table_file = os.path.join(
-            self.tables_dir, db_name, f"{table_name}.tbl")
-        if not os.path.exists(table_file):
-            return f"Table data file not found."
-
-        tree = BPlusTree.load_from_file(table_file)
-
-        # Get all records
-        all_records = tree.range_query(float("-inf"), float("inf"))
-
-        # Apply updates based on conditions
-        records_updated = 0
-        for record_key, record in all_records:
-            # Check if record matches conditions
-            matches = True
-            for condition in conditions:
-                col = condition.get("column")
-                op = condition.get("operator")
-                val = condition.get("value")
-
-                if col not in record:
-                    matches = False
-                    break
-
-                if op == "=":
-                    if record[col] != val:
-                        matches = False
-                        break
-                elif op == ">":
-                    if record[col] <= val:
-                        matches = False
-                        break
-                # ... (other operators)
-
-            if matches:
-                # Apply updates
-                updated_record = record.copy()
-                for field, value in updates.items():
-                    updated_record[field] = value
-
-                # Remove old record and insert updated one
-                tree.insert(record_key, updated_record)
-                records_updated += 1
-
-        # Save the updated tree
-        tree.save_to_file(table_file)
-
-        # Update indexes
-        self._update_indexes_after_modify(db_name, table_name, all_records)
-
-        return f"{records_updated} records updated."
 
     def execute_delete(self, plan):
         """Execute a DELETE query."""
@@ -2161,20 +2390,19 @@ class ExecutionEngine:
 
         # Find all indexes for this table
         table_indexes = []
-        for index_id, index_def in self.indexes.items():
-            if index_def.get("table") == table_id:
-                table_indexes.append((index_id, index_def))
+        # Use index_manager instead of directly accessing self.indexes
+        for index_id, index_def in self.catalog_manager.get_indexes_for_table(table_name).items():
+            table_indexes.append((index_id, index_def))
 
         # Rebuild each index
         for index_id, index_def in table_indexes:
             column_name = index_def.get("column")
             index_file = os.path.join(
-                self.indexes_dir, f"{db_name}_{table_name}_{column_name}.idx"
+                self.catalog_manager.indexes_dir, f"{db_name}_{table_name}_{column_name}.idx"
             )
 
             # Create a new index tree
-            index_tree = BPlusTree(order=50, name=f"{table_name}_{
-                                   column_name}_index")
+            index_tree = BPlusTree(order=50, name=f"{table_name}_{column_name}_index")
 
             # Populate the index with current records
             for record_key, record in current_records:
@@ -2186,19 +2414,37 @@ class ExecutionEngine:
 
     def get_table_schema(self, table_name):
         """Get the schema of a table."""
-        db_name = self.get_current_database()
+        db_name = self.catalog_manager.get_current_database()
         if not db_name:
             return "No database selected."
 
-        table_id = f"{db_name}.{table_name}"
-
-        if table_id not in self.tables:
+        # Check if the table exists
+        if not self.catalog_manager.table_exists(db_name, table_name):
             return f"Table {table_name} does not exist."
 
-        return {
-            "columns": self.tables[table_id].get("columns", []),
-            "constraints": self.tables[table_id].get("constraints", []),
-        }
+        # Get table schema from catalog manager
+        return self.catalog_manager.get_table_schema(table_name)
+        
+    def _parse_condition_to_dict(self, condition_str):
+        """
+        Parse a SQL condition string into a dictionary format.
+        This is used for UPDATE operations.
+        
+        Args:
+            condition_str: SQL condition string (e.g., "age > 30")
+            
+        Returns:
+            Dictionary with condition information
+        """
+        if not condition_str:
+            return {}
+            
+        # Use the existing condition parsing logic
+        conditions = self._parse_condition_to_list(condition_str)
+        if conditions and len(conditions) > 0:
+            return conditions[0]  # Return first condition
+        
+        return {}
 
     def execute_visualize(self, plan):
         """
@@ -2575,4 +2821,3 @@ class ExecutionEngine:
                 "status": "error",
                 "type": "error",
             }
-
