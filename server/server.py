@@ -1,14 +1,18 @@
+import sys
+import os
+
+# Add the project root directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import sqlparse
 from parser import SQLParser
-from shared.utils import send_data, receive_data
+from shared.utils import (receive_data, send_data)
 from shared.constants import SERVER_HOST, SERVER_PORT
 from optimizer import Optimizer
 from execution_engine import ExecutionEngine
 from planner import Planner
 from index_manager import IndexManager
 from catalog_manager import CatalogManager
-import sys
-import os
 import socket
 import json
 import traceback
@@ -17,9 +21,6 @@ import uuid
 import re
 import datetime
 from logging.handlers import RotatingFileHandler
-
-# Add the project root directory to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def setup_logging():
@@ -64,7 +65,7 @@ def setup_logging():
 
     # Log startup message
     logging.info("==== DBMS Server Starting ====")
-    logging.info(f"Logging to: {log_file}")
+    logging.info('Logging to: %s', log_file)
 
     return log_file
 
@@ -107,7 +108,7 @@ class DBMSServer:
             request_type = data.get("action")
 
             if not request_type:
-                logging.error(f"Missing 'action' field in request: {data}")
+                logging.error('Missing "action" field in request: %s',data)
                 return {"error": "Missing 'action' field in request", "status": "error"}
 
             # Process the request based on action
@@ -126,15 +127,13 @@ class DBMSServer:
             elif request_type == "logout":
                 return self.handle_logout(data)
             else:
-                logging.error(f"Unknown request type: {request_type}")
+                logging.error('Unknown request type: %s', request_type)
                 return {
-                    "error": f"Unknown request type: {request_type}",
+                    "error": 'Unknown request type: {request_type}',
                     "status": "error",
                 }
-        except Exception as e:
-            import traceback
-
-            logging.error(f"Error handling request: {str(e)}")
+        except (TypeError, ValueError, KeyError, AttributeError, RuntimeError) as e:
+            logging.error('Error handling request: %s', str(e))
             logging.error(traceback.format_exc())
             return {"error": f"Server error: {str(e)}", "status": "error"}
 
@@ -143,16 +142,14 @@ class DBMSServer:
         session_id = data.get("session_id")
         if session_id not in self.sessions:
             logging.warning(
-                f"Unauthorized visualize attempt with invalid session ID: {
-                    session_id}"
-            )
+                'Unauthorized visualize attempt with invalid session ID: {%s', session_id
+                )
             return {"error": "Unauthorized. Please log in.", "status": "error"}
 
         user = self.sessions[session_id]
         query = data.get("query", "")
         logging.info(
-            f"Visualization request from {
-                user.get('username', 'Unknown')}: {query}"
+            'Visualization request from %s: %s', user.get("username", "Unknown"), query
         )
 
         # Parse as a visualization command using the parser
@@ -170,8 +167,8 @@ class DBMSServer:
                     result["status"] = "success"
 
                 return result
-            except Exception as e:
-                error_msg = f"Error executing visualization: {str(e)}"
+            except (TypeError, ValueError, KeyError, AttributeError, RuntimeError) as e:
+                error_msg = 'Error executing visualization: %s', str(e)
                 logging.error(error_msg)
                 logging.error(traceback.format_exc())
                 return {"error": error_msg, "status": "error"}
@@ -217,7 +214,7 @@ class DBMSServer:
     def handle_login(self, data):
         """Handle user login."""
         username = data.get("username")
-        logging.info(f"Login attempt for user: {username}")
+        logging.info('Login attempt for user: %s', username)
 
         password = data.get("password")
 
@@ -237,7 +234,7 @@ class DBMSServer:
                 "message": f"Login successful as {username} ({user['role']})",
             }
         else:
-            logging.warning(f"Failed login attempt for user: {username}")
+            logging.warning('Failed login attempt for user: %s', username)
             return {"error": "Invalid username or password.", "status": "error"}
 
     def handle_logout(self, data):
@@ -246,17 +243,17 @@ class DBMSServer:
         if session_id in self.sessions:
             username = self.sessions[session_id].get("username", "Unknown")
             del self.sessions[session_id]
-            logging.info(f"User {username} logged out successfully")
+            logging.info('User %s logged out successfully', username)
             return {"message": "Logged out successfully.", "status": "success"}
         else:
             logging.warning(
-                f"Invalid logout attempt with session ID: {session_id}")
+                'Invalid logout attempt with session ID: %s', session_id)
             return {"error": "Invalid session ID.", "status": "error"}
 
     def handle_register(self, data):
         """Handle user registration."""
         username = data.get("username")
-        logging.info(f"Registration attempt for user: {username}")
+        logging.info('Registration attempt for user: %s', username)
 
         password = data.get("password")
         role = data.get("role", "user")
@@ -299,14 +296,14 @@ class DBMSServer:
                 f.write(f"{timestamp} | {username} | {query}\n")
 
             # Also log to the standard logger
-            logging.info(f"AUDIT: User {username} executed: {query}")
+            logging.info('AUDIT: User %s executed: %s', username, query)
 
             # Optionally store in a database for more advanced auditing
             self._store_audit_log(log_entry)
 
         except Exception as e:
             # Don't let logging errors affect query execution
-            logging.error(f"Failed to log query: {str(e)}")
+            logging.error('Failed to log query: %s', str(e))
 
     def _store_audit_log(self, log_entry):
         """
@@ -322,7 +319,7 @@ class DBMSServer:
             # self.audit_db.audit_logs.insert_one(log_entry)
             pass
         except Exception as e:
-            logging.error(f"Failed to store audit log: {str(e)}")
+            logging.error('Failed to store audit log: %s', str(e))
 
     def handle_query(self, data):
         """
@@ -331,37 +328,36 @@ class DBMSServer:
         session_id = data.get("session_id")
         if session_id not in self.sessions:
             logging.warning(
-                f"Unauthorized query attempt with invalid session ID: {
-                    session_id}"
+                'Unauthorized query attempt with invalid session ID: %s', session_id
             )
             return {"error": "Unauthorized. Please log in.", "status": "error"}
 
         user = self.sessions[session_id]
         query = data.get("query", "")
 
-        logging.info(f"Query from {user.get('username', 'Unknown')}: {query}")
+        logging.info('Query from {user.get("username", "Unknown")}: {query}')
 
         # Log the query for audit
         self._log_query(user.get("username"), query)
 
         # Print current database for debugging
         current_db = self.catalog_manager.get_current_database()
-        logging.info(f"Current database: {current_db}")
+        logging.info('Current database: %s', current_db)
 
         # Parse and execute
         try:
             parsed = self.sql_parser.parse_sql(query)
             if "error" in parsed:
-                logging.error(f"SQL parsing error: {parsed['error']}")
+                logging.error('SQL parsing error: %s', parsed['error'])
                 return {"error": parsed["error"], "status": "error"}
 
             # Log the parsed query structure
-            logging.debug(f"Parsed query: {parsed}")
+            logging.debug('Parsed query: %s', parsed)
 
             result = self.execution_engine.execute(parsed)
             return result
         except Exception as e:
-            logging.error(f"Error executing query: {str(e)}")
+            logging.error('Error executing query: %s', str(e))
             logging.error(traceback.format_exc())
             return {"error": str(e), "status": "error"}
 
@@ -436,10 +432,10 @@ class DBMSServer:
                 )
                 print(row_str)
 
-            print(f"\n{len(rows)} row(s) returned")
+            print('\n{%i row(s) returned', len(rows))
         # Handle error messages
         elif "error" in result:
-            print(f"Error: {result['error']}")
+            print(f"Error: {str(result['error'])}")
         # Handle any other data formats
         else:
             # If it's just key-value pairs without a clear format, print them nicely
@@ -474,10 +470,10 @@ def start_server():
     for query in test_queries:
         try:
             parsed = server.parse_sql(query)
-            logging.info(f"Test query: {query}")
-            logging.info(f"Parsed result: {json.dumps(parsed)}")
-        except Exception as e:
-            logging.error(f"Error parsing '{query}': {str(e)}")
+            logging.info('Test query: %s', query)
+            logging.info('Parsed result: %s', json.dumps(parsed))
+        except (ValueError, SyntaxError, TypeError, AttributeError, KeyError) as e:
+            logging.error('Error parsing "%s": %s', query, str(e))
 
     # Print a message to console indicating where logs will be stored
     print(f"DBMS Server starting. Logs will be stored in: {log_file}")
@@ -485,13 +481,13 @@ def start_server():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((SERVER_HOST, SERVER_PORT))
     sock.listen(5)
-    logging.info(f"Server listening on {SERVER_HOST}:{SERVER_PORT}")
+    logging.info("Server listening on %s:%s", SERVER_HOST, SERVER_PORT)
     print(f"Server listening on {SERVER_HOST}:{SERVER_PORT}...")
 
     try:
         while True:
             client, address = sock.accept()
-            logging.info(f"Connection from {address}")
+            logging.info('Connection from %s', address)
             print(f"Connection from {address}")
 
             try:
@@ -500,7 +496,7 @@ def start_server():
                     response = server.handle_request(data)
                     send_data(client, response)
                 client.close()
-            except Exception as e:
+            except (ConnectionError, json.JSONDecodeError, ValueError, BrokenPipeError) as e:
                 error_msg = f"Error handling client: {str(e)}"
                 logging.error(error_msg)
                 logging.error(traceback.format_exc())
@@ -517,4 +513,3 @@ def start_server():
 
 if __name__ == "__main__":
     start_server()
-

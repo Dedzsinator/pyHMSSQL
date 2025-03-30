@@ -1,16 +1,16 @@
-from shared.utils import send_data, receive_data
-from shared.constants import SERVER_HOST, SERVER_PORT
 import sys
 import os
+
+# Add the project root directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared.utils import send_data, receive_data
+from shared.constants import SERVER_HOST, SERVER_PORT
 import socket
 import json
 import getpass
 import cmd
 import textwrap
-
-# Add the project root directory to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 
 class DBMSClient(cmd.Cmd):
     intro = textwrap.dedent("""
