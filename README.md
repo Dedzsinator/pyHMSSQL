@@ -264,7 +264,7 @@ query SELECT id, name FROM customers ✅
 query SELECT * FROM customers WHERE age > 30 ✅
 
 -- SELECT with sorting
-query SELECT * FROM customers ORDER BY age DESC ✅
+query SELECT * FROM customers ORDER BY age DESC 
 
 -- SELECT with LIMIT
 query SELECT * FROM customers LIMIT 2 ✅
@@ -285,19 +285,19 @@ query INSERT INTO customers (id, name, email, age) VALUES (3, 'Bob Johnson', 'bo
 query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'alice@example.com', 35)
 
 -- AVG function
-query SELECT AVG(age) FROM customers ~
+query SELECT AVG(age) FROM customers ✅
 
 -- COUNT function
-query SELECT COUNT(*) FROM customers ~
+query SELECT COUNT(*) FROM customers ✅
 
 -- MAX function
-query SELECT MAX(age) FROM customers ~
+query SELECT MAX(age) FROM customers ✅
 
 -- MIN function
-query SELECT MIN(age) FROM customers ~
+query SELECT MIN(age) FROM customers ✅
 
 -- SUM function
-query SELECT SUM(age) FROM customers ~
+query SELECT SUM(age) FROM customers ✅
 
 -- TOP N query
 query SELECT TOP 2 * FROM customers ORDER BY age DESC ~

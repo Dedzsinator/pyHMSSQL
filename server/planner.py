@@ -106,6 +106,35 @@ class Planner:
         """
         plan = None
 
+        # Add diagnostic logging to see what parsed_query contains
+        logging.error(f"Planner received query: {parsed_query}")
+        
+        # Special handling for SELECT queries with aggregate functions
+        if parsed_query["type"] == "SELECT":
+            columns = parsed_query.get("columns", [])
+            if columns:
+                col_str = str(columns[0])
+                logging.error(f"Analyzing first column for aggregation: '{col_str}'")
+                
+                is_aggregate, func_name, col_name = self.detect_aggregate_function(col_str)
+                if is_aggregate:
+                    logging.error(f"DETECTED AGGREGATE FUNCTION: {func_name}({col_name})")
+                    
+                    # Create an aggregate plan directly
+                    table = parsed_query.get("tables", [""])[0] if parsed_query.get("tables") else ""
+                    condition = parsed_query.get("condition")
+                    
+                    aggregate_plan = {
+                        "type": "AGGREGATE",
+                        "function": func_name,
+                        "column": col_name,
+                        "table": table,
+                        "condition": condition
+                    }
+                    
+                    # Return the plan immediately without further processing
+                    return self.log_execution_plan(aggregate_plan)
+
         if parsed_query["type"] == "SELECT":
             plan = self.plan_select(parsed_query)
         elif parsed_query["type"] == "INSERT":
@@ -245,6 +274,65 @@ class Planner:
             "table": parsed_query.get("table"),
         }
 
+    def detect_aggregate_function(self, column_str):
+        """
+        Helper method to detect if a column contains an aggregate function.
+        Returns tuple of (is_aggregate, function_name, column_name) if found.
+        """
+        if not column_str or column_str == "*":
+            return (False, None, None)
+
+        # Directly check for common aggregate function syntax
+        for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX"]:
+            if column_str.upper().startswith(f"{func_name}("):
+                # Extract column name between parentheses
+                col_name = column_str[len(func_name)+1:].rstrip(")")
+                logging.error(f"DIRECTLY MATCHED {func_name}({col_name})")
+                return (True, func_name, col_name)
+        
+        # No direct match found
+        return (False, None, None)
+
+    def plan_aggregate(self, parsed_query):
+        """
+        Plan for aggregate queries (COUNT, SUM, AVG, MIN, MAX)
+        """
+        logging.error("Creating dedicated AGGREGATE plan")
+
+        # Get the first column which should contain the aggregate function
+        columns = parsed_query.get("columns", [])
+        if not columns:
+            return self.plan_select(parsed_query)  # Fallback to regular select
+
+        col_str = str(columns[0])
+
+        # Check for common aggregate functions with simple string operations
+        for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX"]:
+            if col_str.upper().startswith(f"{func_name}("):
+                # Extract column name between parentheses
+                col_name = col_str[len(func_name)+1:].rstrip(")")
+
+                # Find the table
+                tables = parsed_query.get("tables", [])
+                table = tables[0] if tables else None
+
+                # Get condition
+                condition = parsed_query.get("condition")
+
+                logging.error(f"Creating AGGREGATE plan: {func_name}({col_name}) on {table}")
+
+                # Return the aggregate plan
+                return {
+                    "type": "AGGREGATE",
+                    "function": func_name,
+                    "column": col_name,
+                    "table": table,
+                    "condition": condition,
+                }
+
+        # If we get here, there's no valid aggregate function
+        return self.plan_select(parsed_query)  # Fallback to regular select
+
     def plan_select(self, parsed_query):
         """
         Plan for SELECT queries.
@@ -268,27 +356,64 @@ class Planner:
 
         # Check for aggregation functions in columns
         columns = parsed_query.get("columns", [])
+        logging.error(f"Planner checking columns for aggregates: {columns}")
+
         for col in columns:
-            # Check if this is an aggregate function
-            if isinstance(col, str) and "(" in col and ")" in col:
-                func_match = re.match(r"(\w+)\(([^)]*)\)", col)
-                if func_match:
-                    func_name = func_match.group(1).upper()
-                    if func_name in ("COUNT", "SUM", "AVG", "MIN", "MAX"):
-                        # This is an aggregation query
-                        col_name = func_match.group(2).strip()
-                        if col_name == "*" and func_name != "COUNT":
-                            col_name = None  # Only COUNT(*) is valid
+            col_str = str(col) if col is not None else ""
+            logging.error(f"Checking column: {col_str!r}")
 
-                        return {
-                            "type": "AGGREGATE",
-                            "function": func_name,
-                            "column": col_name,
-                            "table": table,
-                            "condition": condition,
-                        }
+            # Skip the wildcard character
+            if col_str == "*":
+                continue
 
-        # No aggregation, regular SELECT
+            # Direct string check for common aggregate functions
+            for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX"]:
+                if col_str.upper().startswith(f"{func_name}("):
+                    # Extract the column name between parentheses
+                    col_name = col_str[len(func_name)+1:].rstrip(")")
+                    logging.error(f"Direct match! Creating AGGREGATE plan for {func_name}({col_name})")
+                    return {
+                        "type": "AGGREGATE",
+                        "function": func_name,
+                        "column": col_name,
+                        "table": table,
+                        "condition": condition,
+                    }
+
+            if "(" in col_str and ")" in col_str:
+                logging.error(f"Potential aggregate function found: {col_str}")
+
+                # Try all possible patterns for maximum compatibility
+                patterns = [
+                    r"(\w+)\(([^)]*)\)",                # Basic: COUNT(*)
+                    r"(\w+)\s*\(\s*(.*?)\s*\)",         # With spaces: COUNT( * )
+                    r"(\w+)\s*\(\s*([^\s)]+)\s*\)"      # Mixed: COUNT(column_name)
+                ]
+
+                for pattern in patterns:
+                    func_match = re.search(pattern, col_str, re.IGNORECASE)
+                    if func_match:
+                        func_name = func_match.group(1).upper()
+                        logging.error(f"Extracted function: {func_name}")
+                        
+                        if func_name in ("COUNT", "SUM", "AVG", "MIN", "MAX"):
+                            # This is an aggregation query
+                            col_name = func_match.group(2).strip()
+                            if col_name == "*" and func_name != "COUNT":
+                                logging.error(f"Invalid: {func_name}(*) is not allowed")
+                                continue  # Skip this invalid combination
+                                
+                            logging.error(f"Creating AGGREGATE plan for {func_name}({col_name})")
+                            return {
+                                "type": "AGGREGATE",
+                                "function": func_name,
+                                "column": col_name,
+                                "table": table,
+                                "condition": condition,
+                            }
+
+        # No aggregation found - it's a regular SELECT
+        logging.error("No valid aggregate functions found, proceeding with regular SELECT")
         return {
             "type": "SELECT",
             "table": table,
@@ -296,6 +421,7 @@ class Planner:
             "condition": condition,
             "order_by": order_by,
             "limit": limit,
+            "tables": tables,  # Include tables list for compatibility
         }
 
     def plan_join(self, parsed_query):

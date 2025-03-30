@@ -147,8 +147,12 @@ class SQLParser:
         join_type = None
         join_condition = None
 
-        # First extract the table name(s) directly from the SQL
-        raw_sql = str(parsed).upper()
+        # Get original SQL to preserve case for column names
+        original_sql = str(parsed)
+
+        # Convert to uppercase only for keyword detection
+        raw_sql = original_sql.upper()
+
         if " FROM " in raw_sql:
             parts = raw_sql.split(" FROM ", 1)
             if len(parts) > 1:
@@ -178,13 +182,26 @@ class SQLParser:
                     # Simple table list
                     tables = [t.strip() for t in tables_part.split(",")]
 
-        # Now extract column names
-        col_part = raw_sql.split(" FROM ")[0].replace("SELECT", "", 1).strip()
-        if col_part == "*":
-            columns = ["*"]
-        else:
-            # Handle multiple columns
-            columns = [c.strip() for c in col_part.split(",")]
+        # Now extract column names FROM THE ORIGINAL SQL to preserve case
+        if " FROM " in raw_sql:
+            orig_parts = original_sql.split(" FROM ", 1)
+            col_part = orig_parts[0].replace("SELECT", "", 1).strip()
+
+            # Debug logging
+            logging.error(f"Column part before processing: '{col_part}'")
+
+            # Always process columns regardless of aggregate functions
+            if col_part == "*":
+                columns = ["*"]
+            else:
+                # Split columns preserving case
+                columns = [c.strip() for c in col_part.split(",")]
+                logging.error(f"Extracted columns: {columns}")
+
+                # Additional log for aggregate detection
+                for col in columns:
+                    if "(" in col and ")" in col:
+                        logging.error(f"Potential aggregate function found: {col}")
 
         # Extract WHERE condition
         if " WHERE " in raw_sql:
@@ -192,15 +209,20 @@ class SQLParser:
             if len(where_parts) > 1:
                 condition_part = where_parts[1]
                 # Condition ends at the next clause
-                end_keywords = [" ORDER BY ",
-                                " GROUP BY ", " HAVING ", " LIMIT "]
+                end_keywords = [" ORDER BY ", " GROUP BY ", " HAVING ", " LIMIT "]
                 condition_end = len(condition_part)
                 for keyword in end_keywords:
                     pos = condition_part.find(keyword)
                     if pos != -1 and pos < condition_end:
                         condition_end = pos
 
-                condition = condition_part[:condition_end].strip()
+                # Get condition from original SQL to preserve case
+                orig_where_parts = original_sql.split(" WHERE ", 1)
+                if len(orig_where_parts) > 1:
+                    orig_condition_part = orig_where_parts[1]
+                    condition = orig_condition_part[:condition_end].strip()
+                else:
+                    condition = condition_part[:condition_end].strip()
 
         # Extract ORDER BY
         if " ORDER BY " in raw_sql:
@@ -680,4 +702,3 @@ class SQLParser:
             "column": column_name,
             "unique": is_unique,
         }
-

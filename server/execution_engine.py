@@ -105,247 +105,134 @@ class ExecutionEngine:
         return {}
 
     def execute_aggregate(self, plan):
-        """
-        Execute an aggregation function (COUNT, SUM, AVG, MIN, MAX).
-        """
+        """Execute an aggregation function (COUNT, SUM, AVG, MIN, MAX)."""
+        logging.error(f"AGGREGATE FUNCTION CALLED: {plan}")
+        
         function = plan.get("function", "").upper()
         column = plan.get("column")
         table_name = plan.get("table")
         condition = plan.get("condition")
-
-        # Get current database
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {
-                "error": "No database selected. Use 'USE database_name' first.",
-                "status": "error",
-                "type": "error",
-            }
-
-        # Case insensitive table lookup
-        table_found = False
-        tables = self.catalog_manager.list_tables(db_name)
-        for db_table in tables:
-            if db_table.lower() == table_name.lower():
-                table_name = db_table  # Use the correct case
-                table_found = True
-                break
-
-        if not table_found:
-            return {
-                "error": f"Table '{table_name}' does not exist in database '{db_name}'",
-                "status": "error",
-                "type": "error",
-            }
-
-        # Parse conditions if any
-        parsed_conditions = []
-        if condition:
-            parsed_conditions = self._parse_condition_to_list(condition)
-
+        
+        # First, get the data using execute_select to reuse that logic
+        select_plan = {
+            "type": "SELECT",
+            "table": table_name,
+            "tables": [table_name] if table_name else [], 
+            "columns": ["*"],  # Always get all columns to find the one we need
+            "condition": condition
+        }
+        
+        # Get raw data using the existing select functionality
+        result = self.catalog_manager.query_with_condition(
+            table_name, [], ["*"]
+        )
+        
         try:
-            # Query all records from the table
-            results = self.catalog_manager.query_with_condition(
-                table_name, parsed_conditions, ["*"]
-            )
-            logging.debug(f"Aggregate query found {len(results)} records")
-
-            # Column name mapping for case insensitivity
-            column_map = {}
-            if results and len(results) > 0:
-                for col in results[0]:
-                    column_map[col.lower()] = col
-
-            # Map the requested column to its actual case in the data
-            actual_column = None
-            if column != "*":
-                for col_lower, col_actual in column_map.items():
-                    if col_lower == column.lower():
-                        actual_column = col_actual
-                        break
-
             # Calculate the aggregate result
             aggregate_result = None
-
+            
+            # Find the actual column name with original case
+            actual_column = None
+            if column != "*" and result and len(result) > 0:
+                for col in result[0]:
+                    if col.lower() == column.lower():
+                        actual_column = col
+                        break
+            
+            # Calculate based on the function type
             if function == "COUNT":
-                # Count records or non-null values in specified column
                 if column == "*":
-                    aggregate_result = len(results)
+                    aggregate_result = len(result)
                 else:
                     if not actual_column:
-                        return {
-                            "error": f"Column '{column}' not found",
-                            "status": "error",
-                            "type": "error",
-                        }
-
-                    # Count non-null values in the column
-                    count = 0
-                    for record in results:
-                        if (
-                            actual_column in record
-                            and record[actual_column] is not None
-                        ):
-                            count += 1
+                        return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                    count = sum(1 for record in result if actual_column in record and record[actual_column] is not None)
                     aggregate_result = count
-
+                    
             elif function == "SUM":
-                # Sum values in specified column
+                # Sum non-null numeric values
                 if column == "*":
-                    return {
-                        "error": "Cannot use SUM with *",
-                        "status": "error",
-                        "type": "error",
-                    }
-
+                    return {"error": "Cannot use SUM with *", "status": "error", "type": "error"}
                 if not actual_column:
-                    return {
-                        "error": f"Column '{column}' not found",
-                        "status": "error",
-                        "type": "error",
-                    }
-
-                sum_value = 0
-                num_values = 0
-
-                for record in results:
+                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                
+                total = 0
+                count = 0
+                for record in result:
                     if actual_column in record and record[actual_column] is not None:
                         try:
-                            value = float(record[actual_column])
-                            sum_value += value
-                            num_values += 1
+                            total += float(record[actual_column])
+                            count += 1
                         except (ValueError, TypeError):
-                            # Skip non-numeric values
-                            pass
-
-                aggregate_result = sum_value if num_values > 0 else None
-
+                            pass  # Skip non-numeric values
+                aggregate_result = total if count > 0 else None
+                
             elif function == "AVG":
-                # Calculate average of values in specified column
+                # Average of non-null numeric values
                 if column == "*":
-                    return {
-                        "error": "Cannot use AVG with *",
-                        "status": "error",
-                        "type": "error",
-                    }
-
+                    return {"error": "Cannot use AVG with *", "status": "error", "type": "error"}
                 if not actual_column:
-                    return {
-                        "error": f"Column '{column}' not found",
-                        "status": "error",
-                        "type": "error",
-                    }
-
-                sum_value = 0
-                num_values = 0
-
-                for record in results:
+                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                
+                total = 0
+                count = 0
+                for record in result:
                     if actual_column in record and record[actual_column] is not None:
                         try:
-                            value = float(record[actual_column])
-                            sum_value += value
-                            num_values += 1
+                            total += float(record[actual_column])
+                            count += 1
                         except (ValueError, TypeError):
-                            # Skip non-numeric values
-                            pass
-
-                aggregate_result = sum_value / num_values if num_values > 0 else None
-
+                            pass  # Skip non-numeric values
+                aggregate_result = (total / count) if count > 0 else None
+                
             elif function == "MIN":
-                # Find minimum value in specified column
+                # Minimum non-null value
                 if column == "*":
-                    return {
-                        "error": "Cannot use MIN with *",
-                        "status": "error",
-                        "type": "error",
-                    }
-
+                    return {"error": "Cannot use MIN with *", "status": "error", "type": "error"}
                 if not actual_column:
-                    return {
-                        "error": f"Column '{column}' not found",
-                        "status": "error",
-                        "type": "error",
-                    }
-
-                min_value = None
-
-                for record in results:
+                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                
+                values = []
+                for record in result:
                     if actual_column in record and record[actual_column] is not None:
-                        value = record[actual_column]
-                        try:
-                            # Try to compare as number
-                            value_float = float(value)
-                            if min_value is None or value_float < min_value:
-                                min_value = value_float
-                        except (ValueError, TypeError):
-                            # For non-numeric values, compare as strings
-                            if min_value is None or str(value) < str(min_value):
-                                min_value = value
-
-                aggregate_result = min_value
-
+                        values.append(record[actual_column])
+                aggregate_result = min(values) if values else None
+                
             elif function == "MAX":
-                # Find maximum value in specified column
+                # Maximum non-null value
                 if column == "*":
-                    return {
-                        "error": "Cannot use MAX with *",
-                        "status": "error",
-                        "type": "error",
-                    }
-
+                    return {"error": "Cannot use MAX with *", "status": "error", "type": "error"}
                 if not actual_column:
-                    return {
-                        "error": f"Column '{column}' not found",
-                        "status": "error",
-                        "type": "error",
-                    }
-
-                max_value = None
-
-                for record in results:
+                    return {"error": f"Column '{column}' not found", "status": "error", "type": "error"}
+                
+                values = []
+                for record in result:
                     if actual_column in record and record[actual_column] is not None:
-                        value = record[actual_column]
-                        try:
-                            # Try to compare as number
-                            value_float = float(value)
-                            if max_value is None or value_float > max_value:
-                                max_value = value_float
-                        except (ValueError, TypeError):
-                            # For non-numeric values, compare as strings
-                            if max_value is None or str(value) > str(max_value):
-                                max_value = value
-
-                aggregate_result = max_value
-
+                        values.append(record[actual_column])
+                aggregate_result = max(values) if values else None
+                
+            # Format result column name and value
+            result_column = f"{function}({column})"
+            if isinstance(aggregate_result, float):
+                display_value = f"{aggregate_result:.2f}"
             else:
-                return {
-                    "error": f"Unsupported aggregation function: {function}",
-                    "status": "error",
-                    "type": "error",
-                }
-
-            # Format the result with proper column name
-            column_display = "*" if column == "*" else column.upper()
-            result_column = f"{function}({column_display})"
-
-            logging.debug(f"Aggregate result: {
-                          result_column} = {aggregate_result}")
-
-            # Return a single row with the aggregate result
+                display_value = str(aggregate_result) if aggregate_result is not None else "NULL"
+            
+            # Return in the standard result format
             return {
                 "columns": [result_column],
-                "rows": [[aggregate_result]],  # Single row with single value
+                "rows": [[display_value]],
                 "status": "success",
-                "type": "aggregate_result",
+                "type": "select_result",
+                "rowCount": 1
             }
-
+        
         except Exception as e:
+            logging.error(f"Error executing aggregate: {str(e)}")
             import traceback
-
-            logging.error(f"Error executing {function} aggregate: {str(e)}")
             logging.error(traceback.format_exc())
             return {
-                "error": f"Error executing {function} aggregate: {str(e)}",
+                "error": f"Error executing aggregate: {str(e)}",
                 "status": "error",
                 "type": "error",
             }
@@ -523,7 +410,6 @@ class ExecutionEngine:
 
         except Exception as e:
             logging.error(f"Error executing join: {str(e)}")
-            import traceback
 
             logging.error(traceback.format_exc())
             return {
@@ -1062,6 +948,15 @@ class ExecutionEngine:
         return conditions
 
     def parse_expression(self, tokens, start=0):
+        """_summary_
+
+        Args:
+            tokens (_type_): _description_
+            start (int, optional): _description_. Defaults to 0.
+
+        Returns:
+            _type_: _description_
+        """
         conditions = []
         i = start
         current_condition = None
@@ -1072,8 +967,7 @@ class ExecutionEngine:
 
             # Handle parenthesized expressions
             if token == "(":
-                sub_conditions, end_idx = self.parse_expression(
-                    self, tokens, i + 1)
+                sub_conditions, end_idx = self.parse_expression(tokens, i + 1)
 
                 if current_condition is None:
                     current_condition = {
@@ -1116,8 +1010,7 @@ class ExecutionEngine:
                     i += 1  # Skip the next token as we've combined it
                 else:
                     # Standalone NOT - needs to be applied to the next condition
-                    next_cond, end_idx = self.parse_expression(
-                        self, tokens, i + 1)
+                    next_cond, end_idx = self.parse_expression(tokens, i + 1)
                     current_condition = {
                         "type": "NOT",
                         "condition": next_cond[0] if next_cond else {},
@@ -1300,6 +1193,31 @@ class ExecutionEngine:
 
     def execute_select(self, plan):
         """Execute a SELECT query and return results."""
+        # Check for aggregate functions in column names
+        columns = plan.get("columns", [])
+        for i, col in enumerate(columns):
+            if isinstance(col, str) and col != "*":
+                # Check for standard aggregate functions
+                match = re.search(r"(\w+)\s*\(\s*([^)]*)\s*\)", col)
+                if match:
+                    func_name = match.group(1).upper()
+                    col_name = match.group(2).strip()
+                    
+                    if func_name in ("COUNT", "SUM", "AVG", "MIN", "MAX"):
+                        logging.error(f"Detected aggregate function in execute_select: {func_name}({col_name})")
+                        
+                        # Create a temporary aggregate plan
+                        agg_plan = {
+                            "type": "AGGREGATE",
+                            "function": func_name,
+                            "column": col_name,
+                            "table": plan.get("table") or (plan.get("tables", [""])[0] if plan.get("tables") else ""),
+                            "condition": plan.get("condition")
+                        }
+                        
+                        # Execute the aggregate plan instead
+                        return self.execute_aggregate(agg_plan)
+
         # Get table name
         table_name = plan.get("table")
         if not table_name and "tables" in plan and plan["tables"]:
@@ -1406,39 +1324,60 @@ class ExecutionEngine:
 
             # Figure out which columns to include in the result, with original case
             if "*" in columns:
-                # Use all columns from first record (original case)
-                result_columns = list(results[0].keys())
+                # Make sure we have results and they have keys
+                if results and isinstance(results[0], dict) and results[0]:
+                    # Use all columns from first record (original case)
+                    result_columns = list(results[0].keys())
+
+                    # Log column names that will be returned
+                    logging.error(f"SELECT * will return these columns: {result_columns}")
+
+                    # Create rows with ALL columns from each record IN ORDER
+                    for record in results:
+                        row = []
+                        for col in result_columns:
+                            row.append(record.get(col))
+                        result_rows.append(row)
+                else:
+                    # Handle empty results or malformed data
+                    logging.error("No valid results or empty dictionary in results")
+                    if results:
+                        # Try to recover column names if possible
+                        for record in results:
+                            if isinstance(record, dict) and record:
+                                result_columns = list(record.keys())
+                                break
             else:
                 # For specific columns, find the original case from data
                 result_columns = []
                 for col in columns:
                     # Find matching column with original case
                     original_case_col = None
-                    for actual_col in column_case_map:
+                    for actual_col in results[0].keys():
                         if actual_col.lower() == col.lower():
-                            original_case_col = column_case_map[actual_col]
+                            original_case_col = actual_col
                             break
 
                     # Use original case if found, otherwise use as provided
                     result_columns.append(original_case_col or col)
+                
+                # Create rows with the selected columns
+                for record in results:
+                    row = []
+                    for column_name in result_columns:
+                        # Find the matching column case-insensitively
+                        value = None
+                        for record_col in record:
+                            if record_col.lower() == column_name.lower():
+                                value = record[record_col]
+                                break
+                        row.append(value)
+                    result_rows.append(row)
 
-            # Create rows with the selected columns
-            for record in results:
-                row = []
-                for column_name in result_columns:
-                    # Find the matching column case-insensitively
-                    value = None
-                    for record_col in record:
-                        if record_col.lower() == column_name.lower():
-                            value = record[record_col]
-                            break
-                    row.append(value)
-                result_rows.append(row)
-
-            logging.debug(
-                f"Final result: {len(result_rows)} rows, {
-                    len(result_columns)} columns"
-            )
+            logging.error(f"Final result: {len(result_rows)} rows with columns: {result_columns}")
+            # Debug print first row to verify data
+            if result_rows:
+                logging.error(f"First row data: {result_rows[0]}")
 
             return {
                 "columns": result_columns,  # Original case preserved
