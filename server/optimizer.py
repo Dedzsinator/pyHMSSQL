@@ -3,13 +3,16 @@
 Returns:
     _type_: _description_
 """
+
 import logging
 import re
 import os
 from bptree import BPlusTree
 
+
 class Optimizer:
     """Query optimizer class"""
+
     def __init__(self, catalog_manager, index_manager):
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
@@ -57,26 +60,26 @@ class Optimizer:
         Optimize a JOIN query by selecting the most appropriate join algorithm.
         """
         logging.debug(f"Optimizing JOIN plan: {plan}")
-        
+
         table1 = plan.get("table1", "")
         table2 = plan.get("table2", "")
         condition = plan.get("condition", "")
-        
+
         # Extract column names from condition
         left_column, right_column = self._extract_join_columns(condition)
         if not left_column or not right_column:
             # Default to hash join for cross joins or complex conditions
             plan["join_algorithm"] = "HASH"
             return plan
-        
+
         # Check for indexes on join columns
         left_index = self.index_manager.get_index(f"{table1}.{left_column}")
         right_index = self.index_manager.get_index(f"{table2}.{right_column}")
-        
+
         # Get table statistics
         left_table_size = self.catalog_manager.get_table_size(table1)
         right_table_size = self.catalog_manager.get_table_size(table2)
-        
+
         # Algorithm selection logic:
         if left_index or right_index:
             # Use index join if an index exists on either join column
@@ -86,11 +89,16 @@ class Optimizer:
             # For very small tables, nested loop can be efficient
             plan["join_algorithm"] = "NESTED_LOOP"
             logging.debug(f"Selected NESTED_LOOP join for small tables")
-        elif abs(left_table_size - right_table_size) > 10 * min(left_table_size, right_table_size):
+        elif abs(left_table_size - right_table_size) > 10 * min(
+            left_table_size, right_table_size
+        ):
             # For tables with very different sizes, hash join is usually best
             plan["join_algorithm"] = "HASH"
-            logging.debug(f"Selected HASH join for tables with different sizes")
-        elif self.catalog_manager.is_table_sorted(table1, left_column) or self.catalog_manager.is_table_sorted(table2, right_column):
+            logging.debug(
+                f"Selected HASH join for tables with different sizes")
+        elif self.catalog_manager.is_table_sorted(
+            table1, left_column
+        ) or self.catalog_manager.is_table_sorted(table2, right_column):
             # If one of the tables is already sorted on join column
             plan["join_algorithm"] = "MERGE"
             logging.debug(f"Selected MERGE join for pre-sorted data")
@@ -98,36 +106,39 @@ class Optimizer:
             # Default to hash join
             plan["join_algorithm"] = "HASH"
             logging.debug(f"Selected HASH join as default")
-        
+
         # Override with user hint if provided
         if "join_algorithm" in plan and plan["join_algorithm"]:
-            logging.debug(f"Using user-specified join algorithm: {plan['join_algorithm']}")
-        
+            logging.debug(
+                f"Using user-specified join algorithm: {
+                    plan['join_algorithm']}"
+            )
+
         return plan
 
     def _extract_join_columns(self, condition):
         """
         Extract column names from join condition.
-        
+
         Args:
             condition: Join condition string like "t1.col1 = t2.col2"
-            
+
         Returns:
             Tuple of (left_column, right_column)
         """
         if not condition:
             return None, None
-        
+
         # Try to match table.column = table.column pattern
         match = re.search(r"(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)", condition)
         if match:
             return match.group(2), match.group(4)
-        
+
         # Try simpler column = column pattern
         match = re.search(r"(\w+)\s*=\s*(\w+)", condition)
         if match:
             return match.group(1), match.group(2)
-        
+
         return None, None
 
     def merge_filter_into_join(self, plan):
@@ -296,28 +307,30 @@ class Optimizer:
     def get_table_size(self, table_name):
         """
         Get the approximate size (number of records) of a table.
-        
+
         Args:
             table_name: Name of the table
-            
+
         Returns:
             Approximate number of records in the table
         """
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
             return 0
-        
+
         # Load the table file
-        table_file = os.path.join(self.catalog_manager.tables_dir, db_name, f"{table_name}.tbl")
+        table_file = os.path.join(
+            self.catalog_manager.tables_dir, db_name, f"{table_name}.tbl"
+        )
         if not os.path.exists(table_file):
             return 0
-        
+
         try:
             # Load the B+ tree
             tree = BPlusTree.load_from_file(table_file)
             if tree is None:
                 return 0
-            
+
             # Count records
             all_records = tree.range_query(float("-inf"), float("inf"))
             return len(all_records) if all_records else 0
@@ -329,11 +342,11 @@ class Optimizer:
         """
         Check if a table is already sorted by a specific column.
         This is an approximation as we don't actually track sorting.
-        
+
         Args:
             table_name: Name of the table
             column_name: Name of the column
-            
+
         Returns:
             True if an index exists on this column (which implies sorting capability)
         """
@@ -343,5 +356,6 @@ class Optimizer:
         for _, idx_info in indexes.items():
             if idx_info.get("column") == column_name:
                 return True
-        
+
         return False
+

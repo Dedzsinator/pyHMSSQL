@@ -467,6 +467,52 @@ GROUP BY dept_id
 -- Nested subqueries
 query SELECT * FROM employees 
 WHERE salary > (SELECT AVG(salary) FROM employees)
+
+---
+-- index tests
+
+-- Create a test database
+CREATE DATABASE index_test;
+USE index_test;
+
+-- Create a test table with data
+CREATE TABLE employees (
+  id INT,
+  name VARCHAR(50),
+  salary FLOAT,
+  department VARCHAR(20)
+);
+
+-- Insert sample data
+INSERT INTO employees VALUES (1, 'John Doe', 75000.00, 'Engineering');
+INSERT INTO employees VALUES (2, 'Jane Smith', 82000.00, 'Marketing');
+INSERT INTO employees VALUES (3, 'Bob Johnson', 65000.00, 'Engineering');
+INSERT INTO employees VALUES (4, 'Alice Brown', 90000.00, 'Finance');
+INSERT INTO employees VALUES (5, 'Chris Davis', 78000.00, 'Engineering');
+
+-- Create a regular index on department
+CREATE INDEX dept_idx ON employees (department);
+
+-- Create a unique index on id
+CREATE INDEX id_idx ON employees (id) UNIQUE;
+
+-- Visualize a specific index
+VISUALIZE BPTREE dept_idx ON employees;
+
+-- Visualize all indexes
+VISUALIZE BPTREE;
+
+-- This should use the department index
+SELECT * FROM employees WHERE department = 'Engineering';
+
+-- This should use the id index
+SELECT * FROM employees WHERE id = 3;
+
+-- Drop an index
+DROP INDEX dept_idx ON employees;
+
+-- Verify it's gone
+VISUALIZE BPTREE;
 ```
 
 ## 📊 Architecture

@@ -422,4 +422,3 @@ class BPTreeVisualizer:
         info["node_count"] += child_info["node_count"]
 
         return info
-

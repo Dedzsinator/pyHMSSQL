@@ -4,15 +4,7 @@ import os
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import sqlparse
-from parser import SQLParser
-from shared.utils import (receive_data, send_data)
-from shared.constants import SERVER_HOST, SERVER_PORT
-from optimizer import Optimizer
-from execution_engine import ExecutionEngine
-from planner import Planner
-from index_manager import IndexManager
-from catalog_manager import CatalogManager
+# Standard library imports
 import socket
 import json
 import traceback
@@ -22,8 +14,23 @@ import re
 import datetime
 from logging.handlers import RotatingFileHandler
 
+# Local imports - these need the path modification above
+from parser import SQLParser  # noqa: E402
+from shared.utils import (receive_data, send_data)  # noqa: E402
+from shared.constants import SERVER_HOST, SERVER_PORT  # noqa: E402
+from optimizer import Optimizer  # noqa: E402
+from execution_engine import ExecutionEngine  # noqa: E402
+from planner import Planner  # noqa: E402
+from ddl_processor.index_manager import IndexManager  # noqa: E402
+from catalog_manager import CatalogManager  # noqa: E402
+
 
 def setup_logging():
+    """_summary_
+
+    Returns:
+        _type_: _description_
+    """
     # Create logs directory if it doesn't exist
     logs_dir = os.path.join(os.path.dirname(
         os.path.abspath(__file__)), "../logs")
@@ -73,12 +80,10 @@ class DBMSServer:
     """
     def __init__(self, host="localhost", port=9999, data_dir="data"):
         self.catalog_manager = CatalogManager(data_dir)
-        self.index_manager = IndexManager("indexes")
+        self.index_manager = IndexManager(self.catalog_manager)
 
         # Create execution engine first
-        self.execution_engine = ExecutionEngine(
-            self.catalog_manager, self.index_manager
-        )
+        self.execution_engine = ExecutionEngine(self.catalog_manager, self.index_manager)
 
         # Then create SQL parser with reference to execution engine
         self.sql_parser = SQLParser(self.execution_engine)
@@ -219,10 +224,7 @@ class DBMSServer:
             # Create a new session
             session_id = str(uuid.uuid4())
             self.sessions[session_id] = user
-            logging.info(
-                f"User {username} logged in successfully (role: {
-                    user['role']})"
-            )
+            logging.info("User %s logged in successfully (role: %s)", username, user["role"])
             return {
                 "session_id": session_id,
                 "role": user["role"],
@@ -257,14 +259,13 @@ class DBMSServer:
         result = self.catalog_manager.register_user(username, password, role)
         if "error" not in str(result).lower():
             logging.info(
-                f"User {username} registered successfully with role: {role}")
+                "User %s registered successfully with role: %s", username, role)
             return {
                 "message": f"User {username} registered successfully as {role}",
                 "status": "success",
             }
         else:
-            logging.warning(f"Failed registration for user {
-                            username}: {result}")
+            logging.warning("Failed registration for user %s: %s", username, result)
             if isinstance(result, str):
                 return {"error": result, "status": "error"}
             return result
@@ -280,7 +281,7 @@ class DBMSServer:
         try:
             timestamp = datetime.datetime.now().isoformat()
             log_entry = {"timestamp": timestamp,
-                         "username": username, "query": query}
+                        "username": username, "query": query}
 
             # Log to the audit log file
             logs_dir = os.path.join(
@@ -288,7 +289,7 @@ class DBMSServer:
             )
             audit_log_file = os.path.join(logs_dir, "query_audit.log")
 
-            with open(audit_log_file, "a") as f:
+            with open(audit_log_file, "a", encoding="utf-8") as f:
                 f.write(f"{timestamp} | {username} | {query}\n")
 
             # Also log to the standard logger
@@ -297,7 +298,7 @@ class DBMSServer:
             # Optionally store in a database for more advanced auditing
             self._store_audit_log(log_entry)
 
-        except Exception as e:
+        except (IOError, PermissionError, FileNotFoundError) as e:
             # Don't let logging errors affect query execution
             logging.error('Failed to log query: %s', str(e))
 
@@ -314,7 +315,7 @@ class DBMSServer:
             # Example with a hypothetical audit_db:
             # self.audit_db.audit_logs.insert_one(log_entry)
             pass
-        except Exception as e:
+        except (ValueError, SyntaxError, TypeError, AttributeError, KeyError, RuntimeError) as e:
             logging.error('Failed to store audit log: %s', str(e))
 
     def handle_query(self, data):
@@ -352,7 +353,7 @@ class DBMSServer:
 
             result = self.execution_engine.execute(parsed)
             return result
-        except Exception as e:
+        except (ValueError, SyntaxError, TypeError, AttributeError, KeyError, RuntimeError) as e:
             logging.error('Error executing query: %s', str(e))
             logging.error(traceback.format_exc())
             return {"error": str(e), "status": "error"}
@@ -441,6 +442,8 @@ class DBMSServer:
 
 
 def start_server():
+    """_summary_
+    """
     # Make sure sqlparse is installed
     try:
         import sqlparse

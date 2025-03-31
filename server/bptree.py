@@ -345,4 +345,3 @@ class BPlusTree:
         except Exception as e:
             logging.error(f"Error loading B+ tree file {filename}: {str(e)}")
             return None
-

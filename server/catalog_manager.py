@@ -637,7 +637,8 @@ class CatalogManager:
                     ):
                         logging.warning(
                             f"Primary key violation: {pk_column}={
-                                pk_value} already exists"
+                                pk_value
+                            } already exists"
                         )
                         return f"Primary key violation: {pk_column}={pk_value} already exists"
 
@@ -717,8 +718,9 @@ class CatalogManager:
                         # Already indexed, but could be the same record (update case)
                         if existing != record_id:
                             logging.warning(
-                                f"Unique constraint violation on {
-                                    column}={column_value}"
+                                f"Unique constraint violation on {column}={
+                                    column_value
+                                }"
                             )
                             continue
 
@@ -1178,74 +1180,76 @@ class CatalogManager:
     def get_record_by_key(self, table_name, record_key):
         """
         Retrieve a record by its key from a table.
-        
+
         Args:
             table_name: The name of the table
             record_key: The key of the record to retrieve
-            
+
         Returns:
             The record if found, otherwise None
         """
         db_name = self.get_current_database()
         if not db_name:
             return None
-        
+
         # Load the table file
-        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+        table_file = os.path.join(
+            self.tables_dir, db_name, f"{table_name}.tbl")
         if not os.path.exists(table_file):
             return None
-        
+
         try:
             # Load the B+ tree
             tree = BPlusTree.load_from_file(table_file)
             if tree is None:
                 return None
-            
+
             # Search for the record
             return tree.search(record_key)
         except Exception as e:
             logging.error(f"Error retrieving record by key: {str(e)}")
             return None
-    
+
     def table_exists(self, db_name, table_name):
         """
         Check if a table exists in a database.
-        
+
         Args:
             db_name: Database name
             table_name: Table name
-            
+
         Returns:
             bool: True if the table exists, False otherwise
         """
         if db_name not in self.databases:
             return False
-            
+
         tables = self.list_tables(db_name)
         return table_name in tables
 
     def get_table_schema(self, table_name):
         """
         Get schema information for a table.
-        
+
         Args:
             table_name: Name of the table
-            
+
         Returns:
             Dict with table schema information
         """
         db_name = self.get_current_database()
         if not db_name:
             return {"error": "No database selected"}
-            
+
         table_id = f"{db_name}.{table_name}"
-        
+
         # Check if table exists
         if table_id not in self.tables:
             return {"error": f"Table '{table_name}' does not exist"}
-            
+
         # Return table schema from catalog
         return {
             "columns": self.tables[table_id].get("columns", {}),
-            "constraints": self.tables[table_id].get("constraints", [])
+            "constraints": self.tables[table_id].get("constraints", []),
         }
+

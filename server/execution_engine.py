@@ -11,6 +11,7 @@ from transaction.transaction_manager import TransactionManager
 from parsers.condition_parser import ConditionParser
 from utils.visualizer import Visualizer
 
+
 class ExecutionEngine:
     """Main execution engine that coordinates between different modules"""
 
@@ -23,7 +24,9 @@ class ExecutionEngine:
         # Initialize all sub-modules
         self.join_executor = JoinExecutor(catalog_manager, index_manager)
         self.aggregate_executor = AggregateExecutor(catalog_manager)
-        self.select_executor = SelectExecutor(catalog_manager, self.join_executor, self.aggregate_executor)
+        self.select_executor = SelectExecutor(
+            catalog_manager, self.join_executor, self.aggregate_executor
+        )
         self.dml_executor = DMLExecutor(catalog_manager, index_manager)
         self.schema_manager = SchemaManager(catalog_manager)
         self.view_manager = ViewManager(catalog_manager)
@@ -74,6 +77,67 @@ class ExecutionEngine:
             "rows": [[value] for value in distinct_values],
             "status": "success",
         }
+        
+    def execute_create_index(self, plan):
+        """Create an index on a table column"""
+        # Forward to schema_manager with the correct parameters
+        return self.schema_manager.execute_create_index(plan)
+
+    def execute_drop_index(self, plan):
+        """Drop an index"""
+        # Forward to schema_manager with the correct parameters
+        return self.schema_manager.execute_drop_index(plan)
+
+    def execute_visualize_index(self, plan):
+        """Visualize index structure"""
+        index_name = plan.get("index_name")
+        table_name = plan.get("table")
+        
+        # Use the index_manager directly instead of through schema_manager
+        index_manager = self.index_manager 
+        
+        if not index_manager:
+            return {
+                "error": "Index manager not available",
+                "status": "error"
+            }
+            
+        # If specific index is requested
+        if index_name and table_name:
+            full_index_name = f"{table_name}.{index_name}"
+            index = index_manager.get_index(full_index_name)
+            
+            if not index:
+                return {
+                    "error": f"Index '{full_index_name}' not found",
+                    "status": "error"
+                }
+                
+            # Visualize the index
+            try:
+                index.visualize(self.visualizer, output_name=full_index_name)
+                return {
+                    "message": f"Visualized index '{index_name}' on table '{table_name}'",
+                    "status": "success"
+                }
+            except Exception as e:
+                return {
+                    "error": f"Error visualizing index: {str(e)}",
+                    "status": "error"
+                }
+        else:
+            # Visualize all indexes
+            try:
+                count = index_manager.visualize_all_indexes()
+                return {
+                    "message": f"Visualized {count} indexes",
+                    "status": "success"
+                }
+            except Exception as e:
+                return {
+                    "error": f"Error visualizing indexes: {str(e)}",
+                    "status": "error"
+                }
 
     def execute(self, plan):
         """
@@ -108,8 +172,11 @@ class ExecutionEngine:
                 return self.schema_manager.execute_table_operation(plan)
             elif plan_type in ["CREATE_DATABASE", "DROP_DATABASE", "USE_DATABASE"]:
                 return self.schema_manager.execute_database_operation(plan)
-            elif plan_type in ["CREATE_INDEX", "DROP_INDEX"]:
-                return self.schema_manager.execute_index_operation(plan)
+            # Replace these lines for index operations
+            elif plan_type == "CREATE_INDEX":
+                return self.execute_create_index(plan)
+            elif plan_type == "DROP_INDEX":
+                return self.execute_drop_index(plan)
             elif plan_type in ["CREATE_VIEW", "DROP_VIEW"]:
                 return self.view_manager.execute_view_operation(plan)
 
@@ -123,12 +190,12 @@ class ExecutionEngine:
             elif plan_type == "SET":
                 return self.execute_set_preference(plan)
             elif plan_type == "VISUALIZE":
-                return self.visualizer.execute_visualize(plan)
+                return self.execute_visualize_index(plan)
 
             else:
                 return {
                     "error": f"Unsupported operation type: {plan_type}",
-                    "status": "error"
+                    "status": "error",
                 }
 
         except Exception as e:
@@ -152,5 +219,5 @@ class ExecutionEngine:
 
         return {
             "message": f"Preference '{preference}' set to '{value}'.",
-            "status": "success"
+            "status": "success",
         }

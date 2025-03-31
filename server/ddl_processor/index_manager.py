@@ -5,12 +5,12 @@ from bptree import BPlusTree
 
 class IndexManager:
     """Handles index operations and management"""
-    
+
     def __init__(self, catalog_manager):
         self.catalog_manager = catalog_manager
         self.indexes = {}  # In-memory cache of loaded indexes
         self.visualizer = None  # Will be initialized if visualization is needed
-        
+
     def get_index(self, full_index_name):
         """Get an index by its full name (table.index)"""
         if full_index_name in self.indexes:

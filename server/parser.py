@@ -168,49 +168,66 @@ class SQLParser:
                 # Improved JOIN handling
                 tables_part = from_clause[:table_end].strip()
                 join_type = "INNER"  # Default join type
-                
+
                 # Handle different JOIN types
                 if " JOIN " in tables_part:
                     # Extract join information
                     join_info = {}
-                    
+
                     # Match different join patterns
                     if " LEFT JOIN " in tables_part:
                         join_type = "LEFT"
-                        tables = self._extract_join_tables(tables_part, " LEFT JOIN ")
+                        tables = self._extract_join_tables(
+                            tables_part, " LEFT JOIN ")
                     elif " RIGHT JOIN " in tables_part:
                         join_type = "RIGHT"
-                        tables = self._extract_join_tables(tables_part, " RIGHT JOIN ")
-                    elif " FULL JOIN " in tables_part or " FULL OUTER JOIN " in tables_part:
+                        tables = self._extract_join_tables(
+                            tables_part, " RIGHT JOIN ")
+                    elif (
+                        " FULL JOIN " in tables_part
+                        or " FULL OUTER JOIN " in tables_part
+                    ):
                         join_type = "FULL"
-                        tables = self._extract_join_tables(tables_part, " FULL JOIN ") or \
-                                self._extract_join_tables(tables_part, " FULL OUTER JOIN ")
+                        tables = self._extract_join_tables(
+                            tables_part, " FULL JOIN "
+                        ) or self._extract_join_tables(tables_part, " FULL OUTER JOIN ")
                     elif " CROSS JOIN " in tables_part:
-                        join_type = "CROSS" 
-                        tables = self._extract_join_tables(tables_part, " CROSS JOIN ")
+                        join_type = "CROSS"
+                        tables = self._extract_join_tables(
+                            tables_part, " CROSS JOIN ")
                     elif " INNER JOIN " in tables_part:
                         join_type = "INNER"
-                        tables = self._extract_join_tables(tables_part, " INNER JOIN ")
+                        tables = self._extract_join_tables(
+                            tables_part, " INNER JOIN ")
                     else:
                         # Regular JOIN is INNER JOIN
                         join_type = "INNER"
-                        tables = self._extract_join_tables(tables_part, " JOIN ")
-                    
+                        tables = self._extract_join_tables(
+                            tables_part, " JOIN ")
+
                     # Extract join condition from ON clause
                     join_condition = None
                     if " ON " in tables_part:
                         on_parts = tables_part.split(" ON ", 1)
                         if len(on_parts) > 1:
                             join_condition = on_parts[1].strip()
-                            # Handle condition with ending clauses 
-                            for clause in [" WHERE ", " GROUP BY ", " HAVING ", " ORDER BY ", " LIMIT "]:
+                            # Handle condition with ending clauses
+                            for clause in [
+                                " WHERE ",
+                                " GROUP BY ",
+                                " HAVING ",
+                                " ORDER BY ",
+                                " LIMIT ",
+                            ]:
                                 if clause in join_condition:
-                                    join_condition = join_condition.split(clause, 1)[0].strip()
-                    
+                                    join_condition = join_condition.split(clause, 1)[
+                                        0
+                                    ].strip()
+
                     join_info = {
                         "type": join_type,
                         "condition": join_condition,
-                        "tables": tables
+                        "tables": tables,
                     }
 
                     result["join_info"] = join_info
@@ -237,7 +254,8 @@ class SQLParser:
                 # Additional log for aggregate detection
                 for col in columns:
                     if "(" in col and ")" in col:
-                        logging.error(f"Potential aggregate function found: {col}")
+                        logging.error(
+                            f"Potential aggregate function found: {col}")
 
         # Extract WHERE condition
         if " WHERE " in raw_sql:
@@ -245,7 +263,8 @@ class SQLParser:
             if len(where_parts) > 1:
                 condition_part = where_parts[1]
                 # Condition ends at the next clause
-                end_keywords = [" ORDER BY ", " GROUP BY ", " HAVING ", " LIMIT "]
+                end_keywords = [" ORDER BY ",
+                                " GROUP BY ", " HAVING ", " LIMIT "]
                 condition_end = len(condition_part)
                 for keyword in end_keywords:
                     pos = condition_part.find(keyword)
@@ -300,16 +319,16 @@ class SQLParser:
         parts = tables_part.split(join_keyword)
         if len(parts) < 2:
             return []
-        
+
         left_table = parts[0].strip().split()[-1]  # Get last word before JOIN
-        
+
         # Get right table (up to ON clause or end)
         right_part = parts[1]
         if " ON " in right_part:
             right_table = right_part.split(" ON ")[0].strip()
         else:
             right_table = right_part.strip()
-        
+
         return [left_table, right_table]
 
     def _extract_insert_elements(self, parsed, result):
