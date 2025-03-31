@@ -1,5 +1,10 @@
+# Python bytecode files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Project specific
 client/java_client/target/
 logs/
 indexes/
-__pycache__/
 data/

@@ -202,6 +202,10 @@ query DROP DATABASE test_db ✅
 -- Create database for testing
 query CREATE DATABASE test_db ✅
 
+---
+
+query DROP INDEX check!!!!
+
 -- Use the test database
 query USE test_db ✅
 
