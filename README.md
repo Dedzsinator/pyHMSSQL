@@ -207,9 +207,10 @@ query USE test_db ✅
 
 query CREATE TABLE products (id INT IDENTITY(1,1) PRIMARY KEY, name VARCHAR(100) NOT NULL, price DECIMAL(10,2), stock INT DEFAULT 0) ✅
 
-query INSERT INTO products (name, price, stock) VALUES ('Laptop', 999.99, 10) ✅
-query INSERT INTO products (name, price, stock) VALUES ('Phone', 499.99, 20) ✅
-query INSERT INTO products (name, price, stock) VALUES ('Tablet', 299.99, 15) ✅
+-- ✅
+query INSERT INTO products (name, price, stock) VALUES ('Laptop', 999.99, 10) 
+query INSERT INTO products (name, price, stock) VALUES ('Phone', 499.99, 20) 
+query INSERT INTO products (name, price, stock) VALUES ('Tablet', 299.99, 15) 
 
 -- Create a simple table
 query CREATE TABLE customers (id INT PRIMARY KEY, name String, email VARCHAR(100), age INT) ✅

@@ -1207,3 +1207,45 @@ class CatalogManager:
             logging.error(f"Error retrieving record by key: {str(e)}")
             return None
     
+    def table_exists(self, db_name, table_name):
+        """
+        Check if a table exists in a database.
+        
+        Args:
+            db_name: Database name
+            table_name: Table name
+            
+        Returns:
+            bool: True if the table exists, False otherwise
+        """
+        if db_name not in self.databases:
+            return False
+            
+        tables = self.list_tables(db_name)
+        return table_name in tables
+
+    def get_table_schema(self, table_name):
+        """
+        Get schema information for a table.
+        
+        Args:
+            table_name: Name of the table
+            
+        Returns:
+            Dict with table schema information
+        """
+        db_name = self.get_current_database()
+        if not db_name:
+            return {"error": "No database selected"}
+            
+        table_id = f"{db_name}.{table_name}"
+        
+        # Check if table exists
+        if table_id not in self.tables:
+            return {"error": f"Table '{table_name}' does not exist"}
+            
+        # Return table schema from catalog
+        return {
+            "columns": self.tables[table_id].get("columns", {}),
+            "constraints": self.tables[table_id].get("constraints", [])
+        }
