@@ -117,6 +117,7 @@ class Planner:
         """
         Generate an execution plan from the parsed query.
         """
+        logging.info("Planning query of type: %s", parsed_query.get("type", "UNKNOWN"))
         plan = None
 
         # Add diagnostic logging to see what parsed_query contains
@@ -157,50 +158,54 @@ class Planner:
                     # Return the plan immediately without further processing
                     return self.log_execution_plan(aggregate_plan)
 
-        if parsed_query["type"] == "SELECT":
-            plan = self.plan_select(parsed_query)
-        elif parsed_query["type"] == "INSERT":
-            plan = self.plan_insert(parsed_query)
-        elif parsed_query["type"] == "UPDATE":
-            plan = self.plan_update(parsed_query)
-        elif parsed_query["type"] == "DELETE":
-            plan = self.plan_delete(parsed_query)
-        elif parsed_query["type"] == "CREATE":
-            # Check what type of CREATE statement this is
-            create_type = parsed_query.get("create_type")
-            if create_type == "TABLE":
-                plan = self.plan_create_table(parsed_query)
-            elif create_type == "DATABASE":
-                plan = self.plan_create_database(parsed_query)
-            elif create_type == "INDEX":
-                plan = self.plan_create_index(parsed_query)
+        try:
+            if parsed_query["type"] == "SELECT":
+                plan = self.plan_select(parsed_query)
+            elif parsed_query["type"] == "INSERT":
+                plan = self.plan_insert(parsed_query)
+            elif parsed_query["type"] == "UPDATE":
+                plan = self.plan_update(parsed_query)
+            elif parsed_query["type"] == "DELETE":
+                plan = self.plan_delete(parsed_query)
+            elif parsed_query["type"] == "CREATE":
+                # Check what type of CREATE statement this is
+                create_type = parsed_query.get("create_type")
+                if create_type == "TABLE":
+                    plan = self.plan_create_table(parsed_query)
+                elif create_type == "DATABASE":
+                    plan = self.plan_create_database(parsed_query)
+                elif create_type == "INDEX":
+                    plan = self.plan_create_index(parsed_query)
+                else:
+                    raise ValueError("Unsupported CREATE statement type.")
+            elif parsed_query["type"] == "DROP":
+                # Check what type of DROP statement this is
+                drop_type = parsed_query.get("drop_type")
+                if drop_type == "TABLE":
+                    plan = self.plan_drop_table(parsed_query)
+                elif drop_type == "DATABASE":
+                    plan = self.plan_drop_database(parsed_query)
+                elif drop_type == "INDEX":
+                    plan = self.plan_drop_index(parsed_query)
+                else:
+                    raise ValueError("Unsupported DROP statement type.")
+            elif parsed_query["type"] == "JOIN":
+                plan = self.plan_join(parsed_query)
+            elif parsed_query["type"] == "CREATE_VIEW":
+                plan = self.plan_create_view(parsed_query)
+            elif parsed_query["type"] == "DROP_VIEW":
+                plan = self.plan_drop_view(parsed_query)
+            elif parsed_query["type"] == "SHOW":
+                plan = self.plan_show(parsed_query)
+            elif parsed_query["type"] == "USE":
+                plan = self.plan_use_database(parsed_query)
+            elif parsed_query["type"] == "VISUALIZE":
+                return self.plan_visualize(parsed_query)
             else:
-                raise ValueError("Unsupported CREATE statement type.")
-        elif parsed_query["type"] == "DROP":
-            # Check what type of DROP statement this is
-            drop_type = parsed_query.get("drop_type")
-            if drop_type == "TABLE":
-                plan = self.plan_drop_table(parsed_query)
-            elif drop_type == "DATABASE":
-                plan = self.plan_drop_database(parsed_query)
-            elif drop_type == "INDEX":
-                plan = self.plan_drop_index(parsed_query)
-            else:
-                raise ValueError("Unsupported DROP statement type.")
-        elif parsed_query["type"] == "JOIN":
-            plan = self.plan_join(parsed_query)
-        elif parsed_query["type"] == "CREATE_VIEW":
-            plan = self.plan_create_view(parsed_query)
-        elif parsed_query["type"] == "DROP_VIEW":
-            plan = self.plan_drop_view(parsed_query)
-        elif parsed_query["type"] == "SHOW":
-            plan = self.plan_show(parsed_query)
-        elif parsed_query["type"] == "USE":
-            plan = self.plan_use_database(parsed_query)
-        elif parsed_query["type"] == "VISUALIZE":
-            return self.plan_visualize(parsed_query)
-        else:
-            raise ValueError("Unsupported query type.")
+                return {"error": f"Unsupported query type: {parsed_query['type']}"}
+        except ValueError as e:
+            logging.error("Error planning query: %s", e)
+            return {"error": str(e)}
 
         # Log the execution plan
         return self.log_execution_plan(plan)

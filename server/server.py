@@ -26,10 +26,11 @@ from catalog_manager import CatalogManager  # noqa: E402
 
 
 def setup_logging():
-    """_summary_
-
+    """
+    Configure logging with colored output for better visualization of plans.
+    
     Returns:
-        _type_: _description_
+        str: Path to the log file
     """
     # Create logs directory if it doesn't exist
     logs_dir = os.path.join(os.path.dirname(
@@ -42,7 +43,7 @@ def setup_logging():
 
     # Configure root logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)  # Set to DEBUG to capture all messages
+    root_logger.setLevel(logging.INFO)  # Set to INFO for plans to be visible
 
     # Remove any existing handlers
     for handler in root_logger.handlers[:]:
@@ -57,16 +58,22 @@ def setup_logging():
 
     # Set formatter with more detailed information
     formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        "%(asctime)s - %(levelname)s - %(message)s"
     )
     file_handler.setFormatter(formatter)
 
-    # Add file handler
+    # Add console handler for better debugging
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.INFO)
+
+    # Add handlers
     root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
 
     # Log startup message
     logging.info("==== DBMS Server Starting ====")
-    logging.info('Logging to: %s', log_file)
+    logging.info("Logging to: %s", log_file)
 
     return log_file
 
@@ -311,10 +318,7 @@ class DBMSServer:
             log_entry: Dictionary containing audit information
         """
         try:
-            # If you have a database connection for audit logs
-            # Example with a hypothetical audit_db:
-            # self.audit_db.audit_logs.insert_one(log_entry)
-            pass
+            self.audit_db.audit_logs.insert_one(log_entry)
         except (ValueError, SyntaxError, TypeError, AttributeError, KeyError, RuntimeError) as e:
             logging.error('Failed to store audit log: %s', str(e))
 
@@ -332,7 +336,7 @@ class DBMSServer:
         user = self.sessions[session_id]
         query = data.get("query", "")
 
-        logging.info('Query from {user.get("username", "Unknown")}: {query}')
+        logging.info('Query from %s: %s', user.get("username", "Unknown"), query)
 
         # Log the query for audit
         self._log_query(user.get("username"), query)
@@ -341,17 +345,49 @@ class DBMSServer:
         current_db = self.catalog_manager.get_current_database()
         logging.info('Current database: %s', current_db)
 
-        # Parse and execute
+        # Parse and execute with planner and optimizer integration
         try:
+            # 1. Parse SQL query
             parsed = self.sql_parser.parse_sql(query)
             if "error" in parsed:
                 logging.error('SQL parsing error: %s', parsed['error'])
                 return {"error": parsed["error"], "status": "error"}
 
             # Log the parsed query structure
-            logging.debug('Parsed query: %s', parsed)
+            logging.info('▶️ Parsed query: %s', parsed)
 
-            result = self.execution_engine.execute(parsed)
+            # 2. Generate execution plan using planner
+            execution_plan = self.planner.plan_query(parsed)
+            if "error" in execution_plan:
+                logging.error('Error generating plan: %s', execution_plan['error'])
+                return {"error": execution_plan["error"], "status": "error"}
+
+            logging.info('🔄 Initial execution plan:')
+            logging.info('---------------------------------------------')
+            self._log_plan_details(execution_plan)
+            logging.info('---------------------------------------------')
+
+            # 3. Optimize the execution plan
+            optimized_plan = self.optimizer.optimize(execution_plan)
+            if "error" in optimized_plan:
+                logging.error('Error optimizing plan: %s', optimized_plan['error'])
+                return {"error": optimized_plan["error"], "status": "error"}
+
+            logging.info('✅ Optimized execution plan:')
+            logging.info('---------------------------------------------')
+            self._log_plan_details(optimized_plan)
+            logging.info('---------------------------------------------')
+
+            # 4. Execute the optimized plan
+            start_time = datetime.datetime.now()
+            result = self.execution_engine.execute(optimized_plan)
+            execution_time = (datetime.datetime.now() - start_time).total_seconds()
+
+            # Add execution time to result
+            if isinstance(result, dict):
+                result["execution_time_ms"] = round(execution_time * 1000, 2)
+
+            logging.info('⏱️ Query executed in %s ms', round(execution_time * 1000, 2))
             return result
         except (ValueError, SyntaxError, TypeError, AttributeError, KeyError, RuntimeError) as e:
             logging.error('Error executing query: %s', str(e))
@@ -508,6 +544,44 @@ def start_server():
     finally:
         sock.close()
         logging.info("Server socket closed")
+
+    def _log_plan_details(self, plan, indent=0):
+        """
+        Helper function to log plan details in a readable format.
+        
+        Args:
+            plan: The execution/optimization plan
+            indent: Current indentation level for formatting nested plans
+        """
+        indent_str = "  " * indent
+        plan_type = plan.get("type", "UNKNOWN")
+
+        # Log plan type with indentation
+        logging.info('%s%s', indent_str, plan_type)
+
+        # Log plan details based on type
+        for key, value in plan.items():
+            if key == "type" or key == "child" or isinstance(value, dict):
+                continue
+
+            # Format lists nicely
+            if isinstance(value, list):
+                if value and len(value) > 0:
+                    if isinstance(value[0], dict):
+                        logging.info('%s  %s:', indent_str, key)
+                        for item in value:
+                            logging.info('%s    - %s', indent_str, item)
+                    else:
+                        logging.info('%s  %s: %s', indent_str, key, value)
+                else:
+                    logging.info('%s  %s: []', indent_str, key)
+            else:
+                logging.info('%s  %s: %s', indent_str, key, value)
+
+        # Recursively log child plans
+        if "child" in plan and isinstance(plan["child"], dict):
+            logging.info('%s  child:', indent_str)
+            self._log_plan_details(plan["child"], indent + 1)
 
 
 if __name__ == "__main__":
