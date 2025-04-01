@@ -1,3 +1,8 @@
+"""_summary_
+
+Returns:
+    _type_: _description_
+"""
 from logging.handlers import RotatingFileHandler
 import datetime
 import re

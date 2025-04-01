@@ -1,0 +1,27 @@
+name: Issue & PR Management
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto Label
+        uses: actions/labeler@v4
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close stale issues
+        uses: actions/stale@v9
+        with:
+          days-before-stale: 30
+          days-before-close: 7
+          stale-issue-message: "This issue has been inactive for 30 days. Please update if still relevant."
+          close-issue-message: "Closed due to inactivity."

@@ -1,0 +1,6 @@
+bug:
+  - "bug/**"
+feature:
+  - "feature/**"
+tests:
+  - "tests/**"
