@@ -1,13 +1,20 @@
+"""_summary_
+
+Returns:
+    _type_: _description_
+"""
 import logging
 import traceback
 import re
-import os
+from shared.utils import get_current_database_or_error
+
 
 class SchemaManager:
     """Handles DDL operations related to database and table schemas"""
 
     def __init__(self, catalog_manager):
         self.catalog_manager = catalog_manager
+        self.current_database = catalog_manager.get_current_database()
 
     def execute_database_operation(self, plan):
         """Execute database-level DDL operations"""
@@ -20,7 +27,10 @@ class SchemaManager:
         elif plan_type == "USE_DATABASE":
             return self.execute_use_database(plan)
         else:
-            return {"error": f"Unsupported database operation: {plan_type}", "status": "error"}
+            return {
+                "error": f"Unsupported database operation: {plan_type}",
+                "status": "error",
+            }
 
     def execute_table_operation(self, plan):
         """Execute table-level DDL operations"""
@@ -31,7 +41,10 @@ class SchemaManager:
         elif plan_type == "DROP_TABLE":
             return self.execute_drop_table(plan)
         else:
-            return {"error": f"Unsupported table operation: {plan_type}", "status": "error"}
+            return {
+                "error": f"Unsupported table operation: {plan_type}",
+                "status": "error",
+            }
 
     def execute_index_operation(self, plan):
         """Execute index-level DDL operations"""
@@ -42,7 +55,10 @@ class SchemaManager:
         elif plan_type == "DROP_INDEX":
             return self.execute_drop_index(plan)
         else:
-            return {"error": f"Unsupported index operation: {plan_type}", "status": "error"}
+            return {
+                "error": f"Unsupported index operation: {plan_type}",
+                "status": "error",
+            }
 
     def execute_show_operation(self, plan):
         """Execute SHOW commands"""
@@ -85,7 +101,7 @@ class SchemaManager:
 
         # Use catalog manager to drop database
         try:
-            result = self.catalog_manager.drop_database(database_name)
+            self.catalog_manager.drop_database(database_name)
 
             # If this was the current database, reset it
             if self.catalog_manager.get_current_database() == database_name:
@@ -106,9 +122,8 @@ class SchemaManager:
                 "status": "success",
                 "type": "drop_database_result",
             }
-        except Exception as e:
-            logging.error(f"Error dropping database: {str(e)}")
-            import traceback
+        except RuntimeError as e:
+            logging.error("Error dropping database: %s", str(e))
 
             logging.error(traceback.format_exc())
             return {
@@ -157,12 +172,9 @@ class SchemaManager:
 
         elif object_type.upper() == "TABLES":
             # List all tables in the current database
-            db_name = self.catalog_manager.get_current_database()
-            if not db_name:
-                return {
-                    "error": "No database selected. Use 'USE database_name' first.",
-                    "status": "error",
-                }
+            db_name, error = get_current_database_or_error(self.catalog_manager, include_type=False)
+            if error:
+                return error
 
             tables = self.catalog_manager.list_tables(db_name)
             return {
@@ -174,12 +186,9 @@ class SchemaManager:
         elif object_type.upper() == "INDEXES":
             # Show indexes
             table_name = plan.get("table")
-            db_name = self.catalog_manager.get_current_database()
-            if not db_name:
-                return {
-                    "error": "No database selected. Use 'USE database_name' first.",
-                    "status": "error",
-                }
+            db_name, error = get_current_database_or_error(self.catalog_manager, include_type=False)
+            if error:
+                return error
 
             if table_name:
                 # Show indexes for specific table
@@ -248,13 +257,9 @@ class SchemaManager:
             }
 
         # Get the current database
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {
-                "error": "No database selected. Use 'USE database_name' first.",
-                "status": "error",
-                "type": "error",
-            }
+        db_name, error = get_current_database_or_error(self.catalog_manager)
+        if error:
+            return error
 
         # Check if table already exists
         existing_tables = self.catalog_manager.list_tables(db_name)
@@ -328,8 +333,8 @@ class SchemaManager:
                 }
             else:
                 return {"error": result, "status": "error", "type": "error"}
-        except Exception as e:
-            logging.error(f"Error creating table: {str(e)}")
+        except RuntimeError as e:
+            logging.error("Error creating table: %s", str(e))
             return {
                 "error": f"Error creating table: {str(e)}",
                 "status": "error",
@@ -348,13 +353,9 @@ class SchemaManager:
             }
 
         # Get the current database
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {
-                "error": "No database selected. Use 'USE database_name' first.",
-                "status": "error",
-                "type": "error",
-            }
+        db_name, error = get_current_database_or_error(self.catalog_manager)
+        if error:
+            return error
 
         # Use catalog manager to drop the table
         try:
@@ -375,17 +376,13 @@ class SchemaManager:
             if isinstance(result, str) and "does not exist" in result:
                 return {"error": result, "status": "error", "type": "error"}
 
-            # Also remove any temporary data or caches related to this table
-            # (cleared from memory if any exists)
-
             return {
                 "message": f"Table '{actual_table_name}' dropped from database '{db_name}'",
                 "status": "success",
                 "type": "drop_table_result",
             }
-        except Exception as e:
-            logging.error('Error dropping table: %s', str(e))
-
+        except RuntimeError as e:
+            logging.error("Error dropping table: %s", str(e))
             logging.error(traceback.format_exc())
             return {
                 "error": f"Error dropping table: {str(e)}",
@@ -396,37 +393,41 @@ class SchemaManager:
     def execute_create_index(self, plan):
         """Execute CREATE INDEX operation."""
         # Get index_name from either field
-        index_name = plan.get("index_name") or plan.get("index") 
-        
+        index_name = plan.get("index_name") or plan.get("index")
+
         # If index_name is still None, create a default name
         if not index_name:
             index_name = f"idx_{plan.get('table')}_{plan.get('column')}"
-            
+
         table_name = plan.get("table")
         column = plan.get("column")
         is_unique = plan.get("unique", False)
 
         # Log the parameters for debugging
-        logging.info(f"Creating index '{index_name}' on {table_name}.{column}")
+        logging.info("Creating index '%s' on %s.%s", index_name, table_name, column)
 
         # Get the current database
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {"error": "No database selected. Use 'USE database_name' first.",
-                    "status": "error", 
-                    "type": "error"}
+        db_name, error = get_current_database_or_error(self.catalog_manager)
+        if error:
+            return error
 
         # Verify table exists
         tables = self.catalog_manager.list_tables(db_name)
         if table_name not in tables:
-            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'",
-                    "status": "error",
-                    "type": "error"}
+            return {
+                "error": f"Table '{table_name}' does not exist in database '{db_name}'",
+                "status": "error",
+                "type": "error",
+            }
 
         # Create the index - PASS INDEX_NAME TO CATALOG MANAGER
         try:
             result = self.catalog_manager.create_index(
-                table_name, column, "BTREE", is_unique, index_name  # Add index_name here
+                table_name,
+                column,
+                "BTREE",
+                is_unique,
+                index_name,  # Add index_name here
             )
             if isinstance(result, str) and "already exists" in result:
                 return {"error": result, "status": "error", "type": "error"}
@@ -434,13 +435,15 @@ class SchemaManager:
             return {
                 "message": f"Index '{index_name}' created on '{table_name}.{column}'",
                 "status": "success",
-                "type": "create_index_result"
+                "type": "create_index_result",
             }
-        except Exception as e:
-            logging.error(f"Error creating index: {str(e)}")
-            return {"error": f"Error creating index: {str(e)}", 
-                    "status": "error", 
-                    "type": "error"}
+        except RuntimeError as e:
+            logging.error("Error creating index: %s", str(e))
+            return {
+                "error": f"Error creating index: {str(e)}",
+                "status": "error",
+                "type": "error",
+            }
 
     def execute_drop_index(self, plan):
         """Execute DROP INDEX operation."""
@@ -467,8 +470,8 @@ class SchemaManager:
             return {
                 "message": f"Index '{index_name}' dropped from table '{table_name}'."
             }
-        except Exception as e:
-            logging.error(f"Error dropping index: {str(e)}")
+        except RuntimeError as e:
+            logging.error("Error dropping index: %s", str(e))
             return {"error": f"Error dropping index: {str(e)}"}
 
     def get_table_schema(self, table_name):

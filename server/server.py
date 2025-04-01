@@ -1,3 +1,11 @@
+from logging.handlers import RotatingFileHandler
+import datetime
+import re
+import uuid
+import logging
+import traceback
+import json
+import socket
 import sys
 import os
 
@@ -5,18 +13,10 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Standard library imports
-import socket
-import json
-import traceback
-import logging
-import uuid
-import re
-import datetime
-from logging.handlers import RotatingFileHandler
 
 # Local imports - these need the path modification above
 from parser import SQLParser  # noqa: E402
-from shared.utils import (receive_data, send_data)  # noqa: E402
+from shared.utils import receive_data, send_data  # noqa: E402
 from shared.constants import SERVER_HOST, SERVER_PORT  # noqa: E402
 from optimizer import Optimizer  # noqa: E402
 from execution_engine import ExecutionEngine  # noqa: E402
@@ -28,7 +28,7 @@ from catalog_manager import CatalogManager  # noqa: E402
 def setup_logging():
     """
     Configure logging with colored output for better visualization of plans.
-    
+
     Returns:
         str: Path to the log file
     """
@@ -57,9 +57,7 @@ def setup_logging():
     )
 
     # Set formatter with more detailed information
-    formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(formatter)
 
     # Add console handler for better debugging
@@ -83,14 +81,16 @@ log_file = setup_logging()
 
 
 class DBMSServer:
-    """_summary_
-    """
+    """_summary_"""
+
     def __init__(self, host="localhost", port=9999, data_dir="data"):
         self.catalog_manager = CatalogManager(data_dir)
         self.index_manager = IndexManager(self.catalog_manager)
 
         # Create execution engine first
-        self.execution_engine = ExecutionEngine(self.catalog_manager, self.index_manager)
+        self.execution_engine = ExecutionEngine(
+            self.catalog_manager, self.index_manager
+        )
 
         # Then create SQL parser with reference to execution engine
         self.sql_parser = SQLParser(self.execution_engine)
@@ -102,11 +102,11 @@ class DBMSServer:
         logs_dir = os.path.join(os.path.dirname(
             os.path.abspath(__file__)), "../logs")
         os.makedirs(logs_dir, exist_ok=True)
-        
+
     def _log_plan_details(self, plan, indent=0):
         """
         Helper function to log plan details in a readable format.
-        
+
         Args:
             plan: The execution/optimization plan
             indent: Current indentation level for formatting nested plans
@@ -115,7 +115,7 @@ class DBMSServer:
         plan_type = plan.get("type", "UNKNOWN")
 
         # Log plan type with indentation
-        logging.info('%s%s', indent_str, plan_type)
+        logging.info("%s%s", indent_str, plan_type)
 
         # Log plan details based on type
         for key, value in plan.items():
@@ -126,21 +126,20 @@ class DBMSServer:
             if isinstance(value, list):
                 if value and len(value) > 0:
                     if isinstance(value[0], dict):
-                        logging.info('%s  %s:', indent_str, key)
+                        logging.info("%s  %s:", indent_str, key)
                         for item in value:
-                            logging.info('%s    - %s', indent_str, item)
+                            logging.info("%s    - %s", indent_str, item)
                     else:
-                        logging.info('%s  %s: %s', indent_str, key, value)
+                        logging.info("%s  %s: %s", indent_str, key, value)
                 else:
-                    logging.info('%s  %s: []', indent_str, key)
+                    logging.info("%s  %s: []", indent_str, key)
             else:
-                logging.info('%s  %s: %s', indent_str, key, value)
+                logging.info("%s  %s: %s", indent_str, key, value)
 
         # Recursively log child plans
         if "child" in plan and isinstance(plan["child"], dict):
-            logging.info('%s  child:', indent_str)
+            logging.info("%s  child:", indent_str)
             self._log_plan_details(plan["child"], indent + 1)
-
 
     def _validate_session(self, session_token):
         """Validate a session token"""
@@ -152,10 +151,11 @@ class DBMSServer:
         """
         try:
             # Use 'action' field for determining request type
-            request_type = data.get("action", data.get("type"))  # Try both fields
+            request_type = data.get(
+                "action", data.get("type"))  # Try both fields
 
             if not request_type:
-                logging.error('Missing request type in request: %s', data)
+                logging.error("Missing request type in request: %s", data)
                 return {"error": "Missing request type in request", "status": "error"}
 
             # Process the request based on action
@@ -174,13 +174,13 @@ class DBMSServer:
             elif request_type == "logout":
                 return self.handle_logout(data)
             else:
-                logging.error('Unknown request type: %s', request_type)
+                logging.error("Unknown request type: %s", request_type)
                 return {
-                    "error": 'Unknown request type: {request_type}',
+                    "error": "Unknown request type: {request_type}",
                     "status": "error",
                 }
         except (TypeError, ValueError, KeyError, AttributeError, RuntimeError) as e:
-            logging.error('Error handling request: %s', str(e))
+            logging.error("Error handling request: %s", str(e))
             logging.error(traceback.format_exc())
             return {"error": f"Server error: {str(e)}", "status": "error"}
 
@@ -189,14 +189,16 @@ class DBMSServer:
         session_id = data.get("session_id")
         if session_id not in self.sessions:
             logging.warning(
-                'Unauthorized visualize attempt with invalid session ID: {%s', session_id
-                )
+                "Unauthorized visualize attempt with invalid session ID: {%s",
+                session_id,
+            )
             return {"error": "Unauthorized. Please log in.", "status": "error"}
 
         user = self.sessions[session_id]
         query = data.get("query", "")
         logging.info(
-            'Visualization request from %s: %s', user.get("username", "Unknown"), query
+            "Visualization request from %s: %s", user.get(
+                "username", "Unknown"), query
         )
 
         # Parse as a visualization command using the parser
@@ -215,7 +217,7 @@ class DBMSServer:
 
                 return result
             except (TypeError, ValueError, KeyError, AttributeError, RuntimeError) as e:
-                error_msg = 'Error executing visualization: %s', str(e)
+                error_msg = "Error executing visualization: %s", str(e)
                 logging.error(error_msg)
                 logging.error(traceback.format_exc())
                 return {"error": error_msg, "status": "error"}
@@ -261,7 +263,7 @@ class DBMSServer:
     def handle_login(self, data):
         """Handle user login."""
         username = data.get("username")
-        logging.info('Login attempt for user: %s', username)
+        logging.info("Login attempt for user: %s", username)
 
         password = data.get("password")
 
@@ -270,7 +272,9 @@ class DBMSServer:
             # Create a new session
             session_id = str(uuid.uuid4())
             self.sessions[session_id] = user
-            logging.info("User %s logged in successfully (role: %s)", username, user["role"])
+            logging.info(
+                "User %s logged in successfully (role: %s)", username, user["role"]
+            )
             return {
                 "session_id": session_id,
                 "role": user["role"],
@@ -278,7 +282,7 @@ class DBMSServer:
                 "message": f"Login successful as {username} ({user['role']})",
             }
         else:
-            logging.warning('Failed login attempt for user: %s', username)
+            logging.warning("Failed login attempt for user: %s", username)
             return {"error": "Invalid username or password.", "status": "error"}
 
     def handle_logout(self, data):
@@ -287,17 +291,17 @@ class DBMSServer:
         if session_id in self.sessions:
             username = self.sessions[session_id].get("username", "Unknown")
             del self.sessions[session_id]
-            logging.info('User %s logged out successfully', username)
+            logging.info("User %s logged out successfully", username)
             return {"message": "Logged out successfully.", "status": "success"}
         else:
             logging.warning(
-                'Invalid logout attempt with session ID: %s', session_id)
+                "Invalid logout attempt with session ID: %s", session_id)
             return {"error": "Invalid session ID.", "status": "error"}
 
     def handle_register(self, data):
         """Handle user registration."""
         username = data.get("username")
-        logging.info('Registration attempt for user: %s', username)
+        logging.info("Registration attempt for user: %s", username)
 
         password = data.get("password")
         role = data.get("role", "user")
@@ -305,13 +309,15 @@ class DBMSServer:
         result = self.catalog_manager.register_user(username, password, role)
         if "error" not in str(result).lower():
             logging.info(
-                "User %s registered successfully with role: %s", username, role)
+                "User %s registered successfully with role: %s", username, role
+            )
             return {
                 "message": f"User {username} registered successfully as {role}",
                 "status": "success",
             }
         else:
-            logging.warning("Failed registration for user %s: %s", username, result)
+            logging.warning(
+                "Failed registration for user %s: %s", username, result)
             if isinstance(result, str):
                 return {"error": result, "status": "error"}
             return result
@@ -327,7 +333,7 @@ class DBMSServer:
         try:
             timestamp = datetime.datetime.now().isoformat()
             log_entry = {"timestamp": timestamp,
-                        "username": username, "query": query}
+                         "username": username, "query": query}
 
             # Log to the audit log file
             logs_dir = os.path.join(
@@ -339,14 +345,14 @@ class DBMSServer:
                 f.write(f"{timestamp} | {username} | {query}\n")
 
             # Also log to the standard logger
-            logging.info('AUDIT: User %s executed: %s', username, query)
+            logging.info("AUDIT: User %s executed: %s", username, query)
 
             # Optionally store in a database for more advanced auditing
             self._store_audit_log(log_entry)
 
         except (IOError, PermissionError, FileNotFoundError) as e:
             # Don't let logging errors affect query execution
-            logging.error('Failed to log query: %s', str(e))
+            logging.error("Failed to log query: %s", str(e))
 
     def _store_audit_log(self, log_entry):
         """
@@ -358,8 +364,15 @@ class DBMSServer:
         """
         try:
             self.audit_db.audit_logs.insert_one(log_entry)
-        except (ValueError, SyntaxError, TypeError, AttributeError, KeyError, RuntimeError) as e:
-            logging.error('Failed to store audit log: %s', str(e))
+        except (
+            ValueError,
+            SyntaxError,
+            TypeError,
+            AttributeError,
+            KeyError,
+            RuntimeError,
+        ) as e:
+            logging.error("Failed to store audit log: %s", str(e))
 
     def handle_query(self, data):
         """
@@ -368,68 +381,80 @@ class DBMSServer:
         session_id = data.get("session_id")
         if session_id not in self.sessions:
             logging.warning(
-                'Unauthorized query attempt with invalid session ID: %s', session_id
+                "Unauthorized query attempt with invalid session ID: %s", session_id
             )
             return {"error": "Unauthorized. Please log in.", "status": "error"}
 
         user = self.sessions[session_id]
         query = data.get("query", "")
 
-        logging.info('Query from %s: %s', user.get("username", "Unknown"), query)
+        logging.info("Query from %s: %s", user.get(
+            "username", "Unknown"), query)
 
         # Log the query for audit
         self._log_query(user.get("username"), query)
 
         # Print current database for debugging
         current_db = self.catalog_manager.get_current_database()
-        logging.info('Current database: %s', current_db)
+        logging.info("Current database: %s", current_db)
 
         # Parse and execute with planner and optimizer integration
         try:
             # 1. Parse SQL query
             parsed = self.sql_parser.parse_sql(query)
             if "error" in parsed:
-                logging.error('SQL parsing error: %s', parsed['error'])
+                logging.error("SQL parsing error: %s", parsed["error"])
                 return {"error": parsed["error"], "status": "error"}
 
             # Log the parsed query structure
-            logging.info('▶️ Parsed query: %s', parsed)
+            logging.info("▶️ Parsed query: %s", parsed)
 
             # 2. Generate execution plan using planner
             execution_plan = self.planner.plan_query(parsed)
             if "error" in execution_plan:
-                logging.error('Error generating plan: %s', execution_plan['error'])
+                logging.error("Error generating plan: %s",
+                              execution_plan["error"])
                 return {"error": execution_plan["error"], "status": "error"}
 
-            logging.info('🔄 Initial execution plan:')
-            logging.info('---------------------------------------------')
+            logging.info("🔄 Initial execution plan:")
+            logging.info("---------------------------------------------")
             self._log_plan_details(execution_plan)
-            logging.info('---------------------------------------------')
+            logging.info("---------------------------------------------")
 
             # 3. Optimize the execution plan
             optimized_plan = self.optimizer.optimize(execution_plan)
             if "error" in optimized_plan:
-                logging.error('Error optimizing plan: %s', optimized_plan['error'])
+                logging.error("Error optimizing plan: %s",
+                              optimized_plan["error"])
                 return {"error": optimized_plan["error"], "status": "error"}
 
-            logging.info('✅ Optimized execution plan:')
-            logging.info('---------------------------------------------')
+            logging.info("✅ Optimized execution plan:")
+            logging.info("---------------------------------------------")
             self._log_plan_details(optimized_plan)
-            logging.info('---------------------------------------------')
+            logging.info("---------------------------------------------")
 
             # 4. Execute the optimized plan
             start_time = datetime.datetime.now()
             result = self.execution_engine.execute(optimized_plan)
-            execution_time = (datetime.datetime.now() - start_time).total_seconds()
+            execution_time = (datetime.datetime.now() -
+                              start_time).total_seconds()
 
             # Add execution time to result
             if isinstance(result, dict):
                 result["execution_time_ms"] = round(execution_time * 1000, 2)
 
-            logging.info('⏱️ Query executed in %s ms', round(execution_time * 1000, 2))
+            logging.info("⏱️ Query executed in %s ms",
+                         round(execution_time * 1000, 2))
             return result
-        except (ValueError, SyntaxError, TypeError, AttributeError, KeyError, RuntimeError) as e:
-            logging.error('Error executing query: %s', str(e))
+        except (
+            ValueError,
+            SyntaxError,
+            TypeError,
+            AttributeError,
+            KeyError,
+            RuntimeError,
+        ) as e:
+            logging.error("Error executing query: %s", str(e))
             logging.error(traceback.format_exc())
             return {"error": str(e), "status": "error"}
 
@@ -504,7 +529,7 @@ class DBMSServer:
                 )
                 print(row_str)
 
-            print('\n{%i row(s) returned', len(rows))
+            print("\n{%i row(s) returned", len(rows))
         # Handle error messages
         elif "error" in result:
             print(f"Error: {str(result['error'])}")
@@ -517,8 +542,7 @@ class DBMSServer:
 
 
 def start_server():
-    """_summary_
-    """
+    """_summary_"""
     # Make sure sqlparse is installed
     try:
         import sqlparse
@@ -544,8 +568,8 @@ def start_server():
     for query in test_queries:
         try:
             parsed = server.parse_sql(query)
-            logging.info('Test query: %s', query)
-            logging.info('Parsed result: %s', json.dumps(parsed))
+            logging.info("Test query: %s", query)
+            logging.info("Parsed result: %s", json.dumps(parsed))
         except (ValueError, SyntaxError, TypeError, AttributeError, KeyError) as e:
             logging.error('Error parsing "%s": %s', query, str(e))
 
@@ -561,7 +585,7 @@ def start_server():
     try:
         while True:
             client, address = sock.accept()
-            logging.info('Connection from %s', address)
+            logging.info("Connection from %s", address)
             print(f"Connection from {address}")
 
             try:
@@ -570,7 +594,12 @@ def start_server():
                     response = server.handle_request(data)
                     send_data(client, response)
                 client.close()
-            except (ConnectionError, json.JSONDecodeError, ValueError, BrokenPipeError) as e:
+            except (
+                ConnectionError,
+                json.JSONDecodeError,
+                ValueError,
+                BrokenPipeError,
+            ) as e:
                 error_msg = f"Error handling client: {str(e)}"
                 logging.error(error_msg)
                 logging.error(traceback.format_exc())

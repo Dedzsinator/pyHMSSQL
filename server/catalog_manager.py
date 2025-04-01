@@ -5,9 +5,13 @@ from hashlib import sha256
 import datetime
 from bptree import BPlusTree
 import re
+import traceback
+import shutil
 
 
 class CatalogManager:
+    """_summary_
+    """
     def __init__(self, data_dir="data"):
         # Base directories
         self.data_dir = data_dir
@@ -60,22 +64,19 @@ class CatalogManager:
         """Load JSON file or initialize with default value if not exists"""
         if os.path.exists(file_path):
             try:
-                with open(file_path, "r") as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     return json.load(f)
             except json.JSONDecodeError:
-                logging.error(
-                    f"Error decoding {
-                        file_path}, initializing with default value"
-                )
+                logging.error("Error decoding %s, initializing with default value", file_path)
                 return default_value
         else:
-            with open(file_path, "w") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(default_value, f, indent=2)
             return default_value
 
     def _save_json(self, file_path, data):
         """Save data to a JSON file"""
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
     def register_user(self, username, password, role="user"):
@@ -109,9 +110,9 @@ class CatalogManager:
 
     def create_database(self, db_name):
         """Create a new database."""
-        logging.debug(f"Creating database: {db_name}")
+        logging.debug("Creating database: %s", db_name)
         if db_name in self.databases:
-            logging.warning(f"Database {db_name} already exists.")
+            logging.warning("Database %s already exists.", db_name)
             return f"Database {db_name} already exists."
 
         # Create database entry
@@ -127,14 +128,14 @@ class CatalogManager:
         # Save changes
         self._save_json(self.databases_file, self.databases)
 
-        logging.info(f"Database {db_name} created.")
+        logging.info("Database %s created.", db_name)
         return f"Database {db_name} created."
 
     def drop_database(self, db_name):
         """Drop a database."""
-        logging.debug(f"Dropping database: {db_name}")
+        logging.debug("Dropping database: %s", db_name)
         if db_name not in self.databases:
-            logging.warning(f"Database {db_name} does not exist.")
+            logging.warning("Database %s does not exist.", db_name)
             return f"Database {db_name} does not exist."
 
         # Remove database from catalog
@@ -157,14 +158,11 @@ class CatalogManager:
         self._save_json(self.tables_file, self.tables)
         self._save_json(self.indexes_file, self.indexes)
 
-        # Remove physical files
-        import shutil
-
         db_dir = os.path.join(self.tables_dir, db_name)
         if os.path.exists(db_dir):
             shutil.rmtree(db_dir)
 
-        logging.info(f"Database {db_name} dropped.")
+        logging.info("Database %s dropped.", db_name)
         return f"Database {db_name} dropped."
 
     def set_current_database(self, database_name):
@@ -175,7 +173,7 @@ class CatalogManager:
         self.preferences["current_database"] = database_name
         self._save_json(self.preferences_file, self.preferences)
 
-        logging.info(f"Current database set to: {database_name}")
+        logging.info("Current database set to: %s", database_name)
         return True
 
     def get_current_database(self):
@@ -891,9 +889,8 @@ class CatalogManager:
 
             return f"{len(records_to_delete)} records deleted."
 
-        except Exception as e:
-            logging.error(f"Error deleting records: {str(e)}")
-            import traceback
+        except RuntimeError as e:
+            logging.error("Error deleting records: %s", str(e))
 
             logging.error(traceback.format_exc())
             return f"Error deleting records: {str(e)}"
@@ -968,7 +965,14 @@ class CatalogManager:
             logging.error(f"Error updating records: {e}")
             return f"Error updating records: {str(e)}"
 
-    def create_index(self, table_name, column_name, index_type="BTREE", is_unique=False, index_name=None):
+    def create_index(
+        self,
+        table_name,
+        column_name,
+        index_type="BTREE",
+        is_unique=False,
+        index_name=None,
+    ):
         """Create an index on a table column."""
         db_name = self.get_current_database()
         if not db_name:
@@ -977,9 +981,10 @@ class CatalogManager:
         # Use provided index_name or generate one
         if not index_name:
             index_name = f"idx_{column_name}"
-            
+
         table_id = f"{db_name}.{table_name}"
-        index_id = f"{table_id}.{index_name}"  # Use index_name instead of column_name
+        # Use index_name instead of column_name
+        index_id = f"{table_id}.{index_name}"
 
         # Check if table exists
         if table_id not in self.tables:
@@ -1209,7 +1214,7 @@ class CatalogManager:
 
             # Search for the record
             return tree.search(record_key)
-        except Exception as e:
+        except RuntimeError as e:
             logging.error(f"Error retrieving record by key: {str(e)}")
             return None
 
@@ -1256,3 +1261,54 @@ class CatalogManager:
             "constraints": self.tables[table_id].get("constraints", []),
         }
 
+    def get_all_records_with_keys(self, table_name):
+        """Get all records from a table along with their keys.
+        
+        Args:
+            table_name: Name of the table to query
+            
+        Returns:
+            list: A list of tuples (key, record) for all records in the table
+        """
+        db_name = self.get_current_database()
+        if not db_name:
+            return []
+
+        # Handle case-insensitive table name lookup
+        tables = self.list_tables(db_name)
+        actual_table_name = None
+
+        # Try exact match first
+        if table_name in tables:
+            actual_table_name = table_name
+        else:
+            # Try case-insensitive match
+            for t in tables:
+                if t.lower() == table_name.lower():
+                    actual_table_name = t
+                    break
+
+        if not actual_table_name:
+            logging.warning("Table '%s' does not exist in database '%s'", table_name, db_name)
+            return []
+
+        # Load the table file
+        table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
+
+        if not os.path.exists(table_file):
+            logging.warning("Table file not found: %s", table_file)
+            return []
+
+        try:
+            # Load the B+ tree
+            tree = BPlusTree.load_from_file(table_file)
+            if tree is None:
+                logging.error("Failed to load B+ tree for %s", table_file)
+                return []
+
+            # Return all records with their keys
+            return tree.range_query(float("-inf"), float("inf"))
+        except RuntimeError as e:
+            logging.error("Error getting records with keys: %s", str(e))
+            logging.error(traceback.format_exc())
+            return []

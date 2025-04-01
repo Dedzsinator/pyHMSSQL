@@ -117,7 +117,8 @@ class Planner:
         """
         Generate an execution plan from the parsed query.
         """
-        logging.info("Planning query of type: %s", parsed_query.get("type", "UNKNOWN"))
+        logging.info("Planning query of type: %s",
+                     parsed_query.get("type", "UNKNOWN"))
         plan = None
 
         # Add diagnostic logging to see what parsed_query contains

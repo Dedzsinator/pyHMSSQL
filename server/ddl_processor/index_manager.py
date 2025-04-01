@@ -3,6 +3,7 @@ import traceback
 import os
 from bptree import BPlusTree
 
+
 class IndexManager:
     """Handles index operations and management"""
 
@@ -15,42 +16,47 @@ class IndexManager:
         """Get an index by its full name (table.index)"""
         if full_index_name in self.indexes:
             return self.indexes[full_index_name]
-            
+
         # Try to load the index
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
             return None
-            
+
         parts = full_index_name.split(".")
         if len(parts) != 2:
             return None
-            
+
         table_name, index_name = parts
-        
+
         # Get index definition from catalog
         indexes = self.catalog_manager.get_indexes_for_table(table_name)
         if not indexes or index_name not in indexes:
             return None
-            
+
         index_def = indexes[index_name]
         column = index_def.get("column")
-        
+
         # Load or build the index
-        return self.build_index(table_name, index_name, column, index_def.get("unique", False), db_name)
-    
-    def build_index(self, table_name, index_name, column, is_unique=False, db_name=None):
+        return self.build_index(
+            table_name, index_name, column, index_def.get(
+                "unique", False), db_name
+        )
+
+    def build_index(
+        self, table_name, index_name, column, is_unique=False, db_name=None
+    ):
         """Build or rebuild an index"""
         if db_name is None:
             db_name = self.catalog_manager.get_current_database()
             if not db_name:
                 return None
-                
+
         # Check if index file exists
         index_file = os.path.join(
-            self.catalog_manager.indexes_dir, 
-            f"{db_name}_{table_name}_{column}.idx"
+            self.catalog_manager.indexes_dir, f"{
+                db_name}_{table_name}_{column}.idx"
         )
-        
+
         # If file exists, load it
         if os.path.exists(index_file):
             try:
@@ -60,17 +66,18 @@ class IndexManager:
             except Exception as e:
                 logging.error("Error loading index: %s", str(e))
                 # Fall through to rebuilding
-        
+
         # Build the index from table data
         try:
             # Get table data
-            records = self.catalog_manager.query_with_condition(table_name, [], ["*"])
+            records = self.catalog_manager.query_with_condition(
+                table_name, [], ["*"])
             if not records:
                 return None
-                
+
             # Create a new B+ tree
             index = BPlusTree(order=50, name=f"{table_name}_{column}_index")
-            
+
             # Populate the index
             for record in records:
                 if column in record:
@@ -82,7 +89,7 @@ class IndexManager:
                         # For non-unique indexes, maintain a list of record IDs
                         existing = index.search(key)
                         record_id = record.get("id", hash(str(record)))
-                        
+
                         if existing is None:
                             index.insert(key, [record_id])
                         elif isinstance(existing, list):
@@ -90,25 +97,25 @@ class IndexManager:
                             index.insert(key, existing)
                         else:
                             index.insert(key, [existing, record_id])
-            
+
             # Save the index to disk
             index.save_to_file(index_file)
-            
+
             # Cache the index
             self.indexes[f"{table_name}.{index_name}"] = index
             return index
-            
+
         except Exception as e:
             logging.error("Error building index: %s", str(e))
             logging.error(traceback.format_exc())
             return None
-            
+
     def visualize_all_indexes(self):
         """Visualize all indexes in the current database"""
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
             return 0
-            
+
         count = 0
         # Get all tables
         tables = self.catalog_manager.list_tables(db_name)
@@ -124,5 +131,5 @@ class IndexManager:
                         count += 1
                     except:
                         pass
-                        
+
         return count

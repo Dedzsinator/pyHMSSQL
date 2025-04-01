@@ -7,11 +7,11 @@ from parsers.condition_parser import ConditionParser
 
 class SelectExecutor:
     """Class to execute SELECT queries."""
-    
+
     def __init__(self, catalog_manager, join_executor, aggregate_executor):
         """
         Initialize SelectExecutor.
-        
+
         Args:
             catalog_manager: The catalog manager instance
             join_executor: The join executor instance
@@ -35,18 +35,36 @@ class SelectExecutor:
                     col_name = match.group(2).strip()
 
                     # Update this line to include RAND and GCD
-                    if func_name in ("COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD"):
-                        logging.error(f"Detected aggregate function in execute_select: {func_name}({col_name})")
+                    if func_name in (
+                        "COUNT",
+                        "SUM",
+                        "AVG",
+                        "MIN",
+                        "MAX",
+                        "RAND",
+                        "GCD",
+                    ):
+                        logging.error(
+                            f"Detected aggregate function in execute_select: {
+                                func_name
+                            }({col_name})"
+                        )
 
                         # Create a temporary aggregate plan
                         agg_plan = {
                             "type": "AGGREGATE",
                             "function": func_name,
                             "column": col_name,
-                            "table": plan.get("table") or (plan.get("tables", [""])[0] if plan.get("tables") else ""),
-                            "condition": plan.get("condition"),  # Pass the condition
-                            "top": plan.get("top"),  # Pass TOP parameter 
-                            "limit": plan.get("limit")  # Pass LIMIT parameter
+                            "table": plan.get("table")
+                            or (
+                                plan.get("tables", [""])[0]
+                                if plan.get("tables")
+                                else ""
+                            ),
+                            # Pass the condition
+                            "condition": plan.get("condition"),
+                            "top": plan.get("top"),  # Pass TOP parameter
+                            "limit": plan.get("limit"),  # Pass LIMIT parameter
                         }
 
                         # Execute the aggregate plan instead
@@ -94,8 +112,9 @@ class SelectExecutor:
                 # Use the correct case from the tables list
                 actual_table_name = tables_lower[table_name.lower()]
                 logging.debug(
-                    f"Using case-corrected table name: {
-                        actual_table_name} instead of {table_name}"
+                    f"Using case-corrected table name: {actual_table_name} instead of {
+                        table_name
+                    }"
                 )
             elif table_name not in tables:
                 return {
@@ -146,13 +165,13 @@ class SelectExecutor:
                 reverse_flags = []
 
                 # Split by comma for multiple columns
-                for order_part in order_by.split(','):
+                for order_part in order_by.split(","):
                     order_part = order_part.strip()
-                    if ' DESC' in order_part.upper():
-                        col_name = order_part.upper().replace(' DESC', '').strip()
+                    if " DESC" in order_part.upper():
+                        col_name = order_part.upper().replace(" DESC", "").strip()
                         reverse = True
                     else:
-                        col_name = order_part.upper().replace(' ASC', '').strip()
+                        col_name = order_part.upper().replace(" ASC", "").strip()
                         reverse = False
 
                     # Find actual column name with correct case
@@ -168,12 +187,14 @@ class SelectExecutor:
 
                 # Sort the results using the specified columns
                 if order_columns:
-                    for i, (col, reverse) in reversed(list(enumerate(zip(order_columns, reverse_flags)))):
+                    for i, (col, reverse) in reversed(
+                        list(enumerate(zip(order_columns, reverse_flags)))
+                    ):
                         # Use a lambda for sorting that handles None values properly
                         results = sorted(
                             results,
                             key=lambda x: (x.get(col) is None, x.get(col)),
-                            reverse=reverse
+                            reverse=reverse,
                         )
 
                     logging.debug(f"Results sorted by {order_columns}")
@@ -203,7 +224,9 @@ class SelectExecutor:
                     result_columns = list(results[0].keys())
 
                     # Log column names that will be returned
-                    logging.error(f"SELECT * will return these columns: {result_columns}")
+                    logging.error(
+                        f"SELECT * will return these columns: {result_columns}"
+                    )
 
                     # Create rows with ALL columns from each record IN ORDER
                     for record in results:
@@ -213,7 +236,8 @@ class SelectExecutor:
                         result_rows.append(row)
                 else:
                     # Handle empty results or malformed data
-                    logging.error("No valid results or empty dictionary in results")
+                    logging.error(
+                        "No valid results or empty dictionary in results")
                     if results:
                         # Try to recover column names if possible
                         for record in results:
@@ -233,7 +257,7 @@ class SelectExecutor:
 
                     # Use original case if found, otherwise use as provided
                     result_columns.append(original_case_col or col)
-                
+
                 # Create rows with the selected columns
                 for record in results:
                     row = []
@@ -247,7 +271,10 @@ class SelectExecutor:
                         row.append(value)
                     result_rows.append(row)
 
-            logging.error(f"Final result: {len(result_rows)} rows with columns: {result_columns}")
+            logging.error(
+                f"Final result: {len(result_rows)} rows with columns: {
+                    result_columns}"
+            )
             # Debug print first row to verify data
             if result_rows:
                 logging.error(f"First row data: {result_rows[0]}")

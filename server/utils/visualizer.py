@@ -1,13 +1,14 @@
 import logging
 import os
 
+
 class Visualizer:
     """Handles visualization of database objects"""
-    
+
     def __init__(self, catalog_manager, index_manager):
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
-    
+
     def execute_visualize(self, plan):
         """
         Execute a VISUALIZE command.
@@ -49,8 +50,9 @@ class Visualizer:
                         # Index exists in catalog but file not found - rebuild it
                         try:
                             logging.info(
-                                f"Attempting to rebuild index {
-                                    index_name} on {table_name}..."
+                                f"Attempting to rebuild index {index_name} on {
+                                    table_name
+                                }..."
                             )
                             column = indexes[index_name].get("column")
                             is_unique = indexes[index_name].get(

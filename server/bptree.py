@@ -28,12 +28,6 @@ class BPlusTreeNode:
 
 
 class BPlusTree:
-    def __init__(self, order=50):
-        self.root = BPlusTreeNode(leaf=True)
-        self.order = order  # Maximum number of keys per node
-
-
-class BPlusTree:
     def __init__(self, order=50, name=None):
         self.root = BPlusTreeNode(leaf=True)
         self.order = order  # Maximum number of keys per node

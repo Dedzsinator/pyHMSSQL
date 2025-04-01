@@ -1,3 +1,5 @@
+"""_summary_
+"""
 import tkinter as tk
 from tkinter import messagebox
 from shared.constants import SERVER_HOST, SERVER_PORT
@@ -6,6 +8,8 @@ import socket
 
 
 class MainWindow:
+    """_summary_
+    """
     def __init__(self, root):
         self.root = root
         self.root.title("DBMS Client")
@@ -15,6 +19,8 @@ class MainWindow:
         self.create_widgets()
 
     def create_widgets(self):
+        """_summary_
+        """
         # Create Database Section
         tk.Label(self.root, text="Create Database").grid(
             row=0, column=0, padx=10, pady=10
@@ -67,6 +73,8 @@ class MainWindow:
         )
 
     def create_database(self):
+        """_summary_
+        """
         db_name = self.db_name_entry.get()
         if not db_name:
             messagebox.showerror("Error", "Database name cannot be empty.")
@@ -76,6 +84,8 @@ class MainWindow:
         messagebox.showinfo("Response", response["response"])
 
     def drop_database(self):
+        """_summary_
+        """
         db_name = self.drop_db_name_entry.get()
         if not db_name:
             messagebox.showerror("Error", "Database name cannot be empty.")
@@ -85,6 +95,8 @@ class MainWindow:
         messagebox.showinfo("Response", response["response"])
 
     def create_table(self):
+        """_summary_
+        """
         db_name = self.create_table_db_entry.get()
         table_name = self.create_table_name_entry.get()
         columns = self.create_table_columns_entry.get()
@@ -112,6 +124,8 @@ class MainWindow:
         messagebox.showinfo("Response", response["response"])
 
     def drop_table(self):
+        """_summary_
+        """
         db_name = self.drop_table_db_entry.get()
         table_name = self.drop_table_name_entry.get()
 
@@ -127,10 +141,14 @@ class MainWindow:
         messagebox.showinfo("Response", response["response"])
 
     def close(self):
+        """_summary_
+        """
         self.sock.close()
 
 
 def run_gui():
+    """_summary_
+    """
     root = tk.Tk()
     app = MainWindow(root)
     root.mainloop()

@@ -3,11 +3,12 @@
 Returns:
     _type_: _description_
 """
+
 import logging
 
+
 class ConditionParser:
-    """_summary_
-    """
+    """_summary_"""
 
     @staticmethod
     def parse_value(value_str):
@@ -83,7 +84,8 @@ class ConditionParser:
                     )
                     break
 
-        logging.debug('Parsed condition "%s" to: %s', condition_str, conditions)
+        logging.debug('Parsed condition "%s" to: %s',
+                      condition_str, conditions)
         return conditions
 
     @staticmethod
@@ -91,10 +93,10 @@ class ConditionParser:
         """
         Parse a SQL condition string into a dictionary format.
         This is used for UPDATE operations.
-        
+
         Args:
             condition_str: SQL condition string (e.g., "age > 30")
-            
+
         Returns:
             Dictionary with condition information
         """
@@ -129,7 +131,9 @@ class ConditionParser:
 
             # Handle parenthesized expressions
             if token == "(":
-                sub_conditions, end_idx = ConditionParser.parse_expression(tokens, i + 1)
+                sub_conditions, end_idx = ConditionParser.parse_expression(
+                    tokens, i + 1
+                )
 
                 if current_condition is None:
                     current_condition = {
@@ -172,7 +176,8 @@ class ConditionParser:
                     i += 1  # Skip the next token as we've combined it
                 else:
                     # Standalone NOT - needs to be applied to the next condition
-                    next_cond, end_idx = ConditionParser.parse_expression(tokens, i + 1)
+                    next_cond, end_idx = ConditionParser.parse_expression(
+                        tokens, i + 1)
                     current_condition = {
                         "type": "NOT",
                         "condition": next_cond[0] if next_cond else {},
@@ -195,7 +200,8 @@ class ConditionParser:
                         j = i + 3
                         while j < len(tokens) and tokens[j] != ")":
                             if tokens[j] != ",":
-                                values.append(ConditionParser.parse_value(tokens[j]))
+                                values.append(
+                                    ConditionParser.parse_value(tokens[j]))
                             j += 1
 
                         current_condition = {
@@ -301,7 +307,8 @@ class ConditionParser:
             if condition.get("type") == "group":
                 # Recursively process sub-conditions
                 sub_results = ConditionParser.flatten_conditions(
-                    condition.get("conditions", []))
+                    condition.get("conditions", [])
+                )
                 result.extend(sub_results)
             elif condition.get("type") == "NOT":
                 # Negate the condition and add it (if simple enough to negate)

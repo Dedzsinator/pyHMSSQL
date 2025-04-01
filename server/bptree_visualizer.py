@@ -2,6 +2,8 @@ import os
 import logging
 import json
 from datetime import datetime
+import networkx as nx
+import matplotlib.pyplot as plt
 
 # Try to import visualization libraries with fallbacks
 try:

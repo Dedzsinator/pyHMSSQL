@@ -5,7 +5,6 @@ from query_processor.aggregate_executor import AggregateExecutor
 from query_processor.select_executor import SelectExecutor
 from query_processor.dml_executor import DMLExecutor
 from ddl_processor.schema_manager import SchemaManager
-from ddl_processor.index_manager import IndexManager
 from ddl_processor.view_manager import ViewManager
 from transaction.transaction_manager import TransactionManager
 from parsers.condition_parser import ConditionParser
@@ -77,7 +76,7 @@ class ExecutionEngine:
             "rows": [[value] for value in distinct_values],
             "status": "success",
         }
-        
+
     def execute_create_index(self, plan):
         """Create an index on a table column"""
         # Forward to schema_manager with the correct parameters
@@ -92,51 +91,45 @@ class ExecutionEngine:
         """Visualize index structure"""
         index_name = plan.get("index_name")
         table_name = plan.get("table")
-        
+
         # Use the index_manager directly instead of through schema_manager
-        index_manager = self.index_manager 
-        
+        index_manager = self.index_manager
+
         if not index_manager:
-            return {
-                "error": "Index manager not available",
-                "status": "error"
-            }
-            
+            return {"error": "Index manager not available", "status": "error"}
+
         # If specific index is requested
         if index_name and table_name:
             full_index_name = f"{table_name}.{index_name}"
             index = index_manager.get_index(full_index_name)
-            
+
             if not index:
                 return {
                     "error": f"Index '{full_index_name}' not found",
-                    "status": "error"
+                    "status": "error",
                 }
-                
+
             # Visualize the index
             try:
                 index.visualize(self.visualizer, output_name=full_index_name)
                 return {
                     "message": f"Visualized index '{index_name}' on table '{table_name}'",
-                    "status": "success"
+                    "status": "success",
                 }
-            except Exception as e:
+            except RuntimeError as e:
                 return {
                     "error": f"Error visualizing index: {str(e)}",
-                    "status": "error"
+                    "status": "error",
                 }
         else:
             # Visualize all indexes
             try:
                 count = index_manager.visualize_all_indexes()
-                return {
-                    "message": f"Visualized {count} indexes",
-                    "status": "success"
-                }
-            except Exception as e:
+                return {"message": f"Visualized {count} indexes", "status": "success"}
+            except RuntimeError as e:
                 return {
                     "error": f"Error visualizing indexes: {str(e)}",
-                    "status": "error"
+                    "status": "error",
                 }
 
     def execute(self, plan):
@@ -149,6 +142,8 @@ class ExecutionEngine:
             return {"error": "No operation type specified in plan", "status": "error"}
 
         logging.debug("Executing plan of type %s: %s", plan_type, plan)
+
+        session_id = plan.get("session_id")
 
         try:
             result = None
@@ -184,7 +179,9 @@ class ExecutionEngine:
 
             # Transaction operations
             elif plan_type in ["BEGIN_TRANSACTION", "COMMIT", "ROLLBACK"]:
-                result = self.transaction_manager.execute_transaction_operation(plan_type)
+                result = self.transaction_manager.execute_transaction_operation(
+                    plan_type
+                )
 
             # Utility operations
             elif plan_type == "SHOW":
@@ -205,8 +202,7 @@ class ExecutionEngine:
 
             return result
 
-
-        except Exception as e:
+        except RuntimeError as e:
             logging.error("Error executing %s: %s", plan_type, str(e))
             logging.error(traceback.format_exc())
             return {

@@ -22,7 +22,10 @@ class Optimizer:
         Optimize the execution plan.
         """
         # Do not print the whole plan in the log message, it's verbose
-        logging.info("Starting plan optimization for plan type: %s", plan.get("type", "UNKNOWN"))
+        logging.info(
+            "Starting plan optimization for plan type: %s", plan.get(
+                "type", "UNKNOWN")
+        )
 
         # Apply different optimization strategies based on plan type
         if plan["type"] == "SELECT":
@@ -47,11 +50,11 @@ class Optimizer:
     def _get_plan_changes(self, original, optimized):
         """
         Get a list of changes made during optimization.
-        
+
         Args:
             original: The original execution plan
             optimized: The optimized execution plan
-            
+
         Returns:
             list: Descriptions of optimizations applied
         """
@@ -59,84 +62,137 @@ class Optimizer:
 
         # Check for index usage
         if optimized.get("use_index") and not original.get("use_index"):
-            changes.append(f"Using index for: {optimized.get('table', 'unknown')}")
+            changes.append(f"Using index for: {
+                           optimized.get('table', 'unknown')}")
 
         # Check for join algorithm changes
-        if (original.get("type") == "JOIN" and optimized.get("type") == "JOIN" and
-                original.get("join_algorithm") != optimized.get("join_algorithm")):
-            changes.append(f"Changed join algorithm from {original.get('join_algorithm', 'NONE')} to {optimized.get('join_algorithm', 'NONE')}")
+        if (
+            original.get("type") == "JOIN"
+            and optimized.get("type") == "JOIN"
+            and original.get("join_algorithm") != optimized.get("join_algorithm")
+        ):
+            changes.append(
+                f"Changed join algorithm from {original.get('join_algorithm', 'NONE')} to {
+                    optimized.get('join_algorithm', 'NONE')}"
+            )
 
         # Check for index join optimization
         if original.get("type") == "JOIN" and optimized.get("type") == "INDEX_JOIN":
             changes.append("Converted nested loop join to index join")
 
         # Check for filter merging with join
-        if (original.get("type") == "JOIN" and "filter" in original and 
-                optimized.get("type") == "JOIN" and "filter" not in optimized):
+        if (
+            original.get("type") == "JOIN"
+            and "filter" in original
+            and optimized.get("type") == "JOIN"
+            and "filter" not in optimized
+        ):
             changes.append("Merged filter condition into join condition")
-        
+
         # Check for projection merging
-        if (original.get("type") == "PROJECT" and 
-                optimized.get("type") == "PROJECT" and 
-                "child" in original and "child" in optimized and
-                original["child"].get("type") == "PROJECT" and
-                optimized["child"].get("type") != "PROJECT"):
+        if (
+            original.get("type") == "PROJECT"
+            and optimized.get("type") == "PROJECT"
+            and "child" in original
+            and "child" in optimized
+            and original["child"].get("type") == "PROJECT"
+            and optimized["child"].get("type") != "PROJECT"
+        ):
             changes.append("Merged multiple projections")
-        
+
         # Check for always-true filter elimination
-        if (original.get("type") == "FILTER" and original.get("condition") == "1=1" and
-                optimized.get("type") != "FILTER"):
+        if (
+            original.get("type") == "FILTER"
+            and original.get("condition") == "1=1"
+            and optimized.get("type") != "FILTER"
+        ):
             changes.append("Eliminated always-true filter condition")
-        
+
         # Check for filter merge into scan
-        if (original.get("type") == "FILTER" and 
-                "child" in original and original["child"].get("type") == "SEQ_SCAN" and
-                optimized.get("type") == "SEQ_SCAN" and "filter" in optimized):
+        if (
+            original.get("type") == "FILTER"
+            and "child" in original
+            and original["child"].get("type") == "SEQ_SCAN"
+            and optimized.get("type") == "SEQ_SCAN"
+            and "filter" in optimized
+        ):
             changes.append("Merged filter condition into sequential scan")
-        
+
         # Check for expression rewrite in join
-        if (original.get("type") == "JOIN" and optimized.get("type") == "JOIN" and
-                original.get("condition") != optimized.get("condition") and
-                ("#0" in optimized.get("condition", "") or "#1" in optimized.get("condition", ""))):
+        if (
+            original.get("type") == "JOIN"
+            and optimized.get("type") == "JOIN"
+            and original.get("condition") != optimized.get("condition")
+            and (
+                "#0" in optimized.get("condition", "")
+                or "#1" in optimized.get("condition", "")
+            )
+        ):
             changes.append("Rewrote join condition for better execution")
-        
+
         # Check for ORDER BY to INDEX SCAN optimization
         if original.get("type") == "ORDER_BY" and optimized.get("type") == "INDEX_SCAN":
-            changes.append(f"Converted ORDER BY to index scan on {optimized.get('column', 'unknown')} column")
-        
+            changes.append(
+                f"Converted ORDER BY to index scan on {
+                    optimized.get('column', 'unknown')} column"
+            )
+
         # Check for SORT+LIMIT to TOP N optimization
-        if original.get("type") == "SORT" and "limit" in original and optimized.get("type") == "TOP_N":
-            changes.append(f"Optimized SORT+LIMIT to TOP_N with limit {optimized.get('n', 'unknown')}")
-        
+        if (
+            original.get("type") == "SORT"
+            and "limit" in original
+            and optimized.get("type") == "TOP_N"
+        ):
+            changes.append(
+                f"Optimized SORT+LIMIT to TOP_N with limit {
+                    optimized.get('n', 'unknown')}"
+            )
+
         # Check for predicate pushdown
-        if (original.get("type") == "FILTER" and "child" in original and 
-                optimized.get("type") in ["SEQ_SCAN", "INDEX_SCAN"] and "filter" in optimized):
+        if (
+            original.get("type") == "FILTER"
+            and "child" in original
+            and optimized.get("type") in ["SEQ_SCAN", "INDEX_SCAN"]
+            and "filter" in optimized
+        ):
             changes.append("Pushed down filter predicate to scan operation")
-        
+
         # Check for join reordering
-        if (original.get("type") == "JOIN" and optimized.get("type") == "JOIN" and
-                original.get("table1") == optimized.get("table2") and 
-                original.get("table2") == optimized.get("table1")):
-            changes.append(f"Reordered join tables ({optimized.get('table2', 'unknown')} first) to utilize available index")
-        
+        if (
+            original.get("type") == "JOIN"
+            and optimized.get("type") == "JOIN"
+            and original.get("table1") == optimized.get("table2")
+            and original.get("table2") == optimized.get("table1")
+        ):
+            changes.append(
+                f"Reordered join tables ({optimized.get(
+                    'table2', 'unknown')} first) to utilize available index"
+            )
+
         # Check for additional index optimizations in general
         if "index" in optimized and "index" not in original:
             index_name = optimized.get("index", "unknown")
             if isinstance(index_name, dict) and "name" in index_name:
                 index_name = index_name["name"]
             changes.append(f"Using index {index_name} for faster access")
-        
+
         # Check for additional query plan structure changes
         if original.get("type") != optimized.get("type"):
             # If not covered by other checks, report the general change
             if not any(change.startswith("Converted") for change in changes):
-                changes.append(f"Changed plan type from {original.get('type', 'unknown')} to {optimized.get('type', 'unknown')}")
+                changes.append(
+                    f"Changed plan type from {original.get('type', 'unknown')} to {
+                        optimized.get('type', 'unknown')}"
+                )
 
         # Check if a subplan was eliminated (plan depth decreased)
         original_depth = self._calculate_plan_depth(original)
         optimized_depth = self._calculate_plan_depth(optimized)
         if original_depth > optimized_depth:
-            changes.append(f"Reduced query plan depth from {original_depth} to {optimized_depth}")
+            changes.append(
+                f"Reduced query plan depth from {
+                    original_depth} to {optimized_depth}"
+            )
 
         return changes
 
