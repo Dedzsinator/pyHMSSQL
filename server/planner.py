@@ -159,7 +159,19 @@ class Planner:
                     return self.log_execution_plan(aggregate_plan)
 
         try:
-            if parsed_query["type"] == "SELECT":
+            # Handle database operations directly
+            if parsed_query["type"] == "CREATE_DATABASE":
+                return self.plan_create_database(parsed_query)
+            elif parsed_query["type"] == "DROP_DATABASE":
+                return self.plan_drop_database(parsed_query)
+            elif parsed_query["type"] == "USE_DATABASE":
+                return self.plan_use_database(parsed_query)
+            # Add direct handlers for CREATE_TABLE and CREATE_INDEX
+            elif parsed_query["type"] == "CREATE_TABLE":
+                plan = self.plan_create_table(parsed_query)
+            elif parsed_query["type"] == "CREATE_INDEX":
+                plan = self.plan_create_index(parsed_query)
+            elif parsed_query["type"] == "SELECT":
                 plan = self.plan_select(parsed_query)
             elif parsed_query["type"] == "INSERT":
                 plan = self.plan_insert(parsed_query)
@@ -168,7 +180,7 @@ class Planner:
             elif parsed_query["type"] == "DELETE":
                 plan = self.plan_delete(parsed_query)
             elif parsed_query["type"] == "CREATE":
-                # Check what type of CREATE statement this is
+                # Existing handling for CREATE with subtypes
                 create_type = parsed_query.get("create_type")
                 if create_type == "TABLE":
                     plan = self.plan_create_table(parsed_query)
@@ -176,8 +188,6 @@ class Planner:
                     plan = self.plan_create_database(parsed_query)
                 elif create_type == "INDEX":
                     plan = self.plan_create_index(parsed_query)
-                else:
-                    raise ValueError("Unsupported CREATE statement type.")
             elif parsed_query["type"] == "DROP":
                 # Check what type of DROP statement this is
                 drop_type = parsed_query.get("drop_type")
@@ -259,8 +269,7 @@ class Planner:
         """
         logging.debug("Planning CREATE INDEX query: %s", parsed_query)
 
-        # Extract data from the parsed query
-        index_name = parsed_query.get("index")
+        index_name = parsed_query.get("index_name")
         table_name = parsed_query.get("table")
         column_name = parsed_query.get("column")
         is_unique = parsed_query.get("unique", False)

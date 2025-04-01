@@ -395,45 +395,52 @@ class SchemaManager:
 
     def execute_create_index(self, plan):
         """Execute CREATE INDEX operation."""
-        index_name = plan.get("index_name")
+        # Get index_name from either field
+        index_name = plan.get("index_name") or plan.get("index") 
+        
+        # If index_name is still None, create a default name
+        if not index_name:
+            index_name = f"idx_{plan.get('table')}_{plan.get('column')}"
+            
         table_name = plan.get("table")
         column = plan.get("column")
         is_unique = plan.get("unique", False)
 
-        if not table_name:
-            return {"error": "Table name must be specified for CREATE INDEX"}
-
-        if not column:
-            return {"error": "Column name must be specified for CREATE INDEX"}
-
+        # Log the parameters for debugging
         logging.info(f"Creating index '{index_name}' on {table_name}.{column}")
 
         # Get the current database
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
-            return {"error": "No database selected. Use 'USE database_name' first."}
+            return {"error": "No database selected. Use 'USE database_name' first.",
+                    "status": "error", 
+                    "type": "error"}
 
         # Verify table exists
         tables = self.catalog_manager.list_tables(db_name)
         if table_name not in tables:
-            return {
-                "error": f"Table '{table_name}' does not exist in database '{db_name}'"
-            }
+            return {"error": f"Table '{table_name}' does not exist in database '{db_name}'",
+                    "status": "error",
+                    "type": "error"}
 
-        # Create the index
+        # Create the index - PASS INDEX_NAME TO CATALOG MANAGER
         try:
             result = self.catalog_manager.create_index(
-                table_name, column, "BTREE", is_unique
+                table_name, column, "BTREE", is_unique, index_name  # Add index_name here
             )
             if isinstance(result, str) and "already exists" in result:
-                return {"error": result}
+                return {"error": result, "status": "error", "type": "error"}
 
             return {
-                "message": f"Index '{index_name}' created on '{table_name}.{column}'"
+                "message": f"Index '{index_name}' created on '{table_name}.{column}'",
+                "status": "success",
+                "type": "create_index_result"
             }
         except Exception as e:
             logging.error(f"Error creating index: {str(e)}")
-            return {"error": f"Error creating index: {str(e)}"}
+            return {"error": f"Error creating index: {str(e)}", 
+                    "status": "error", 
+                    "type": "error"}
 
     def execute_drop_index(self, plan):
         """Execute DROP INDEX operation."""

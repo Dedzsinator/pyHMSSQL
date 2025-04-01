@@ -151,52 +151,60 @@ class ExecutionEngine:
         logging.debug("Executing plan of type %s: %s", plan_type, plan)
 
         try:
+            result = None
+
             # SQL queries
             if plan_type == "SELECT":
-                return self.select_executor.execute_select(plan)
+                result = self.select_executor.execute_select(plan)
             elif plan_type == "AGGREGATE":
-                return self.aggregate_executor.execute_aggregate(plan)
+                result = self.aggregate_executor.execute_aggregate(plan)
             elif plan_type == "JOIN":
-                return self.join_executor.execute_join(plan)
+                result = self.join_executor.execute_join(plan)
 
             # DML operations
             elif plan_type == "INSERT":
-                return self.dml_executor.execute_insert(plan)
+                result = self.dml_executor.execute_insert(plan)
             elif plan_type == "UPDATE":
-                return self.dml_executor.execute_update(plan)
+                result = self.dml_executor.execute_update(plan)
             elif plan_type == "DELETE":
-                return self.dml_executor.execute_delete(plan)
+                result = self.dml_executor.execute_delete(plan)
 
             # DDL operations
             elif plan_type in ["CREATE_TABLE", "DROP_TABLE"]:
-                return self.schema_manager.execute_table_operation(plan)
+                result = self.schema_manager.execute_table_operation(plan)
             elif plan_type in ["CREATE_DATABASE", "DROP_DATABASE", "USE_DATABASE"]:
-                return self.schema_manager.execute_database_operation(plan)
+                result = self.schema_manager.execute_database_operation(plan)
             # Replace these lines for index operations
             elif plan_type == "CREATE_INDEX":
-                return self.execute_create_index(plan)
+                result = self.execute_create_index(plan)
             elif plan_type == "DROP_INDEX":
-                return self.execute_drop_index(plan)
+                result = self.execute_drop_index(plan)
             elif plan_type in ["CREATE_VIEW", "DROP_VIEW"]:
-                return self.view_manager.execute_view_operation(plan)
+                result = self.view_manager.execute_view_operation(plan)
 
             # Transaction operations
             elif plan_type in ["BEGIN_TRANSACTION", "COMMIT", "ROLLBACK"]:
-                return self.transaction_manager.execute_transaction_operation(plan_type)
+                result = self.transaction_manager.execute_transaction_operation(plan_type)
 
             # Utility operations
             elif plan_type == "SHOW":
-                return self.schema_manager.execute_show_operation(plan)
+                result = self.schema_manager.execute_show_operation(plan)
             elif plan_type == "SET":
-                return self.execute_set_preference(plan)
+                result = self.execute_set_preference(plan)
             elif plan_type == "VISUALIZE":
-                return self.execute_visualize_index(plan)
+                result = self.execute_visualize_index(plan)
 
             else:
-                return {
+                result = {
                     "error": f"Unsupported operation type: {plan_type}",
                     "status": "error",
                 }
+
+            if isinstance(result, dict) and "type" not in result:
+                result["type"] = f"{plan_type.lower()}_result"
+
+            return result
+
 
         except Exception as e:
             logging.error("Error executing %s: %s", plan_type, str(e))

@@ -968,16 +968,18 @@ class CatalogManager:
             logging.error(f"Error updating records: {e}")
             return f"Error updating records: {str(e)}"
 
-    def create_index(
-        self, table_name, column_name, index_type="BTREE", is_unique=False
-    ):
+    def create_index(self, table_name, column_name, index_type="BTREE", is_unique=False, index_name=None):
         """Create an index on a table column."""
         db_name = self.get_current_database()
         if not db_name:
             return "No database selected."
 
+        # Use provided index_name or generate one
+        if not index_name:
+            index_name = f"idx_{column_name}"
+            
         table_id = f"{db_name}.{table_name}"
-        index_id = f"{table_id}.{column_name}"
+        index_id = f"{table_id}.{index_name}"  # Use index_name instead of column_name
 
         # Check if table exists
         if table_id not in self.tables:
@@ -985,7 +987,7 @@ class CatalogManager:
 
         # Check if index already exists
         if index_id in self.indexes:
-            return f"Index on {table_name}.{column_name} already exists."
+            return f"Index '{index_name}' on {table_name}.{column_name} already exists."
 
         # Add to indexes catalog
         self.indexes[index_id] = {
@@ -993,6 +995,7 @@ class CatalogManager:
             "column": column_name,
             "type": index_type,
             "unique": is_unique,
+            "name": index_name,  # Store the index name
             "created_at": datetime.datetime.now().isoformat(),
         }
 

@@ -102,6 +102,45 @@ class DBMSServer:
         logs_dir = os.path.join(os.path.dirname(
             os.path.abspath(__file__)), "../logs")
         os.makedirs(logs_dir, exist_ok=True)
+        
+    def _log_plan_details(self, plan, indent=0):
+        """
+        Helper function to log plan details in a readable format.
+        
+        Args:
+            plan: The execution/optimization plan
+            indent: Current indentation level for formatting nested plans
+        """
+        indent_str = "  " * indent
+        plan_type = plan.get("type", "UNKNOWN")
+
+        # Log plan type with indentation
+        logging.info('%s%s', indent_str, plan_type)
+
+        # Log plan details based on type
+        for key, value in plan.items():
+            if key == "type" or key == "child" or isinstance(value, dict):
+                continue
+
+            # Format lists nicely
+            if isinstance(value, list):
+                if value and len(value) > 0:
+                    if isinstance(value[0], dict):
+                        logging.info('%s  %s:', indent_str, key)
+                        for item in value:
+                            logging.info('%s    - %s', indent_str, item)
+                    else:
+                        logging.info('%s  %s: %s', indent_str, key, value)
+                else:
+                    logging.info('%s  %s: []', indent_str, key)
+            else:
+                logging.info('%s  %s: %s', indent_str, key, value)
+
+        # Recursively log child plans
+        if "child" in plan and isinstance(plan["child"], dict):
+            logging.info('%s  child:', indent_str)
+            self._log_plan_details(plan["child"], indent + 1)
+
 
     def _validate_session(self, session_token):
         """Validate a session token"""
@@ -112,12 +151,12 @@ class DBMSServer:
         Handle incoming request.
         """
         try:
-            # Only use 'action' field for determining request type
-            request_type = data.get("action")
+            # Use 'action' field for determining request type
+            request_type = data.get("action", data.get("type"))  # Try both fields
 
             if not request_type:
-                logging.error('Missing "action" field in request: %s',data)
-                return {"error": "Missing 'action' field in request", "status": "error"}
+                logging.error('Missing request type in request: %s', data)
+                return {"error": "Missing request type in request", "status": "error"}
 
             # Process the request based on action
             if request_type == "login":
@@ -544,44 +583,6 @@ def start_server():
     finally:
         sock.close()
         logging.info("Server socket closed")
-
-    def _log_plan_details(self, plan, indent=0):
-        """
-        Helper function to log plan details in a readable format.
-        
-        Args:
-            plan: The execution/optimization plan
-            indent: Current indentation level for formatting nested plans
-        """
-        indent_str = "  " * indent
-        plan_type = plan.get("type", "UNKNOWN")
-
-        # Log plan type with indentation
-        logging.info('%s%s', indent_str, plan_type)
-
-        # Log plan details based on type
-        for key, value in plan.items():
-            if key == "type" or key == "child" or isinstance(value, dict):
-                continue
-
-            # Format lists nicely
-            if isinstance(value, list):
-                if value and len(value) > 0:
-                    if isinstance(value[0], dict):
-                        logging.info('%s  %s:', indent_str, key)
-                        for item in value:
-                            logging.info('%s    - %s', indent_str, item)
-                    else:
-                        logging.info('%s  %s: %s', indent_str, key, value)
-                else:
-                    logging.info('%s  %s: []', indent_str, key)
-            else:
-                logging.info('%s  %s: %s', indent_str, key, value)
-
-        # Recursively log child plans
-        if "child" in plan and isinstance(plan["child"], dict):
-            logging.info('%s  child:', indent_str)
-            self._log_plan_details(plan["child"], indent + 1)
 
 
 if __name__ == "__main__":
