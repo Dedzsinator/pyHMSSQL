@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "transaction: marks tests as transaction tests",
+    "concurrency: marks tests as concurrency tests",
+    "performance: marks tests as performance tests"
+]
+
+[tool.pytest]
+log_cli = true
+log_cli_level = "INFO"

@@ -1,0 +1,375 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.2, pytest-8.3.5, pluggy-1.5.0
+rootdir: /home/deginandor/Documents/Programming/pyHMSSQL
+configfile: pytest.ini
+testpaths: tests
+plugins: Faker-36.1.1, typeguard-4.4.2
+collected 35 items / 33 deselected / 2 selected
+run-last-failure: rerun previous 2 failures
+
+tests/test_ddl/test_tables_ops.py::TestCreateTable::test_create_table_with_constraints 
+-------------------------------- live log setup --------------------------------
+INFO     root:catalog_manager.py:61 CatalogManager initialized with file-based storage.
+INFO     root:catalog_manager.py:131 Database test_db created.
+INFO     root:catalog_manager.py:176 Current database set to: test_db
+-------------------------------- live log call ---------------------------------
+INFO     bptree:bptree.py:36 Created new B+ tree 'products' with order 50
+FAILED                                                                   [ 50%]
+tests/test_transactions/test_transaction_manager.py::TestTransactionOperations::test_transaction_rollback 
+-------------------------------- live log setup --------------------------------
+INFO     root:catalog_manager.py:61 CatalogManager initialized with file-based storage.
+INFO     root:catalog_manager.py:131 Database test_db created.
+INFO     root:catalog_manager.py:176 Current database set to: test_db
+INFO     bptree:bptree.py:36 Created new B+ tree 'customers' with order 50
+INFO     root:catalog_manager.py:658 Record inserted into customers with ID 1
+INFO     root:catalog_manager.py:658 Record inserted into customers with ID 2
+INFO     root:catalog_manager.py:658 Record inserted into customers with ID 3
+-------------------------------- live log call ---------------------------------
+INFO     transaction.transaction_manager:transaction_manager.py:48 Started transaction 36117720-4693-4976-9f05-961f5b083204
+INFO     root:catalog_manager.py:658 Record inserted into customers with ID 101
+WARNING  transaction.transaction_manager:transaction_manager.py:27 Transaction 36117720-4693-4976-9f05-961f5b083204 not found, creating it
+WARNING  root:catalog_manager.py:636 Primary key violation: id=101 already exists
+FAILED                                                                   [100%]
+
+=================================== FAILURES ===================================
+______________ TestCreateTable.test_create_table_with_constraints ______________
+
+self = <test_tables_ops.TestCreateTable object at 0x7eeffc91ad70>
+schema_manager = <ddl_processor.schema_manager.SchemaManager object at 0x7eeffbc46120>
+catalog_manager = <catalog_manager.CatalogManager object at 0x7eeffbcdf620>
+
+    def test_create_table_with_constraints(self, schema_manager, catalog_manager):
+        """Test creating a table with various constraints."""
+        plan = {
+            "type": "CREATE_TABLE",
+            "table": "products",
+            "columns": [
+                "id INT NOT NULL PRIMARY KEY",
+                "name TEXT NOT NULL",
+                "price DECIMAL NOT NULL",
+                "category_id INT",
+                "FOREIGN KEY (category_id) REFERENCES categories(id)"
+            ]
+        }
+    
+        result = schema_manager.execute_create_table(plan)
+    
+        assert result["status"] == "success"
+        tables = catalog_manager.list_tables("test_db")
+        assert "products" in tables
+    
+        # Verify constraints in schema
+        schema = catalog_manager.get_table_schema("products")
+>       assert any("FOREIGN KEY" in str(schema).upper())
+E       TypeError: 'bool' object is not iterable
+
+tests/test_ddl/test_tables_ops.py:69: TypeError
+---------------------------- Captured stderr setup -----------------------------
+2025-04-02 14:35:03,942 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.address`.
+2025-04-02 14:35:03,942 - faker.factory - DEBUG - Provider `faker.providers.address` has been localized to `en_US`.
+2025-04-02 14:35:03,945 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.automotive`.
+2025-04-02 14:35:03,946 - faker.factory - DEBUG - Provider `faker.providers.automotive` has been localized to `en_US`.
+2025-04-02 14:35:03,946 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.bank`.
+2025-04-02 14:35:03,947 - faker.factory - DEBUG - Specified locale `en_US` is not available for provider `faker.providers.bank`. Locale reset to `en_GB` for this provider.
+2025-04-02 14:35:03,947 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.barcode`.
+2025-04-02 14:35:03,947 - faker.factory - DEBUG - Provider `faker.providers.barcode` has been localized to `en_US`.
+2025-04-02 14:35:03,948 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.color`.
+2025-04-02 14:35:03,949 - faker.factory - DEBUG - Provider `faker.providers.color` has been localized to `en_US`.
+2025-04-02 14:35:03,949 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.company`.
+2025-04-02 14:35:03,950 - faker.factory - DEBUG - Provider `faker.providers.company` has been localized to `en_US`.
+2025-04-02 14:35:03,950 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.credit_card`.
+2025-04-02 14:35:03,950 - faker.factory - DEBUG - Provider `faker.providers.credit_card` has been localized to `en_US`.
+2025-04-02 14:35:03,950 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.currency`.
+2025-04-02 14:35:03,951 - faker.factory - DEBUG - Provider `faker.providers.currency` has been localized to `en_US`.
+2025-04-02 14:35:03,951 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.date_time`.
+2025-04-02 14:35:03,951 - faker.factory - DEBUG - Provider `faker.providers.date_time` has been localized to `en_US`.
+2025-04-02 14:35:03,952 - faker.factory - DEBUG - Provider `faker.providers.emoji` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2025-04-02 14:35:03,952 - faker.factory - DEBUG - Provider `faker.providers.file` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2025-04-02 14:35:03,952 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.geo`.
+2025-04-02 14:35:03,952 - faker.factory - DEBUG - Provider `faker.providers.geo` has been localized to `en_US`.
+2025-04-02 14:35:03,952 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.internet`.
+2025-04-02 14:35:03,953 - faker.factory - DEBUG - Provider `faker.providers.internet` has been localized to `en_US`.
+2025-04-02 14:35:03,953 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.isbn`.
+2025-04-02 14:35:03,953 - faker.factory - DEBUG - Provider `faker.providers.isbn` has been localized to `en_US`.
+2025-04-02 14:35:03,953 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.job`.
+2025-04-02 14:35:03,954 - faker.factory - DEBUG - Provider `faker.providers.job` has been localized to `en_US`.
+2025-04-02 14:35:03,954 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.lorem`.
+2025-04-02 14:35:03,954 - faker.factory - DEBUG - Provider `faker.providers.lorem` has been localized to `en_US`.
+2025-04-02 14:35:03,954 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.misc`.
+2025-04-02 14:35:03,955 - faker.factory - DEBUG - Provider `faker.providers.misc` has been localized to `en_US`.
+2025-04-02 14:35:03,955 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.passport`.
+2025-04-02 14:35:03,955 - faker.factory - DEBUG - Provider `faker.providers.passport` has been localized to `en_US`.
+2025-04-02 14:35:03,956 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.person`.
+2025-04-02 14:35:03,957 - faker.factory - DEBUG - Provider `faker.providers.person` has been localized to `en_US`.
+2025-04-02 14:35:03,967 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.phone_number`.
+2025-04-02 14:35:03,968 - faker.factory - DEBUG - Provider `faker.providers.phone_number` has been localized to `en_US`.
+2025-04-02 14:35:03,969 - faker.factory - DEBUG - Provider `faker.providers.profile` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2025-04-02 14:35:03,969 - faker.factory - DEBUG - Provider `faker.providers.python` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2025-04-02 14:35:03,969 - faker.factory - DEBUG - Provider `faker.providers.sbn` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2025-04-02 14:35:03,969 - faker.factory - DEBUG - Looking for locale `en_US` in provider `faker.providers.ssn`.
+2025-04-02 14:35:03,969 - faker.factory - DEBUG - Provider `faker.providers.ssn` has been localized to `en_US`.
+2025-04-02 14:35:03,971 - faker.factory - DEBUG - Provider `faker.providers.user_agent` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2025-04-02 14:35:03,971 - root - INFO - CatalogManager initialized with file-based storage.
+2025-04-02 14:35:03,972 - root - DEBUG - Creating database: test_db
+2025-04-02 14:35:03,972 - root - INFO - Database test_db created.
+2025-04-02 14:35:03,972 - root - INFO - Current database set to: test_db
+------------------------------ Captured log setup ------------------------------
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.address`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.address` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.automotive`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.automotive` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.bank`.
+DEBUG    faker.factory:factory.py:88 Specified locale `en_US` is not available for provider `faker.providers.bank`. Locale reset to `en_GB` for this provider.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.barcode`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.barcode` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.color`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.color` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.company`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.company` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.credit_card`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.credit_card` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.currency`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.currency` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.date_time`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.date_time` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:108 Provider `faker.providers.emoji` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:108 Provider `faker.providers.file` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.geo`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.geo` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.internet`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.internet` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.isbn`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.isbn` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.job`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.job` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.lorem`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.lorem` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.misc`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.misc` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.passport`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.passport` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.person`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.person` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.phone_number`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.phone_number` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:108 Provider `faker.providers.profile` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:108 Provider `faker.providers.python` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:108 Provider `faker.providers.sbn` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:78 Looking for locale `en_US` in provider `faker.providers.ssn`.
+DEBUG    faker.factory:factory.py:97 Provider `faker.providers.ssn` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:108 Provider `faker.providers.user_agent` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+INFO     root:catalog_manager.py:61 CatalogManager initialized with file-based storage.
+DEBUG    root:catalog_manager.py:113 Creating database: test_db
+INFO     root:catalog_manager.py:131 Database test_db created.
+INFO     root:catalog_manager.py:176 Current database set to: test_db
+----------------------------- Captured stderr call -----------------------------
+2025-04-02 14:35:03,972 - bptree - INFO - Created new B+ tree 'products' with order 50
+2025-04-02 14:35:03,972 - root - DEBUG - Saving B+ tree to file: /tmp/tmpe8ov7vzj/tables/test_db/products.tbl
+------------------------------ Captured log call -------------------------------
+INFO     bptree:bptree.py:36 Created new B+ tree 'products' with order 50
+DEBUG    root:bptree.py:303 Saving B+ tree to file: /tmp/tmpe8ov7vzj/tables/test_db/products.tbl
+_____________ TestTransactionOperations.test_transaction_rollback ______________
+
+self = <test_transaction_manager.TestTransactionOperations object at 0x7eeffbcb9810>
+transaction_manager = <transaction.transaction_manager.TransactionManager object at 0x7eeffbcdfcb0>
+catalog_manager = <catalog_manager.CatalogManager object at 0x7eeffbcbb250>
+execution_engine = <execution_engine.ExecutionEngine object at 0x7eeffbc46cf0>
+test_table = 'customers'
+
+    def test_transaction_rollback(self, transaction_manager, catalog_manager, execution_engine, test_table):
+        """Test transaction rollback."""
+        # Start transaction
+        begin_result = transaction_manager.execute_transaction_operation("BEGIN_TRANSACTION")
+        transaction_id = begin_result["transaction_id"]
+    
+        # Execute INSERT within transaction
+        insert_plan = {
+            "type": "INSERT",
+            "table": test_table,
+            "columns": ["id", "name", "email", "age"],
+            "values": [[101, "Rollback Test", "rollback@example.com", 50]],
+            "transaction_id": transaction_id
+        }
+    
+        insert_result = execution_engine.execute(insert_plan)
+        assert insert_result["status"] == "success"
+    
+        # Rollback transaction
+        rollback_result = transaction_manager.execute_transaction_operation("ROLLBACK", transaction_id)
+        assert rollback_result["status"] == "success"
+    
+        # Verify data is not visible after rollback
+        records = catalog_manager.query_with_condition(
+            test_table, [{"column": "id", "operator": "=", "value": 101}]
+        )
+>       assert len(records) == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = len([{'age': 50, 'email': 'rollback@example.com', 'id': 101, 'name': 'Rollback Test'}])
+
+tests/test_transactions/test_transaction_manager.py:82: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2025-04-02 14:35:03,980 - root - INFO - CatalogManager initialized with file-based storage.
+2025-04-02 14:35:03,980 - root - DEBUG - Creating database: test_db
+2025-04-02 14:35:03,980 - root - INFO - Database test_db created.
+2025-04-02 14:35:03,981 - root - INFO - Current database set to: test_db
+2025-04-02 14:35:03,981 - bptree - INFO - Created new B+ tree 'customers' with order 50
+2025-04-02 14:35:03,981 - root - DEBUG - Saving B+ tree to file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,981 - root - DEBUG - Table customers - PK: id, Identity: False
+2025-04-02 14:35:03,981 - root - DEBUG - Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers][1] RANGE QUERY - from -inf to inf
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers] RANGE QUERY RESULT - found 0 entries
+2025-04-02 14:35:03,981 - root - DEBUG - Checking primary key constraint: id=1
+2025-04-02 14:35:03,981 - root - DEBUG - Inserting record with ID 1: {'id': 1, 'name': 'John Doe', 'email': 'john@example.com', 'age': 30}
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers][2] INSERT - key: 1, value: {'id': 1, 'name': 'John Doe', 'email': 'john@example.com', 'age': 30}
+2025-04-02 14:35:03,981 - bptree - DEBUG - Tree before insert: {"id": 0, "leaf": true, "keys": [], "children": []}
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers] INSERT LEAF - key: 1, value: {'id': 1, 'name': 'John Doe', 'email': 'john@example.com', 'age': 30}, position: 0
+2025-04-02 14:35:03,981 - bptree - DEBUG - Tree after insert: {"id": 0, "leaf": true, "keys": [1], "children": []}
+2025-04-02 14:35:03,981 - root - DEBUG - Saving B+ tree to file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,981 - root - INFO - Record inserted into customers with ID 1
+2025-04-02 14:35:03,981 - root - DEBUG - Table customers - PK: id, Identity: False
+2025-04-02 14:35:03,981 - root - DEBUG - Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers][3] RANGE QUERY - from -inf to inf
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers] RANGE QUERY RESULT - found 1 entries
+2025-04-02 14:35:03,981 - root - DEBUG - Checking primary key constraint: id=2
+2025-04-02 14:35:03,981 - root - DEBUG - Inserting record with ID 2: {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com', 'age': 25}
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers][4] INSERT - key: 2, value: {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com', 'age': 25}
+2025-04-02 14:35:03,981 - bptree - DEBUG - Tree before insert: {"id": 0, "leaf": true, "keys": [1], "children": []}
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers] INSERT LEAF - key: 2, value: {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com', 'age': 25}, position: 1
+2025-04-02 14:35:03,981 - bptree - DEBUG - Tree after insert: {"id": 0, "leaf": true, "keys": [1, 2], "children": []}
+2025-04-02 14:35:03,981 - root - DEBUG - Saving B+ tree to file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,981 - root - INFO - Record inserted into customers with ID 2
+2025-04-02 14:35:03,981 - root - DEBUG - Table customers - PK: id, Identity: False
+2025-04-02 14:35:03,981 - root - DEBUG - Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers][5] RANGE QUERY - from -inf to inf
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers] RANGE QUERY RESULT - found 2 entries
+2025-04-02 14:35:03,981 - root - DEBUG - Checking primary key constraint: id=3
+2025-04-02 14:35:03,981 - root - DEBUG - Inserting record with ID 3: {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@example.com', 'age': 40}
+2025-04-02 14:35:03,981 - bptree - DEBUG - [customers][6] INSERT - key: 3, value: {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@example.com', 'age': 40}
+2025-04-02 14:35:03,982 - bptree - DEBUG - Tree before insert: {"id": 0, "leaf": true, "keys": [1, 2], "children": []}
+2025-04-02 14:35:03,982 - bptree - DEBUG - [customers] INSERT LEAF - key: 3, value: {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@example.com', 'age': 40}, position: 2
+2025-04-02 14:35:03,982 - bptree - DEBUG - Tree after insert: {"id": 0, "leaf": true, "keys": [1, 2, 3], "children": []}
+2025-04-02 14:35:03,982 - root - DEBUG - Saving B+ tree to file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,982 - root - INFO - Record inserted into customers with ID 3
+------------------------------ Captured log setup ------------------------------
+INFO     root:catalog_manager.py:61 CatalogManager initialized with file-based storage.
+DEBUG    root:catalog_manager.py:113 Creating database: test_db
+INFO     root:catalog_manager.py:131 Database test_db created.
+INFO     root:catalog_manager.py:176 Current database set to: test_db
+INFO     bptree:bptree.py:36 Created new B+ tree 'customers' with order 50
+DEBUG    root:bptree.py:303 Saving B+ tree to file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+DEBUG    root:catalog_manager.py:583 Table customers - PK: id, Identity: False
+DEBUG    root:bptree.py:317 Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+DEBUG    bptree:bptree.py:212 [customers][1] RANGE QUERY - from -inf to inf
+DEBUG    bptree:bptree.py:219 [customers] RANGE QUERY RESULT - found 0 entries
+DEBUG    root:catalog_manager.py:626 Checking primary key constraint: id=1
+DEBUG    root:catalog_manager.py:650 Inserting record with ID 1: {'id': 1, 'name': 'John Doe', 'email': 'john@example.com', 'age': 30}
+DEBUG    bptree:bptree.py:41 [customers][2] INSERT - key: 1, value: {'id': 1, 'name': 'John Doe', 'email': 'john@example.com', 'age': 30}
+DEBUG    bptree:bptree.py:47 Tree before insert: {"id": 0, "leaf": true, "keys": [], "children": []}
+DEBUG    bptree:bptree.py:148 [customers] INSERT LEAF - key: 1, value: {'id': 1, 'name': 'John Doe', 'email': 'john@example.com', 'age': 30}, position: 0
+DEBUG    bptree:bptree.py:66 Tree after insert: {"id": 0, "leaf": true, "keys": [1], "children": []}
+DEBUG    root:bptree.py:303 Saving B+ tree to file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+INFO     root:catalog_manager.py:658 Record inserted into customers with ID 1
+DEBUG    root:catalog_manager.py:583 Table customers - PK: id, Identity: False
+DEBUG    root:bptree.py:317 Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+DEBUG    bptree:bptree.py:212 [customers][3] RANGE QUERY - from -inf to inf
+DEBUG    bptree:bptree.py:219 [customers] RANGE QUERY RESULT - found 1 entries
+DEBUG    root:catalog_manager.py:626 Checking primary key constraint: id=2
+DEBUG    root:catalog_manager.py:650 Inserting record with ID 2: {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com', 'age': 25}
+DEBUG    bptree:bptree.py:41 [customers][4] INSERT - key: 2, value: {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com', 'age': 25}
+DEBUG    bptree:bptree.py:47 Tree before insert: {"id": 0, "leaf": true, "keys": [1], "children": []}
+DEBUG    bptree:bptree.py:148 [customers] INSERT LEAF - key: 2, value: {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com', 'age': 25}, position: 1
+DEBUG    bptree:bptree.py:66 Tree after insert: {"id": 0, "leaf": true, "keys": [1, 2], "children": []}
+DEBUG    root:bptree.py:303 Saving B+ tree to file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+INFO     root:catalog_manager.py:658 Record inserted into customers with ID 2
+DEBUG    root:catalog_manager.py:583 Table customers - PK: id, Identity: False
+DEBUG    root:bptree.py:317 Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+DEBUG    bptree:bptree.py:212 [customers][5] RANGE QUERY - from -inf to inf
+DEBUG    bptree:bptree.py:219 [customers] RANGE QUERY RESULT - found 2 entries
+DEBUG    root:catalog_manager.py:626 Checking primary key constraint: id=3
+DEBUG    root:catalog_manager.py:650 Inserting record with ID 3: {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@example.com', 'age': 40}
+DEBUG    bptree:bptree.py:41 [customers][6] INSERT - key: 3, value: {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@example.com', 'age': 40}
+DEBUG    bptree:bptree.py:47 Tree before insert: {"id": 0, "leaf": true, "keys": [1, 2], "children": []}
+DEBUG    bptree:bptree.py:148 [customers] INSERT LEAF - key: 3, value: {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@example.com', 'age': 40}, position: 2
+DEBUG    bptree:bptree.py:66 Tree after insert: {"id": 0, "leaf": true, "keys": [1, 2, 3], "children": []}
+DEBUG    root:bptree.py:303 Saving B+ tree to file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+INFO     root:catalog_manager.py:658 Record inserted into customers with ID 3
+----------------------------- Captured stderr call -----------------------------
+2025-04-02 14:35:03,982 - transaction.transaction_manager - INFO - Started transaction 36117720-4693-4976-9f05-961f5b083204
+2025-04-02 14:35:03,982 - root - DEBUG - Lock acquired: write on customers by temp_0d654e46-52ac-4aa2-8f43-b5b496c5b055
+2025-04-02 14:35:03,982 - root - DEBUG - Table customers - PK: id, Identity: False
+2025-04-02 14:35:03,982 - root - DEBUG - Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,982 - bptree - DEBUG - [customers][7] RANGE QUERY - from -inf to inf
+2025-04-02 14:35:03,982 - bptree - DEBUG - [customers] RANGE QUERY RESULT - found 3 entries
+2025-04-02 14:35:03,982 - root - DEBUG - Checking primary key constraint: id=101
+2025-04-02 14:35:03,982 - root - DEBUG - Inserting record with ID 101: {'id': 101, 'name': 'Rollback Test', 'email': 'rollback@example.com', 'age': 50}
+2025-04-02 14:35:03,982 - bptree - DEBUG - [customers][8] INSERT - key: 101, value: {'id': 101, 'name': 'Rollback Test', 'email': 'rollback@example.com', 'age': 50}
+2025-04-02 14:35:03,982 - bptree - DEBUG - Tree before insert: {"id": 0, "leaf": true, "keys": [1, 2, 3], "children": []}
+2025-04-02 14:35:03,982 - bptree - DEBUG - [customers] INSERT LEAF - key: 101, value: {'id': 101, 'name': 'Rollback Test', 'email': 'rollback@example.com', 'age': 50}, position: 3
+2025-04-02 14:35:03,982 - bptree - DEBUG - Tree after insert: {"id": 0, "leaf": true, "keys": [1, 2, 3, 101], "children": []}
+2025-04-02 14:35:03,982 - root - DEBUG - Saving B+ tree to file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,982 - root - INFO - Record inserted into customers with ID 101
+2025-04-02 14:35:03,982 - root - DEBUG - Lock released on customers by temp_0d654e46-52ac-4aa2-8f43-b5b496c5b055
+2025-04-02 14:35:03,982 - transaction.transaction_manager - WARNING - Transaction 36117720-4693-4976-9f05-961f5b083204 not found, creating it
+2025-04-02 14:35:03,982 - root - DEBUG - Lock acquired: write on customers by temp_16c5e575-89c1-4ed5-a1e9-70568bfc2518
+2025-04-02 14:35:03,982 - root - DEBUG - Table customers - PK: id, Identity: False
+2025-04-02 14:35:03,982 - root - DEBUG - Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,982 - bptree - DEBUG - [customers][9] RANGE QUERY - from -inf to inf
+2025-04-02 14:35:03,982 - bptree - DEBUG - [customers] RANGE QUERY RESULT - found 4 entries
+2025-04-02 14:35:03,982 - root - DEBUG - Checking primary key constraint: id=101
+2025-04-02 14:35:03,982 - root - WARNING - Primary key violation: id=101 already exists
+2025-04-02 14:35:03,982 - root - DEBUG - Lock released on customers by temp_16c5e575-89c1-4ed5-a1e9-70568bfc2518
+2025-04-02 14:35:03,982 - root - DEBUG - Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+2025-04-02 14:35:03,982 - bptree - DEBUG - [customers][9] RANGE QUERY - from -inf to inf
+2025-04-02 14:35:03,982 - bptree - DEBUG - [customers] RANGE QUERY RESULT - found 4 entries
+2025-04-02 14:35:03,982 - root - DEBUG - Found 4 total records in customers
+2025-04-02 14:35:03,982 - root - DEBUG - Checking conditions: [{'column': 'id', 'operator': '=', 'value': 101}] against record: {'id': 1, 'name': 'John Doe', 'email': 'john@example.com', 'age': 30}
+2025-04-02 14:35:03,982 - root - DEBUG - Comparing 1 = 101
+2025-04-02 14:35:03,982 - root - DEBUG - Checking conditions: [{'column': 'id', 'operator': '=', 'value': 101}] against record: {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com', 'age': 25}
+2025-04-02 14:35:03,982 - root - DEBUG - Comparing 2 = 101
+2025-04-02 14:35:03,982 - root - DEBUG - Checking conditions: [{'column': 'id', 'operator': '=', 'value': 101}] against record: {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@example.com', 'age': 40}
+2025-04-02 14:35:03,983 - root - DEBUG - Comparing 3 = 101
+2025-04-02 14:35:03,983 - root - DEBUG - Checking conditions: [{'column': 'id', 'operator': '=', 'value': 101}] against record: {'id': 101, 'name': 'Rollback Test', 'email': 'rollback@example.com', 'age': 50}
+2025-04-02 14:35:03,983 - root - DEBUG - Comparing 101 = 101
+2025-04-02 14:35:03,983 - root - DEBUG - Returning 1 records after applying conditions
+------------------------------ Captured log call -------------------------------
+INFO     transaction.transaction_manager:transaction_manager.py:48 Started transaction 36117720-4693-4976-9f05-961f5b083204
+DEBUG    root:lock_manager.py:63 Lock acquired: write on customers by temp_0d654e46-52ac-4aa2-8f43-b5b496c5b055
+DEBUG    root:catalog_manager.py:583 Table customers - PK: id, Identity: False
+DEBUG    root:bptree.py:317 Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+DEBUG    bptree:bptree.py:212 [customers][7] RANGE QUERY - from -inf to inf
+DEBUG    bptree:bptree.py:219 [customers] RANGE QUERY RESULT - found 3 entries
+DEBUG    root:catalog_manager.py:626 Checking primary key constraint: id=101
+DEBUG    root:catalog_manager.py:650 Inserting record with ID 101: {'id': 101, 'name': 'Rollback Test', 'email': 'rollback@example.com', 'age': 50}
+DEBUG    bptree:bptree.py:41 [customers][8] INSERT - key: 101, value: {'id': 101, 'name': 'Rollback Test', 'email': 'rollback@example.com', 'age': 50}
+DEBUG    bptree:bptree.py:47 Tree before insert: {"id": 0, "leaf": true, "keys": [1, 2, 3], "children": []}
+DEBUG    bptree:bptree.py:148 [customers] INSERT LEAF - key: 101, value: {'id': 101, 'name': 'Rollback Test', 'email': 'rollback@example.com', 'age': 50}, position: 3
+DEBUG    bptree:bptree.py:66 Tree after insert: {"id": 0, "leaf": true, "keys": [1, 2, 3, 101], "children": []}
+DEBUG    root:bptree.py:303 Saving B+ tree to file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+INFO     root:catalog_manager.py:658 Record inserted into customers with ID 101
+DEBUG    root:lock_manager.py:144 Lock released on customers by temp_0d654e46-52ac-4aa2-8f43-b5b496c5b055
+WARNING  transaction.transaction_manager:transaction_manager.py:27 Transaction 36117720-4693-4976-9f05-961f5b083204 not found, creating it
+DEBUG    root:lock_manager.py:63 Lock acquired: write on customers by temp_16c5e575-89c1-4ed5-a1e9-70568bfc2518
+DEBUG    root:catalog_manager.py:583 Table customers - PK: id, Identity: False
+DEBUG    root:bptree.py:317 Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+DEBUG    bptree:bptree.py:212 [customers][9] RANGE QUERY - from -inf to inf
+DEBUG    bptree:bptree.py:219 [customers] RANGE QUERY RESULT - found 4 entries
+DEBUG    root:catalog_manager.py:626 Checking primary key constraint: id=101
+WARNING  root:catalog_manager.py:636 Primary key violation: id=101 already exists
+DEBUG    root:lock_manager.py:144 Lock released on customers by temp_16c5e575-89c1-4ed5-a1e9-70568bfc2518
+DEBUG    root:catalog_manager.py:371 Loading B+ tree from file: /tmp/tmph_2domh6/tables/test_db/customers.tbl
+DEBUG    bptree:bptree.py:212 [customers][9] RANGE QUERY - from -inf to inf
+DEBUG    bptree:bptree.py:219 [customers] RANGE QUERY RESULT - found 4 entries
+DEBUG    root:catalog_manager.py:399 Found 4 total records in customers
+DEBUG    root:catalog_manager.py:408 Checking conditions: [{'column': 'id', 'operator': '=', 'value': 101}] against record: {'id': 1, 'name': 'John Doe', 'email': 'john@example.com', 'age': 30}
+DEBUG    root:catalog_manager.py:436 Comparing 1 = 101
+DEBUG    root:catalog_manager.py:408 Checking conditions: [{'column': 'id', 'operator': '=', 'value': 101}] against record: {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com', 'age': 25}
+DEBUG    root:catalog_manager.py:436 Comparing 2 = 101
+DEBUG    root:catalog_manager.py:408 Checking conditions: [{'column': 'id', 'operator': '=', 'value': 101}] against record: {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@example.com', 'age': 40}
+DEBUG    root:catalog_manager.py:436 Comparing 3 = 101
+DEBUG    root:catalog_manager.py:408 Checking conditions: [{'column': 'id', 'operator': '=', 'value': 101}] against record: {'id': 101, 'name': 'Rollback Test', 'email': 'rollback@example.com', 'age': 50}
+DEBUG    root:catalog_manager.py:436 Comparing 101 = 101
+DEBUG    root:catalog_manager.py:503 Returning 1 records after applying conditions
+=========================== short test summary info ============================
+FAILED tests/test_ddl/test_tables_ops.py::TestCreateTable::test_create_table_with_constraints
+FAILED tests/test_transactions/test_transaction_manager.py::TestTransactionOperations::test_transaction_rollback
+======================= 2 failed, 33 deselected in 0.06s =======================

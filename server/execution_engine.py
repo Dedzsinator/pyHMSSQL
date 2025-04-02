@@ -133,20 +133,46 @@ class ExecutionEngine:
                 }
 
     def execute(self, plan):
-        """
-        Execute the query plan by dispatching to appropriate module.
-        """
+        """Execute the query plan by dispatching to appropriate module."""
         plan_type = plan.get("type")
-
-        if not plan_type:
-            return {"error": "No operation type specified in plan", "status": "error"}
-
-        logging.debug("Executing plan of type %s: %s", plan_type, plan)
-
-        session_id = plan.get("session_id")
-
+        transaction_id = plan.get("transaction_id")
+        
+        # Handle transaction control operations first
+        if plan_type == "BEGIN_TRANSACTION":
+            return self.transaction_manager.execute_transaction_operation("BEGIN_TRANSACTION")
+        elif plan_type == "COMMIT":
+            return self.transaction_manager.execute_transaction_operation("COMMIT", transaction_id)
+        elif plan_type == "ROLLBACK":
+            return self.transaction_manager.execute_transaction_operation("ROLLBACK", transaction_id)
+        
         try:
             result = None
+            
+            # Handle different operation types
+            if plan_type == "SELECT":
+                result = self.select_executor.execute_select(plan)
+            elif plan_type == "INSERT":
+                result = self.dml_executor.execute_insert(plan)
+                
+                # Record the operation if within a transaction
+                if transaction_id and result and result.get("status") == "success":
+                    record = {}
+                    
+                    # Extract record data from different possible formats
+                    if plan.get("record"):
+                        record = plan.get("record")
+                    elif plan.get("columns") and plan.get("values"):
+                        record = dict(zip(plan.get("columns"), plan.get("values")[0] if plan.get("values") else []))
+                    
+                    record_id = record.get("id")
+                    if record_id:
+                        # Record this operation for potential rollback
+                        self.transaction_manager.record_operation(transaction_id, {
+                            "type": "INSERT",
+                            "table": plan.get("table"),
+                            "record_id": record_id,
+                            "record": record
+                        })
 
             # SQL queries
             if plan_type == "SELECT":
@@ -156,32 +182,124 @@ class ExecutionEngine:
             elif plan_type == "JOIN":
                 result = self.join_executor.execute_join(plan)
 
-            # DML operations
+            # DML operations - record for transaction if within a transaction
             elif plan_type == "INSERT":
                 result = self.dml_executor.execute_insert(plan)
+                
+                # Make sure to record transaction operation regardless of result status
+                if transaction_id:
+                    # Extract record information from the plan or result
+                    record = plan.get("record", {})
+                    if not record and plan.get("columns") and plan.get("values"):
+                        record = {
+                            col: val for col, val in zip(plan.get("columns", []),
+                                                    plan.get("values", [[]])[0])
+                        }
+                    
+                    # Get record ID from various possible sources
+                    record_id = None
+                    if "id" in record:
+                        record_id = record["id"]
+                    elif plan.get("values") and plan.get("values")[0] and len(plan.get("values")[0]) > 0:
+                        record_id = plan.get("values")[0][0]
+                        
+                    # Record the operation
+                    self.transaction_manager.record_operation(transaction_id, {
+                        "type": "INSERT",
+                        "table": plan.get("table"),
+                        "record": record,
+                        "record_id": record_id
+                    })
+
             elif plan_type == "UPDATE":
+                # Get existing record for rollback if in a transaction
+                existing_records = []  # Initialize to empty list
+                if transaction_id:
+                    table = plan.get("table")
+                    condition = plan.get("condition")
+                    if condition and table:
+                        # Parse condition and get record before update
+                        conditions = []
+                        parts = condition.split('=')
+                        if len(parts) == 2:
+                            col = parts[0].strip()
+                            val = parts[1].strip()
+                            try:
+                                val = int(val)
+                            except ValueError:
+                                if val.startswith("'") and val.endswith("'"):
+                                    val = val[1:-1]
+                            conditions.append({
+                                "column": col,
+                                "operator": "=",
+                                "value": val
+                            })
+                        
+                        existing_records = self.catalog_manager.query_with_condition(table, conditions)
+                
+                # Execute update
                 result = self.dml_executor.execute_update(plan)
+                
+                # Record operation if successful and in a transaction
+                if transaction_id and result["status"] == "success" and existing_records and len(existing_records) > 0:
+                    for record in existing_records:
+                        self.transaction_manager.record_operation(transaction_id, {
+                            "type": "UPDATE",
+                            "table": plan.get("table"),
+                            "record_id": record.get("id"),
+                            "old_values": record,
+                            "updates": plan.get("set", {})
+                        })
+
             elif plan_type == "DELETE":
+                # Get existing record for rollback if in a transaction
+                existing_records = []  # Initialize to empty list
+                if transaction_id:
+                    table = plan.get("table")
+                    condition = plan.get("condition")
+                    if condition and table:
+                        # Similar condition parsing as for UPDATE
+                        conditions = []
+                        parts = condition.split('=')
+                        if len(parts) == 2:
+                            col = parts[0].strip()
+                            val = parts[1].strip()
+                            try:
+                                val = int(val)
+                            except ValueError:
+                                if val.startswith("'") and val.endswith("'"):
+                                    val = val[1:-1]
+                            conditions.append({
+                                "column": col,
+                                "operator": "=",
+                                "value": val
+                            })
+                        
+                        existing_records = self.catalog_manager.query_with_condition(table, conditions)
+                
+                # Execute delete
                 result = self.dml_executor.execute_delete(plan)
+                
+                # Record operation if successful and in a transaction
+                if transaction_id and result["status"] == "success" and existing_records and len(existing_records) > 0:
+                    for record in existing_records:
+                        self.transaction_manager.record_operation(transaction_id, {
+                            "type": "DELETE",
+                            "table": plan.get("table"),
+                            "record": record
+                        })
 
             # DDL operations
             elif plan_type in ["CREATE_TABLE", "DROP_TABLE"]:
                 result = self.schema_manager.execute_table_operation(plan)
             elif plan_type in ["CREATE_DATABASE", "DROP_DATABASE", "USE_DATABASE"]:
                 result = self.schema_manager.execute_database_operation(plan)
-            # Replace these lines for index operations
             elif plan_type == "CREATE_INDEX":
                 result = self.execute_create_index(plan)
             elif plan_type == "DROP_INDEX":
                 result = self.execute_drop_index(plan)
             elif plan_type in ["CREATE_VIEW", "DROP_VIEW"]:
                 result = self.view_manager.execute_view_operation(plan)
-
-            # Transaction operations
-            elif plan_type in ["BEGIN_TRANSACTION", "COMMIT", "ROLLBACK"]:
-                result = self.transaction_manager.execute_transaction_operation(
-                    plan_type
-                )
 
             # Utility operations
             elif plan_type == "SHOW":
@@ -202,14 +320,9 @@ class ExecutionEngine:
 
             return result
 
-        except RuntimeError as e:
-            logging.error("Error executing %s: %s", plan_type, str(e))
-            logging.error(traceback.format_exc())
-            return {
-                "error": f"Error executing {plan_type}: {str(e)}",
-                "status": "error",
-                "type": "error",
-            }
+        except Exception as e:
+            logging.error(f"Error executing {plan_type}: {str(e)}")
+            return {"status": "error", "error": f"Error executing {plan_type}: {str(e)}"}
 
     def execute_set_preference(self, plan):
         """Update user preferences."""

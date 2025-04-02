@@ -10,6 +10,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Generate Changelog
         id: release-drafter
@@ -20,17 +22,23 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create New Version Tag
+        id: create_tag
         run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 || echo "v0.0.0")
-          NEW_TAG=$(echo $LATEST_TAG | awk -F. -v OFS=. '{$NF += 1 ; print}')
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          MAJOR=$(echo $LATEST_TAG | cut -d. -f1 | tr -d 'v')
+          MINOR=$(echo $LATEST_TAG | cut -d. -f2)
+          PATCH=$(echo $LATEST_TAG | cut -d. -f3)
+          NEW_PATCH=$((PATCH + 1))
+          NEW_TAG="v$MAJOR.$MINOR.$NEW_PATCH"
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
           git tag $NEW_TAG
           git push origin $NEW_TAG
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ steps.create_tag.outputs.new_tag }}
+          name: Release ${{ steps.create_tag.outputs.new_tag }}
           body: ${{ steps.release-drafter.outputs.body }}
           draft: false
           prerelease: false

@@ -39,7 +39,7 @@ except ImportError:
 class BPTreeVisualizer:
     """Unified B+ Tree visualizer with multiple visualization methods and fallbacks"""
 
-    def __init__(self, output_dir="visualizations"):
+    def __init__(self, output_dir="data/indexes/visualizations"):
         self.output_dir = output_dir
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)

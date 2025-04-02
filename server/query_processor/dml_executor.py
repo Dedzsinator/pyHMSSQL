@@ -29,120 +29,65 @@ class DMLExecutor:
         self.lock_manager = LockManager()  # Add lock manager for concurrency control
 
     def execute_insert(self, plan):
-        """Execute INSERT operation with concurrency control.
-
-        Args:
-            plan: The execution plan for the INSERT operation
-
-        Returns:
-            dict: Result of the operation
-        """
+        """Execute an INSERT operation."""
         table_name = plan.get("table")
         columns = plan.get("columns", [])
         values_list = plan.get("values", [])
-        session_id = plan.get("session_id")  # Get session ID for locking
 
-        # Handle missing session ID - create a temporary one if needed
+        # Get or create a session ID
+        session_id = plan.get("session_id")
         if not session_id:
-            # Use a UUID to ensure uniqueness
             session_id = f"temp_{uuid.uuid4()}"
-            logging.debug("Created temporary session ID %s for insert operation", session_id)
 
-        # Validate that we have a table name
-        if not table_name:
-            return {
-                "error": "No table name specified for INSERT",
-                "status": "error",
-                "type": "error",
-            }
-
-        # Get the current database
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {
-                "error": "No database selected. Use 'USE database_name' first.",
-                "status": "error",
-                "type": "error",
-            }
-
-        # Validate table exists
-        tables = self.catalog_manager.list_tables(db_name)
-        if table_name not in tables:
-            return {
-                "error": f"Table '{table_name}' does not exist in database '{db_name}'",
-                "status": "error",
-                "type": "error",
-            }
-
-        # Acquire exclusive lock on table
-        if not self.lock_manager.acquire_lock(session_id, table_name, LockType.EXCLUSIVE):
-            return {
-                "error": "Could not acquire lock on table, operation timed out",
-                "status": "error",
-                "type": "error",
-            }
+        # Acquire lock for writing
+        self.lock_manager.acquire_lock(session_id, table_name, "write")
 
         try:
-            # Format values into records
-            records = []
-            for values in values_list:
-                if len(columns) != len(values):
-                    # Release lock on error
-                    self.lock_manager.release_lock(session_id, table_name)
-                    return {
-                        "error": f"Column count ({len(columns)}) does not match value count ({len(values)})",
-                        "status": "error",
-                        "type": "error",
-                    }
+            # Check if table exists, create it if it doesn't
+            if not self.catalog_manager.table_exists(table_name):
+                # Create simple schema from columns
+                schema = []
+                for i, col_name in enumerate(columns):
+                    # Default to TEXT type if can't determine
+                    col_type = "TEXT"
+                    if i < len(values_list[0]):
+                        value = values_list[0][i]
+                        if isinstance(value, int):
+                            col_type = "INT"
+                        elif isinstance(value, float):
+                            col_type = "FLOAT"
 
+                    schema.append({"name": col_name, "type": col_type})
+
+                self.catalog_manager.create_table(table_name, schema)
+
+            # For each row of values
+            success_count = 0
+            for values in values_list:
+                # Create record from columns and values
                 record = {}
                 for i, col in enumerate(columns):
-                    record[col] = values[i]
+                    if i < len(values):
+                        # Remove quotes from string values if present
+                        val = values[i]
+                        if isinstance(val, str) and val.startswith("'") and val.endswith("'"):
+                            val = val[1:-1]
+                        record[col] = val
 
-                # Insert the record
-                try:
-                    result = self.catalog_manager.insert_record(table_name, record)
-                    if result is not True:
-                        # Release lock on error
-                        self.lock_manager.release_lock(session_id, table_name)
-                        return {"error": str(result), "status": "error", "type": "error"}
-                    records.append(record)
-                except RuntimeError as e:
-                    # Release lock on error
-                    self.lock_manager.release_lock(session_id, table_name)
-                    logging.error("Error inserting record: %s", str(e))
-                    return {
-                        "error": f"Error inserting record: {str(e)}",
-                        "status": "error",
-                        "type": "error",
-                    }
-
-            # Update indexes if any records were actually inserted
-            if records:
-                # Get all current records to rebuild indexes
-                current_records = self.catalog_manager.get_all_records_with_keys(table_name)
-                if current_records:
-                    self._update_indexes_after_modify(db_name, table_name, current_records)
-
-            # Release lock after successful operation
-            self.lock_manager.release_lock(session_id, table_name)
+                # Insert record
+                result = self.catalog_manager.insert_record(table_name, record)
+                if result:
+                    success_count += 1
 
             return {
-                "message": f"Inserted {len(records)} record(s) into '{db_name}.{table_name}'",
                 "status": "success",
-                "type": "insert_result",
-                "rows": records,
+                "message": f"Inserted {success_count} records",
+                "count": success_count
             }
-        except RuntimeError as e:
-            # Ensure lock is released on any exception
+
+        finally:
+            # Release lock
             self.lock_manager.release_lock(session_id, table_name)
-            logging.error("Error in INSERT operation: %s", str(e))
-            logging.error(traceback.format_exc())
-            return {
-                "error": f"Error in INSERT operation: {str(e)}",
-                "status": "error",
-                "type": "error",
-            }
 
     def execute_delete(self, plan):
         """Execute a DELETE query with concurrency control.
@@ -245,128 +190,92 @@ class DMLExecutor:
             }
 
     def execute_update(self, plan):
-        """Execute an UPDATE query with concurrency control.
-
-        Args:
-            plan: The execution plan for the UPDATE operation
-
-        Returns:
-            dict: Result of the operation
-        """
+        """Execute an UPDATE operation."""
         table_name = plan.get("table")
-        condition = plan.get("condition") or plan.get("where")  # Try both fields
-        updates = plan.get("set", {})
-        session_id = plan.get("session_id")  # Get session ID for locking
-
-        # Handle missing session ID - create a temporary one if needed
+        updates = plan.get("updates", []) or plan.get("set", [])
+        condition = plan.get("condition")
+        
+        # Create a session ID if not provided
+        session_id = plan.get("session_id")
         if not session_id:
-            # Use a UUID to ensure uniqueness
             session_id = f"temp_{uuid.uuid4()}"
-            logging.debug("Created temporary session ID %s for update operation", session_id)
-
-        # Get the current database
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {
-                "error": "No database selected. Use 'USE database_name' first.",
-                "status": "error",
-                "type": "error",
-            }
-
-        # Verify table exists
-        tables = self.catalog_manager.list_tables(db_name)
-        if table_name not in tables:
-            return {
-                "error": f"Table '{table_name}' does not exist in database '{db_name}'.",
-                "status": "error",
-                "type": "error",
-            }
-
-        # Acquire exclusive lock on table
-        if not self.lock_manager.acquire_lock(session_id, table_name, LockType.EXCLUSIVE):
-            return {
-                "error": "Could not acquire lock on table, operation timed out",
-                "status": "error",
-                "type": "error",
-            }
-
+        
+        # Acquire lock for writing
+        self.lock_manager.acquire_lock(session_id, table_name, "write")
+        
         try:
-            # Parse the condition
+            # Convert condition string to condition structure
             conditions = []
             if condition:
-                parsed_condition = self.condition_parser.parse_condition_to_dict(condition)
-                if parsed_condition:
-                    conditions.append(parsed_condition)
-
-            # Process updates - handle format in the plan
-            update_dict = {}
-            # Check if updates is a list of tuples (comes from parser this way)
-            if isinstance(updates, list):
-                for key, val in updates:
-                    update_dict[key] = val
-            else:
-                # Handle dictionary format
-                update_dict = updates
-
-            # Process values to convert strings to appropriate types
-            for key, val in list(update_dict.items()):
-                # Handle quoted strings
-                if isinstance(val, str) and val.startswith("'") and val.endswith("'"):
-                    update_dict[key] = val[1:-1]  # Remove quotes
-                # Handle numeric conversions
-                elif isinstance(val, str) and val.isdigit():
-                    update_dict[key] = int(val)
-                elif isinstance(val, str) and re.match(r"^[0-9]*\.[0-9]+$", val):
-                    update_dict[key] = float(val)
-
-            if not update_dict:
-                # Release lock if nothing to update
-                self.lock_manager.release_lock(session_id, table_name)
+                # Parse the condition - assuming simple condition like "id = 10"
+                parts = condition.split('=')
+                if len(parts) == 2:
+                    col = parts[0].strip()
+                    val = parts[1].strip()
+                    try:
+                        # Try to convert value to number if possible
+                        val = int(val)
+                    except ValueError:
+                        try:
+                            val = float(val)
+                        except ValueError:
+                            # Remove quotes if present
+                            if val.startswith('"') and val.endswith('"') or \
+                            val.startswith("'") and val.endswith("'"):
+                                val = val[1:-1]
+                    
+                    conditions.append({
+                        "column": col,
+                        "operator": "=",
+                        "value": val
+                    })
+            
+            # Get records matching the condition
+            records = self.catalog_manager.query_with_condition(table_name, conditions)
+            
+            if not records:
                 return {
-                    "error": "No fields to update specified",
                     "status": "error",
-                    "type": "error"
+                    "error": f"No records found matching condition: {condition}",
+                    "count": 0
                 }
-
-            # Update records
-            result = self.catalog_manager.update_records(
-                table_name, update_dict, conditions
-            )
-
-            # Extract count from result message
-            count = 0
-            if isinstance(result, str):
-                try:
-                    count = int(result.split()[0])
-                except (ValueError, IndexError):
-                    pass
-
-            # Update indexes if any records were actually updated
-            if count > 0:
-                # Get all current records to rebuild indexes
-                current_records = self.catalog_manager.get_all_records_with_keys(table_name)
-                if current_records:
-                    self._update_indexes_after_modify(db_name, table_name, current_records)
-
-            # Release lock after successful operation
-            self.lock_manager.release_lock(session_id, table_name)
-
+            
+            # Update each matching record
+            updated_count = 0
+            for record in records:
+                # Apply updates
+                update_data = {}
+                for col, val in updates:
+                    # Handle quoted string values
+                    if isinstance(val, str) and val.startswith("'") and val.endswith("'"):
+                        val = val[1:-1]
+                    update_data[col] = val
+                    
+                # Update the record
+                primary_key = record.get("id")
+                result = self.catalog_manager.update_record(
+                    table_name, 
+                    primary_key,
+                    update_data
+                )
+                
+                if result:
+                    updated_count += 1
+            
             return {
-                "message": f"Updated {count} records in {table_name}.",
                 "status": "success",
-                "type": "update_result",
-                "count": count,
+                "message": f"Updated {updated_count} records",
+                "count": updated_count
             }
-        except RuntimeError as e:
-            # Ensure lock is released on any exception
-            self.lock_manager.release_lock(session_id, table_name)
-            logging.error("Error in UPDATE operation: %s", str(e))
-            logging.error(traceback.format_exc())
+            
+        except Exception as e:
             return {
-                "error": f"Error in UPDATE operation: {str(e)}",
                 "status": "error",
-                "type": "error",
+                "error": str(e)
             }
+        finally:
+            # Release lock
+            self.lock_manager.release_lock(session_id, table_name)
 
     def _update_indexes_after_modify(self, db_name, table_name, current_records):
         """Update all indexes for a table after records are modified.

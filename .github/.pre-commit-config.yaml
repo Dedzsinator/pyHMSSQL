@@ -23,4 +23,4 @@ repos:
     rev: 1.7.5
     hooks:
       - id: bandit
-        args: ["-r", "pyHMSSQL"]
+        args: ["-r", ".", "--exclude", ".git,venv,.github"]

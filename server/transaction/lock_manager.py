@@ -62,7 +62,7 @@ class LockManager:
                     self._lock_owners[lock_key].add(session_id)
                     logging.debug(
                         "Lock acquired: %s on %s by %s",
-                        lock_type.name,
+                        lock_type,  # Remove .name since lock_type is a string
                         table_name,
                         session_id,
                     )

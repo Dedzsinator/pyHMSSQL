@@ -4,7 +4,10 @@ Transaction manager for handling database transactions.
 
 import logging
 import uuid
+import time
+import os
 from transaction.lock_manager import LockManager
+from bptree import BPlusTree
 
 
 class TransactionManager:
@@ -12,147 +15,168 @@ class TransactionManager:
 
     def __init__(self, catalog_manager):
         self.catalog_manager = catalog_manager
-        # {transaction_id: {"status": status, "savepoints": []}}
-        self.active_transactions = {}
-        self.transaction_data = {}  # Stores change logs for each transaction
+        self.transactions = {}  # Unified transaction storage
         self.lock_manager = LockManager()
-
-    def start_transaction(self, session_id=None):
-        """
-        Start a new transaction.
-
-        Args:
-            session_id: Optional client session ID
-
-        Returns:
-            str: Transaction ID
-        """
-        transaction_id = str(uuid.uuid4())
-        self.active_transactions[transaction_id] = {
-            "status": "active",
-            "savepoints": [],
-            "session_id": session_id,
-        }
-        self.transaction_data[transaction_id] = []
-        logging.info("Started transaction {transaction_id}")
-        return transaction_id
-
-    def commit_transaction(self, transaction_id):
-        """
-        Commit a transaction.
-
-        Args:
-            transaction_id: ID of transaction to commit
-
-        Returns:
-            dict: Result of operation
-        """
-        if transaction_id not in self.active_transactions:
-            return {
-                "error": f"Transaction {transaction_id} does not exist",
-                "status": "error",
+        self.logger = logging.getLogger(__name__)
+        
+    
+    def record_operation(self, transaction_id, operation):
+        """Record an operation in the transaction log."""
+        if transaction_id not in self.transactions:
+            # Create the transaction if it doesn't exist
+            self.logger.warning(f"Transaction {transaction_id} not found, creating it")
+            self.transactions[transaction_id] = {
+                "status": "active",
+                "operations": [],
+                "start_time": time.time()
             }
-
-        if self.active_transactions[transaction_id]["status"] != "active":
-            return {
-                "error": f"Transaction {transaction_id} is not active",
-                "status": "error",
-            }
-
-        # Commit changes from transaction log if needed
-        # (In a real implementation, this would apply any pending changes)
-
-        # Update transaction status
-        self.active_transactions[transaction_id]["status"] = "committed"
-
-        # Release all locks
-        self.lock_manager.release_all_locks(transaction_id)
-
-        # Clean up
-        self.transaction_data.pop(transaction_id, None)
-
-        logging.info("Committed transaction %s", transaction_id)
-        return {
-            "message": f"Transaction {transaction_id} committed successfully",
-            "status": "success",
-        }
-
-    def rollback_transaction(self, transaction_id, savepoint=None):
-        """
-        Rollback a transaction.
-
-        Args:
-            transaction_id: ID of transaction to rollback
-            savepoint: Optional savepoint name to rollback to
-
-        Returns:
-            dict: Result of operation
-        """
-        if transaction_id not in self.active_transactions:
-            return {
-                "error": f"Transaction {transaction_id} does not exist",
-                "status": "error",
-            }
-
-        if self.active_transactions[transaction_id]["status"] != "active":
-            return {
-                "error": f"Transaction {transaction_id} is not active",
-                "status": "error",
-            }
-
-        if savepoint:
-            # Rollback to savepoint
-            savepoints = self.active_transactions[transaction_id]["savepoints"]
-            if savepoint not in savepoints:
-                return {
-                    "error": f"Savepoint {savepoint} does not exist",
-                    "status": "error",
-                }
-
-            # Find savepoint index and revert changes after that point
-            idx = savepoints.index(savepoint)
-            # Implementation would revert changes after the savepoint
-        else:
-            # Full rollback
-            self.active_transactions[transaction_id]["status"] = "rolled_back"
-            # Implementation would revert all changes
-
-        # Release all locks
-        self.lock_manager.release_all_locks(transaction_id)
-
-        # Clean up
-        if not savepoint:
-            self.transaction_data.pop(transaction_id, None)
-            logging.info("Rolled back transaction %s", transaction_id)
-        else:
-            logging.info(
-                "Rolled back transaction %s to savepoint %s", transaction_id, savepoint
-            )
-
-        return {
-            "message": f"Transaction {transaction_id} rolled back successfully",
-            "status": "success",
-        }
-
+            
+        self.transactions[transaction_id]["operations"].append(operation)
+        return True
+    
     def execute_transaction_operation(self, operation_type, transaction_id=None):
-        """Execute a transaction operation."""
+        """Execute a transaction operation (BEGIN, COMMIT, ROLLBACK)."""
+        
         if operation_type == "BEGIN_TRANSACTION":
-            new_transaction_id = self.start_transaction()
-            return {
-                "message": f"Transaction started with ID {new_transaction_id}",
-                "status": "success",
-                "transaction_id": new_transaction_id,
+            # Generate a transaction ID and create a new transaction
+            transaction_id = str(uuid.uuid4())
+            self.transactions[transaction_id] = {
+                "status": "active",
+                "operations": [],
+                "start_time": time.time()
             }
-        elif operation_type == "COMMIT":
-            if not transaction_id:
-                return {"error": "No transaction ID provided", "status": "error"}
-            return self.commit_transaction(transaction_id)
+            self.logger.info(f"Started transaction {transaction_id}")
+            return {
+                "status": "success", 
+                "message": "Transaction started", 
+                "transaction_id": transaction_id
+            }
+        
         elif operation_type == "ROLLBACK":
-            if not transaction_id:
-                return {"error": "No transaction ID provided", "status": "error"}
-            return self.rollback_transaction(transaction_id)
+            # Check if transaction exists
+            if transaction_id not in self.transactions:
+                return {"status": "error", "error": f"Transaction {transaction_id} not found"}
+                
+            # Get operations in reverse order
+            operations = list(reversed(self.transactions[transaction_id].get("operations", [])))
+            rollback_success = True
+            
+            # Process each operation in reverse order
+            for op in operations:
+                if op["type"] == "INSERT":
+                    # Remove inserted record
+                    table = op["table"]
+                    record_id = op.get("record_id")
+                    
+                    if record_id is not None:
+                        # Delete the inserted record directly from the B+ tree
+                        db_name = self.catalog_manager.get_current_database()
+                        table_file = os.path.join(self.catalog_manager.tables_dir, db_name, f"{table}.tbl")
+                        
+                        if os.path.exists(table_file):
+                            tree = BPlusTree.load_from_file(table_file)
+                            if tree:
+                                # Find the exact key for this record
+                                all_records = tree.range_query(float('-inf'), float('inf'))
+                                for key, record in all_records:
+                                    if record.get("id") == record_id:
+                                        tree.delete(key)
+                                        tree.save_to_file(table_file)
+                                        self.logger.info(f"Rollback: Deleted record {record_id} from {table}")
+                                        break
+                        else:
+                            rollback_success = False
+            
+            # Mark transaction as rolled back
+            self.transactions[transaction_id]["status"] = "rolled_back"
+            
+            if rollback_success:
+                return {"status": "success", "message": "Transaction rolled back successfully"}
+            else:
+                return {"status": "error", "message": "Transaction rollback failed"}
+        
+        # Handle COMMIT
+        elif operation_type == "COMMIT":
+            # Simply mark as committed
+            if transaction_id in self.transactions:
+                self.transactions[transaction_id]["status"] = "committed"
+                return {"status": "success", "message": "Transaction committed"}
+            else:
+                return {"status": "error", "error": f"Transaction {transaction_id} not found"}
+        
         else:
-            return {
-                "error": f"Unknown transaction operation: {operation_type}",
-                "status": "error",
-            }
+            return {"status": "error", "error": f"Unknown transaction operation: {operation_type}"}
+
+    def _undo_operation(self, operation):
+        """Undo a single operation in a transaction."""
+        if operation["type"] == "INSERT":
+            table = operation["table"]
+            record_id = operation.get("record_id")
+            
+            if not record_id:
+                self.logger.warning("Cannot rollback INSERT without record ID")
+                return False
+                
+            # Remove the inserted record
+            try:
+                # Use the actual key in the B+ tree
+                db_name = self.catalog_manager.get_current_database()
+                table_file = os.path.join(self.catalog_manager.tables_dir, db_name, f"{table}.tbl")
+                
+                if os.path.exists(table_file):
+                    tree = BPlusTree.load_from_file(table_file)
+                    if tree:
+                        # Find records matching the ID
+                        all_records = tree.range_query(float('-inf'), float('inf'))
+                        for key, record in all_records:
+                            if record.get("id") == record_id:
+                                # Delete using the correct tree key
+                                tree.delete(key)
+                                tree.save_to_file(table_file)
+                                self.logger.info(f"Rolled back INSERT in {table} for record {record_id}")
+                                return True
+                
+                # Fallback to using conditions
+                conditions = [{"column": "id", "operator": "=", "value": record_id}]
+                result = self.catalog_manager.delete_records(table, conditions)
+                if result:
+                    self.logger.info(f"Rolled back INSERT in {table} for record {record_id}")
+                    return True
+                return False
+                
+            except Exception as e:
+                self.logger.error(f"Error rolling back INSERT: {str(e)}")
+                return False
+                
+        elif operation["type"] == "UPDATE":
+            # For UPDATE, restore the old values
+            table = operation["table"]
+            record_id = operation["record_id"]
+            old_values = operation["old_values"]
+            
+            try:
+                # Use update_record to restore original values
+                result = self.catalog_manager.update_record(table, record_id, old_values)
+                if result:
+                    self.logger.info(f"Rolled back UPDATE in {table} for record {record_id}")
+                return result
+            except Exception as e:
+                self.logger.error(f"Error rolling back UPDATE: {str(e)}")
+                return False
+                
+        elif operation["type"] == "DELETE":
+            # For DELETE, re-insert the record
+            table = operation["table"]
+            record = operation["record"]
+            
+            try:
+                # Use insert_record to restore the deleted record
+                result = self.catalog_manager.insert_record(table, record)
+                if result:
+                    self.logger.info(f"Rolled back DELETE in {table} for record {record.get('id')}")
+                return bool(result)
+            except Exception as e:
+                self.logger.error(f"Error rolling back DELETE: {str(e)}")
+                return False
+                
+        return False  # Unknown operation type

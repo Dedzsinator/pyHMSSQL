@@ -446,43 +446,45 @@ class SchemaManager:
             }
 
     def execute_drop_index(self, plan):
-        """Execute DROP INDEX operation."""
-        index_name = plan["index_name"]
-        table_name = plan["table"]
+        """Execute a DROP INDEX statement."""
+        # Extract parameters
+        index_name = plan.get("index_name") or plan.get("index")
+        table_name = plan.get("table")
 
-        if not table_name:
-            return {"error": "Table name must be specified for DROP INDEX"}
+        # Validation
+        if not index_name or not table_name:
+            return {
+                "status": "error",
+                "error": "Index name and table name must be provided"
+            }
 
-        if not index_name:
-            return {"error": "Index name must be specified for DROP INDEX"}
-
-        # Get the current database
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {"error": "No database selected. Use 'USE database_name' first."}
-
-        # Drop the index through catalog_manager
+        # Drop the index
         try:
             result = self.catalog_manager.drop_index(table_name, index_name)
-            if isinstance(result, str) and "does not exist" in result:
-                return {"error": result}
-
+            if isinstance(result, str) and ("not exist" in result or "not found" in result):
+                return {
+                    "status": "error",
+                    "error": result
+                }
+            
             return {
-                "message": f"Index '{index_name}' dropped from table '{table_name}'."
+                "status": "success",
+                "message": f"Index {index_name} dropped successfully"
             }
-        except RuntimeError as e:
-            logging.error("Error dropping index: %s", str(e))
-            return {"error": f"Error dropping index: {str(e)}"}
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e)
+            }
 
     def get_table_schema(self, table_name):
-        """Get the schema of a table."""
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return "No database selected."
-
-        # Check if the table exists
-        if not self.catalog_manager.table_exists(db_name, table_name):
-            return f"Table {table_name} does not exist."
-
-        # Get table schema from catalog manager
+        """Get the schema for a table.
+        
+        Args:
+            table_name: Name of the table
+            
+        Returns:
+            list: List of column dictionaries
+        """
+        # Use catalog_manager instead of non-existent table_info
         return self.catalog_manager.get_table_schema(table_name)

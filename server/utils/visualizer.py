@@ -74,7 +74,7 @@ class Visualizer:
                             from bptree_networkx import BPlusTreeNetworkXVisualizer
 
                             visualizer = BPlusTreeNetworkXVisualizer(
-                                output_dir="visualizations"
+                                output_dir="data/indexes/visualizations"
                             )
                             viz_path = visualizer.visualize_tree(
                                 index_obj, output_name=full_index_name

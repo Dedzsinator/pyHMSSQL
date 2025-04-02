@@ -560,24 +560,6 @@ def start_server():
 
     server = DBMSServer(data_dir="data")
 
-    # Test the SQL parser
-    test_queries = [
-        "SELECT id, name FROM users WHERE age > 18",
-        "INSERT INTO users (id, name) VALUES (1, 'test')",
-        "UPDATE users SET name = 'John' WHERE id = 1",
-        "DELETE FROM users WHERE id = 1",
-        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT)",
-    ]
-
-    logging.info("Testing SQL parser with example queries")
-    for query in test_queries:
-        try:
-            parsed = server.parse_sql(query)
-            logging.info("Test query: %s", query)
-            logging.info("Parsed result: %s", json.dumps(parsed))
-        except (ValueError, SyntaxError, TypeError, AttributeError, KeyError) as e:
-            logging.error('Error parsing "%s": %s', query, str(e))
-
     # Print a message to console indicating where logs will be stored
     print(f"DBMS Server starting. Logs will be stored in: {log_file}")
 

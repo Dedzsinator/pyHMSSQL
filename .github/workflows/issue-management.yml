@@ -1,27 +1,27 @@
-name: Issue & PR Management
+name: Issue Management
 
 on:
   issues:
-    types: [opened]
-  pull_request:
-    types: [opened]
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
 
 jobs:
-  label:
+  triage:
     runs-on: ubuntu-latest
     steps:
-      - name: Auto Label
-        uses: actions/labeler@v4
+      - name: Auto-label issues
+        uses: github/issue-labeler@v3
+        if: github.event_name == 'issues' && github.event.action == 'opened'
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          configuration-path: .github/issue-labeler.yml
 
-  stale:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Close stale issues
-        uses: actions/stale@v9
+      - name: Auto-assign issues
+        uses: pozil/auto-assign-issue@v1
+        if: github.event_name == 'issues' && github.event.action == 'labeled'
         with:
-          days-before-stale: 30
-          days-before-close: 7
-          stale-issue-message: "This issue has been inactive for 30 days. Please update if still relevant."
-          close-issue-message: "Closed due to inactivity."
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          teams: maintainers
+          assignees: dedzsinator
+          numOfAssignee: 1

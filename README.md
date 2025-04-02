@@ -3,10 +3,13 @@
 ![Database](https://img.shields.io/badge/Database-Engine-blue)
 ![Python](https://img.shields.io/badge/Python-3.7+-yellow)
 ![Status](https://img.shields.io/badge/Status-Development-green)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/dedzsinator/pyhmssql?label=Release)](https://github.com/dedzsinator/pyhmssql/releases)
+[![GitHub issues](https://img.shields.io/github/issues/dedzsinator/pyhmssql)](https://github.com/dedzsinator/pyhmssql/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/dedzsinator/pyhmssql/main)](https://github.com/dedzsinator/pyhmssql/commits/main)
 [![Lines of Code](https://img.shields.io/github/languages/code-size/dedzsinator/pyhmssql)](https://github.com/dedzsinator/pyhmssql)
+[![License](https://img.shields.io/github/license/dedzsinator/pyhmssql)](https://github.com/dedzsinator/pyhmssql/blob/main/LICENSE)
+[![Tests](https://img.shields.io/github/actions/workflow/status/dedzsinator/pyhmssql/tests.yml?label=Tests)](https://github.com/dedzsinator/pyhmssql/actions)
 [![Lines of Code](https://sloc.xyz/github/dedzsinator/pyhmssql?category=code)](https://github.com/dedzsinator/pyhmssql)
-![Version](https://img.shields.io/badge/Version-1.5.0-orange)
 
 A lightweight, powerful database management system built in Python. pyHMSSQL implements a client-server architecture with B+ tree indexing for efficient data retrieval operations.
 

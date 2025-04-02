@@ -895,75 +895,63 @@ class CatalogManager:
             logging.error(traceback.format_exc())
             return f"Error deleting records: {str(e)}"
 
-    def update_records(self, table_name, updates, conditions=None):
-        """Update records in a table based on conditions."""
-        if conditions is None:
-            conditions = []
-
+    def update_record(self, table_name, record_id, update_data):
+        """Update a record by its primary key."""
         db_name = self.get_current_database()
         if not db_name:
-            return "No database selected."
-
+            return False
+            
         table_id = f"{db_name}.{table_name}"
-
-        # Check if table exists
         if table_id not in self.tables:
-            return f"Table {table_name} does not exist."
-
-        # Load the table file
-        table_file = os.path.join(
-            self.tables_dir, db_name, f"{table_name}.tbl")
+            return False
+            
+        # Get the table file path
+        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+        
         if not os.path.exists(table_file):
-            return "Table data file not found."
-
+            return False
+            
         try:
-            # Load B+ tree
+            # Load the B+ tree
             tree = BPlusTree.load_from_file(table_file)
-
-            # Get all records
-            all_records = tree.range_query(float("-inf"), float("inf"))
-
-            # Process records and apply updates based on conditions
-            updated_count = 0
-            for record_key, record in all_records:
-                # Check if record matches all conditions
-                matches = True
-                for condition in conditions:
-                    col = condition.get("column")
-                    op = condition.get("operator")
-                    val = condition.get("value")
-
-                    if col not in record:
-                        matches = False
-                        break
-
-                    # Apply operator
-                    if op == "=":
-                        if record[col] != val:
-                            matches = False
-                            break
-                    # Add other operators as needed
-
-                if matches or not conditions:
-                    # Apply updates
-                    updated_record = record.copy()
-                    for field, value in updates.items():
-                        updated_record[field] = value
-
-                    # Update the record
-                    tree.insert(record_key, updated_record)
-                    updated_count += 1
-
+            if tree is None:
+                return False
+                
+            # First find the record by querying with conditions to get the actual B+ tree key
+            conditions = [{"column": "id", "operator": "=", "value": record_id}]
+            records = self.query_with_condition(table_name, conditions)
+            
+            if not records or len(records) == 0:
+                return False
+                
+            # Find out which key in the B+ tree corresponds to this record
+            all_records = tree.range_query(float('-inf'), float('inf'))
+            tree_key = None
+            
+            for key, record in all_records:
+                if record.get("id") == record_id:
+                    tree_key = key
+                    break
+                    
+            if tree_key is None:
+                return False
+                
+            # Get the existing record and update it
+            updated_record = records[0].copy()
+            for field, value in update_data.items():
+                updated_record[field] = value
+                
+            # Update in the tree using the correct key
+            tree.insert(tree_key, updated_record)
+            
             # Save the updated tree
             tree.save_to_file(table_file)
-
-            # Update indexes if needed
-
-            return f"{updated_count} records updated."
-
+            
+            return True
+            
         except Exception as e:
-            logging.error(f"Error updating records: {e}")
-            return f"Error updating records: {str(e)}"
+            logging.error(f"Error updating record: {e}")
+            return False
 
     def create_index(
         self,
@@ -1126,18 +1114,6 @@ class CatalogManager:
         logging.info(f"Table {table_name} dropped.")
         return f"Table {table_name} dropped."
 
-    def begin_transaction(self):
-        """Begin a new transaction (stub for now)."""
-        return "Transaction started (Note: transactions not fully implemented)"
-
-    def commit_transaction(self):
-        """Commit the current transaction (stub for now)."""
-        return "Transaction committed (Note: transactions not fully implemented)"
-
-    def rollback_transaction(self):
-        """Rollback the current transaction (stub for now)."""
-        return "Transaction rolled back (Note: transactions not fully implemented)"
-
     def create_view(self, view_name, query):
         """Create a view."""
         db_name = self.get_current_database()
@@ -1218,17 +1194,22 @@ class CatalogManager:
             logging.error(f"Error retrieving record by key: {str(e)}")
             return None
 
-    def table_exists(self, db_name, table_name):
+    def table_exists(self, table_name, db_name=None):
         """
         Check if a table exists in a database.
 
         Args:
-            db_name: Database name
             table_name: Table name
+            db_name: Database name (optional, uses current database if not provided)
 
         Returns:
             bool: True if the table exists, False otherwise
         """
+        if db_name is None:
+            db_name = self.get_current_database()
+            if not db_name:
+                return False
+
         if db_name not in self.databases:
             return False
 
@@ -1236,30 +1217,50 @@ class CatalogManager:
         return table_name in tables
 
     def get_table_schema(self, table_name):
-        """
-        Get schema information for a table.
-
-        Args:
-            table_name: Name of the table
-
-        Returns:
-            Dict with table schema information
-        """
+        """Get the schema for a table."""
         db_name = self.get_current_database()
         if not db_name:
-            return {"error": "No database selected"}
-
+            return []
+            
+        # Look up table in memory first
         table_id = f"{db_name}.{table_name}"
-
-        # Check if table exists
-        if table_id not in self.tables:
-            return {"error": f"Table '{table_name}' does not exist"}
-
-        # Return table schema from catalog
-        return {
-            "columns": self.tables[table_id].get("columns", {}),
-            "constraints": self.tables[table_id].get("constraints", []),
-        }
+        if table_id in self.tables:
+            table_info = self.tables[table_id]
+            
+            # Process columns and constraints
+            columns = []
+            constraints = []
+            
+            columns_data = table_info.get("columns", [])
+            if isinstance(columns_data, list):
+                for col in columns_data:
+                    if isinstance(col, str):
+                        # Handle FOREIGN KEY constraints separately
+                        if "FOREIGN KEY" in col.upper():
+                            constraints.append({"constraint": col})
+                        else:
+                            # Regular column definition
+                            name = col.split()[0]
+                            columns.append({"name": name, "definition": col})
+                    else:
+                        # Dictionary format column
+                        columns.append(col)
+            elif isinstance(columns_data, dict):
+                for name, attrs in columns_data.items():
+                    col_info = {"name": name}
+                    col_info.update(attrs)
+                    columns.append(col_info)
+            
+            # Add any separate constraints
+            if "constraints" in table_info:
+                for constraint in table_info.get("constraints", []):
+                    constraints.append({"constraint": constraint})
+                    
+            # Return combined schema
+            return columns + constraints
+            
+        # Table not found  
+        return []
 
     def get_all_records_with_keys(self, table_name):
         """Get all records from a table along with their keys.
@@ -1312,3 +1313,45 @@ class CatalogManager:
             logging.error("Error getting records with keys: %s", str(e))
             logging.error(traceback.format_exc())
             return []
+
+    def delete_record_by_id(self, table_name, record_id):
+        """Delete a record by its primary key.
+        
+        Args:
+            table_name: Table name
+            record_id: Primary key value
+            
+        Returns:
+            bool: True if successful
+        """
+        return self.delete_records(table_name, [{"column": "id", "operator": "=", "value": record_id}])
+
+    def update_record_by_id(self, table_name, record_id, record_data):
+        """Update a record by its primary key.
+        
+        Args:
+            table_name: Table name
+            record_id: Primary key value
+            record_data: New record data
+            
+        Returns:
+            bool: True if successful
+        """
+        return self.update_record(table_name, record_data, [{"column": "id", "operator": "=", "value": record_id}])
+
+    def insert_record_with_id(self, table_name, record_id, record_data):
+        """Insert a record with a specific ID.
+        
+        Args:
+            table_name: Table name
+            record_id: Primary key value
+            record_data: Record data
+            
+        Returns:
+            bool: True if successful
+        """
+        # Ensure the record has the correct ID
+        record = record_data.copy()
+        record["id"] = record_id
+
+        return self.insert_record(table_name, record)
