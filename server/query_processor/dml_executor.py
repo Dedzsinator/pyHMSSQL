@@ -11,6 +11,7 @@ import uuid
 from bptree import BPlusTree
 from parsers.condition_parser import ConditionParser
 from transaction.lock_manager import LockManager, LockType
+from utils.sql_helpers import parse_simple_condition, check_database_selected
 
 
 class DMLExecutor:
@@ -108,14 +109,12 @@ class DMLExecutor:
             session_id = f"temp_{uuid.uuid4()}"
             logging.debug("Created temporary session ID %s for delete operation", session_id)
 
-        # Get current database
+        error = check_database_selected(self.catalog_manager)
+        if error:
+            return error
+
+        # Get the database name after confirming it exists
         db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {
-                "error": "No database selected. Use 'USE database_name' first.",
-                "status": "error",
-                "type": "error",
-            }
 
         # Verify table exists
         tables = self.catalog_manager.list_tables(db_name)
@@ -194,52 +193,31 @@ class DMLExecutor:
         table_name = plan.get("table")
         updates = plan.get("updates", []) or plan.get("set", [])
         condition = plan.get("condition")
-        
+
         # Create a session ID if not provided
         session_id = plan.get("session_id")
         if not session_id:
             session_id = f"temp_{uuid.uuid4()}"
-        
+
         # Acquire lock for writing
         self.lock_manager.acquire_lock(session_id, table_name, "write")
-        
+
         try:
             # Convert condition string to condition structure
             conditions = []
             if condition:
-                # Parse the condition - assuming simple condition like "id = 10"
-                parts = condition.split('=')
-                if len(parts) == 2:
-                    col = parts[0].strip()
-                    val = parts[1].strip()
-                    try:
-                        # Try to convert value to number if possible
-                        val = int(val)
-                    except ValueError:
-                        try:
-                            val = float(val)
-                        except ValueError:
-                            # Remove quotes if present
-                            if val.startswith('"') and val.endswith('"') or \
-                            val.startswith("'") and val.endswith("'"):
-                                val = val[1:-1]
-                    
-                    conditions.append({
-                        "column": col,
-                        "operator": "=",
-                        "value": val
-                    })
-            
+                conditions = parse_simple_condition(condition)
+
             # Get records matching the condition
             records = self.catalog_manager.query_with_condition(table_name, conditions)
-            
+
             if not records:
                 return {
                     "status": "error",
                     "error": f"No records found matching condition: {condition}",
                     "count": 0
                 }
-            
+
             # Update each matching record
             updated_count = 0
             for record in records:
@@ -250,24 +228,24 @@ class DMLExecutor:
                     if isinstance(val, str) and val.startswith("'") and val.endswith("'"):
                         val = val[1:-1]
                     update_data[col] = val
-                    
+
                 # Update the record
                 primary_key = record.get("id")
                 result = self.catalog_manager.update_record(
-                    table_name, 
+                    table_name,
                     primary_key,
                     update_data
                 )
-                
+
                 if result:
                     updated_count += 1
-            
+
             return {
                 "status": "success",
                 "message": f"Updated {updated_count} records",
                 "count": updated_count
             }
-            
+
         except Exception as e:
             return {
                 "status": "error",
@@ -279,7 +257,7 @@ class DMLExecutor:
 
     def _update_indexes_after_modify(self, db_name, table_name, current_records):
         """Update all indexes for a table after records are modified.
-        
+
         Args:
             db_name: Database name
             table_name: Table name

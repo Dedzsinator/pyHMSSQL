@@ -1,0 +1,18 @@
+name: Count Lines of Code
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  count-loc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Count lines of code
+        uses: arnellebalane/count-loc-action@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: "."
+          badge-color: "blue"

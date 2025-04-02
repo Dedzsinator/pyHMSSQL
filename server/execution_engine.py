@@ -9,7 +9,7 @@ from ddl_processor.view_manager import ViewManager
 from transaction.transaction_manager import TransactionManager
 from parsers.condition_parser import ConditionParser
 from utils.visualizer import Visualizer
-
+from utils.sql_helpers import parse_simple_condition, check_database_selected
 
 class ExecutionEngine:
     """Main execution engine that coordinates between different modules"""
@@ -47,18 +47,15 @@ class ExecutionEngine:
         table_name = plan["table"]
         column = plan["column"]
 
-        # Get current database
+        error = check_database_selected(self.catalog_manager)
+        if error:
+            return error
+
+        # Get the database name after confirming it exists
         db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {
-                "error": "No database selected. Use 'USE database_name' first.",
-                "status": "error",
-            }
 
         # Verify the table exists
-        if not self.catalog_manager.list_tables(
-            db_name
-        ) or table_name not in self.catalog_manager.list_tables(db_name):
+        if not self.catalog_manager.list_tables(db_name) or table_name not in self.catalog_manager.list_tables(db_name):
             return {"error": f"Table '{table_name}' does not exist", "status": "error"}
 
         # Use catalog manager to get data
@@ -136,7 +133,7 @@ class ExecutionEngine:
         """Execute the query plan by dispatching to appropriate module."""
         plan_type = plan.get("type")
         transaction_id = plan.get("transaction_id")
-        
+
         # Handle transaction control operations first
         if plan_type == "BEGIN_TRANSACTION":
             return self.transaction_manager.execute_transaction_operation("BEGIN_TRANSACTION")
@@ -144,26 +141,26 @@ class ExecutionEngine:
             return self.transaction_manager.execute_transaction_operation("COMMIT", transaction_id)
         elif plan_type == "ROLLBACK":
             return self.transaction_manager.execute_transaction_operation("ROLLBACK", transaction_id)
-        
+
         try:
             result = None
-            
+
             # Handle different operation types
             if plan_type == "SELECT":
                 result = self.select_executor.execute_select(plan)
             elif plan_type == "INSERT":
                 result = self.dml_executor.execute_insert(plan)
-                
+
                 # Record the operation if within a transaction
                 if transaction_id and result and result.get("status") == "success":
                     record = {}
-                    
+
                     # Extract record data from different possible formats
                     if plan.get("record"):
                         record = plan.get("record")
                     elif plan.get("columns") and plan.get("values"):
                         record = dict(zip(plan.get("columns"), plan.get("values")[0] if plan.get("values") else []))
-                    
+
                     record_id = record.get("id")
                     if record_id:
                         # Record this operation for potential rollback
@@ -185,7 +182,7 @@ class ExecutionEngine:
             # DML operations - record for transaction if within a transaction
             elif plan_type == "INSERT":
                 result = self.dml_executor.execute_insert(plan)
-                
+
                 # Make sure to record transaction operation regardless of result status
                 if transaction_id:
                     # Extract record information from the plan or result
@@ -195,14 +192,14 @@ class ExecutionEngine:
                             col: val for col, val in zip(plan.get("columns", []),
                                                     plan.get("values", [[]])[0])
                         }
-                    
+
                     # Get record ID from various possible sources
                     record_id = None
                     if "id" in record:
                         record_id = record["id"]
                     elif plan.get("values") and plan.get("values")[0] and len(plan.get("values")[0]) > 0:
                         record_id = plan.get("values")[0][0]
-                        
+
                     # Record the operation
                     self.transaction_manager.record_operation(transaction_id, {
                         "type": "INSERT",
@@ -219,27 +216,14 @@ class ExecutionEngine:
                     condition = plan.get("condition")
                     if condition and table:
                         # Parse condition and get record before update
-                        conditions = []
-                        parts = condition.split('=')
-                        if len(parts) == 2:
-                            col = parts[0].strip()
-                            val = parts[1].strip()
-                            try:
-                                val = int(val)
-                            except ValueError:
-                                if val.startswith("'") and val.endswith("'"):
-                                    val = val[1:-1]
-                            conditions.append({
-                                "column": col,
-                                "operator": "=",
-                                "value": val
-                            })
-                        
+                        conditions = parse_simple_condition(condition)
                         existing_records = self.catalog_manager.query_with_condition(table, conditions)
-                
+
+                        existing_records = self.catalog_manager.query_with_condition(table, conditions)
+
                 # Execute update
                 result = self.dml_executor.execute_update(plan)
-                
+
                 # Record operation if successful and in a transaction
                 if transaction_id and result["status"] == "success" and existing_records and len(existing_records) > 0:
                     for record in existing_records:
@@ -274,12 +258,12 @@ class ExecutionEngine:
                                 "operator": "=",
                                 "value": val
                             })
-                        
+
                         existing_records = self.catalog_manager.query_with_condition(table, conditions)
-                
+
                 # Execute delete
                 result = self.dml_executor.execute_delete(plan)
-                
+
                 # Record operation if successful and in a transaction
                 if transaction_id and result["status"] == "success" and existing_records and len(existing_records) > 0:
                     for record in existing_records:

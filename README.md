@@ -9,7 +9,7 @@
 [![Lines of Code](https://img.shields.io/github/languages/code-size/dedzsinator/pyhmssql)](https://github.com/dedzsinator/pyhmssql)
 [![License](https://img.shields.io/github/license/dedzsinator/pyhmssql)](https://github.com/dedzsinator/pyhmssql/blob/main/LICENSE)
 [![Tests](https://img.shields.io/github/actions/workflow/status/dedzsinator/pyhmssql/tests.yml?branch=main&label=Tests)](https://github.com/dedzsinator/pyhmssql/actions/workflows/tests.yml)
-[![Lines of Code](https://img.shields.io/tokei/lines/github/dedzsinator/pyhmssql)](https://github.com/dedzsinator/pyhmssql)
+[![Lines of Code](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Dedzsinator/pyHMSSQL/loc-badge/loc-badge.json)](https://github.com/Dedzsinator/pyHMSSQL)
 
 A lightweight, powerful database management system built in Python. pyHMSSQL implements a client-server architecture with B+ tree indexing for efficient data retrieval operations.
 
@@ -149,7 +149,7 @@ mvn javafx:run
 ```
 
 Then run it with:
-  
+
 ```bash
 java --module-path "path\to\javafx-sdk\lib" --add-modules javafx.controls,javafx.fxml,javafx.web,javafx.swing,javafx.graphics -jar target\java-client-1.0-SNAPSHOT.jar
 ```
@@ -215,9 +215,9 @@ query USE test_db ✅
 query CREATE TABLE products (id INT IDENTITY(1,1) PRIMARY KEY, name VARCHAR(100) NOT NULL, price DECIMAL(10,2), stock INT DEFAULT 0) ✅
 
 -- ✅
-query INSERT INTO products (name, price, stock) VALUES ('Laptop', 999.99, 10) 
-query INSERT INTO products (name, price, stock) VALUES ('Phone', 499.99, 20) 
-query INSERT INTO products (name, price, stock) VALUES ('Tablet', 299.99, 15) 
+query INSERT INTO products (name, price, stock) VALUES ('Laptop', 999.99, 10)
+query INSERT INTO products (name, price, stock) VALUES ('Phone', 499.99, 20)
+query INSERT INTO products (name, price, stock) VALUES ('Tablet', 299.99, 15)
 
 -- Create a simple table
 query CREATE TABLE customers (id INT PRIMARY KEY, name String, email VARCHAR(100), age INT) ✅
@@ -228,7 +228,7 @@ query CREATE TABLE orders (id INT PRIMARY KEY,customer_id INT,order_date DATETIM
 -- Create an index on the customers table
 CREATE INDEX idx_customer_email ON customers (email) ✅
 
--- Create an index on the orders table  
+-- Create an index on the orders table
 CREATE INDEX idx_order_date ON orders (order_date) ✅
 
 -- Show all tables
@@ -328,7 +328,7 @@ query SELECT GCD(salary) FROM employees ✅
 -- TOP N query
 query SELECT TOP 2 * FROM customers ORDER BY age DESC ~
 
--- Test TOP with aggregate 
+-- Test TOP with aggregate
 SELECT TOP 5 AVG(salary) FROM employees WHERE department = 'Engineering'
 
 -- Test LIMIT with aggregate
@@ -455,20 +455,20 @@ query SHOW INDEXES
 query SHOW INDEXES FOR employees
 
 -- Query with multiple joins, conditions and sorting
-query SELECT e.name, d.name, e.salary 
-FROM employees e 
-JOIN departments d ON e.dept_id = d.id 
-WHERE e.salary > 65000 
+query SELECT e.name, d.name, e.salary
+FROM employees e
+JOIN departments d ON e.dept_id = d.id
+WHERE e.salary > 65000
 ORDER BY e.salary DESC
 LIMIT 3
 
 -- Query with aggregation and grouping
-query SELECT dept_id, AVG(salary) as avg_salary, COUNT(*) as emp_count 
-FROM employees 
+query SELECT dept_id, AVG(salary) as avg_salary, COUNT(*) as emp_count
+FROM employees
 GROUP BY dept_id
 
 -- Nested subqueries
-query SELECT * FROM employees 
+query SELECT * FROM employees
 WHERE salary > (SELECT AVG(salary) FROM employees)
 
 ---
