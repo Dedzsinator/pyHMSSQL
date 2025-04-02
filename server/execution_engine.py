@@ -1,5 +1,9 @@
+"""_summary_
+
+Returns:
+    _type_: _description_
+"""
 import logging
-import traceback
 from query_processor.join_executor import JoinExecutor
 from query_processor.aggregate_executor import AggregateExecutor
 from query_processor.select_executor import SelectExecutor
@@ -55,7 +59,8 @@ class ExecutionEngine:
         db_name = self.catalog_manager.get_current_database()
 
         # Verify the table exists
-        if not self.catalog_manager.list_tables(db_name) or table_name not in self.catalog_manager.list_tables(db_name):
+        if not self.catalog_manager.list_tables(db_name) or \
+            table_name not in self.catalog_manager.list_tables(db_name):
             return {"error": f"Table '{table_name}' does not exist", "status": "error"}
 
         # Use catalog manager to get data
@@ -197,7 +202,8 @@ class ExecutionEngine:
                     record_id = None
                     if "id" in record:
                         record_id = record["id"]
-                    elif plan.get("values") and plan.get("values")[0] and len(plan.get("values")[0]) > 0:
+                    elif plan.get("values") and plan.get("values")[0] and \
+                        len(plan.get("values")[0]) > 0:
                         record_id = plan.get("values")[0][0]
 
                     # Record the operation
@@ -225,7 +231,8 @@ class ExecutionEngine:
                 result = self.dml_executor.execute_update(plan)
 
                 # Record operation if successful and in a transaction
-                if transaction_id and result["status"] == "success" and existing_records and len(existing_records) > 0:
+                if transaction_id and result["status"] == "success" and existing_records and \
+                    len(existing_records) > 0:
                     for record in existing_records:
                         self.transaction_manager.record_operation(transaction_id, {
                             "type": "UPDATE",
@@ -242,30 +249,16 @@ class ExecutionEngine:
                     table = plan.get("table")
                     condition = plan.get("condition")
                     if condition and table:
-                        # Similar condition parsing as for UPDATE
-                        conditions = []
-                        parts = condition.split('=')
-                        if len(parts) == 2:
-                            col = parts[0].strip()
-                            val = parts[1].strip()
-                            try:
-                                val = int(val)
-                            except ValueError:
-                                if val.startswith("'") and val.endswith("'"):
-                                    val = val[1:-1]
-                            conditions.append({
-                                "column": col,
-                                "operator": "=",
-                                "value": val
-                            })
-
+                        # Use helper function instead of duplicating parsing code
+                        conditions = parse_simple_condition(condition)
                         existing_records = self.catalog_manager.query_with_condition(table, conditions)
 
                 # Execute delete
                 result = self.dml_executor.execute_delete(plan)
 
                 # Record operation if successful and in a transaction
-                if transaction_id and result["status"] == "success" and existing_records and len(existing_records) > 0:
+                if transaction_id and result["status"] == "success" and existing_records and \
+                    len(existing_records) > 0:
                     for record in existing_records:
                         self.transaction_manager.record_operation(transaction_id, {
                             "type": "DELETE",
@@ -304,8 +297,8 @@ class ExecutionEngine:
 
             return result
 
-        except Exception as e:
-            logging.error(f"Error executing {plan_type}: {str(e)}")
+        except RuntimeError as e:
+            logging.error("Error executing %s: %s", plan_type, str(e))
             return {"status": "error", "error": f"Error executing {plan_type}: {str(e)}"}
 
     def execute_set_preference(self, plan):

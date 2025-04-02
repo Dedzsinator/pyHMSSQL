@@ -10,9 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Count lines of code
-        uses: arnellebalane/count-loc-action@v1
+        uses: tj-actions/cloc@v1.3.3
+        
+      - name: Get the cloc badge
+        uses: pxgamer/cloc-badge-action@v1.0.0
+        id: cloc
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: "."
-          badge-color: "blue"
+          output_path: ./cloc.svg
+          
+      # Optional: Upload the badge as an artifact
+      - name: Upload badge
+        uses: actions/upload-artifact@v3
+        with:
+          name: cloc-badge
+          path: ./cloc.svg
