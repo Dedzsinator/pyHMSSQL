@@ -56,10 +56,8 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+          # Set build-mode to 'none' specifically for Python
+          build-mode: ${{ matrix.language == 'python' && 'none' || matrix.build-mode }}
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
