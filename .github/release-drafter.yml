@@ -12,7 +12,7 @@ categories:
     labels: ["chore", "dependencies"]
 
 change-template: "- $TITLE (#$NUMBER) by @$AUTHOR"
-change-title-escapes: true
+change-title-escapes: '\<\>&'
 
 template: |
   ## Changes in $NEXT_PATCH_VERSION
