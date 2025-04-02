@@ -356,8 +356,7 @@ class CatalogManager:
             return []
 
         # Load the table file
-        table_file = os.path.join(self.tables_dir, db_name, f"{
-                                  actual_table_name}.tbl")
+        table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
         if not os.path.exists(table_file):
             logging.warning(f"Table file not found at: {table_file}")
             return []
