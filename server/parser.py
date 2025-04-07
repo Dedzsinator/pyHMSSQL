@@ -221,7 +221,7 @@ class SQLParser:
                 else:
                     # Simple table list without joins
                     tables = self._process_from_clause(tables_part)
-                    
+
                 # Add tables to result
                 result["tables"] = tables
 

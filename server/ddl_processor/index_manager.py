@@ -63,7 +63,7 @@ class IndexManager:
                 index = BPlusTree.load_from_file(index_file)
                 self.indexes[f"{table_name}.{index_name}"] = index
                 return index
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error("Error loading index: %s", str(e))
                 # Fall through to rebuilding
 
@@ -105,7 +105,7 @@ class IndexManager:
             self.indexes[f"{table_name}.{index_name}"] = index
             return index
 
-        except Exception as e:
+        except RuntimeError as e:
             logging.error("Error building index: %s", str(e))
             logging.error(traceback.format_exc())
             return None
@@ -129,7 +129,7 @@ class IndexManager:
                     try:
                         index.visualize(self.visualizer, output_name=full_name)
                         count += 1
-                    except:
-                        pass
+                    except RuntimeError as e:
+                        logging.error("Error visualizing index: %s", str(e))
 
         return count

@@ -5,7 +5,6 @@ including INSERT, UPDATE, and DELETE, with concurrency control.
 """
 import logging
 import traceback
-import re
 import os
 import uuid
 from bptree import BPlusTree
@@ -246,7 +245,7 @@ class DMLExecutor:
                 "count": updated_count
             }
 
-        except Exception as e:
+        except RuntimeError as e:
             return {
                 "status": "error",
                 "error": str(e)

@@ -85,7 +85,7 @@ class ConditionParser:
                     break
 
         logging.debug('Parsed condition "%s" to: %s',
-                      condition_str, conditions)
+                    condition_str, conditions)
         return conditions
 
     @staticmethod

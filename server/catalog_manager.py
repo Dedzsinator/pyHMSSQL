@@ -1,12 +1,13 @@
 import json
 import os
+import re
+import traceback
+import shutil
+import pickle
 import logging
 from hashlib import sha256
 import datetime
 from bptree import BPlusTree
-import re
-import traceback
-import shutil
 
 
 class CatalogManager:
@@ -204,7 +205,7 @@ class CatalogManager:
 
                 # Check for IDENTITY attribute in column definition
                 if "identity" in col_def:
-                    logging.debug(f"Found IDENTITY column: {col_name}")
+                    logging.debug("Found IDENTITY column: %s", col_name)
             else:
                 # For string format, parse it to look for IDENTITY
                 parts = str(col_def).split()
@@ -235,7 +236,7 @@ class CatalogManager:
                             column_def["identity_seed"] = 1
                             column_def["identity_increment"] = 1
 
-                        logging.debug(f"Parsed IDENTITY column: {col_name}")
+                        logging.debug("Parsed IDENTITY column: %s", col_name)
 
                     # Check for PRIMARY KEY
                     if "PRIMARY KEY" in str(col_def).upper():
@@ -281,7 +282,7 @@ class CatalogManager:
         # Save to file
         self._save_json(self.preferences_file, self.preferences)
 
-        logging.info(f"Preferences updated: {prefs}")
+        logging.info("Preferences updated: %s", prefs)
         return True
 
     def list_databases(self):
@@ -344,7 +345,7 @@ class CatalogManager:
 
         if not actual_table_name:
             logging.warning(
-                f"Table '{table_name}' not found in database '{db_name}'")
+                "Table '%s' not found in database '%s'", table_name, db_name)
             return []
 
         # Use the correct table name for the lookup
@@ -352,52 +353,48 @@ class CatalogManager:
 
         # Check if table exists
         if table_id not in self.tables:
-            logging.warning(f"Table ID '{table_id}' not found in catalog")
+            logging.warning("Table ID '%s' not found in catalog", table_id)
             return []
 
         # Load the table file
         table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
         if not os.path.exists(table_file):
-            logging.warning(f"Table file not found at: {table_file}")
+            logging.warning("Table file not found at: %s", table_file)
             return []
 
         try:
-            # Load the B+ tree with better error handling
-            import pickle  # Add import here to make sure it's available
-
             tree = None
 
-            logging.debug(f"Loading B+ tree from file: {table_file}")
+            logging.debug("Loading B+ tree from file: %s", table_file)
             with open(table_file, "rb") as f:
                 try:
                     # Check for BOM marker and skip it
                     first_bytes = f.read(3)
                     if first_bytes == b"\xef\xbb\xbf":  # UTF-8 BOM
                         logging.warning(
-                            f"Found UTF-8 BOM in {table_file}, skipping")
+                            "Found UTF-8 BOM in %s, skipping", table_file)
                     else:
                         # Reset to beginning if no BOM
                         f.seek(0)
 
                     # Load the tree
                     tree = pickle.load(f)
-                except Exception as e:
-                    logging.error(f"Error loading B+ tree: {str(e)}")
+                except RuntimeError as e:
+                    logging.error("Error loading B+ tree: %s", str(e))
                     # Create a new tree
                     tree = BPlusTree(order=50, name=actual_table_name)
                     tree.save_to_file(table_file)
 
             if tree is None:
                 logging.error(
-                    f"Failed to load or create B+ tree for {table_file}")
+                    "Failed to load or create B+ tree for %s", table_file)
                 return []
 
             # Get all records
             all_records = tree.range_query(float("-inf"), float("inf"))
 
             logging.debug(
-                f"Found {len(all_records)} total records in {
-                    actual_table_name}"
+                "Found %s total records in %s", len(all_records), actual_table_name
             )
 
             results = []
@@ -405,8 +402,8 @@ class CatalogManager:
                 # Check if record matches all conditions
                 if conditions:
                     logging.debug(
-                        f"Checking conditions: {
-                            conditions} against record: {record}"
+                        "Checking conditions: %s against record: %s",
+                        conditions, record
                     )
 
                 matches = True
@@ -432,7 +429,7 @@ class CatalogManager:
 
                     # Get the value using the matching column name
                     record_val = record[matching_col]
-                    logging.debug(f"Comparing {record_val} {op} {val}")
+                    logging.debug("Comparing %s %s %s", record_val, op, val)
 
                     # Apply operator (with type conversion as needed)
                     if op == "=":
@@ -500,12 +497,11 @@ class CatalogManager:
                             results.append(projected)
 
             logging.debug(
-                f"Returning {len(results)} records after applying conditions")
+                "Returning %s records after applying conditions", len(results))
             return results
 
-        except Exception as e:
-            logging.error(f"Error querying table: {e}")
-            import traceback
+        except RuntimeError as e:
+            logging.error("Error querying table: %s", str(e))
 
             logging.error(traceback.format_exc())
             return []
@@ -580,7 +576,9 @@ class CatalogManager:
                                     identity_match.group(3))
 
         logging.debug(
-            f"Table {table_name} - PK: {pk_column}, Identity: {is_identity}")
+            "Table %s - PK: %s, Identity: %s",
+            table_name, pk_column, is_identity
+        )
 
         # Load the table file
         table_file = os.path.join(
@@ -616,14 +614,16 @@ class CatalogManager:
                 # Generate the next value
                 next_value = max_identity_value + identity_increment
                 record[pk_column] = next_value
-                logging.debug(f"Generated IDENTITY value: {
-                              next_value} for {pk_column}")
+                logging.debug("Generated IDENTITY value: %s for %s",
+                    next_value, pk_column
+                )
 
             # Check for primary key violation
             if pk_column and pk_column in record:
                 pk_value = record[pk_column]
                 logging.debug(
-                    f"Checking primary key constraint: {pk_column}={pk_value}"
+                    "Checking primary key constraint: %s=%s",
+                    pk_column, pk_value
                 )
 
                 # Check if this primary key already exists
@@ -633,9 +633,8 @@ class CatalogManager:
                         and existing_record[pk_column] == pk_value
                     ):
                         logging.warning(
-                            f"Primary key violation: {pk_column}={
-                                pk_value
-                            } already exists"
+                            "Primary key violation: %s=%s already exists",
+                            pk_column, pk_value
                         )
                         return f"Primary key violation: {pk_column}={pk_value} already exists"
 
@@ -646,7 +645,7 @@ class CatalogManager:
                 # Generate a unique ID if no primary key
                 record_id = int(datetime.datetime.now().timestamp() * 1000000)
 
-            logging.debug(f"Inserting record with ID {record_id}: {record}")
+            logging.debug("Inserting record with ID %s: %s", record_id, record)
 
             # Insert the record into the B+ tree
             tree.insert(record_id, record)
@@ -654,8 +653,7 @@ class CatalogManager:
             # Save the updated tree
             tree.save_to_file(table_file)
 
-            logging.info(f"Record inserted into {
-                         table_name} with ID {record_id}")
+            logging.info("Record inserted into %s with ID %s", table_name, record_id)
 
             # Update indexes if any
             self._update_indexes_after_insert(
@@ -663,9 +661,8 @@ class CatalogManager:
 
             return True
 
-        except Exception as e:
-            logging.error(f"Error inserting record: {str(e)}")
-            import traceback
+        except RuntimeError as e:
+            logging.error("Error inserting record: %s", str(e))
 
             logging.error(traceback.format_exc())
             return f"Error inserting record: {str(e)}"
@@ -697,7 +694,7 @@ class CatalogManager:
                         index_tree = BPlusTree(
                             order=50, name=f"{table_name}_{column}_index"
                         )
-                except:
+                except RuntimeError:
                     index_tree = BPlusTree(
                         order=50, name=f"{table_name}_{column}_index"
                     )
@@ -715,9 +712,8 @@ class CatalogManager:
                         # Already indexed, but could be the same record (update case)
                         if existing != record_id:
                             logging.warning(
-                                f"Unique constraint violation on {column}={
-                                    column_value
-                                }"
+                                "Unique constraint violation on %s=%s",
+                                column, column_value
                             )
                             continue
 
@@ -899,57 +895,57 @@ class CatalogManager:
         db_name = self.get_current_database()
         if not db_name:
             return False
-            
+
         table_id = f"{db_name}.{table_name}"
         if table_id not in self.tables:
             return False
-            
+
         # Get the table file path
         table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
-        
+
         if not os.path.exists(table_file):
             return False
-            
+
         try:
             # Load the B+ tree
             tree = BPlusTree.load_from_file(table_file)
             if tree is None:
                 return False
-                
+
             # First find the record by querying with conditions to get the actual B+ tree key
             conditions = [{"column": "id", "operator": "=", "value": record_id}]
             records = self.query_with_condition(table_name, conditions)
-            
+
             if not records or len(records) == 0:
                 return False
-                
+
             # Find out which key in the B+ tree corresponds to this record
             all_records = tree.range_query(float('-inf'), float('inf'))
             tree_key = None
-            
+
             for key, record in all_records:
                 if record.get("id") == record_id:
                     tree_key = key
                     break
-                    
+
             if tree_key is None:
                 return False
-                
+
             # Get the existing record and update it
             updated_record = records[0].copy()
             for field, value in update_data.items():
                 updated_record[field] = value
-                
+
             # Update in the tree using the correct key
             tree.insert(tree_key, updated_record)
-            
+
             # Save the updated tree
             tree.save_to_file(table_file)
-            
+
             return True
-            
-        except Exception as e:
-            logging.error(f"Error updating record: {e}")
+
+        except RuntimeError as e:
+            logging.error("Error updating record: %s", str(e))
             return False
 
     def create_index(
@@ -1021,11 +1017,11 @@ class CatalogManager:
             # Save changes to catalog
             self._save_json(self.indexes_file, self.indexes)
 
-            logging.info(f"Index created on {table_name}.{column_name}")
+            logging.info("Index created on %s.%s", table_name, column_name)
             return f"Index created on {table_name}.{column_name}"
 
-        except Exception as e:
-            logging.error(f"Error creating index: {e}")
+        except RuntimeError as e:
+            logging.error("Error creating index: %s", str(e))
             if index_id in self.indexes:
                 del self.indexes[index_id]
             return f"Error creating index: {str(e)}"
@@ -1059,7 +1055,7 @@ class CatalogManager:
         # Save changes
         self._save_json(self.indexes_file, self.indexes)
 
-        logging.info(f"Index {index_name} dropped from {table_name}")
+        logging.info("Index %s dropped from %s", index_name, table_name)
         return f"Index {index_name} dropped from {table_name}"
 
     def drop_table(self, table_name):
@@ -1110,7 +1106,7 @@ class CatalogManager:
         self._save_json(self.databases_file, self.databases)
         self._save_json(self.indexes_file, self.indexes)
 
-        logging.info(f"Table {table_name} dropped.")
+        logging.info("Table %s dropped.", table_name)
         return f"Table {table_name} dropped."
 
     def create_view(self, view_name, query):
@@ -1136,7 +1132,7 @@ class CatalogManager:
         # Save changes
         self._save_json(self.views_file, self.views)
 
-        logging.info(f"View {view_name} created")
+        logging.info("View %s created", view_name)
         return f"View {view_name} created"
 
     def drop_view(self, view_name):
@@ -1157,7 +1153,7 @@ class CatalogManager:
         # Save changes
         self._save_json(self.views_file, self.views)
 
-        logging.info(f"View {view_name} dropped")
+        logging.info("View %s dropped", view_name)
         return f"View {view_name} dropped"
 
     def get_record_by_key(self, table_name, record_key):
@@ -1190,7 +1186,7 @@ class CatalogManager:
             # Search for the record
             return tree.search(record_key)
         except RuntimeError as e:
-            logging.error(f"Error retrieving record by key: {str(e)}")
+            logging.error("Error retrieving record by key: %s", str(e))
             return None
 
     def table_exists(self, table_name, db_name=None):
@@ -1220,16 +1216,16 @@ class CatalogManager:
         db_name = self.get_current_database()
         if not db_name:
             return []
-            
+
         # Look up table in memory first
         table_id = f"{db_name}.{table_name}"
         if table_id in self.tables:
             table_info = self.tables[table_id]
-            
+
             # Process columns and constraints
             columns = []
             constraints = []
-            
+
             columns_data = table_info.get("columns", [])
             if isinstance(columns_data, list):
                 for col in columns_data:
@@ -1249,24 +1245,24 @@ class CatalogManager:
                     col_info = {"name": name}
                     col_info.update(attrs)
                     columns.append(col_info)
-            
+
             # Add any separate constraints
             if "constraints" in table_info:
                 for constraint in table_info.get("constraints", []):
                     constraints.append({"constraint": constraint})
-                    
+
             # Return combined schema
             return columns + constraints
-            
-        # Table not found  
+
+        # Table not found
         return []
 
     def get_all_records_with_keys(self, table_name):
         """Get all records from a table along with their keys.
-        
+
         Args:
             table_name: Name of the table to query
-            
+
         Returns:
             list: A list of tuples (key, record) for all records in the table
         """
@@ -1315,37 +1311,39 @@ class CatalogManager:
 
     def delete_record_by_id(self, table_name, record_id):
         """Delete a record by its primary key.
-        
+
         Args:
             table_name: Table name
             record_id: Primary key value
-            
+
         Returns:
             bool: True if successful
         """
-        return self.delete_records(table_name, [{"column": "id", "operator": "=", "value": record_id}])
+        return self.delete_records(table_name,
+                                [{"column": "id", "operator": "=", "value": record_id}])
 
     def update_record_by_id(self, table_name, record_id, record_data):
         """Update a record by its primary key.
-        
+
         Args:
             table_name: Table name
             record_id: Primary key value
             record_data: New record data
-            
+
         Returns:
             bool: True if successful
         """
-        return self.update_record(table_name, record_data, [{"column": "id", "operator": "=", "value": record_id}])
+        return self.update_record(table_name, record_data,
+                                [{"column": "id", "operator": "=", "value": record_id}])
 
     def insert_record_with_id(self, table_name, record_id, record_data):
         """Insert a record with a specific ID.
-        
+
         Args:
             table_name: Table name
             record_id: Primary key value
             record_data: Record data
-            
+
         Returns:
             bool: True if successful
         """

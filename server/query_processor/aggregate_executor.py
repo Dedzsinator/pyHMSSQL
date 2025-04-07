@@ -98,9 +98,7 @@ class AggregateExecutor:
 
     def _execute_rand(self, result, param_str):
         """Execute RAND aggregate function."""
-        import random
-
-        logging.info(f"Executing RAND with params: '{param_str}'")
+        logging.info("Executing RAND with params: '%s'", param_str)
 
         # Parse parameters
         params = [p.strip() for p in param_str.split(",")]
@@ -109,20 +107,20 @@ class AggregateExecutor:
             if len(params) == 1:
                 n = int(params[0])
                 if n <= 0:
-                    raise ValueError(
-                        "Number of random records must be positive")
+                    raise ValueError("Number of random records must be positive")
 
                 if result and len(result) > 0:
                     n = min(n, len(result))
                     logging.info(
-                        f"Selecting {n} random records from {
-                            len(result)} total"
+                        "Selecting %s random records from %s total",
+                        n, len(result)
                     )
-                    selected = random.sample(range(len(result)), n)
-                    return n
+                    selected_indices = random.sample(range(len(result)), n)
+                    # Return the actual selected records, not just the count
+                    return [result[i] for i in selected_indices]
                 else:
                     logging.warning("No records to sample from")
-                    return 0
+                    return []
 
             elif len(params) == 3:
                 n = int(params[0])
@@ -130,8 +128,8 @@ class AggregateExecutor:
                 max_val = float(params[2])
 
                 logging.info(
-                    f"Generating {n} random values between {
-                        min_val} and {max_val}"
+                    "Generating %s random values between %s and %s",
+                    n, min_val, max_val
                 )
                 if n <= 0:
                     raise ValueError(
@@ -140,7 +138,7 @@ class AggregateExecutor:
                 random_values = [random.uniform(
                     min_val, max_val) for _ in range(n)]
                 avg = sum(random_values) / len(random_values)
-                logging.info(f"Generated values with average: {avg}")
+                logging.info("Generated values with average: %s", avg)
                 return avg
 
             else:
@@ -149,15 +147,14 @@ class AggregateExecutor:
                 )
 
         except ValueError as e:
-            logging.error(f"Error in RAND: {str(e)}")
-            raise ValueError(f"Invalid parameters for RAND: {str(e)}")
+            logging.error("Error in RAND: %s", str(e))
 
     def _execute_gcd(self, result, actual_column, column):
         """Execute GCD aggregate function."""
-        import math
 
-        logging.info(f"Computing GCD for column '{
-                     column}' (actual: '{actual_column}')")
+        logging.info("Computing GCD for column '%s' (actual: '%s')",
+            column, actual_column
+        )
 
         if column == "*":
             raise ValueError("Cannot use GCD with *")
@@ -172,10 +169,11 @@ class AggregateExecutor:
                     val = int(float(record[actual_column]))
                     if val != 0:  # Skip zeros
                         values.append(abs(val))
-                        logging.info(f"Added value {val} to GCD calculation")
+                        logging.info("Added value %s to GCD calculation", val)
                 except (ValueError, TypeError):
                     logging.warning(
-                        f"Skipping non-numeric value: {record[actual_column]}"
+                        "Skipping non-numeric value: %s",
+                        record[actual_column]
                     )
 
         if not values:
@@ -186,19 +184,19 @@ class AggregateExecutor:
         for value in values[1:]:
             gcd_result = math.gcd(gcd_result, value)
 
-        logging.info(f"GCD result: {gcd_result}")
+        logging.info("GCD result: %s", gcd_result)
         return gcd_result
 
     def execute_aggregate(self, plan):
         """Execute an aggregation function (COUNT, SUM, AVG, MIN, MAX, RAND, GCD)."""
-        logging.info(f"===== AGGREGATE FUNCTION CALLED =====")
-        logging.info(f"Plan: {plan}")
-        logging.info(f"Function: {plan.get('function')}")
-        logging.info(f"Column: {plan.get('column')}")
-        logging.info(f"Table: {plan.get('table')}")
-        logging.info(f"Condition: {plan.get('condition')}")
-        logging.info(f"Top: {plan.get('top')}")
-        logging.info(f"Limit: {plan.get('limit')}")
+        logging.info("===== AGGREGATE FUNCTION CALLED =====")
+        logging.info("Plan: %s", plan)
+        logging.info("Function: %s", plan.get('function'))
+        logging.info("Column: %s", plan.get('column'))
+        logging.info("Table: %s",plan.get('table'))
+        logging.info("Condition: %s", plan.get('condition'))
+        logging.info("Top: %s", plan.get('top'))
+        logging.info("Limit: %s", plan.get('limit'))
 
         function = plan.get("function", "").upper()
         column = plan.get("column")
@@ -211,14 +209,14 @@ class AggregateExecutor:
         if top_n is not None:
             try:
                 top_n = int(top_n)
-                logging.info(f"TOP {top_n} specified for aggregate")
+                logging.info("TOP %s specified for aggregate", top_n)
             except (ValueError, TypeError):
                 top_n = None
 
         if limit is not None:
             try:
                 limit = int(limit)
-                logging.info(f"LIMIT {limit} specified for aggregate")
+                logging.info("LIMIT %s specified for aggregate", limit)
             except (ValueError, TypeError):
                 limit = None
 
@@ -233,8 +231,8 @@ class AggregateExecutor:
                 table_name, conditions, ["*"]
             )
             logging.info(
-                f"Queried {len(result) if result else 0} records from {
-                    table_name}"
+                "Queried %s records from %s",
+                len(result) if result else 0, table_name
             )
 
             # Apply TOP/LIMIT to the raw data before aggregation if appropriate
@@ -242,15 +240,13 @@ class AggregateExecutor:
             # But some functions like RAND may benefit from limiting data first
             if function == "RAND" and top_n is not None and top_n > 0 and result:
                 result = result[:top_n]
-                logging.info(f"Applied TOP {
-                             top_n} to raw data for RAND function")
+                logging.info("Applied TOP %s to raw data for RAND function", top_n)
             elif function == "RAND" and limit is not None and limit > 0 and result:
                 result = result[:limit]
-                logging.info(f"Applied LIMIT {
-                             limit} to raw data for RAND function")
+                logging.info("Applied LIMIT %s to raw data for RAND function", limit)
 
-        except Exception as e:
-            logging.error(f"Error querying data: {str(e)}")
+        except RuntimeError as e:
+            logging.error("Error querying data: %s", str(e))
             return {
                 "error": f"Error querying data: {str(e)}",
                 "status": "error",
@@ -268,13 +264,13 @@ class AggregateExecutor:
 
                 if not actual_column and function not in ["COUNT"]:
                     logging.warning(
-                        f"Column '{column}' not found in table {
-                            table_name}, available columns: {list(result[0].keys())}"
+                        "Column '%s' not found in table %s, available columns: %s",
+                        column, table_name, list(result[0].keys())
                     )
 
             logging.info(
-                f"Using actual column name: '{
-                    actual_column}' for function {function}({column})"
+                "Using actual column name: '%s' for function %s(%s)",
+                actual_column, function, column
             )
 
             # Dispatch to appropriate function handler
@@ -314,8 +310,9 @@ class AggregateExecutor:
             else:
                 display_value = str(aggregate_result)
 
-            logging.info(f"Aggregate result: {
-                         function}({column}) = {display_value}")
+            logging.info("Aggregate result: %s(%s) = %s",
+                function, column, display_value
+            )
 
             # Return in the standard result format
             return {
@@ -326,8 +323,8 @@ class AggregateExecutor:
                 "rowCount": 1,
             }
 
-        except Exception as e:
-            logging.error(f"Error executing aggregate: {str(e)}")
+        except RuntimeError as e:
+            logging.error("Error executing aggregate: %s", str(e))
             logging.error(traceback.format_exc())
             return {
                 "error": f"Error executing aggregate {function}: {str(e)}",

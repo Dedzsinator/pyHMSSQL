@@ -466,7 +466,7 @@ class SchemaManager:
                     "status": "error",
                     "error": result
                 }
-            
+
             return {
                 "status": "success",
                 "message": f"Index {index_name} dropped successfully"
@@ -479,10 +479,10 @@ class SchemaManager:
 
     def get_table_schema(self, table_name):
         """Get the schema for a table.
-        
+
         Args:
             table_name: Name of the table
-            
+
         Returns:
             list: List of column dictionaries
         """

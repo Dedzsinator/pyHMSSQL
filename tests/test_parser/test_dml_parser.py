@@ -16,74 +16,74 @@ from parser import SQLParser  # Direct import instead of from server.parser
 
 class TestSelectParser:
     """Test SELECT statement parsing."""
-    
+
     def test_basic_select(self, parser):
         """Test parsing of basic SELECT statements."""
         query = "SELECT id, name FROM customers"
         parsed = parser.parse_sql(query)
-        
+
         assert parsed["type"] == "SELECT"
         assert parsed["columns"] == ["id", "name"]
         # Fix: accept uppercase table names in parser output
-        assert parsed["tables"][0].lower() == "customers" 
-    
+        assert parsed["tables"][0].lower() == "customers"
+
 
     def test_select_with_where(self, parser):
         """Test parsing SELECT with WHERE clause."""
         query = "SELECT id, name FROM customers WHERE age > 30"
         parsed = parser.parse_sql(query)
-        
+
         assert parsed["type"] == "SELECT"
         assert parsed["columns"] == ["id", "name"]
         assert parsed["tables"] == ["customers"]
         assert parsed["condition"] == "age > 30"
-        
+
     def test_select_with_order_by(self, parser):
         """Test parsing SELECT with ORDER BY clause."""
         query = "SELECT * FROM customers ORDER BY age DESC"
         parsed = parser.parse_sql(query)
-        
+
         assert parsed["type"] == "SELECT"
         assert parsed["columns"] == ["*"]
         assert parsed["tables"] == ["customers"]
         assert parsed["order_by"] == {"column": "age", "direction": "DESC"}
-        
+
     def test_select_with_limit(self, parser):
         """Test parsing SELECT with LIMIT clause."""
         query = "SELECT * FROM customers LIMIT 10"
         parsed = parser.parse_sql(query)
-        
+
         assert parsed["type"] == "SELECT"
         assert parsed["columns"] == ["*"]
         assert parsed["tables"] == ["customers"]
         assert parsed["limit"] == 10
-        
+
     def test_select_with_aggregate(self, parser):
         """Test parsing SELECT with aggregate function."""
         query = "SELECT COUNT(*) FROM customers"
         parsed = parser.parse_sql(query)
-        
+
         # This should be detected as an aggregate query
         assert "COUNT(*)" in str(parsed)
 
 class TestInsertParser:
     """Test INSERT statement parsing."""
-    
+
     def test_basic_insert(self, parser):
         """Test parsing of basic INSERT statement."""
         query = "INSERT INTO customers (id, name, email) VALUES (4, 'Alice', 'alice@example.com')"
         parsed = parser.parse_sql(query)
-        
+
         assert parsed["type"] == "INSERT"
         assert parsed["table"] == "customers"
         assert parsed["columns"] == ["id", "name", "email"]
         assert parsed["values"] == [[4, "'Alice'", "'alice@example.com'"]]
-        
+
     def test_multi_row_insert(self, parser):
         """Test parsing INSERT with multiple rows."""
         query = "INSERT INTO customers (id, name) VALUES (5, 'Dave'), (6, 'Eve')"
         parsed = parser.parse_sql(query)
-        
+
         assert parsed["type"] == "INSERT"
         assert parsed["table"] == "customers"
         assert parsed["columns"] == ["id", "name"]
@@ -93,22 +93,22 @@ class TestInsertParser:
 
 class TestUpdateParser:
     """Test UPDATE statement parsing."""
-    
+
     def test_basic_update(self, parser):
         """Test parsing of basic UPDATE statement."""
         query = "UPDATE customers SET email = 'updated@example.com' WHERE id = 1"
         parsed = parser.parse_sql(query)
-        
+
         assert parsed["type"] == "UPDATE"
         assert parsed["table"] == "customers"
         assert parsed["set"] == [("email", "'updated@example.com'")] or parsed["set"] == {"email": "'updated@example.com'"}
         assert parsed["condition"] == "id = 1"
-        
+
     def test_multi_column_update(self, parser):
         """Test parsing UPDATE with multiple columns."""
         query = "UPDATE customers SET name = 'Updated Name', age = 31 WHERE id = 1"
         parsed = parser.parse_sql(query)
-        
+
         assert parsed["type"] == "UPDATE"
         assert parsed["table"] == "customers"
         # Check if set is a list of tuples or a dict
@@ -123,22 +123,21 @@ class TestUpdateParser:
 
 class TestDeleteParser:
     """Test DELETE statement parsing."""
-    
+
     def test_basic_delete(self, parser):
         """Test parsing of basic DELETE statement."""
         query = "DELETE FROM customers WHERE id = 3"
         parsed = parser.parse_sql(query)
-        
+
         assert parsed["type"] == "DELETE"
         assert parsed["table"] == "customers"
         assert parsed["condition"] == "id = 3"
-        
+
     def test_delete_all(self, parser):
         """Test parsing DELETE without WHERE clause."""
         query = "DELETE FROM customers"
         parsed = parser.parse_sql(query)
-        
+
         assert parsed["type"] == "DELETE"
         assert parsed["table"] == "customers"
         assert "condition" not in parsed or parsed["condition"] is None
-        

@@ -22,11 +22,11 @@ class JSONEncoder(json.JSONEncoder):
 def get_current_database_or_error(catalog_manager, include_type=True):
     """
     Get the current database or return a standardized error response.
-    
+
     Args:
         catalog_manager: The catalog manager instance
         include_type: Whether to include 'type' field in error response
-        
+
     Returns:
         tuple: (db_name, None) if database is selected
                 (None, error_dict) if no database is selected

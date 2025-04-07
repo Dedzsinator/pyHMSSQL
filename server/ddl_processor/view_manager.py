@@ -1,5 +1,8 @@
-import logging
+"""_summary_
 
+Returns:
+    _type_: _description_
+"""
 
 class ViewManager:
     """Handles view operations"""
@@ -28,4 +31,3 @@ class ViewManager:
     def execute_drop_view(self, plan):
         """Execute DROP VIEW operation"""
         return self.catalog_manager.drop_view(plan["view_name"])
-
