@@ -344,8 +344,7 @@ class CatalogManager:
                     break
 
         if not actual_table_name:
-            logging.warning(
-                "Table '%s' not found in database '%s'", table_name, db_name)
+            logging.warning("Table '%s' not found in database '%s'", table_name, db_name)
             return []
 
         # Use the correct table name for the lookup
@@ -356,56 +355,74 @@ class CatalogManager:
             logging.warning("Table ID '%s' not found in catalog", table_id)
             return []
 
-        # Load the table file
+        # Try to use index for simple equality conditions
+        index_to_use = None
+        condition_value = None
+
+        if len(conditions) == 1 and conditions[0].get("operator") == "=":
+            col = conditions[0].get("column")
+            val = conditions[0].get("value")
+
+            # Handle string values - remove quotes if present
+            if isinstance(val, str):
+                if (val.startswith("'") and val.endswith("'")) or \
+                (val.startswith('"') and val.endswith('"')):
+                    val = val[1:-1]  # Remove quotes
+                    conditions[0]["value"] = val  # Update the condition value
+                    logging.info(f"Removed quotes from condition value: {val}")
+
+            # Check for available indexes on this column
+            indexes = self.get_indexes_for_table(actual_table_name)
+            for idx_name, idx_info in indexes.items():
+                if idx_info.get("column").lower() == col.lower():
+                    index_to_use = idx_name
+                    condition_value = val
+                    logging.info(f"Using index {idx_name} for query on column {col} with value {val}")
+                    break
+
+        if index_to_use and condition_value is not None:
+            # Use index lookup instead of full table scan
+            index_file = os.path.join(self.indexes_dir, f"{db_name}_{actual_table_name}_{conditions[0].get('column')}.idx")
+            if os.path.exists(index_file):
+                try:
+                    logging.info(f"Loading index file: {index_file}")
+                    index_tree = BPlusTree.load_from_file(index_file)
+                    record_key = index_tree.search(condition_value)
+                    if record_key:
+                        logging.info(f"Found record key {record_key} using index {index_to_use}")
+                        record = self.get_record_by_key(actual_table_name, record_key)
+                        logging.info(f"Found record using index {index_to_use}: {record}")
+                        return [record] if record else []
+                    logging.info(f"No record found with {conditions[0].get('column')}={condition_value} using index")
+                except Exception as e:
+                    logging.error(f"Error using index: {str(e)}")
+                    # Fall through to full table scan
+            else:
+                logging.warning(f"Index file not found: {index_file}")
+
+        # Load the table file for full scan
         table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
         if not os.path.exists(table_file):
-            logging.warning("Table file not found at: %s", table_file)
+            logging.warning(f"Table file not found at: {table_file}")
             return []
 
         try:
-            tree = None
-
-            logging.debug("Loading B+ tree from file: %s", table_file)
-            with open(table_file, "rb") as f:
-                try:
-                    # Check for BOM marker and skip it
-                    first_bytes = f.read(3)
-                    if first_bytes == b"\xef\xbb\xbf":  # UTF-8 BOM
-                        logging.warning(
-                            "Found UTF-8 BOM in %s, skipping", table_file)
-                    else:
-                        # Reset to beginning if no BOM
-                        f.seek(0)
-
-                    # Load the tree
-                    tree = pickle.load(f)
-                except RuntimeError as e:
-                    logging.error("Error loading B+ tree: %s", str(e))
-                    # Create a new tree
-                    tree = BPlusTree(order=50, name=actual_table_name)
-                    tree.save_to_file(table_file)
+            # Load B+ tree
+            logging.debug(f"Performing full table scan on: {table_file}")
+            tree = BPlusTree.load_from_file(table_file)
 
             if tree is None:
-                logging.error(
-                    "Failed to load or create B+ tree for %s", table_file)
+                logging.error(f"Failed to load B+ tree for {table_file}")
                 return []
 
             # Get all records
             all_records = tree.range_query(float("-inf"), float("inf"))
+            logging.debug(f"Found {len(all_records)} total records in {actual_table_name}")
 
-            logging.debug(
-                "Found %s total records in %s", len(all_records), actual_table_name
-            )
-
+            # Filter records based on conditions
             results = []
             for key, record in all_records:
                 # Check if record matches all conditions
-                if conditions:
-                    logging.debug(
-                        "Checking conditions: %s against record: %s",
-                        conditions, record
-                    )
-
                 matches = True
                 for condition in conditions:
                     col = condition.get("column")
@@ -429,21 +446,29 @@ class CatalogManager:
 
                     # Get the value using the matching column name
                     record_val = record[matching_col]
-                    logging.debug("Comparing %s %s %s", record_val, op, val)
 
-                    # Apply operator (with type conversion as needed)
+                    # Handle string comparison - normalize for string values
+                    if isinstance(record_val, str) and isinstance(val, str):
+                        # Remove quotes if present
+                        if (val.startswith("'") and val.endswith("'")) or \
+                        (val.startswith('"') and val.endswith('"')):
+                            val = val[1:-1]
+
+                    # Apply operator with proper type handling
                     if op == "=":
-                        if record_val != val:
+                        if isinstance(record_val, str) and isinstance(val, str):
+                            if record_val.lower() != val.lower():
+                                matches = False
+                                break
+                        elif record_val != val:
                             matches = False
                             break
                     elif op == ">":
                         try:
-                            # Try numeric comparison first
                             if float(record_val) <= float(val):
                                 matches = False
                                 break
                         except (ValueError, TypeError):
-                            # Fall back to string comparison
                             if str(record_val) <= str(val):
                                 matches = False
                                 break
@@ -491,18 +516,14 @@ class CatalogManager:
                                 if record_col.lower() == col.lower():
                                     projected[record_col] = record[record_col]
                                     break
-
-                        # Only add records that have at least one matching column
                         if projected:
                             results.append(projected)
 
-            logging.debug(
-                "Returning %s records after applying conditions", len(results))
+            logging.info("Found %s matching records after filtering", len(results))
             return results
 
-        except RuntimeError as e:
-            logging.error("Error querying table: %s", str(e))
-
+        except Exception as e:
+            logging.error("Error querying table: %s", str(E))
             logging.error(traceback.format_exc())
             return []
 
@@ -517,6 +538,42 @@ class CatalogManager:
         # Check if table exists
         if table_id not in self.tables:
             return f"Table {table_name} does not exist."
+
+        # Check if record is already mapped and clean up flag if present
+        already_mapped = record.pop("_already_mapped", False) if isinstance(record, dict) else False
+
+        # Only map if not already mapped by executor
+        if not already_mapped:
+            # Get table schema to extract column names
+            table_info = self.tables[table_id]
+            columns_data = table_info.get("columns", {})
+            column_names = []
+
+            # Extract column names from schema based on the format
+            if isinstance(columns_data, dict):
+                column_names = list(columns_data.keys())
+            elif isinstance(columns_data, list):
+                for col in columns_data:
+                    if isinstance(col, dict) and "name" in col:
+                        column_names.append(col["name"])
+                    elif isinstance(col, str):
+                        # Extract column name from string definition
+                        col_name = col.split()[0] if " " in col else col
+                        column_names.append(col_name)
+
+            # Check if we have a record as a list that needs to be mapped to column names
+            if hasattr(record, "__iter__") and not isinstance(record, dict) and column_names:
+                # Convert list values to a dictionary with column names
+                record_dict = {}
+                for i, val in enumerate(record):
+                    if i < len(column_names):
+                        # Remove quotes from string values if needed
+                        if isinstance(val, str) and ((val.startswith("'") and val.endswith("'")) or
+                                                (val.startswith('"') and val.endswith('"'))):
+                            val = val[1:-1]  # Remove quotes
+                        record_dict[column_names[i]] = val
+                record = record_dict
+                logging.info(f"Mapped values to columns: {record}")
 
         # Get table schema to check constraints
         table_schema = self.tables[table_id]

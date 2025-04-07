@@ -165,6 +165,8 @@ class Planner:
                 return self.plan_create_database(parsed_query)
             elif parsed_query["type"] == "DROP_DATABASE":
                 return self.plan_drop_database(parsed_query)
+            elif parsed_query["type"] == "DROP_TABLE":
+                return self.plan_drop_table(parsed_query)
             elif parsed_query["type"] == "USE_DATABASE":
                 return self.plan_use_database(parsed_query)
             # Add direct handlers for CREATE_TABLE and CREATE_INDEX

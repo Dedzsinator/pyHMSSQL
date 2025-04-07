@@ -475,47 +475,85 @@ WHERE salary > (SELECT AVG(salary) FROM employees)
 -- index tests
 
 -- Create a test database
-CREATE DATABASE index_test;
-USE index_test;
+CREATE DATABASE index_test
+USE index_test
 
 -- Create a test table with data
-CREATE TABLE employees (
-  id INT,
-  name VARCHAR(50),
-  salary FLOAT,
-  department VARCHAR(20)
-);
+query CREATE TABLE products (id INT,name VARCHAR(100),price DECIMAL(10,2),category VARCHAR(50),in_stock INT);
 
 -- Insert sample data
-INSERT INTO employees VALUES (1, 'John Doe', 75000.00, 'Engineering');
-INSERT INTO employees VALUES (2, 'Jane Smith', 82000.00, 'Marketing');
-INSERT INTO employees VALUES (3, 'Bob Johnson', 65000.00, 'Engineering');
-INSERT INTO employees VALUES (4, 'Alice Brown', 90000.00, 'Finance');
-INSERT INTO employees VALUES (5, 'Chris Davis', 78000.00, 'Engineering');
+query INSERT INTO products VALUES (1, 'Laptop XPS', 1299.99, 'Electronics', 10);
+query INSERT INTO products VALUES (2, 'Gaming Mouse', 59.99, 'Electronics', 25);
+query INSERT INTO products VALUES (3, 'Coffee Maker', 89.99, 'Appliances', 15);
+query INSERT INTO products VALUES (4, 'Desk Chair', 199.99, 'Furniture', 8);
+query INSERT INTO products VALUES (5, 'Bluetooth Speaker', 79.99, 'Electronics', 30);
 
--- Create a regular index on department
-CREATE INDEX dept_idx ON employees (department);
+-- Time this query - should do a full table scan
+query SELECT * FROM products WHERE category = 'Electronics';
+
+-- Time this query - should do a full table scan
+query SELECT * FROM products WHERE id = 3;
+
+-- Create a regular index on category
+query CREATE INDEX idx_category ON products (category);
 
 -- Create a unique index on id
-CREATE INDEX id_idx ON employees (id) UNIQUE;
+query CREATE INDEX idx_id ON products (id) UNIQUE;
 
--- Visualize a specific index
-VISUALIZE BPTREE dept_idx ON employees;
+-- Verify indexes were created
+query SHOW INDEXES;
 
--- Visualize all indexes
-VISUALIZE BPTREE;
-
--- This should use the department index
-SELECT * FROM employees WHERE department = 'Engineering';
+-- This should now use the category index
+query SELECT * FROM products WHERE category = 'Electronics';
 
 -- This should use the id index
-SELECT * FROM employees WHERE id = 3;
+query SELECT * FROM products WHERE id = 3;
+
+-- Enable debug/execution plan mode if available
+query SET PREFERENCE debug_mode true;
+
+-- Run again with debug info
+query SELECT * FROM products WHERE category = 'Electronics';
+query SELECT * FROM products WHERE id = 3;
+
+-- This should leverage the category index for both filtering and sorting
+query SELECT * FROM products WHERE category = 'Electronics' ORDER BY category;
+
+-- This should use the id index
+query SELECT * FROM products WHERE id > 2 ORDER BY id;
+
+-- This should NOT use any index (no index on price)
+query SELECT * FROM products WHERE price > 100;
+
+-- Create a related table
+query CREATE TABLE suppliers (
+  id INT,
+  name VARCHAR(100),
+  product_id INT
+);
+
+-- Insert some data
+query INSERT INTO suppliers VALUES (1, 'Dell', 1);
+query INSERT INTO suppliers VALUES (2, 'Logitech', 2);
+query INSERT INTO suppliers VALUES (3, 'Breville', 3);
+
+-- Create index on suppliers
+query CREATE INDEX idx_product_id ON suppliers (product_id);
+
+-- This join should use the id index on products and product_id index on suppliers
+query SELECT p.name, s.name FROM products p JOIN suppliers s ON p.id = s.product_id;
 
 -- Drop an index
-DROP INDEX dept_idx ON employees;
+query DROP INDEX idx_category ON products;
 
 -- Verify it's gone
-VISUALIZE BPTREE;
+query SHOW INDEXES;
+
+-- Run the query again - should now use full table scan
+query SELECT * FROM products WHERE category = 'Electronics';
+
+-- Visualize an index
+query VISUALIZE BPTREE idx_id ON products;
 ```
 
 ## 📊 Architecture

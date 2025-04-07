@@ -29,65 +29,62 @@ class DMLExecutor:
         self.lock_manager = LockManager()  # Add lock manager for concurrency control
 
     def execute_insert(self, plan):
+        #! REMOVED CONCURRENCY FOR NOW
         """Execute an INSERT operation."""
         table_name = plan.get("table")
         columns = plan.get("columns", [])
-        values_list = plan.get("values", [])
+        values = plan.get("values", [])
 
-        # Get or create a session ID
-        session_id = plan.get("session_id")
-        if not session_id:
-            session_id = f"temp_{uuid.uuid4()}"
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error"}
 
-        # Acquire lock for writing
-        self.lock_manager.acquire_lock(session_id, table_name, "write")
+        # If no columns are specified, get them from the table schema
+        if not columns and values:
+            table_schema = self.catalog_manager.get_table_schema(table_name)
+            if table_schema:
+                columns = []
+                for col in table_schema:
+                    if isinstance(col, dict) and "name" in col:
+                        columns.append(col["name"])
+                    elif isinstance(col, str):
+                        # Extract column name from string definition
+                        col_name = col.split()[0] if " " in col else col
+                        columns.append(col_name)
+                logging.info(f"Using schema columns for INSERT: {columns}")
 
-        try:
-            # Check if table exists, create it if it doesn't
-            if not self.catalog_manager.table_exists(table_name):
-                # Create simple schema from columns
-                schema = []
-                for i, col_name in enumerate(columns):
-                    # Default to TEXT type if can't determine
-                    col_type = "TEXT"
-                    if i < len(values_list[0]):
-                        value = values_list[0][i]
-                        if isinstance(value, int):
-                            col_type = "INT"
-                        elif isinstance(value, float):
-                            col_type = "FLOAT"
+        success_count = 0
+        for value_row in values:
+            # Always create a properly mapped record here
+            record = {}
 
-                    schema.append({"name": col_name, "type": col_type})
+            # Map values to columns whether columns were explicitly specified or derived from schema
+            if columns:
+                for i, value in enumerate(value_row):
+                    if i < len(columns):
+                        col_name = columns[i]
+                        # Clean string values
+                        if isinstance(value, str):
+                            if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
+                                value = value[1:-1]  # Remove quotes
+                        record[col_name] = value
 
-                self.catalog_manager.create_table(table_name, schema)
+            # Add flag to prevent double mapping
+            record["_already_mapped"] = True
 
-            # For each row of values
-            success_count = 0
-            for values in values_list:
-                # Create record from columns and values
-                record = {}
-                for i, col in enumerate(columns):
-                    if i < len(values):
-                        # Remove quotes from string values if present
-                        val = values[i]
-                        if isinstance(val, str) and val.startswith("'") and val.endswith("'"):
-                            val = val[1:-1]
-                        record[col] = val
+            # Always pass the mapped record
+            result = self.catalog_manager.insert_record(table_name, record)
 
-                # Insert record
-                result = self.catalog_manager.insert_record(table_name, record)
-                if result:
-                    success_count += 1
+            if result is True:
+                success_count += 1
+            else:
+                return {"error": result, "status": "error"}
 
-            return {
-                "status": "success",
-                "message": f"Inserted {success_count} records",
-                "count": success_count
-            }
-
-        finally:
-            # Release lock
-            self.lock_manager.release_lock(session_id, table_name)
+        return {
+            "status": "success",
+            "message": f"Inserted {success_count} record(s)",
+            "count": success_count
+        }
 
     def execute_delete(self, plan):
         """Execute a DELETE query with concurrency control.

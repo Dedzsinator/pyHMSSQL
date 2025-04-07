@@ -150,52 +150,25 @@ class ExecutionEngine:
         try:
             result = None
 
-            # Handle different operation types
-            if plan_type == "SELECT":
-                result = self.select_executor.execute_select(plan)
-            elif plan_type == "INSERT":
-                result = self.dml_executor.execute_insert(plan)
-
-                # Record the operation if within a transaction
-                if transaction_id and result and result.get("status") == "success":
-                    record = {}
-
-                    # Extract record data from different possible formats
-                    if plan.get("record"):
-                        record = plan.get("record")
-                    elif plan.get("columns") and plan.get("values"):
-                        record = dict(zip(plan.get("columns"), plan.get("values")[0] if plan.get("values") else []))
-
-                    record_id = record.get("id")
-                    if record_id:
-                        # Record this operation for potential rollback
-                        self.transaction_manager.record_operation(transaction_id, {
-                            "type": "INSERT",
-                            "table": plan.get("table"),
-                            "record_id": record_id,
-                            "record": record
-                        })
-
-            # SQL queries
+            # Consolidated SQL query operations - each operation executed only ONCE
             if plan_type == "SELECT":
                 result = self.select_executor.execute_select(plan)
             elif plan_type == "AGGREGATE":
                 result = self.aggregate_executor.execute_aggregate(plan)
             elif plan_type == "JOIN":
                 result = self.join_executor.execute_join(plan)
-
-            # DML operations - record for transaction if within a transaction
+            # DML operations
             elif plan_type == "INSERT":
                 result = self.dml_executor.execute_insert(plan)
 
-                # Make sure to record transaction operation regardless of result status
+                # Consolidated transaction handling for INSERT
                 if transaction_id:
                     # Extract record information from the plan or result
                     record = plan.get("record", {})
                     if not record and plan.get("columns") and plan.get("values"):
                         record = {
                             col: val for col, val in zip(plan.get("columns", []),
-                                                    plan.get("values", [[]])[0])
+                                                    plan.get("values", [[]])[0] if plan.get("values") else [])
                         }
 
                     # Get record ID from various possible sources
@@ -213,7 +186,6 @@ class ExecutionEngine:
                         "record": record,
                         "record_id": record_id
                     })
-
             elif plan_type == "UPDATE":
                 # Get existing record for rollback if in a transaction
                 existing_records = []  # Initialize to empty list
@@ -223,8 +195,6 @@ class ExecutionEngine:
                     if condition and table:
                         # Parse condition and get record before update
                         conditions = parse_simple_condition(condition)
-                        existing_records = self.catalog_manager.query_with_condition(table, conditions)
-
                         existing_records = self.catalog_manager.query_with_condition(table, conditions)
 
                 # Execute update

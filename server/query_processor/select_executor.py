@@ -45,9 +45,7 @@ class SelectExecutor:
                         "GCD",
                     ):
                         logging.error(
-                            f"Detected aggregate function in execute_select: {
-                                func_name
-                            }({col_name})"
+                            f"Detected aggregate function in execute_select: {func_name}({col_name})"
                         )
 
                         # Create a temporary aggregate plan
@@ -99,6 +97,32 @@ class SelectExecutor:
                 "type": "error",
             }
 
+        # ENHANCEMENT: Check for usable indexes for this query
+        index_info = None
+        condition = plan.get("condition")
+        if condition:
+            # Remove trailing semicolon if present
+            if condition.endswith(';'):
+                condition = condition[:-1]
+                plan["condition"] = condition  # Update plan
+
+            # Only try to use index for simple conditions with equality
+            if "=" in condition and not any(op in condition for op in ["<", ">", "AND", "OR"]):
+                parts = condition.split("=")
+                if len(parts) == 2:
+                    col = parts[0].strip()
+                    val = parts[1].strip()
+
+                    # Remove quotes if present
+                    if (val.startswith("'") and val.endswith("'")) or (val.startswith('"') and val.endswith('"')):
+                        val = val[1:-1]  # Clean value
+
+                    logging.info(f"Checking for index on column: {col} with value: {val}")
+
+                    # We'll look up indexes after confirming the table exists with proper case
+                    index_column = col
+                    index_value = val
+
         try:
             # Verify table exists - CASE INSENSITIVE COMPARISON
             tables = self.catalog_manager.list_tables(db_name)
@@ -112,9 +136,7 @@ class SelectExecutor:
                 # Use the correct case from the tables list
                 actual_table_name = tables_lower[table_name.lower()]
                 logging.debug(
-                    f"Using case-corrected table name: {actual_table_name} instead of {
-                        table_name
-                    }"
+                    f"Using case-corrected table name: {actual_table_name} instead of {table_name}"
                 )
             elif table_name not in tables:
                 return {
@@ -123,21 +145,49 @@ class SelectExecutor:
                     "type": "error",
                 }
 
+            # ENHANCEMENT: Now that we have the actual table name, check for indexes
+            if condition and "index_column" in locals():
+                # Get table indexes
+                indexes = self.catalog_manager.get_indexes_for_table(actual_table_name)
+                for idx_name, idx_def in indexes.items():
+                    if idx_def.get("column").lower() == index_column.lower():
+                        index_info = {
+                            "name": idx_name,
+                            "column": idx_def.get("column"),
+                            "value": index_value
+                        }
+                        logging.info(f"Will use index {idx_name} for condition {index_column}={index_value}")
+                        break
+
             # Build condition for query
             conditions = []
             condition = plan.get("condition")
             if condition:
                 logging.debug(f"Parsing condition: {condition}")
                 conditions = ConditionParser.parse_condition_to_list(condition)
+
+                # ENHANCEMENT: Handle string values correctly
+                for cond in conditions:
+                    val = cond.get("value")
+                    if isinstance(val, str):
+                        if (val.startswith("'") and val.endswith("'")) or (val.startswith('"') and val.endswith('"')):
+                            cond["value"] = val[1:-1]  # Remove quotes
+                            logging.info(f"Removed quotes from condition value: {cond['value']}")
+
                 logging.debug(f"Parsed conditions: {conditions}")
+
+            # ENHANCEMENT: Add scan info to the log
+            if index_info:
+                logging.info(f"Using INDEX_SCAN with index {index_info['name']} on column {index_info['column']}")
+            else:
+                logging.info("Using FULL_SCAN (no suitable index found)")
 
             # Query the data using catalog manager - always get all columns first
             results = self.catalog_manager.query_with_condition(
                 actual_table_name, conditions, ["*"]
             )
 
-            logging.debug(f"Query returned {
-                          len(results) if results else 0} results")
+            logging.debug(f"Query returned {len(results) if results else 0} results")
 
             # Format results for client display
             if not results:
@@ -146,6 +196,8 @@ class SelectExecutor:
                     "rows": [],
                     "status": "success",
                     "type": "select_result",
+                    "scan_type": "INDEX_SCAN" if index_info else "FULL_SCAN",  # ENHANCEMENT
+                    "index_used": index_info["name"] if index_info else None   # ENHANCEMENT
                 }
 
             # Create a mapping of lowercase column names to original case
@@ -202,15 +254,13 @@ class SelectExecutor:
             # Apply TOP N
             if top_n is not None and top_n > 0 and results:
                 results = results[:top_n]
-                logging.debug(f"Applied TOP {top_n}, now {
-                              len(results)} results")
+                logging.debug(f"Applied TOP {top_n}, now {len(results)} results")
 
             # Apply LIMIT if specified
             limit = plan.get("limit")
             if limit is not None and isinstance(limit, int) and results and limit > 0:
                 results = results[:limit]
-                logging.debug(f"Applied LIMIT {limit}, now {
-                              len(results)} results")
+                logging.debug(f"Applied LIMIT {limit}, now {len(results)} results")
 
             # Project columns (select specific columns or all)
             result_columns = []
@@ -224,9 +274,7 @@ class SelectExecutor:
                     result_columns = list(results[0].keys())
 
                     # Log column names that will be returned
-                    logging.error(
-                        f"SELECT * will return these columns: {result_columns}"
-                    )
+                    logging.error(f"SELECT * will return these columns: {result_columns}")
 
                     # Create rows with ALL columns from each record IN ORDER
                     for record in results:
@@ -236,8 +284,7 @@ class SelectExecutor:
                         result_rows.append(row)
                 else:
                     # Handle empty results or malformed data
-                    logging.error(
-                        "No valid results or empty dictionary in results")
+                    logging.error("No valid results or empty dictionary in results")
                     if results:
                         # Try to recover column names if possible
                         for record in results:
@@ -271,19 +318,19 @@ class SelectExecutor:
                         row.append(value)
                     result_rows.append(row)
 
-            logging.error(
-                f"Final result: {len(result_rows)} rows with columns: {
-                    result_columns}"
-            )
+            logging.error(f"Final result: {len(result_rows)} rows with columns: {result_columns}")
             # Debug print first row to verify data
             if result_rows:
                 logging.error(f"First row data: {result_rows[0]}")
 
+            # ENHANCEMENT: Add scan_type and index_used to the result
             return {
                 "columns": result_columns,  # Original case preserved
                 "rows": result_rows,
                 "status": "success",
                 "type": "select_result",
+                "scan_type": "INDEX_SCAN" if index_info else "FULL_SCAN",
+                "index_used": index_info["name"] if index_info else None
             }
 
         except Exception as e:

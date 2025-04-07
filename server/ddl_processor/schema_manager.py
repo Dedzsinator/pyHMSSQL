@@ -44,6 +44,7 @@ class SchemaManager:
             return {
                 "error": f"Unsupported table operation: {plan_type}",
                 "status": "error",
+                "type": "error"
             }
 
     def execute_index_operation(self, plan):
@@ -353,9 +354,13 @@ class SchemaManager:
             }
 
         # Get the current database
-        db_name, error = get_current_database_or_error(self.catalog_manager)
-        if error:
-            return error
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {
+                "error": "No database selected. Use 'USE database_name' first.",
+                "status": "error",
+                "type": "error",
+            }
 
         # Use catalog manager to drop the table
         try:
@@ -366,24 +371,33 @@ class SchemaManager:
             # Try direct match first
             if table_name not in tables:
                 # Try case-insensitive match
+                found = False
                 for db_table in tables:
                     if db_table.lower() == table_name.lower():
                         actual_table_name = db_table
+                        found = True
                         break
+
+                if not found:
+                    return {
+                        "error": f"Table '{table_name}' does not exist in database '{db_name}'.",
+                        "status": "error",
+                        "type": "error",
+                    }
 
             result = self.catalog_manager.drop_table(actual_table_name)
 
+            # Process result properly
             if isinstance(result, str) and "does not exist" in result:
                 return {"error": result, "status": "error", "type": "error"}
 
             return {
-                "message": f"Table '{actual_table_name}' dropped from database '{db_name}'",
+                "message": f"Table '{actual_table_name}' dropped successfully from database '{db_name}'",
                 "status": "success",
                 "type": "drop_table_result",
             }
         except RuntimeError as e:
             logging.error("Error dropping table: %s", str(e))
-            logging.error(traceback.format_exc())
             return {
                 "error": f"Error dropping table: {str(e)}",
                 "status": "error",
