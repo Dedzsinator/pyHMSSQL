@@ -97,7 +97,6 @@ class SelectExecutor:
                 "type": "error",
             }
 
-        # ENHANCEMENT: Check for usable indexes for this query
         index_info = None
         condition = plan.get("condition")
         if condition:
@@ -145,7 +144,6 @@ class SelectExecutor:
                     "type": "error",
                 }
 
-            # ENHANCEMENT: Now that we have the actual table name, check for indexes
             if condition and "index_column" in locals():
                 # Get table indexes
                 indexes = self.catalog_manager.get_indexes_for_table(actual_table_name)
@@ -212,44 +210,31 @@ class SelectExecutor:
             if order_by and results:
                 logging.debug(f"Applying ORDER BY: {order_by}")
 
-                # Parse the ORDER BY clause
-                order_columns = []
-                reverse_flags = []
+                # Get the column name from the order_by plan
+                order_column = order_by.get("column")
+                direction = order_by.get("direction", "ASC")
 
-                # Split by comma for multiple columns
-                for order_part in order_by.split(","):
-                    order_part = order_part.strip()
-                    if " DESC" in order_part.upper():
-                        col_name = order_part.upper().replace(" DESC", "").strip()
-                        reverse = True
-                    else:
-                        col_name = order_part.upper().replace(" ASC", "").strip()
-                        reverse = False
+                # Define a key function that properly handles dictionary values
+                def get_sort_key(record):
+                    # Find the correct column with case-insensitive matching
+                    for record_col in record:
+                        col_name = record_col
+                        # Handle dictionary column name format
+                        if isinstance(record_col, dict) and "name" in record_col:
+                            col_name = record_col["name"]
 
-                    # Find actual column name with correct case
-                    actual_col = None
-                    for record_col in results[0]:
-                        if record_col.lower() == col_name.lower():
-                            actual_col = record_col
-                            break
+                        if isinstance(col_name, str) and isinstance(order_column, str) and col_name.lower() == order_column.lower():
+                            # Get the value, handling dictionary format if needed
+                            value = record.get(record_col)
+                            if isinstance(value, dict) and "value" in value:
+                                return value["value"]
+                            return value
+                    return None
 
-                    if actual_col:
-                        order_columns.append(actual_col)
-                        reverse_flags.append(reverse)
-
-                # Sort the results using the specified columns
-                if order_columns:
-                    for i, (col, reverse) in reversed(
-                        list(enumerate(zip(order_columns, reverse_flags)))
-                    ):
-                        # Use a lambda for sorting that handles None values properly
-                        results = sorted(
-                            results,
-                            key=lambda x: (x.get(col) is None, x.get(col)),
-                            reverse=reverse,
-                        )
-
-                    logging.debug(f"Results sorted by {order_columns}")
+                # Sort the results using our key function
+                reverse = direction.upper() == "DESC"
+                results.sort(key=get_sort_key, reverse=reverse)
+                logging.debug(f"Results sorted by {order_column} {direction}")
 
             # Apply TOP N
             if top_n is not None and top_n > 0 and results:

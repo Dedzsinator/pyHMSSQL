@@ -206,7 +206,7 @@ class Optimizer:
         """
         Optimize a SELECT query.
         """
-        logging.debug(f"Optimizing SELECT plan: {plan}")
+        logging.debug("Optimizing SELECT plan: %s", plan)
         table_name = plan["table"]
         condition = plan.get("condition")
 
@@ -218,7 +218,8 @@ class Optimizer:
                 plan["use_index"] = True
                 plan["index"] = index
                 logging.debug(
-                    f"Using index for column: {column} in table: {table_name}"
+                    "Using index for column: %s in table: %s",
+                    column, table_name
                 )
 
         return plan
@@ -227,7 +228,7 @@ class Optimizer:
         """
         Optimize a JOIN query by selecting the most appropriate join algorithm.
         """
-        logging.debug(f"Optimizing JOIN plan: {plan}")
+        logging.debug("Optimizing JOIN plan: %s", plan)
 
         table1 = plan.get("table1", "")
         table2 = plan.get("table2", "")
@@ -252,34 +253,33 @@ class Optimizer:
         if left_index or right_index:
             # Use index join if an index exists on either join column
             plan["join_algorithm"] = "INDEX"
-            logging.debug(f"Selected INDEX join due to available index")
+            logging.debug("Selected INDEX join due to available index")
         elif left_table_size < 100 and right_table_size < 100:
             # For very small tables, nested loop can be efficient
             plan["join_algorithm"] = "NESTED_LOOP"
-            logging.debug(f"Selected NESTED_LOOP join for small tables")
+            logging.debug("Selected NESTED_LOOP join for small tables")
         elif abs(left_table_size - right_table_size) > 10 * min(
             left_table_size, right_table_size
         ):
             # For tables with very different sizes, hash join is usually best
             plan["join_algorithm"] = "HASH"
-            logging.debug(
-                f"Selected HASH join for tables with different sizes")
+            logging.debug("Selected HASH join for tables with different sizes")
         elif self.catalog_manager.is_table_sorted(
             table1, left_column
         ) or self.catalog_manager.is_table_sorted(table2, right_column):
             # If one of the tables is already sorted on join column
             plan["join_algorithm"] = "MERGE"
-            logging.debug(f"Selected MERGE join for pre-sorted data")
+            logging.debug("Selected MERGE join for pre-sorted data")
         else:
             # Default to hash join
             plan["join_algorithm"] = "HASH"
-            logging.debug(f"Selected HASH join as default")
+            logging.debug("Selected HASH join as default")
 
         # Override with user hint if provided
         if "join_algorithm" in plan and plan["join_algorithm"]:
             logging.debug(
-                f"Using user-specified join algorithm: {
-                    plan['join_algorithm']}"
+                "Using user-specified join algorithm: %s",
+                plan['join_algorithm']
             )
 
         return plan
@@ -313,11 +313,11 @@ class Optimizer:
         """
         Merge filter condition into nested loop join.
         """
-        logging.debug(f"Merging filter into join: {plan}")
+        logging.debug("Merging filter into join: %s", plan)
         if plan["type"] == "JOIN" and "filter" in plan:
             plan["condition"] = f"{plan['condition']} AND {plan['filter']}"
             del plan["filter"]
-            logging.debug(f"Merged filter into join: {plan['condition']}")
+            logging.debug("Merged filter into join: %s", plan['condition'])
 
         return plan
 
@@ -325,13 +325,13 @@ class Optimizer:
         """
         Merge identical projections.
         """
-        logging.debug(f"Merging projections: {plan}")
+        logging.debug("Merging projections: %s", plan)
         if plan["type"] == "PROJECT" and "child" in plan:
             if plan["child"]["type"] == "PROJECT":
                 plan["columns"] = list(
                     set(plan["columns"] + plan["child"]["columns"]))
                 plan["child"] = plan["child"]["child"]
-                logging.debug(f"Merged projections: {plan['columns']}")
+                logging.debug("Merged projections: %s", plan['columns'])
 
         return plan
 
@@ -339,7 +339,7 @@ class Optimizer:
         """
         Optimize nested loop join into index join.
         """
-        logging.debug(f"Optimizing index join: {plan}")
+        logging.debug("Optimizing index join: %s", plan)
         if plan["type"] == "JOIN":
             condition = plan["condition"]
             col1, col2 = condition.split("=")
@@ -355,7 +355,8 @@ class Optimizer:
                 plan["type"] = "INDEX_JOIN"
                 plan["index"] = index1 if index1 else index2
                 logging.debug(
-                    f"Optimized join to INDEX_JOIN with condition: {condition}"
+                    "Optimized join to INDEX_JOIN with condition: %s",
+                    condition
                 )
 
         return plan
@@ -364,7 +365,7 @@ class Optimizer:
         """
         Eliminate always true filter conditions.
         """
-        logging.debug(f"Eliminating always true filter: {plan}")
+        logging.debug("Eliminating always true filter: %s", plan)
         if plan["type"] == "FILTER" and plan["condition"] == "1=1":
             logging.debug("Eliminated always true filter condition")
             return plan["child"]
@@ -375,10 +376,10 @@ class Optimizer:
         """
         Merge filter into sequential scan.
         """
-        logging.debug(f"Merging filter into scan: {plan}")
+        logging.debug("Merging filter into scan: %s", plan)
         if plan["type"] == "FILTER" and plan["child"]["type"] == "SEQ_SCAN":
             plan["child"]["filter"] = plan["condition"]
-            logging.debug(f"Merged filter into scan: {plan['condition']}")
+            logging.debug("Merged filter into scan: %s", plan['condition'])
             return plan["child"]
 
         return plan
@@ -387,7 +388,7 @@ class Optimizer:
         """
         Rewrite expressions for nested loop joins.
         """
-        logging.debug(f"Rewriting expression: {plan}")
+        logging.debug("Rewriting expression: %s", plan)
         if plan["type"] == "JOIN":
             condition = plan["condition"]
             col1, col2 = condition.split("=")
@@ -397,7 +398,7 @@ class Optimizer:
             if col1.startswith("#0") and col2.startswith("#0"):
                 plan["condition"] = f"#0.{col1.split('.')[1]} = #1.{
                     col2.split('.')[1]}"
-                logging.debug(f"Rewritten join condition: {plan['condition']}")
+                logging.debug("Rewritten join condition: %s", plan['condition'])
 
         return plan
 
@@ -405,7 +406,7 @@ class Optimizer:
         """
         Optimize ORDER BY as index scan.
         """
-        logging.debug(f"Optimizing ORDER BY: {plan}")
+        logging.debug("Optimizing ORDER BY: %s", plan)
         if plan["type"] == "ORDER_BY":
             index = self.index_manager.get_index(
                 f"{plan['table']}.idx_{plan['column']}"
@@ -414,8 +415,8 @@ class Optimizer:
                 plan["type"] = "INDEX_SCAN"
                 plan["index"] = index
                 logging.debug(
-                    f"Optimized ORDER BY to INDEX_SCAN on column: {
-                        plan['column']}"
+                    "Optimized ORDER BY to INDEX_SCAN on column: %s",
+                    plan['column']
                 )
 
         return plan
@@ -424,13 +425,13 @@ class Optimizer:
         """
         Optimize SORT + LIMIT as top N.
         """
-        logging.debug(f"Optimizing SORT + LIMIT: {plan}")
+        logging.debug("Optimizing SORT + LIMIT: %s", plan)
         if plan["type"] == "SORT" and "limit" in plan:
             plan["type"] = "TOP_N"
             plan["n"] = plan["limit"]
             del plan["limit"]
             logging.debug(
-                f"Optimized SORT + LIMIT to TOP_N with limit: {plan['n']}")
+                "Optimized SORT + LIMIT to TOP_N with limit: %s", plan['n'])
 
         return plan
 
@@ -438,12 +439,11 @@ class Optimizer:
         """
         Push filter conditions down the query plan.
         """
-        logging.debug(f"Optimizing predicate pushdown: {plan}")
+        logging.debug("Optimizing predicate pushdown: %s", plan)
         if plan["type"] == "FILTER" and "child" in plan:
             if plan["child"]["type"] in ["SEQ_SCAN", "INDEX_SCAN"]:
                 plan["child"]["filter"] = plan["condition"]
-                logging.debug(f"Pushed down filter condition: {
-                              plan['condition']}")
+                logging.debug("Pushed down filter condition: %s", plan['condition'])
                 return plan["child"]
 
         return plan
@@ -452,7 +452,7 @@ class Optimizer:
         """
         Reorder joins to use indexes.
         """
-        logging.debug(f"Optimizing reorder join: {plan}")
+        logging.debug("Optimizing reorder join: %s", plan)
         if plan["type"] == "JOIN":
             condition = plan["condition"]
             col1, col2 = condition.split("=")
@@ -467,7 +467,8 @@ class Optimizer:
             if index1 and not index2:
                 plan["table1"], plan["table2"] = plan["table2"], plan["table1"]
                 logging.debug(
-                    f"Reordered join tables to use index on: {plan['table1']}"
+                    "Reordered join tables to use index on: %s",
+                    plan['table1']
                 )
 
         return plan
@@ -502,8 +503,8 @@ class Optimizer:
             # Count records
             all_records = tree.range_query(float("-inf"), float("inf"))
             return len(all_records) if all_records else 0
-        except Exception as e:
-            logging.error(f"Error getting table size: {str(e)}")
+        except RuntimeError as e:
+            logging.error("Error getting table size: %s", str(e))
             return 0
 
     def is_table_sorted(self, table_name, column_name):

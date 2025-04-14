@@ -207,7 +207,7 @@ query CREATE DATABASE test_db ✅
 
 ---
 
-query DROP INDEX check!!!!
+query DROP INDEX name ON customers ✅
 
 -- Use the test database
 query USE test_db ✅
@@ -242,6 +242,7 @@ query CREATE INDEX idx_customer_name ON customers (name) ✅
 
 -- Create a unique index
 query CREATE UNIQUE INDEX idx_customer_email ON customers (email) ✅
+query CREATE UNIQUE INDEX customer_id ON customers(id)
 
 -- Show all indexes
 query SHOW INDEXES ✅
@@ -250,7 +251,7 @@ query SHOW INDEXES ✅
 query SHOW INDEXES FOR customers ✅
 
 -- Drop an index
-query DROP INDEX idx_customer_name ON customers ✅
+query DROP INDEX name ON customers ✅
 
 -- Insert single record
 query INSERT INTO customers (id, name, email, age) VALUES (1, 'John Doe', 'john@example.com', 30)
@@ -259,6 +260,7 @@ query INSERT INTO customers (id, name, email, age) VALUES (1, 'John Doe', 'john@
 query INSERT INTO customers (id, name, email, age) VALUES (2, 'Jane Smith', 'jane@example.com', 25)
 query INSERT INTO customers (id, name, email, age) VALUES (3, 'Bob Johnson', 'bob@example.com', 45)
 query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'alice@example.com', 35)
+query INSERT INTO customers (id, name, email, age) VALUES (5, 'Test Test', 'test@example.com', 50)
 
 -- Simple SELECT
 query SELECT * FROM customers ✅
@@ -266,7 +268,7 @@ query SELECT * FROM customers ✅
 try this with appropiate table and dataset: WHERE age > 25 AND (department = 'Engineering' OR salary >= 80000) AND hire_date BETWEEN '2020-01-01' AND '2023-12-31'
 
 -- SELECT with column projection
-query SELECT id, name FROM customers ✅
+query SELECT id, age FROM customers WHERE age > 30 ✅
 
 -- SELECT with WHERE condition
 query SELECT * FROM customers WHERE age > 30 ✅
@@ -287,10 +289,11 @@ query DELETE FROM customers WHERE id = 4 ✅
 query DELETE FROM customers ✅
 
 -- Insert test data
-query INSERT INTO customers (id, name, email, age) VALUES (1, 'John Doe', 'john@example.com', 30)
+query INSERT INTO customers (id, name, email, age) VALUES (5, 'Gipsz Jakab', 'gipsz@example.com', 50)
 query INSERT INTO customers (id, name, email, age) VALUES (2, 'Jane Smith', 'jane@example.com', 25)
 query INSERT INTO customers (id, name, email, age) VALUES (3, 'Bob Johnson', 'bob@example.com', 45)
 query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'alice@example.com', 35)
+query INSERT INTO customers (id, name, email, age) VALUES (5, 'Test Test', 'test@example.com', 50)
 
 -- AVG function
 query SELECT AVG(age) FROM customers ✅
@@ -317,7 +320,7 @@ query SELECT GCD(salary) FROM employees WHERE dept_id = 1 ✅
 query SELECT RAND(2) FROM employees WHERE dept_id = 2 -- Check i dont thing this is correct
 
 -- Get 5 random records
-query SELECT RAND(5) FROM employees
+query SELECT RAND(5) FROM employees ✅ (returns JSON currently)
 
 -- Get average of 10 random values between 1 and 100
 query SELECT RAND(10,1,100) FROM dual
@@ -490,7 +493,7 @@ query INSERT INTO products VALUES (5, 'Bluetooth Speaker', 79.99, 'Electronics',
 
 -- Time this query - should do a full table scan
 query SELECT * FROM products WHERE category = 'Electronics';
-
+2
 -- Time this query - should do a full table scan
 query SELECT * FROM products WHERE id = 3;
 
@@ -544,7 +547,7 @@ query CREATE INDEX idx_product_id ON suppliers (product_id);
 query SELECT p.name, s.name FROM products p JOIN suppliers s ON p.id = s.product_id;
 
 -- Drop an index
-query DROP INDEX idx_category ON products;
+query DROP INDEX category ON products
 
 -- Verify it's gone
 query SHOW INDEXES;

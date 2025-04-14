@@ -1,4 +1,4 @@
-name: Count Lines of Code
+name: Generate LOC Badge
 
 on:
   push:
@@ -6,23 +6,31 @@ on:
   workflow_dispatch:
 
 jobs:
-  count-loc:
+  generate-badge:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Count lines of code
-        uses: tj-actions/cloc@v1.3.3
-        
-      - name: Get the cloc badge
-        uses: pxgamer/cloc-badge-action@v1.0.0
-        id: cloc
-        with:
-          output_path: ./cloc.svg
-          
-      # Optional: Upload the badge as an artifact
-      - name: Upload badge
-        uses: actions/upload-artifact@v3
-        with:
-          name: cloc-badge
-          path: ./cloc.svg
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install cloc
+        run: sudo apt-get update && sudo apt-get install -y cloc
+
+      - name: Run cloc and save JSON
+        run: cloc . --json --out=cloc-output.json
+
+      - name: Extract total LOC and create badge JSON
+        run: |
+          total_lines=$(jq '.SUM.code' cloc-output.json)
+          echo "{\"schemaVersion\":1,\"label\":\"Lines of Code\",\"message\":\"$total_lines\",\"color\":\"blue\"}" > loc-badge.json
+
+      - name: Push badge to loc-badge branch
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git fetch origin loc-badge || git checkout --orphan loc-badge
+          git checkout loc-badge || git checkout -b loc-badge
+          mv loc-badge.json ./loc-badge.json
+          git add loc-badge.json
+          git commit -m "Update LOC badge" || echo "No changes to commit"
+          git push origin loc-badge

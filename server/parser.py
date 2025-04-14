@@ -95,8 +95,8 @@ class SQLParser:
             if "type" in result:
                 result["operation"] = result["type"]
             return result
-        except Exception as e:
-            logging.error(f"Error extracting elements: {str(e)}")
+        except RuntimeError as e:
+            logging.error("Error extracting elements: %s", str(e))
             logging.error(traceback.format_exc())
             return {"error": f"Error extracting SQL elements: {str(e)}"}
 
@@ -152,20 +152,23 @@ class SQLParser:
             result["columns"] = columns
 
         # Extract WHERE clause
-        where_match = re.search(r"\bWHERE\s+(.+?)(?:\s+ORDER\s+BY|\s+LIMIT|\s*$)", original_sql, re.IGNORECASE)
+        where_match = re.search(r"\bWHERE\s+(.+?)(?:\s+ORDER\s+BY|\s+LIMIT|\s*$)",
+                                original_sql, re.IGNORECASE)
         if where_match:
             condition = where_match.group(1).strip()
             result["where"] = condition
             result["condition"] = condition  # For consistency
 
         # Extract ORDER BY clause
-        order_match = re.search(r"\bORDER\s+BY\s+(.+?)(?:\s+LIMIT|\s*$)", original_sql, re.IGNORECASE)
+        order_match = re.search(r"\bORDER\s+BY\s+(.+?)(?:\s+LIMIT|\s*$)",
+                                original_sql, re.IGNORECASE)
         if order_match:
             order_by_str = order_match.group(1).strip()
             parts = order_by_str.split()
             # Parse into proper format for tests
             if len(parts) >= 2 and parts[-1].upper() in ("ASC", "DESC"):
-                result["order_by"] = {"column": " ".join(parts[:-1]), "direction": parts[-1].upper()}
+                result["order_by"] = {"column": " ".join(parts[:-1]),
+                                    "direction": parts[-1].upper()}
             else:
                 result["order_by"] = {"column": order_by_str, "direction": "ASC"}
 
@@ -197,30 +200,43 @@ class SQLParser:
                 original_from_clause = original_sql.split(" FROM ", 1)[1].strip()[:table_end]
                 tables_part = original_from_clause.strip()
 
-                # Improved JOIN handling
-                join_type = "INNER"  # Default join type
+                # Add enhanced JOIN support
+                if re.search(r'\s+(JOIN|INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL JOIN|CROSS JOIN)\s+',\
+                    from_clause, re.IGNORECASE):
+                    # This query has JOIN syntax
+                    result["type"] = "JOIN"
 
-                # Handle different JOIN types
-                if " JOIN " in tables_part.upper():
-                    # Join processing code...
-                    if " ON " in tables_part.upper():
-                        on_parts = tables_part.split(" ON ", 1)
-                        if len(on_parts) > 1:
-                            join_condition = on_parts[1].strip()
-                            # Handle condition with ending clauses
-                            for clause in [" WHERE ", " GROUP BY ", " HAVING ", " ORDER BY ", " LIMIT "]:
-                                if clause.upper() in join_condition.upper():
-                                    join_condition = join_condition.split(clause, 1)[0].strip()
+                    # Extract table aliases and JOIN condition
+                    join_match = re.search(
+                        r'(\w+)(?:\s+(\w+))?\s+(JOIN|INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL JOIN|CROSS JOIN)\s+(\w+)(?:\s+(\w+))?\s+ON\s+(.+?)(?:\s+WHERE|\s+ORDER|\s+LIMIT|\s*$)',
+                        from_clause,
+                        re.IGNORECASE
+                    )
 
-                    join_info = {
-                        "type": join_type,
-                        "condition": join_condition,
-                        "tables": tables,
-                    }
-                    result["join_info"] = join_info
+                    if join_match:
+                        table1 = join_match.group(1)
+                        alias1 = join_match.group(2) or table1
+                        join_type = join_match.group(3).upper().replace(" JOIN", "")
+                        table2 = join_match.group(4)
+                        alias2 = join_match.group(5) or table2
+                        join_condition = join_match.group(6)
+
+                        # Build tables list with aliases
+                        tables = [f"{table1} {alias1}", f"{table2} {alias2}"]
+
+                        # Store the join info for the execution engine
+                        result["join_info"] = {
+                            "type": join_type,
+                            "condition": join_condition,
+                            "table1": f"{table1} {alias1}",
+                            "table2": f"{table2} {alias2}"
+                        }
+                    else:
+                        # Fall back to simple tables if JOIN syntax isn't matched
+                        tables = self._process_from_clause(from_clause)
                 else:
-                    # Simple table list without joins
-                    tables = self._process_from_clause(tables_part)
+                    # No JOIN syntax, process as normal table list
+                    tables = self._process_from_clause(from_clause)
 
                 # Add tables to result
                 result["tables"] = tables
@@ -293,7 +309,8 @@ class SQLParser:
                 for val in row.split(","):
                     val = val.strip()
                     # Keep quotes for strings
-                    if (val.startswith("'") and val.endswith("'")) or (val.startswith('"') and val.endswith('"')):
+                    if (val.startswith("'") and val.endswith("'")) or\
+                        (val.startswith('"') and val.endswith('"')):
                         row_values.append(val)
                     elif val.isdigit():
                         # Integer
@@ -330,7 +347,7 @@ class SQLParser:
             r"SET\s+(.*?)(?:\s+WHERE\s+|$)", raw_sql, re.IGNORECASE)
         if set_match:
             set_clause = set_match.group(1).strip()
-            logging.debug(f"Extracted SET clause: {set_clause}")
+            logging.debug("Extracted SET clause: %s", set_clause)
 
             # Process each assignment (column = value)
             for assignment in set_clause.split(","):
@@ -346,7 +363,7 @@ class SQLParser:
                     else:
                         set_pairs[column.strip()] = value
 
-            logging.debug(f"Final SET pairs: {set_pairs}")
+            logging.debug("Final SET pairs: %s", set_pairs)
 
         # Extract WHERE clause
         where_match = re.search(r"WHERE\s+(.+)$", raw_sql, re.IGNORECASE)
@@ -597,8 +614,7 @@ class SQLParser:
         result.update({"object": object_type, "table": table_name})
 
         # Log the extracted components for debugging
-        logging.debug(f"SHOW command: object_type={
-                      object_type}, table={table_name}")
+        logging.debug("SHOW command: object_type=%s, table=%s", object_type, table_name)
 
     def _extract_create_index_elements(self, parsed, result):
         """Extract elements from a CREATE INDEX statement"""
@@ -658,7 +674,7 @@ class SQLParser:
 
     def parse_create_index(self, sql):
         """Parse CREATE INDEX statement"""
-        logging.debug(f"Parsing CREATE INDEX: {sql}")
+        logging.debug("Parsing CREATE INDEX: %s", sql)
 
         # Check for UNIQUE index
         is_unique = "UNIQUE" in sql.upper()
@@ -714,7 +730,8 @@ class SQLParser:
 
     def _parse_insert_statement(self, query):
         """Parse an INSERT statement."""
-        match = re.match(r"INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(.+)", query, re.IGNORECASE)
+        match = re.match(r"INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(.+)",
+                        query, re.IGNORECASE)
         if not match:
             raise ValueError("Invalid INSERT statement format")
 
@@ -788,7 +805,8 @@ class SQLParser:
 
         # Preserve quotes for string literals
         if isinstance(value, str):
-            if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
+            if (value.startswith("'") and value.endswith("'")) or\
+                (value.startswith('"') and value.endswith('"')):
                 return value  # Keep quotes intact
 
             # Try to convert to numeric types if possible

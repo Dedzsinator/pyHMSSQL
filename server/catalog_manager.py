@@ -3,7 +3,6 @@ import os
 import re
 import traceback
 import shutil
-import pickle
 import logging
 from hashlib import sha256
 import datetime
@@ -369,7 +368,7 @@ class CatalogManager:
                 (val.startswith('"') and val.endswith('"')):
                     val = val[1:-1]  # Remove quotes
                     conditions[0]["value"] = val  # Update the condition value
-                    logging.info(f"Removed quotes from condition value: {val}")
+                    logging.info("Removed quotes from condition value: %s", val)
 
             # Check for available indexes on this column
             indexes = self.get_indexes_for_table(actual_table_name)
@@ -377,47 +376,51 @@ class CatalogManager:
                 if idx_info.get("column").lower() == col.lower():
                     index_to_use = idx_name
                     condition_value = val
-                    logging.info(f"Using index {idx_name} for query on column {col} with value {val}")
+                    logging.info("Using index %s for query on column %s with value %s",
+                                idx_name, col, val
+                    )
                     break
 
         if index_to_use and condition_value is not None:
             # Use index lookup instead of full table scan
-            index_file = os.path.join(self.indexes_dir, f"{db_name}_{actual_table_name}_{conditions[0].get('column')}.idx")
+            index_file = os.path.join(self.indexes_dir,\
+                f"{db_name}_{actual_table_name}_{conditions[0].get('column')}.idx")
             if os.path.exists(index_file):
                 try:
-                    logging.info(f"Loading index file: {index_file}")
+                    logging.info("Loading index file: %s", index_file)
                     index_tree = BPlusTree.load_from_file(index_file)
                     record_key = index_tree.search(condition_value)
                     if record_key:
-                        logging.info(f"Found record key {record_key} using index {index_to_use}")
+                        logging.info("Found record key %s using index %s", record_key, index_to_use)
                         record = self.get_record_by_key(actual_table_name, record_key)
-                        logging.info(f"Found record using index {index_to_use}: {record}")
+                        logging.info("Found record using index %s: %s", index_to_use, record)
                         return [record] if record else []
-                    logging.info(f"No record found with {conditions[0].get('column')}={condition_value} using index")
-                except Exception as e:
-                    logging.error(f"Error using index: {str(e)}")
+                    logging.info("No record found with %s=%s using index",
+                                conditions[0].get('column'), condition_value)
+                except RuntimeError as e:
+                    logging.error("Error using index: %s", str(e))
                     # Fall through to full table scan
             else:
-                logging.warning(f"Index file not found: {index_file}")
+                logging.warning("Index file not found: %s", index_file)
 
         # Load the table file for full scan
         table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
         if not os.path.exists(table_file):
-            logging.warning(f"Table file not found at: {table_file}")
+            logging.warning("Table file not found at: %s", table_file)
             return []
 
         try:
             # Load B+ tree
-            logging.debug(f"Performing full table scan on: {table_file}")
+            logging.debug("Performing full table scan on: %s", table_file)
             tree = BPlusTree.load_from_file(table_file)
 
             if tree is None:
-                logging.error(f"Failed to load B+ tree for {table_file}")
+                logging.error("Failed to load B+ tree for %s", table_file)
                 return []
 
             # Get all records
             all_records = tree.range_query(float("-inf"), float("inf"))
-            logging.debug(f"Found {len(all_records)} total records in {actual_table_name}")
+            logging.debug("Found %s total records in %s", len(all_records), actual_table_name)
 
             # Filter records based on conditions
             results = []
@@ -436,7 +439,14 @@ class CatalogManager:
                     # Case-insensitive column matching
                     matching_col = None
                     for record_col in record:
-                        if record_col.lower() == col.lower():
+                        # Get the column name, handling different formats
+                        col_name = record_col
+                        if isinstance(record_col, dict) and "name" in record_col:
+                            col_name = record_col["name"]
+
+                        # Compare column names case-insensitively
+                        if isinstance(col_name, str) and isinstance(col, str)\
+                            and col_name.lower() == col.lower():
                             matching_col = record_col
                             break
 
@@ -445,64 +455,74 @@ class CatalogManager:
                         break
 
                     # Get the value using the matching column name
-                    record_val = record[matching_col]
+                    record_val = record.get(matching_col)
+
+                    # Handle dictionary values - extract actual value if needed
+                    if isinstance(record_val, dict):
+                        if "value" in record_val:
+                            record_val = record_val["value"]
 
                     # Handle string comparison - normalize for string values
-                    if isinstance(record_val, str) and isinstance(val, str):
-                        # Remove quotes if present
+                    if isinstance(val, str):
+                        # Remove quotes if present in values
                         if (val.startswith("'") and val.endswith("'")) or \
                         (val.startswith('"') and val.endswith('"')):
-                            val = val[1:-1]
+                            val = val[1:-1]  # Remove quotes
 
                     # Apply operator with proper type handling
-                    if op == "=":
-                        if isinstance(record_val, str) and isinstance(val, str):
-                            if record_val.lower() != val.lower():
+                    try:
+                        if op == "=":
+                            if isinstance(record_val, str) and isinstance(val, str):
+                                if record_val.lower() != val.lower():
+                                    matches = False
+                                    break
+                            elif record_val != val:
                                 matches = False
                                 break
-                        elif record_val != val:
-                            matches = False
-                            break
-                    elif op == ">":
-                        try:
-                            if float(record_val) <= float(val):
+                        elif op == ">":
+                            try:
+                                if float(record_val) <= float(val):
+                                    matches = False
+                                    break
+                            except (ValueError, TypeError):
+                                if str(record_val) <= str(val):
+                                    matches = False
+                                    break
+                        elif op == "<":
+                            try:
+                                if float(record_val) >= float(val):
+                                    matches = False
+                                    break
+                            except (ValueError, TypeError):
+                                if str(record_val) >= str(val):
+                                    matches = False
+                                    break
+                        elif op == ">=":
+                            try:
+                                if float(record_val) < float(val):
+                                    matches = False
+                                    break
+                            except (ValueError, TypeError):
+                                if str(record_val) < str(val):
+                                    matches = False
+                                    break
+                        elif op == "<=":
+                            try:
+                                if float(record_val) > float(val):
+                                    matches = False
+                                    break
+                            except (ValueError, TypeError):
+                                if str(record_val) > str(val):
+                                    matches = False
+                                    break
+                        elif op == "!=":
+                            if record_val == val:
                                 matches = False
                                 break
-                        except (ValueError, TypeError):
-                            if str(record_val) <= str(val):
-                                matches = False
-                                break
-                    elif op == "<":
-                        try:
-                            if float(record_val) >= float(val):
-                                matches = False
-                                break
-                        except (ValueError, TypeError):
-                            if str(record_val) >= str(val):
-                                matches = False
-                                break
-                    elif op == ">=":
-                        try:
-                            if float(record_val) < float(val):
-                                matches = False
-                                break
-                        except (ValueError, TypeError):
-                            if str(record_val) < str(val):
-                                matches = False
-                                break
-                    elif op == "<=":
-                        try:
-                            if float(record_val) > float(val):
-                                matches = False
-                                break
-                        except (ValueError, TypeError):
-                            if str(record_val) > str(val):
-                                matches = False
-                                break
-                    elif op == "!=":
-                        if record_val == val:
-                            matches = False
-                            break
+                    except RuntimeError as e:
+                        logging.error("Error comparing values: %s", str(e))
+                        matches = False
+                        break
 
                 if matches:
                     # Project selected columns
@@ -513,17 +533,24 @@ class CatalogManager:
                         for col in columns:
                             # Case-insensitive column matching
                             for record_col in record:
-                                if record_col.lower() == col.lower():
+                                # Extract column name for comparison
+                                col_name = record_col
+                                if isinstance(record_col, dict) and "name" in record_col:
+                                    col_name = record_col["name"]
+
+                                if isinstance(col_name, str) and\
+                                    isinstance(col, str) and col_name.lower() == col.lower():
                                     projected[record_col] = record[record_col]
                                     break
                         if projected:
                             results.append(projected)
 
-            logging.info("Found %s matching records after filtering", len(results))
+                logging.info("Found %s matching records after filtering", len(results))
+
             return results
 
-        except Exception as e:
-            logging.error("Error querying table: %s", str(E))
+        except RuntimeError as e:
+            logging.error("Error querying table: %s", str(e))
             logging.error(traceback.format_exc())
             return []
 
@@ -573,7 +600,7 @@ class CatalogManager:
                             val = val[1:-1]  # Remove quotes
                         record_dict[column_names[i]] = val
                 record = record_dict
-                logging.info(f"Mapped values to columns: {record}")
+                logging.info("Mapped values to columns: %s", record)
 
         # Get table schema to check constraints
         table_schema = self.tables[table_id]

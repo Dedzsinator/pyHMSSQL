@@ -1,13 +1,105 @@
 import logging
 import os
-
+import networkx as nx
+import matplotlib.pyplot as plt
+from bptree import BPlusTree
 
 class Visualizer:
-    """Handles visualization of database objects"""
+    """Visualization utilities for database structures."""
 
     def __init__(self, catalog_manager, index_manager):
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
+        self.output_dir = "visualizations"
+        os.makedirs(self.output_dir, exist_ok=True)
+
+    def visualize_bplus_tree(self, idx_file_path, output_name="bplustree"):
+        """
+        Visualize a B+ tree from an index file.
+
+        Args:
+            idx_file_path: Path to the .idx file
+            output_name: Name for the output file
+
+        Returns:
+            Path to the generated visualization
+        """
+        try:
+            # Load B+ tree from file
+            tree = BPlusTree.load_from_file(idx_file_path)
+            if not tree:
+                logging.error(f"Failed to load B+ tree from {idx_file_path}")
+                return None
+
+            # Create a graph representation of the tree
+            G = nx.DiGraph()
+
+            # Traverse the tree and add nodes/edges to the graph
+            self._traverse_tree_for_visualization(tree.root, G)
+
+            # Generate the visualization
+            plt.figure(figsize=(12, 8))
+            pos = nx.spring_layout(G)  # Position nodes using spring layout
+
+            # Draw nodes
+            nx.draw_networkx_nodes(G, pos, node_size=700, node_color='skyblue')
+
+            # Draw edges
+            nx.draw_networkx_edges(G, pos, arrows=True)
+
+            # Draw labels
+            nx.draw_networkx_labels(G, pos, font_size=10)
+
+            # Save the visualization
+            output_path = os.path.join(self.output_dir, f"{output_name}.png")
+            plt.savefig(output_path)
+            plt.close()
+
+            logging.info(f"B+ tree visualization saved to {output_path}")
+            return output_path
+
+        except Exception as e:
+            logging.error(f"Error visualizing B+ tree: {str(e)}")
+            return None
+
+    def _traverse_tree_for_visualization(self, node, graph, parent_id=None, node_id=None):
+        """
+        Recursively traverse the B+ tree to build the graph visualization.
+
+        Args:
+            node: Current B+ tree node
+            graph: NetworkX graph to populate
+            parent_id: ID of the parent node
+            node_id: ID of the current node
+        """
+        if not node:
+            return
+
+        # Generate a unique ID for this node if not provided
+        if node_id is None:
+            node_id = id(node)
+
+        # Add this node to the graph with its keys
+        keys_str = ", ".join([str(k) for k in node.keys])
+        graph.add_node(node_id, label=f"Keys: {keys_str}")
+
+        # If this node has a parent, add an edge
+        if parent_id is not None:
+            graph.add_edge(parent_id, node_id)
+
+        # If this is an internal node, traverse its children
+        if not node.is_leaf:
+            for i, child in enumerate(node.children):
+                if child:
+                    # Pass a unique ID for each child
+                    child_id = id(child)
+                    self._traverse_tree_for_visualization(child, graph, node_id, child_id)
+
+        # If this is a leaf node, show connection to next leaf
+        if node.is_leaf and node.next_leaf:
+            next_id = id(node.next_leaf)
+            graph.add_node(next_id, label="Next Leaf")
+            graph.add_edge(node_id, next_id, style='dashed', label='next')
 
     def execute_visualize(self, plan):
         """
@@ -263,36 +355,70 @@ class Visualizer:
                 "status": "error",
             }
 
-    def visualize_index(self, index_name):
+    def visualize_index(self, table_name, index_name):
         """
-        Visualize a single index.
+        Visualize a specific index structure.
+        
+        Args:
+            table_name: The table containing the index
+            index_name: The name of the index to visualize
+        
+        Returns:
+            Path to the visualization file or None if failed
         """
-        # Get the index from the index manager
-        index = self.index_manager.get_index(index_name)
-        if not index:
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            logging.error("No database selected")
             return None
+        
+        # Get the index information
+        table_id = f"{db_name}.{table_name}"
+        index_id = f"{table_id}.{index_name}"
+        
+        if index_id not in self.catalog_manager.indexes:
+            logging.error(f"Index {index_name} not found on table {table_name}")
+            return None
+        
+        # Get column name from index info
+        index_info = self.catalog_manager.indexes[index_id]
+        column_name = index_info.get("column")
+        
+        # Get the index file path
+        index_file = os.path.join(
+            self.catalog_manager.indexes_dir, 
+            f"{db_name}_{table_name}_{column_name}.idx"
+        )
+        
+        if not os.path.exists(index_file):
+            logging.error(f"Index file not found: {index_file}")
+            return None
+        
+        # Use the visualizer to create a B+ tree visualization
+        output_name = f"{table_name}_{index_name}_index"
+        return self.visualizer.visualize_bplus_tree(index_file, output_name)
 
-        # Generate a visualization
-        visualization_path = f"visualizations/{index_name}_visualization.png"
-        try:
-            # Check if we have the BPlusTreeVisualizer
-            from bptree import BPlusTreeVisualizer
-
-            visualizer = BPlusTreeVisualizer()
-            actual_path = index.visualize(visualizer, output_name=index_name)
-
-            return {
-                "index_name": index_name,
-                "visualization_path": actual_path or visualization_path,
-            }
-        except ImportError:
-            logging.warning(
-                "BPlusTreeVisualizer not available. Install graphviz for visualizations."
-            )
-            return {
-                "index_name": index_name,
-                "error": "Visualization libraries not available",
-            }
+    def visualize_all_indexes(self):
+        """
+        Visualize all indexes in the current database.
+        
+        Returns:
+            Count of visualized indexes
+        """
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return 0
+        
+        count = 0
+        for index_id, index_info in self.catalog_manager.indexes.items():
+            parts = index_id.split(".")
+            if len(parts) >= 3 and parts[0] == db_name:
+                table_name = parts[1]
+                index_name = parts[2]
+                
+                if self.visualize_index(table_name, index_name):
+                    count += 1
+        
+        return count
 
     def visualize_all_indexes(self):
         """

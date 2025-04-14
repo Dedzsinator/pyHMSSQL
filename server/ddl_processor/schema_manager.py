@@ -193,11 +193,11 @@ class SchemaManager:
 
             if table_name:
                 # Show indexes for specific table
-                indexes = self.catalog_manager.get_indexes_for_table(
-                    table_name)
+                indexes = self.catalog_manager.get_indexes_for_table(table_name)
                 if not indexes:
                     return {
-                        "columns": ["Table", "Column", "Index Name", "Type"],
+                        "columns": ["Table", "Column",
+                        "Index Name (use this for DROP INDEX)", "Type"],
                         "rows": [],
                         "status": "success",
                         "message": f"No indexes found for table '{table_name}'",
@@ -205,17 +205,18 @@ class SchemaManager:
 
                 rows = []
                 for idx_name, idx_info in indexes.items():
+                    column_name = idx_info.get("column", "")
                     rows.append(
                         [
                             table_name,
-                            idx_info.get("column", ""),
-                            idx_name,
+                            column_name,
+                            f"{idx_name}",  # Highlight the exact name to use with DROP INDEX
                             idx_info.get("type", "BTREE"),
                         ]
                     )
 
                 return {
-                    "columns": ["Table", "Column", "Index Name", "Type"],
+                    "columns": ["Table", "Column", "Index Name (use this for DROP INDEX)", "Type"],
                     "rows": rows,
                     "status": "success",
                 }
@@ -230,20 +231,18 @@ class SchemaManager:
                             column = index_info.get("column", "")
                             index_name = parts[2]
                             index_type = index_info.get("type", "BTREE")
-                            all_indexes.append(
-                                [table, column, index_name, index_type])
+                            all_indexes.append([
+                                table,
+                                column,
+                                f"{index_name}",  # Highlight the exact name to use
+                                index_type
+                            ])
 
                 return {
-                    "columns": ["Table", "Column", "Index Name", "Type"],
+                    "columns": ["Table", "Column", "Index Name (use this for DROP INDEX)", "Type"],
                     "rows": all_indexes,
                     "status": "success",
                 }
-
-        else:
-            return {
-                "error": f"Unknown object type: {object_type} for SHOW command",
-                "status": "error",
-            }
 
     def execute_create_table(self, plan):
         """Execute CREATE TABLE operation."""
@@ -392,7 +391,8 @@ class SchemaManager:
                 return {"error": result, "status": "error", "type": "error"}
 
             return {
-                "message": f"Table '{actual_table_name}' dropped successfully from database '{db_name}'",
+                "message": f"Table '{actual_table_name}'\
+                dropped successfully from database '{db_name}'",
                 "status": "success",
                 "type": "drop_table_result",
             }
@@ -460,35 +460,44 @@ class SchemaManager:
             }
 
     def execute_drop_index(self, plan):
-        """Execute a DROP INDEX statement."""
-        # Extract parameters
-        index_name = plan.get("index_name") or plan.get("index")
+        """Drop an index on a table column"""
+        index_name = plan.get("index_name")
         table_name = plan.get("table")
 
-        # Validation
         if not index_name or not table_name:
             return {
-                "status": "error",
-                "error": "Index name and table name must be provided"
+                "error": "Missing index name or table name",
+                "status": "error"
             }
 
-        # Drop the index
+        # Make sure we have a current database selected
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {
+                "error": "No database selected",
+                "status": "error"
+            }
+
+        # Call the catalog manager to drop the index
         try:
             result = self.catalog_manager.drop_index(table_name, index_name)
-            if isinstance(result, str) and ("not exist" in result or "not found" in result):
+
+            # If result is a string, it's an error message
+            if isinstance(result, str) and "does not exist" in result:
                 return {
-                    "status": "error",
-                    "error": result
+                    "error": result,
+                    "status": "error"
                 }
 
             return {
-                "status": "success",
-                "message": f"Index {index_name} dropped successfully"
+                "message": f"Index {index_name} dropped successfully from {table_name}",
+                "status": "success"
             }
-        except Exception as e:
+        except RuntimeError as e:
+            logging.error("Error dropping index: %s", str(e))
             return {
-                "status": "error",
-                "error": str(e)
+                "error": f"Error dropping index: {str(e)}",
+                "status": "error"
             }
 
     def get_table_schema(self, table_name):
