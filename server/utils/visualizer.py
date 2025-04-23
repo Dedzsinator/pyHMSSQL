@@ -58,7 +58,7 @@ class Visualizer:
             logging.info(f"B+ tree visualization saved to {output_path}")
             return output_path
 
-        except Exception as e:
+        except RuntimeError as e:
             logging.error(f"Error visualizing B+ tree: {str(e)}")
             return None
 
@@ -152,7 +152,7 @@ class Visualizer:
                             index_obj = index_manager.build_index(
                                 table_name, index_name, column, is_unique, db_name
                             )
-                        except Exception as e:
+                        except RuntimeError as e:
                             return {
                                 "error": f"Error rebuilding index: {str(e)}",
                                 "status": "error",
@@ -220,7 +220,7 @@ class Visualizer:
                                 "text_representation": self._get_tree_text(index_obj),
                             }
 
-                    except Exception as e:
+                    except RuntimeError as e:
                         logging.error(f"Error visualizing B+ tree: {str(e)}")
                         return {
                             "error": f"Error visualizing B+ tree: {str(e)}",
@@ -428,6 +428,6 @@ class Visualizer:
             # Check if we're running the visualization code
             count = self.index_manager.visualize_all_indexes()
             return count
-        except Exception as e:
+        except RuntimeError as e:
             logging.error(f"Error visualizing all indexes: {str(e)}")
             return 0

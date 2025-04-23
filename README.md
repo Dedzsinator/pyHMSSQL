@@ -133,6 +133,24 @@ cd client
 python cli_client.py
 ```
 
+Start the CLI client in discover mode:
+
+```bash
+python client/cli_client.py discover
+```
+
+Or in regular mode:
+
+```bash
+python client/cli_client.py localhost 9999
+```
+
+Start the server (NEW):
+
+```bash
+python server/server.py --name "My Custom HMSSQL Server"
+```
+
 Start the GUI client:
 
 ```bash

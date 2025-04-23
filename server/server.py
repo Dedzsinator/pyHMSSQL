@@ -7,6 +7,9 @@ from logging.handlers import RotatingFileHandler
 import datetime
 import re
 import uuid
+import threading
+import platform
+import time
 import logging
 import traceback
 import json
@@ -80,33 +83,63 @@ def setup_logging():
 
     return log_file
 
-
 # Initialize logging
 log_file = setup_logging()
 
+DISCOVERY_PORT = 9998
+BROADCAST_INTERVAL = 5  # seconds
 
 class DBMSServer:
     """_summary_"""
 
-    def __init__(self, host="localhost", port=9999, data_dir="data"):
+    def __init__(self, host="localhost", port=9999, data_dir="data", server_name=None):
         self.catalog_manager = CatalogManager(data_dir)
         self.index_manager = IndexManager(self.catalog_manager)
-
-        # Create execution engine first
-        self.execution_engine = ExecutionEngine(
-            self.catalog_manager, self.index_manager
-        )
-
-        # Then create SQL parser with reference to execution engine
+        self.execution_engine = ExecutionEngine(self.catalog_manager, self.index_manager)
         self.sql_parser = SQLParser(self.execution_engine)
-
         self.planner = Planner(self.catalog_manager, self.index_manager)
         self.optimizer = Optimizer(self.catalog_manager, self.index_manager)
 
+        self.host = host
+        self.port = port
+        # Use provided server name or generate default from host
+        self.server_name = server_name or f"{platform.node()}'s HMSSQL Server"
+
         self.sessions = {}
-        logs_dir = os.path.join(os.path.dirname(
-            os.path.abspath(__file__)), "../logs")
+        logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../logs")
         os.makedirs(logs_dir, exist_ok=True)
+
+        # Start the discovery broadcast thread
+        self.discovery_thread = threading.Thread(target=self._broadcast_presence, daemon=True)
+        self.discovery_thread.start()
+        logging.info("Discovery broadcast started for server: %s", self.server_name)
+
+    def _broadcast_presence(self):
+        """Broadcast server presence on the network"""
+        discovery_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        discovery_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+        # Prepare server info
+        server_info = {
+            "name": self.server_name,
+            "host": self.host if self.host != "localhost" else\
+                socket.gethostbyname(socket.gethostname()),
+            "port": self.port,
+            "service": "HMSSQL"
+        }
+
+        encoded_info = json.dumps(server_info).encode('utf-8')
+
+        while True:
+            try:
+                # Broadcast to the network
+                discovery_socket.sendto(encoded_info, ('<broadcast>', DISCOVERY_PORT))
+                logging.debug("Broadcast server info: %s", server_info)
+            except RuntimeError as e:
+                logging.error("Error broadcasting presence: %s", str(e))
+
+            # Wait before next broadcast
+            time.sleep(BROADCAST_INTERVAL)
 
     def _log_plan_details(self, plan, indent=0):
         """
@@ -546,19 +579,18 @@ class DBMSServer:
                     print(f"{key}: {value}")
 
 
-def start_server():
+def start_server(server_name=None):
     """_summary_"""
     # Make sure sqlparse is installed
     try:
         import sqlparse
     except ImportError:
-        logging.critical(
-            "Error: sqlparse library is required but not installed.")
+        logging.critical("Error: sqlparse library is required but not installed.")
         print("Error: sqlparse library is required but not installed.")
         print("Please install it using: pip install sqlparse")
         sys.exit(1)
 
-    server = DBMSServer(data_dir="data")
+    server = DBMSServer(data_dir="data", server_name=server_name)
 
     # Print a message to console indicating where logs will be stored
     print(f"DBMS Server starting. Logs will be stored in: {log_file}")
@@ -600,6 +632,11 @@ def start_server():
         sock.close()
         logging.info("Server socket closed")
 
-
 if __name__ == "__main__":
-    start_server()
+    # Parse command line arguments
+    import argparse
+    parser = argparse.ArgumentParser(description='Start the HMSSQL server')
+    parser.add_argument('--name', help='Custom server name')
+
+    args = parser.parse_args()
+    start_server(server_name=args.name)

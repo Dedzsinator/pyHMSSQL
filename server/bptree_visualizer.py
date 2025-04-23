@@ -68,20 +68,20 @@ class BPTreeVisualizer:
         if HAS_NETWORKX:
             try:
                 return self._visualize_networkx(tree, output_name)
-            except Exception as e:
+            except RuntimeError as e:
                 self.logger.warning(f"NetworkX visualization failed: {str(e)}")
 
         if HAS_MATPLOTLIB:
             try:
                 return self._visualize_matplotlib(tree, output_name)
-            except Exception as e:
+            except RuntimeError as e:
                 self.logger.warning(
                     f"Matplotlib visualization failed: {str(e)}")
 
         if HAS_GRAPHVIZ:
             try:
                 return self._visualize_graphviz(tree, output_name)
-            except Exception as e:
+            except RuntimeError as e:
                 self.logger.warning(f"Graphviz visualization failed: {str(e)}")
 
         # Fall back to text representation if all visualization methods fail

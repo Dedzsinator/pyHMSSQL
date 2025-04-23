@@ -144,7 +144,7 @@ class TransactionManager:
                     return True
                 return False
 
-            except Exception as e:
+            except RuntimeError as e:
                 self.logger.error(f"Error rolling back INSERT: {str(e)}")
                 return False
 
@@ -160,7 +160,7 @@ class TransactionManager:
                 if result:
                     self.logger.info(f"Rolled back UPDATE in {table} for record {record_id}")
                 return result
-            except Exception as e:
+            except RuntimeError as e:
                 self.logger.error(f"Error rolling back UPDATE: {str(e)}")
                 return False
 
@@ -175,7 +175,7 @@ class TransactionManager:
                 if result:
                     self.logger.info(f"Rolled back DELETE in {table} for record {record.get('id')}")
                 return bool(result)
-            except Exception as e:
+            except RuntimeError as e:
                 self.logger.error(f"Error rolling back DELETE: {str(e)}")
                 return False
 

@@ -1,18 +1,167 @@
 import sys
 import os
-
-# Add the project root directory to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from shared.utils import send_data, receive_data
-from shared.constants import SERVER_HOST, SERVER_PORT
+import curses
+import threading
+import socket
+import json
+import time
 import socket
 import json
 import getpass
 import cmd
 import textwrap
 
+# Add the project root directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from shared.utils import send_data, receive_data
+from shared.constants import SERVER_HOST, SERVER_PORT
+
+# Add these constants at the top with the other imports
+DISCOVERY_PORT = 9998
+DISCOVERY_TIMEOUT = 3  # seconds
+
+class ServerDiscoverer:
+    """Discovers HMSSQL servers on the network"""
+
+    def __init__(self):
+        self.servers = {}
+        self.discovery_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.discovery_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.discovery_socket.bind(('', DISCOVERY_PORT))
+        self.running = False
+
+    def start_discovery(self):
+        """Start listening for server broadcasts"""
+        self.running = True
+        self.discovery_thread = threading.Thread(target=self._discover, daemon=True)
+        self.discovery_thread.start()
+
+    def stop_discovery(self):
+        """Stop discovery process"""
+        self.running = False
+        self.discovery_thread.join(timeout=1.0)
+
+    def _discover(self):
+        """Listen for server broadcasts"""
+        self.discovery_socket.settimeout(0.5)  # Use a short timeout for responsive stopping
+
+        while self.running:
+            try:
+                data, addr = self.discovery_socket.recvfrom(4096)
+                try:
+                    server_info = json.loads(data.decode('utf-8'))
+                    if server_info.get('service') == 'HMSSQL':
+                        # Use host:port as a unique key
+                        server_key = f"{server_info['host']}:{server_info['port']}"
+                        server_info['last_seen'] = time.time()
+                        self.servers[server_key] = server_info
+                except json.JSONDecodeError:
+                    pass
+            except socket.timeout:
+                # This is expected with the short timeout
+                pass
+            except RuntimeError as e:
+                print(f"Discovery error: {str(e)}")
+
+            # Clean up old servers (not seen in the last minute)
+            current_time = time.time()
+            for key in list(self.servers.keys()):
+                if current_time - self.servers[key]['last_seen'] > 60:
+                    del self.servers[key]
+
+    def get_available_servers(self):
+        """Return list of available servers"""
+        return list(self.servers.values())
+
+class ServerSelectionMenu:
+    """Interactive menu for server selection"""
+
+    def __init__(self, servers):
+        self.servers = servers
+        self.selected_index = 0
+
+    def display(self):
+        """Display the server selection menu using curses"""
+        # Initialize curses
+        stdscr = curses.initscr()
+        curses.noecho()
+        curses.cbreak()
+        stdscr.keypad(True)
+
+        try:
+            curses.start_color()
+            curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)  # Selected item
+            curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK)  # Normal items
+
+            selected_server = None
+
+            while True:
+                stdscr.clear()
+                height, width = stdscr.getmaxyx()
+
+                # Display title
+                title = "Available HMSSQL Servers"
+                stdscr.addstr(1, (width - len(title)) // 2, title, curses.A_BOLD)
+
+                # Display servers
+                if not self.servers:
+                    msg = "No servers found. Press 'r' to refresh or 'q' to quit."
+                    stdscr.addstr(3, (width - len(msg)) // 2, msg)
+                else:
+                    for i, server in enumerate(self.servers):
+                        y = 3 + i
+                        if y >= height - 3:
+                            break
+
+                        server_text = f"{server['name']} ({server['host']}:{server['port']})"
+
+                        if i == self.selected_index:
+                            stdscr.attron(curses.color_pair(1))
+                            stdscr.addstr(y, 2, server_text)
+                            stdscr.attroff(curses.color_pair(1))
+                        else:
+                            stdscr.attron(curses.color_pair(2))
+                            stdscr.addstr(y, 2, server_text)
+                            stdscr.attroff(curses.color_pair(2))
+
+                # Display instructions
+                instructions = "↑/↓: Navigate | Enter: Select | r: Refresh | q: Quit"
+                stdscr.addstr(height-2, (width - len(instructions)) // 2, instructions)
+
+                # Refresh the screen
+                stdscr.refresh()
+
+                # Get user input
+                key = stdscr.getch()
+
+                if key == curses.KEY_UP and self.selected_index > 0:
+                    self.selected_index -= 1
+                elif key == curses.KEY_DOWN and self.selected_index < len(self.servers) - 1:
+                    self.selected_index += 1
+                elif key == ord('\n') and self.servers:  # Enter key
+                    selected_server = self.servers[self.selected_index]
+                    break
+                elif key == ord('r'):  # Refresh
+                    # Return None with refresh flag
+                    return None, True
+                elif key == ord('q'):  # Quit
+                    break
+
+            return selected_server, False
+
+        finally:
+            # Clean up curses
+            curses.nocbreak()
+            stdscr.keypad(False)
+            curses.echo()
+            curses.endwin()
+
 class DBMSClient(cmd.Cmd):
+    """
+    Command Line Interface for HMS-SQL Database
+    """
+
     intro = textwrap.dedent("""
     ╔═══════════════════════════════════════════════════╗
     ║           Welcome to HMS-SQL Database CLI         ║
@@ -32,6 +181,45 @@ class DBMSClient(cmd.Cmd):
         self.session_id = None
         self.role = None
         self.username = None
+
+    def select_server(self):
+        """Discover and select an available server"""
+        print("Scanning for HMSSQL servers...")
+
+        # Create the discoverer
+        discoverer = ServerDiscoverer()
+        discoverer.start_discovery()
+
+        try:
+            # Give some time for initial discovery
+            time.sleep(DISCOVERY_TIMEOUT)
+
+            refresh = True
+            while refresh:
+                # Get available servers
+                available_servers = discoverer.get_available_servers()
+
+                # Display the selection menu
+                menu = ServerSelectionMenu(available_servers)
+                selected_server, refresh = menu.display()
+
+                if not refresh and selected_server:
+                    self.host = selected_server['host']
+                    self.port = selected_server['port']
+                    print(f"Selected server: {selected_server['name']} ({self.host}:{self.port})")
+                    return True
+
+                if not refresh:
+                    # User quit without selecting
+                    return False
+
+                # User wants to refresh - wait a moment
+                print("Refreshing server list...")
+                time.sleep(DISCOVERY_TIMEOUT)
+
+        finally:
+            # Stop discovery when done
+            discoverer.stop_discovery()
 
     def do_login(self, username):
         """
@@ -218,7 +406,7 @@ class DBMSClient(cmd.Cmd):
             print(f"Error: Could not connect to server at {
                   self.host}:{self.port}")
             return None
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error: {str(e)}")
             return None
 
@@ -301,7 +489,7 @@ class DBMSClient(cmd.Cmd):
                                 response['visualization_path']
                             }"
                         )
-                    except Exception as e:
+                    except RuntimeError as e:
                         print(f"Error opening visualization: {str(e)}")
 
             if "text_representation" in response:
@@ -339,30 +527,49 @@ class DBMSClient(cmd.Cmd):
 
 
 def main():
+    """_summary_
+    """
     # Get server host and port from command line arguments if provided
     host = SERVER_HOST
     port = SERVER_PORT
 
+    # Process command-line arguments
     if len(sys.argv) > 1:
-        host = sys.argv[1]
-    if len(sys.argv) > 2:
-        try:
-            port = int(sys.argv[2])
-        except ValueError:
-            print(f"Invalid port number: {sys.argv[2]}")
-            sys.exit(1)
+        # If first argument is "discover", start server discovery mode
+        if sys.argv[1].lower() == "discover":
+            discovery_mode = True
+        else:
+            # Otherwise, treat as normal host argument
+            host = sys.argv[1]
+            discovery_mode = False
 
-    # Create and run the client
+        if len(sys.argv) > 2 and not discovery_mode:
+            try:
+                port = int(sys.argv[2])
+            except ValueError:
+                print(f"Invalid port number: {sys.argv[2]}")
+                sys.exit(1)
+    else:
+        # Default to discovery mode
+        discovery_mode = True
+
+    # Create client instance
     client = DBMSClient(host, port)
 
     try:
+        # If in discovery mode, show server selection menu
+        if discovery_mode:
+            if not client.select_server():
+                print("No server selected. Exiting...")
+                return
+
+        # Start the command loop
         client.cmdloop()
     except KeyboardInterrupt:
         print("\nExiting...")
-    except Exception as e:
+    except RuntimeError as e:
         print(f"Error: {str(e)}")
 
 
 if __name__ == "__main__":
     main()
-

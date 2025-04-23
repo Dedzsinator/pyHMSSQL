@@ -171,7 +171,7 @@ class JoinExecutor:
                 "rowCount": len(result_rows),
             }
 
-        except Exception as e:
+        except RuntimeError as e:
             logging.error(f"Error executing join: {str(e)}")
             logging.error(traceback.format_exc())
             return {
@@ -763,7 +763,7 @@ class JoinExecutor:
 
                                 result.append(joined_record)
                                 matched_indexed_values.add(probe_value)
-                except Exception as e:
+                except RuntimeError as e:
                     logging.error(
                         f"Error searching index for value {
                             probe_value}: {str(e)}"

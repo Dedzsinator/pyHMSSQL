@@ -45,7 +45,8 @@ class SelectExecutor:
                         "GCD",
                     ):
                         logging.error(
-                            f"Detected aggregate function in execute_select: {func_name}({col_name})"
+                            "Detected aggregate function in execute_select: %s(%s)",
+                            func_name, col_name
                         )
 
                         # Create a temporary aggregate plan
@@ -84,7 +85,7 @@ class SelectExecutor:
         if top_n is not None:
             try:
                 top_n = int(top_n)
-                logging.debug(f"TOP {top_n} specified")
+                logging.debug("TOP %s specified", top_n)
             except (ValueError, TypeError):
                 top_n = None
 
@@ -113,10 +114,11 @@ class SelectExecutor:
                     val = parts[1].strip()
 
                     # Remove quotes if present
-                    if (val.startswith("'") and val.endswith("'")) or (val.startswith('"') and val.endswith('"')):
+                    if (val.startswith("'") and val.endswith("'")) or\
+                        (val.startswith('"') and val.endswith('"')):
                         val = val[1:-1]  # Clean value
 
-                    logging.info(f"Checking for index on column: {col} with value: {val}")
+                    logging.info("Checking for index on column: %s with value: %s", col, val)
 
                     # We'll look up indexes after confirming the table exists with proper case
                     index_column = col
@@ -135,7 +137,9 @@ class SelectExecutor:
                 # Use the correct case from the tables list
                 actual_table_name = tables_lower[table_name.lower()]
                 logging.debug(
-                    f"Using case-corrected table name: {actual_table_name} instead of {table_name}"
+                    "Using case-corrected table name: %s instead of %s",
+                    actual_table_name,
+                    table_name
                 )
             elif table_name not in tables:
                 return {
@@ -154,29 +158,33 @@ class SelectExecutor:
                             "column": idx_def.get("column"),
                             "value": index_value
                         }
-                        logging.info(f"Will use index {idx_name} for condition {index_column}={index_value}")
+                        logging.info("Will use index %s for condition %s=%s",
+                                        idx_name, index_column, index_value
+                                    )
                         break
 
             # Build condition for query
             conditions = []
             condition = plan.get("condition")
             if condition:
-                logging.debug(f"Parsing condition: {condition}")
+                logging.debug("Parsing condition: %s", condition)
                 conditions = ConditionParser.parse_condition_to_list(condition)
 
                 # ENHANCEMENT: Handle string values correctly
                 for cond in conditions:
                     val = cond.get("value")
                     if isinstance(val, str):
-                        if (val.startswith("'") and val.endswith("'")) or (val.startswith('"') and val.endswith('"')):
+                        if (val.startswith("'") and val.endswith("'")) or\
+                            (val.startswith('"') and val.endswith('"')):
                             cond["value"] = val[1:-1]  # Remove quotes
-                            logging.info(f"Removed quotes from condition value: {cond['value']}")
+                            logging.info("Removed quotes from condition value: %s", cond['value'])
 
-                logging.debug(f"Parsed conditions: {conditions}")
+                logging.debug("Parsed conditions: %s", conditions)
 
-            # ENHANCEMENT: Add scan info to the log
             if index_info:
-                logging.info(f"Using INDEX_SCAN with index {index_info['name']} on column {index_info['column']}")
+                logging.info("Using INDEX_SCAN with index %s on column %s",
+                                index_info['name'], index_info['column']
+                            )
             else:
                 logging.info("Using FULL_SCAN (no suitable index found)")
 
@@ -185,7 +193,7 @@ class SelectExecutor:
                 actual_table_name, conditions, ["*"]
             )
 
-            logging.debug(f"Query returned {len(results) if results else 0} results")
+            logging.debug("Query returned %s results", len(results) if results else 0)
 
             # Format results for client display
             if not results:
@@ -208,7 +216,7 @@ class SelectExecutor:
             # Apply ORDER BY if specified
             order_by = plan.get("order_by")
             if order_by and results:
-                logging.debug(f"Applying ORDER BY: {order_by}")
+                logging.debug("Applying ORDER BY: %s", order_by)
 
                 # Get the column name from the order_by plan
                 order_column = order_by.get("column")
@@ -234,18 +242,18 @@ class SelectExecutor:
                 # Sort the results using our key function
                 reverse = direction.upper() == "DESC"
                 results.sort(key=get_sort_key, reverse=reverse)
-                logging.debug(f"Results sorted by {order_column} {direction}")
+                logging.debug("Results sorted by %s %s",order_column, direction)
 
             # Apply TOP N
             if top_n is not None and top_n > 0 and results:
                 results = results[:top_n]
-                logging.debug(f"Applied TOP {top_n}, now {len(results)} results")
+                logging.debug("Applied TOP %s, now %s results", top_n, len(results))
 
             # Apply LIMIT if specified
             limit = plan.get("limit")
             if limit is not None and isinstance(limit, int) and results and limit > 0:
                 results = results[:limit]
-                logging.debug(f"Applied LIMIT {limit}, now {len(results)} results")
+                logging.debug("Applied LIMIT %s, now %s results", limit, len(results))
 
             # Project columns (select specific columns or all)
             result_columns = []
@@ -259,7 +267,7 @@ class SelectExecutor:
                     result_columns = list(results[0].keys())
 
                     # Log column names that will be returned
-                    logging.error(f"SELECT * will return these columns: {result_columns}")
+                    logging.error("SELECT * will return these columns: %s", result_columns)
 
                     # Create rows with ALL columns from each record IN ORDER
                     for record in results:
@@ -303,10 +311,12 @@ class SelectExecutor:
                         row.append(value)
                     result_rows.append(row)
 
-            logging.error(f"Final result: {len(result_rows)} rows with columns: {result_columns}")
+            logging.error("Final result: %s rows with columns: %s",
+                            len(result_rows), result_columns
+                        )
             # Debug print first row to verify data
             if result_rows:
-                logging.error(f"First row data: {result_rows[0]}")
+                logging.error("First row data: %s", result_rows[0])
 
             # ENHANCEMENT: Add scan_type and index_used to the result
             return {
@@ -318,10 +328,10 @@ class SelectExecutor:
                 "index_used": index_info["name"] if index_info else None
             }
 
-        except Exception as e:
+        except RuntimeError as e:
             import traceback
 
-            logging.error(f"Error executing SELECT: {str(e)}")
+            logging.error("Error executing SELECT: %s", str(e))
             logging.error(traceback.format_exc())
             return {
                 "error": f"Error executing SELECT: {str(e)}",
