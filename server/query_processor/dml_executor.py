@@ -8,6 +8,7 @@ import traceback
 import os
 import uuid
 from bptree import BPlusTree
+import re
 from parsers.condition_parser import ConditionParser
 from transaction.lock_manager import LockManager, LockType
 from utils.sql_helpers import parse_simple_condition, check_database_selected
@@ -86,170 +87,330 @@ class DMLExecutor:
             "count": success_count
         }
 
+    def _parse_conditions(self, condition_str):
+        """Parse condition string into a format that catalog_manager understands."""
+        if not condition_str:
+            return []
+
+        # Try using the condition parser if it was set
+        if self.condition_parser:
+            return self.condition_parser.parse_condition_to_list(condition_str)
+
+        # Fall back to simple condition parsing
+        return parse_simple_condition(condition_str)
+
     def execute_delete(self, plan):
-        """Execute a DELETE query with concurrency control.
-
-        Args:
-            plan: The execution plan for the DELETE operation
-
-        Returns:
-            dict: Result of the operation
-        """
+        """Execute a DELETE operation."""
         table_name = plan.get("table")
-        condition = plan.get("condition") or plan.get("where")  # Try both fields
-        session_id = plan.get("session_id")  # Get session ID for locking
+        condition = plan.get("condition")
 
-        # Handle missing session ID - create a temporary one if needed
-        if not session_id:
-            # Use a UUID to ensure uniqueness
-            session_id = f"temp_{uuid.uuid4()}"
-            logging.debug("Created temporary session ID %s for delete operation", session_id)
-
-        error = check_database_selected(self.catalog_manager)
-        if error:
-            return error
-
-        # Get the database name after confirming it exists
+        # Check for valid database
         db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error"}
 
-        # Verify table exists
+        # Fetch the records to be deleted to check FK constraints
+        records_to_delete = self.catalog_manager.query_with_condition(
+            table_name, self._parse_conditions(condition), ["*"]
+        )
+
+        # Check for FK constraints - this is what we're adding
+        fk_violation = self._check_fk_constraints_for_delete(db_name, table_name, records_to_delete)
+        if fk_violation:
+            return {
+                "error": fk_violation,
+                "status": "error",
+                "type": "error"
+            }
+
+        # Proceed with deletion if no constraints are violated
+        result = self.catalog_manager.delete_records(table_name, self._parse_conditions(condition))
+
+        return {
+            "message": f"{result} record(s) deleted",
+            "status": "success",
+            "type": "delete_result",
+            "rowCount": result
+        }
+
+    def _check_fk_constraints_for_delete(self, db_name, table_name, records_to_delete):
+        """
+        Check if deleting records would violate any foreign key constraints.
+        """
+        if not records_to_delete:
+            return None  # No records to delete, no constraint violations
+
+        logging.info(f"Checking FK constraints for deleting from {table_name}")
+
+        # Get all tables in the database
         tables = self.catalog_manager.list_tables(db_name)
 
-        # Case-insensitive table lookup
-        actual_table_name = table_name  # Default
-        if table_name.lower() in [t.lower() for t in tables]:
-            for t in tables:
-                if t.lower() == table_name.lower():
-                    actual_table_name = t
-                    break
-        elif table_name not in tables:
-            return {
-                "error": f"Table '{table_name}' does not exist in database '{db_name}'.",
-                "status": "error",
-                "type": "error",
-            }
+        # Direct check for each table that could reference this one
+        for other_table in tables:
+            if other_table == table_name:
+                continue  # Skip the table we're deleting from
 
-        # Acquire exclusive lock on table
-        if not self.lock_manager.acquire_lock(session_id, actual_table_name, LockType.EXCLUSIVE):
-            return {
-                "error": "Could not acquire lock on table, operation timed out",
-                "status": "error",
-                "type": "error",
-            }
+            # First, retrieve actual data structure of the tables to inspect
+            other_schema = self.catalog_manager.get_table_schema(other_table)
+            logging.info(f"Checking constraints in {other_table} schema: {other_schema}")
 
-        try:
-            # Parse condition into our format
-            conditions = []
-            if condition:
-                logging.debug("Parsing DELETE condition: %s", condition)
-                conditions = ConditionParser.parse_condition_to_list(condition)
-                logging.debug("Parsed DELETE conditions: %s", conditions)
+            # Detect all possible foreign key constraints (more comprehensive)
+            fk_relationships = []
 
-            # Delete records
-            result = self.catalog_manager.delete_records(
-                actual_table_name, conditions)
+            # Check if it's a dictionary with a columns key
+            if isinstance(other_schema, dict) and "columns" in other_schema:
+                for col in other_schema["columns"]:
+                    if isinstance(col, dict) and "constraints" in col:
+                        for constraint in col["constraints"]:
+                            if isinstance(constraint, str) and "REFERENCES" in constraint.upper():
+                                fk_relationships.append({
+                                    "referencing_column": col["name"],
+                                    "constraint": constraint
+                                })
 
-            # Extract count from result message
-            count = 0
-            if isinstance(result, str):
-                try:
-                    count = int(result.split()[0])
-                except (ValueError, IndexError):
-                    pass
+            # Check if it's a list of column definitions
+            elif isinstance(other_schema, list):
+                for col in other_schema:
+                    if isinstance(col, dict) and "constraints" in col:
+                        for constraint in col["constraints"]:
+                            if isinstance(constraint, str) and "REFERENCES" in constraint.upper():
+                                fk_relationships.append({
+                                    "referencing_column": col["name"],
+                                    "constraint": constraint
+                                })
+                    elif isinstance(col, str) and "REFERENCES" in col.upper():
+                        col_parts = col.split()
+                        fk_relationships.append({
+                            "referencing_column": col_parts[0],
+                            "constraint": col
+                        })
 
-            # Update indexes if any records were actually deleted
-            if count > 0:
-                # Get all current records to rebuild indexes
-                current_records = self.catalog_manager.get_all_records_with_keys(actual_table_name)
-                if current_records:
-                    self._update_indexes_after_modify(db_name, actual_table_name, current_records)
+            # Check for table-level constraints
+            if isinstance(other_schema, dict) and "constraints" in other_schema:
+                for constraint in other_schema["constraints"]:
+                    if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
+                        fk_relationships.append({
+                            "referencing_column": None,  # Will extract from constraint
+                            "constraint": constraint
+                        })
 
-            # Release lock after successful operation
-            self.lock_manager.release_lock(session_id, actual_table_name)
+            # Process all found relationships
+            for relationship in fk_relationships:
+                constraint_str = relationship["constraint"]
+                referencing_column = relationship["referencing_column"]
+                logging.info(f"Processing potential FK constraint: {constraint_str}")
 
-            return {
-                "message": f"Deleted {count} records from {actual_table_name}.",
-                "status": "success",
-                "type": "delete_result",
-                "count": count,
-            }
-        except RuntimeError as e:
-            # Ensure lock is released on any exception
-            self.lock_manager.release_lock(session_id, actual_table_name)
-            logging.error("Error in DELETE operation: %s", str(e))
-            logging.error(traceback.format_exc())
-            return {
-                "error": f"Error in DELETE operation: {str(e)}",
-                "status": "error",
-                "type": "error",
-            }
+                # Extract the referenced table and columns with multiple patterns
+                fk_column = referencing_column  # Default if not extracted from constraint
+                ref_table = None
+                ref_column = None
+
+                # Try these patterns in sequence
+                patterns = [
+                    r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
+                    r"REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
+                    r"FOREIGN\s+KEY\s*[\(\s](\w+)[\)\s]+REFERENCES\s+(\w+)\s*[\(\s](\w+)"
+                ]
+
+                for pattern in patterns:
+                    match = re.search(pattern, constraint_str, re.IGNORECASE)
+                    if match:
+                        if len(match.groups()) == 3:
+                            fk_column = match.group(1)
+                            ref_table = match.group(2)
+                            ref_column = match.group(3)
+                        elif len(match.groups()) == 2:
+                            ref_table = match.group(1)
+                            ref_column = match.group(2)
+                        break  # Stop after first successful match
+
+                # If we found a reference to the table we're deleting from
+                if ref_table and ref_table.lower() == table_name.lower():
+                    logging.info(f"Found FK reference: {other_table}.{fk_column} -> {table_name}.{ref_column}")
+
+                    # For each record we're trying to delete
+                    for record in records_to_delete:
+                        # Get the value of the referenced column
+                        if ref_column in record:
+                            ref_value = record[ref_column]
+                            logging.info(f"Checking references to value: {ref_value}")
+
+                            # Check for references with type handling
+                            conditions = [{"column": fk_column, "operator": "=", "value": ref_value}]
+
+                            # Convert string values for comparison if needed
+                            if isinstance(ref_value, (int, float)) and not isinstance(ref_value, bool):
+                                str_value = str(ref_value)
+                                conditions.append({"column": fk_column, "operator": "=", "value": str_value})
+
+                            # Check if any records reference this value
+                            referencing_records = self.catalog_manager.query_with_condition(
+                                other_table, conditions, ["*"]
+                            )
+
+                            if referencing_records:
+                                logging.info(f"Found {len(referencing_records)} referencing records: {referencing_records}")
+                                error_msg = f"Cannot delete from {table_name} because records in {other_table} reference it via foreign key {fk_column}->{ref_column}"
+                                return error_msg
+
+        return None  # No constraints violated
 
     def execute_update(self, plan):
         """Execute an UPDATE operation."""
         table_name = plan.get("table")
-        updates = plan.get("updates", []) or plan.get("set", [])
+        updates_data = plan.get("updates", {}) or plan.get("set", {})
         condition = plan.get("condition")
 
-        # Create a session ID if not provided
-        session_id = plan.get("session_id")
-        if not session_id:
-            session_id = f"temp_{uuid.uuid4()}"
+        # Check for valid database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error", "type": "error"}
 
-        # Acquire lock for writing
-        self.lock_manager.acquire_lock(session_id, table_name, "write")
+        # Convert updates to dictionary format if it's a list of tuples
+        updates = {}
+        if isinstance(updates_data, list):
+            for col, val in updates_data:
+                # Handle quoted string values
+                if isinstance(val, str) and val.startswith("'") and val.endswith("'"):
+                    val = val[1:-1]
+                updates[col] = val
+        else:
+            updates = updates_data  # Already a dict
 
-        try:
-            # Convert condition string to condition structure
-            conditions = []
-            if condition:
-                conditions = parse_simple_condition(condition)
+        # Get records that will be updated
+        parsed_conditions = self._parse_conditions(condition)
+        records_to_update = self.catalog_manager.query_with_condition(
+            table_name, parsed_conditions, ["*"]
+        )
 
-            # Get records matching the condition
-            records = self.catalog_manager.query_with_condition(table_name, conditions)
-
-            if not records:
-                return {
-                    "status": "error",
-                    "error": f"No records found matching condition: {condition}",
-                    "count": 0
-                }
-
-            # Update each matching record
-            updated_count = 0
-            for record in records:
-                # Apply updates
-                update_data = {}
-                for col, val in updates:
-                    # Handle quoted string values
-                    if isinstance(val, str) and val.startswith("'") and val.endswith("'"):
-                        val = val[1:-1]
-                    update_data[col] = val
-
-                # Update the record
-                primary_key = record.get("id")
-                result = self.catalog_manager.update_record(
-                    table_name,
-                    primary_key,
-                    update_data
-                )
-
-                if result:
-                    updated_count += 1
-
+        if not records_to_update:
             return {
                 "status": "success",
-                "message": f"Updated {updated_count} records",
-                "count": updated_count
+                "message": "0 records updated - no matching records found",
+                "type": "update_result",
+                "rowCount": 0
             }
 
-        except RuntimeError as e:
-            return {
-                "status": "error",
-                "error": str(e)
-            }
-        finally:
-            # Release lock
-            self.lock_manager.release_lock(session_id, table_name)
+        # Check if any primary key columns are being updated
+        table_schema = self.catalog_manager.get_table_schema(table_name)
+        pk_columns = []
+
+        # Extract primary key columns from schema
+        for column in table_schema:
+            if isinstance(column, dict) and column.get("primary_key"):
+                pk_columns.append(column.get("name"))
+            elif isinstance(column, str) and "PRIMARY KEY" in column.upper():
+                col_name = column.split()[0]
+                pk_columns.append(col_name)
+
+        # Check for FK constraints if we're updating a primary key
+        for update_col in updates.keys():
+            if update_col in pk_columns:
+                fk_violation = self._check_fk_constraints_for_update(
+                    db_name, table_name, update_col, records_to_update
+                )
+                if fk_violation:
+                    return {
+                        "error": fk_violation,
+                        "status": "error",
+                        "type": "error"
+                    }
+
+        # Update each matching record
+        updated_count = 0
+        for record in records_to_update:
+            # Get primary key for the record
+            pk_values = {}
+            for pk_col in pk_columns:
+                if pk_col in record:
+                    pk_values[pk_col] = record[pk_col]
+
+            # Apply updates
+            result = self.catalog_manager.update_record(
+                table_name,
+                pk_values if pk_values else None,  # Use PK if available
+                updates
+            )
+
+            if result:
+                updated_count += 1
+
+        return {
+            "status": "success",
+            "message": f"Updated {updated_count} records",
+            "type": "update_result",
+            "rowCount": updated_count
+        }
+
+    def _check_fk_constraints_for_update(self, db_name, table_name, pk_column, records_to_update):
+        """
+        Check if updating primary key would violate foreign key constraints.
+
+        Args:
+            db_name: The current database name
+            table_name: The table being updated
+            pk_column: The primary key column being updated
+            records_to_update: The records that would be updated
+
+        Returns:
+            None if no constraints are violated, error message otherwise
+        """
+        if not records_to_update:
+            return None  # No records to update, no constraint violations
+
+        # Get all tables in the database
+        tables = self.catalog_manager.list_tables(db_name)
+
+        # For each table, check if it has foreign keys referencing our table
+        for other_table in tables:
+            if other_table == table_name:
+                continue  # Skip our own table
+
+            table_schema = self.catalog_manager.get_table_schema(other_table)
+            constraints = []
+
+            # Collect constraints
+            for column in table_schema:
+                if isinstance(column, dict) and column.get("constraints"):
+                    constraints.extend(column.get("constraints", []))
+                elif isinstance(column, str) and "FOREIGN KEY" in column.upper():
+                    constraints.append(column)
+
+            if isinstance(table_schema, dict) and "constraints" in table_schema:
+                constraints.extend(table_schema.get("constraints", []))
+
+            # Check each constraint
+            for constraint in constraints:
+                if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
+                    fk_match = re.search(r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
+                                        constraint, re.IGNORECASE)
+
+                    if fk_match:
+                        fk_column = fk_match.group(1)
+                        ref_table = fk_match.group(2)
+                        ref_column = fk_match.group(3)
+
+                        # Check if this constraint references the column we're updating
+                        if ref_table.lower() == table_name.lower() and ref_column.lower() == pk_column.lower():
+                            # Check if any of our to-be-updated records are referenced
+                            for record in records_to_update:
+                                record_value = record.get(pk_column)
+
+                                # Check if any records in other_table reference this value
+                                referencing_records = self.catalog_manager.query_with_condition(
+                                    other_table,
+                                    [{
+                                        "column": fk_column,
+                                        "operator": "=",
+                                        "value": record_value
+                                    }],
+                                    ["*"]
+                                )
+
+                                if referencing_records:
+                                    return f"Cannot update primary key in {table_name} because records in {other_table} reference it (foreign key constraint violation)"
+
+        return None  # No constraints violated
 
     def _update_indexes_after_modify(self, db_name, table_name, current_records):
         """Update all indexes for a table after records are modified.

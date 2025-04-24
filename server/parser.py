@@ -23,9 +23,11 @@ class SQLParser:
         Parse SQL query into a structured format.
         """
         try:
-            if sql.strip().upper().startswith(
-                "CREATE INDEX"
-            ) or sql.strip().upper().startswith("CREATE UNIQUE INDEX"):
+            # First check for set operations (UNION, INTERSECT, EXCEPT)
+            if re.search(r'\s+UNION\s+|\s+INTERSECT\s+|\s+EXCEPT\s+', sql, re.IGNORECASE):
+                return self._parse_set_operation(sql)
+
+            if sql.strip().upper().startswith("CREATE INDEX"):
                 return self.parse_create_index(sql)
 
             # Parse SQL query
@@ -36,13 +38,12 @@ class SQLParser:
             # Get the first statement (we only support one at a time)
             stmt = parsed[0]
 
-            # Handle SHOW commands specially since sqlparse may not recognize them correctly
+            # Handle special statements first
             if sql.strip().upper().startswith("SHOW "):
                 result = {"type": "SHOW", "query": sql}
                 self._extract_show_elements(stmt, result)
                 return result
 
-            # Handle USE DATABASE command
             if sql.strip().upper().startswith("USE "):
                 db_name = sql.strip()[4:].strip()
                 return {"type": "USE_DATABASE", "database": db_name, "query": sql}
@@ -130,6 +131,40 @@ class SQLParser:
 
         return result
 
+    def _parse_set_operation(self, sql):
+        """Parse a set operation (UNION, INTERSECT, EXCEPT)"""
+        # Determine which set operation we're dealing with
+        operation = None
+        if re.search(r'\s+UNION\s+', sql, re.IGNORECASE):
+            operation = "UNION"
+        elif re.search(r'\s+INTERSECT\s+', sql, re.IGNORECASE):
+            operation = "INTERSECT"
+        elif re.search(r'\s+EXCEPT\s+', sql, re.IGNORECASE):
+            operation = "EXCEPT"
+
+        if not operation:
+            return {"error": "Invalid set operation"}
+
+        # Split the query at the operation
+        parts = re.split(rf'\s+{operation}\s+', sql, maxsplit=1, flags=re.IGNORECASE)
+        if len(parts) != 2:
+            return {"error": f"Invalid {operation} statement format"}
+
+        left_query = parts[0].strip()
+        right_query = parts[1].strip()
+
+        # Parse both parts as separate queries
+        left_plan = self.parse_sql(left_query)
+        right_plan = self.parse_sql(right_query)
+
+        # Combine into a set operation plan
+        return {
+            "type": operation,
+            "left": left_plan,
+            "right": right_plan,
+            "query": sql
+        }
+
     def _extract_select_elements(self, parsed, result):
         """Extract elements from a SELECT query"""
         # Initialize components
@@ -151,13 +186,27 @@ class SQLParser:
             columns = [col.strip() for col in columns_part.split(',')]
             result["columns"] = columns
 
-        # Extract WHERE clause
+        # Extract table name properly - don't include WHERE clause
+        from_match = re.search(r"FROM\s+(\w+(?:\s+\w+)?(?:\s*,\s*\w+(?:\s+\w+)?)*)\s*(?:WHERE|ORDER BY|LIMIT|GROUP BY|HAVING|$)",
+                            original_sql, re.IGNORECASE)
+        if from_match:
+            tables_part = from_match.group(1).strip()
+            # Process tables (comma-separated list)
+            tables = [table.strip() for table in tables_part.split(',')]
+            result["tables"] = tables
+
+        # Extract WHERE clause with special handling for subqueries and logical operators
         where_match = re.search(r"\bWHERE\s+(.+?)(?:\s+ORDER\s+BY|\s+LIMIT|\s*$)",
                                 original_sql, re.IGNORECASE)
         if where_match:
             condition = where_match.group(1).strip()
             result["where"] = condition
-            result["condition"] = condition  # For consistency
+            result["condition"] = condition
+
+            # Parse logical structure of WHERE clause
+            parsed_condition = self._parse_where_condition(condition)
+            if parsed_condition:
+                result["parsed_condition"] = parsed_condition
 
         # Extract ORDER BY clause
         order_match = re.search(r"\bORDER\s+BY\s+(.+?)(?:\s+LIMIT|\s*$)",
@@ -243,16 +292,16 @@ class SQLParser:
                             table2 = join_match.group(4)
                             alias2 = join_match.group(5) or table2
                             join_condition = join_match.group(6)
-                            
+
                             # Check for JOIN algorithm hint
                             join_algorithm = "HASH"  # Default
                             hint_match = re.search(r"WITH\s*\(\s*JOIN_TYPE\s*=\s*'(\w+)'\s*\)", original_from_clause, re.IGNORECASE)
                             if hint_match:
                                 join_algorithm = hint_match.group(1).upper()
-                            
+
                             # Build tables list with aliases
                             tables = [f"{table1} {alias1}", f"{table2} {alias2}"]
-                            
+
                             # Store the join info for the execution engine
                             result["join_info"] = {
                                 "type": join_type,
@@ -271,15 +320,80 @@ class SQLParser:
                 # Add tables to result
                 result["tables"] = tables
 
+    def _parse_where_condition(self, condition_str):
+        """Parse the logical structure of a WHERE condition."""
+        if not condition_str:
+            return None
+
+        # Look for top-level AND/OR operators
+        and_parts = re.split(r'\sAND\s', condition_str, flags=re.IGNORECASE)
+        if len(and_parts) > 1:
+            return {
+                "operator": "AND",
+                "operands": [self._parse_where_condition(part) for part in and_parts]
+            }
+
+        or_parts = re.split(r'\sOR\s', condition_str, flags=re.IGNORECASE)
+        if len(or_parts) > 1:
+            return {
+                "operator": "OR",
+                "operands": [self._parse_where_condition(part) for part in or_parts]
+            }
+
+        # Look for NOT operator
+        if condition_str.upper().startswith("NOT "):
+            return {
+                "operator": "NOT",
+                "operand": self._parse_where_condition(condition_str[4:])
+            }
+
+        # Look for subquery with IN
+        in_subquery_match = re.search(r'(.+?)\s+IN\s+\((SELECT.+?)\)', condition_str, re.IGNORECASE)
+        if in_subquery_match:
+            column = in_subquery_match.group(1).strip()
+            subquery = in_subquery_match.group(2).strip()
+            subquery_plan = self.parse_sql(subquery)
+            return {
+                "operator": "IN",
+                "column": column,
+                "subquery": subquery_plan
+            }
+
+        # Simple comparison - identify the operator and operands
+        for op in [">=", "<=", "<>", "!=", "=", ">", "<", "LIKE", "NOT LIKE", "IS NULL", "IS NOT NULL"]:
+            if op.lower() in condition_str.lower():
+                parts = re.split(r'\s*' + re.escape(op) + r'\s*', condition_str, flags=re.IGNORECASE, maxsplit=1)
+                if len(parts) == 2:
+                    return {
+                        "operator": op,
+                        "column": parts[0].strip(),
+                        "value": parts[1].strip()
+                    }
+
+        # If it doesn't match any pattern, return as is
+        return {"raw_condition": condition_str}
+
     def _process_from_clause(self, tables_part):
         """Process FROM clause to extract table names."""
-        # Fix: Don't convert table names to uppercase
-        if " JOIN " not in tables_part:
-            tables = [t.strip() for t in tables_part.split(",")]
+        # Fix: Only extract the table name part before any clauses like WHERE, ORDER BY, etc.
+        end_clauses = [" WHERE ", " ORDER BY ", " GROUP BY ", " HAVING ", " LIMIT "]
+
+        # Find the position of the first clause marker
+        end_pos = len(tables_part)
+        for clause in end_clauses:
+            pos = tables_part.upper().find(clause)
+            if pos != -1 and pos < end_pos:
+                end_pos = pos
+
+        # Extract only the table portion
+        table_part = tables_part[:end_pos].strip()
+
+        # Now split by commas for multiple tables
+        if " JOIN " not in table_part:
+            tables = [t.strip() for t in table_part.split(",")]
             return tables
         else:
-            # Existing JOIN processing logic can remain unchanged
-            # as it's handled by _extract_join_tables
+            # Handle JOIN syntax (existing code)
             return []
 
     def _extract_join_tables(self, tables_part, join_keyword):

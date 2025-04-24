@@ -566,6 +566,10 @@ class CatalogManager:
         if table_id not in self.tables:
             return f"Table {table_name} does not exist."
 
+        fk_violation = self._check_fk_constraints_for_insert(db_name, table_name, record)
+        if fk_violation:
+            return {"error": fk_violation, "status": "error"}
+
         # Check if record is already mapped and clean up flag if present
         already_mapped = record.pop("_already_mapped", False) if isinstance(record, dict) else False
 
@@ -750,6 +754,54 @@ class CatalogManager:
 
             logging.error(traceback.format_exc())
             return f"Error inserting record: {str(e)}"
+
+    def _check_fk_constraints_for_insert(self, db_name, table_name, record):
+        """Check if an insert would violate any foreign key constraints."""
+        # Get table schema
+        table_id = f"{db_name}.{table_name}"
+        if table_id not in self.tables:
+            return f"Table {table_name} does not exist"
+
+        table_schema = self.tables[table_id]
+        constraints = table_schema.get("constraints", [])
+
+        # Check for string-based constraints list
+        if isinstance(constraints, list):
+            for constraint in constraints:
+                if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
+                    fk_match = re.search(r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
+                                        constraint, re.IGNORECASE)
+
+                    if fk_match:
+                        fk_column = fk_match.group(1)
+                        ref_table = fk_match.group(2)
+                        ref_column = fk_match.group(3)
+
+                        # Skip if FK column isn't in the record being inserted
+                        if fk_column not in record:
+                            continue
+
+                        fk_value = record[fk_column]
+
+                        # Skip null value if the FK allows nulls
+                        if fk_value is None:
+                            continue
+
+                        # Check if referenced value exists in parent table
+                        referenced_records = self.query_with_condition(
+                            ref_table,
+                            [{
+                                "column": ref_column,
+                                "operator": "=",
+                                "value": fk_value
+                            }],
+                            ["*"]
+                        )
+
+                        if not referenced_records:
+                            return f"Foreign key constraint violation: {fk_column}={fk_value} does not exist in {ref_table}.{ref_column}"
+
+        return None  # No violation
 
     def _update_indexes_after_insert(self, db_name, table_name, record_id, record):
         """Update indexes after a record is inserted."""

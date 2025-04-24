@@ -21,9 +21,22 @@ class SelectExecutor:
         self.join_executor = join_executor
         self.aggregate_executor = aggregate_executor
         self.condition_parser = None  # Will be set by ExecutionEngine
+        self.execution_engine = None  # Will be set by ExecutionEngine
 
     def execute_select(self, plan):
         """Execute a SELECT query and return results."""
+        # Initial logging
+        logging.debug("Executing SELECT with plan: %s", {k: v for k, v in plan.items() if k != 'query'})
+        
+        # Process parsed condition and handle subqueries
+        if "parsed_condition" in plan and hasattr(self, "execution_engine"):
+            # Check if this condition has subqueries
+            if self.execution_engine._has_subquery(plan["parsed_condition"]):
+                logging.info("Found subquery in condition, resolving...")
+                # Resolve subqueries (execute them and replace with actual values)
+                self.execution_engine._resolve_subqueries(plan["parsed_condition"])
+                logging.info(f"Resolved subquery condition: {plan['parsed_condition']}")
+        
         # Check for aggregate functions in column names
         columns = plan.get("columns", [])
         for _, col in enumerate(columns):
@@ -34,36 +47,20 @@ class SelectExecutor:
                     func_name = match.group(1).upper()
                     col_name = match.group(2).strip()
 
-                    # Update this line to include RAND and GCD
-                    if func_name in (
-                        "COUNT",
-                        "SUM",
-                        "AVG",
-                        "MIN",
-                        "MAX",
-                        "RAND",
-                        "GCD",
-                    ):
-                        logging.error(
-                            "Detected aggregate function in execute_select: %s(%s)",
-                            func_name, col_name
-                        )
+                    if func_name in ("COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD"):
+                        logging.info("Detected aggregate function: %s(%s)", func_name, col_name)
 
                         # Create a temporary aggregate plan
                         agg_plan = {
                             "type": "AGGREGATE",
                             "function": func_name,
                             "column": col_name,
-                            "table": plan.get("table")
-                            or (
-                                plan.get("tables", [""])[0]
-                                if plan.get("tables")
-                                else ""
+                            "table": plan.get("table") or (
+                                plan.get("tables", [""])[0] if plan.get("tables") else ""
                             ),
-                            # Pass the condition
                             "condition": plan.get("condition"),
-                            "top": plan.get("top"),  # Pass TOP parameter
-                            "limit": plan.get("limit"),  # Pass LIMIT parameter
+                            "top": plan.get("top"),
+                            "limit": plan.get("limit"),
                         }
 
                         # Execute the aggregate plan instead
@@ -98,9 +95,10 @@ class SelectExecutor:
                 "type": "error",
             }
 
+        # Check for index usage
         index_info = None
         condition = plan.get("condition")
-        if condition:
+        if condition and isinstance(condition, str):
             # Remove trailing semicolon if present
             if condition.endswith(';'):
                 condition = condition[:-1]
@@ -127,27 +125,25 @@ class SelectExecutor:
         try:
             # Verify table exists - CASE INSENSITIVE COMPARISON
             tables = self.catalog_manager.list_tables(db_name)
-
+            
             # Create case-insensitive lookup for table names
             tables_lower = {table.lower(): table for table in tables}
-
+            
             # Try to find the table case-insensitively
             actual_table_name = table_name  # Default
             if table_name.lower() in tables_lower:
                 # Use the correct case from the tables list
                 actual_table_name = tables_lower[table_name.lower()]
-                logging.debug(
-                    "Using case-corrected table name: %s instead of %s",
-                    actual_table_name,
-                    table_name
-                )
+                logging.debug("Using case-corrected table name: %s instead of %s", 
+                            actual_table_name, table_name)
             elif table_name not in tables:
                 return {
                     "error": f"Table '{table_name}' does not exist in database '{db_name}'",
                     "status": "error",
                     "type": "error",
                 }
-
+                
+            # Check for index on specified column if condition is present
             if condition and "index_column" in locals():
                 # Get table indexes
                 indexes = self.catalog_manager.get_indexes_for_table(actual_table_name)
@@ -159,69 +155,88 @@ class SelectExecutor:
                             "value": index_value
                         }
                         logging.info("Will use index %s for condition %s=%s",
-                                        idx_name, index_column, index_value
-                                    )
+                                    idx_name, index_column, index_value)
                         break
-
-            # Build condition for query
-            conditions = []
-            condition = plan.get("condition")
-            if condition:
-                logging.debug("Parsing condition: %s", condition)
-                conditions = ConditionParser.parse_condition_to_list(condition)
-
-                # ENHANCEMENT: Handle string values correctly
-                for cond in conditions:
-                    val = cond.get("value")
-                    if isinstance(val, str):
-                        if (val.startswith("'") and val.endswith("'")) or\
-                            (val.startswith('"') and val.endswith('"')):
-                            cond["value"] = val[1:-1]  # Remove quotes
-                            logging.info("Removed quotes from condition value: %s", cond['value'])
-
-                logging.debug("Parsed conditions: %s", conditions)
-
-            if index_info:
-                logging.info("Using INDEX_SCAN with index %s on column %s",
-                                index_info['name'], index_info['column']
-                            )
+                        
+            # Fetch and filter the data
+            results = []
+            
+            # ENHANCED CONDITION HANDLING: Use parsed_condition if available
+            if "parsed_condition" in plan and hasattr(self, "execution_engine"):
+                logging.info("Using parsed condition for advanced filtering")
+                
+                # First get all records (we'll filter them with the complex condition)
+                all_records = self.catalog_manager.query_with_condition(
+                    actual_table_name, [], ["*"]
+                )
+                
+                # Apply the parsed condition using execution engine's evaluator
+                if all_records:
+                    for record in all_records:
+                        if self.execution_engine._evaluate_condition(record, plan["parsed_condition"]):
+                            results.append(record)
+                            
+                    logging.info(f"Found {len(results)} matching records after filtering")
             else:
-                logging.info("Using FULL_SCAN (no suitable index found)")
-
-            # Query the data using catalog manager - always get all columns first
-            results = self.catalog_manager.query_with_condition(
-                actual_table_name, conditions, ["*"]
-            )
-
-            logging.debug("Query returned %s results", len(results) if results else 0)
-
+                # Use regular condition parsing for simple conditions
+                conditions = []
+                if condition:
+                    logging.debug("Parsing condition: %s", condition)
+                    if hasattr(ConditionParser, "parse_condition_to_list"):
+                        conditions = ConditionParser.parse_condition_to_list(condition)
+                    elif self.condition_parser:
+                        conditions = self.condition_parser.parse_condition_to_list(condition)
+                    else:
+                        logging.warning("No condition parser available")
+                        
+                    # Handle string values correctly
+                    for cond in conditions:
+                        val = cond.get("value")
+                        if isinstance(val, str):
+                            if (val.startswith("'") and val.endswith("'")) or\
+                                (val.startswith('"') and val.endswith('"')):
+                                cond["value"] = val[1:-1]  # Remove quotes
+                                logging.info("Removed quotes from condition value: %s", cond['value'])
+                    
+                    logging.debug("Parsed conditions: %s", conditions)
+                
+                # Execute the query with simple conditions
+                results = self.catalog_manager.query_with_condition(
+                    actual_table_name, conditions, ["*"]
+                )
+            
+            logging.info("Query returned %s results", len(results) if results else 0)
+            
             # Format results for client display
             if not results:
+                empty_columns = []
+                if "*" not in columns:
+                    empty_columns = columns
                 return {
-                    "columns": columns if "*" not in columns else [],
+                    "columns": empty_columns,
                     "rows": [],
                     "status": "success",
                     "type": "select_result",
-                    "scan_type": "INDEX_SCAN" if index_info else "FULL_SCAN",  # ENHANCEMENT
-                    "index_used": index_info["name"] if index_info else None   # ENHANCEMENT
+                    "scan_type": "INDEX_SCAN" if index_info else "FULL_SCAN",
+                    "index_used": index_info["name"] if index_info else None
                 }
-
+                
             # Create a mapping of lowercase column names to original case
             column_case_map = {}
             if results:
                 first_record = results[0]
                 for col_name in first_record:
                     column_case_map[col_name.lower()] = col_name
-
+                    
             # Apply ORDER BY if specified
             order_by = plan.get("order_by")
             if order_by and results:
                 logging.debug("Applying ORDER BY: %s", order_by)
-
+                
                 # Get the column name from the order_by plan
                 order_column = order_by.get("column")
                 direction = order_by.get("direction", "ASC")
-
+                
                 # Define a key function that properly handles dictionary values
                 def get_sort_key(record):
                     # Find the correct column with case-insensitive matching
@@ -230,7 +245,7 @@ class SelectExecutor:
                         # Handle dictionary column name format
                         if isinstance(record_col, dict) and "name" in record_col:
                             col_name = record_col["name"]
-
+                            
                         if isinstance(col_name, str) and isinstance(order_column, str) and col_name.lower() == order_column.lower():
                             # Get the value, handling dictionary format if needed
                             value = record.get(record_col)
@@ -238,37 +253,37 @@ class SelectExecutor:
                                 return value["value"]
                             return value
                     return None
-
+                    
                 # Sort the results using our key function
                 reverse = direction.upper() == "DESC"
                 results.sort(key=get_sort_key, reverse=reverse)
-                logging.debug("Results sorted by %s %s",order_column, direction)
-
+                logging.debug("Results sorted by %s %s", order_column, direction)
+                
             # Apply TOP N
             if top_n is not None and top_n > 0 and results:
                 results = results[:top_n]
                 logging.debug("Applied TOP %s, now %s results", top_n, len(results))
-
+                
             # Apply LIMIT if specified
             limit = plan.get("limit")
             if limit is not None and isinstance(limit, int) and results and limit > 0:
                 results = results[:limit]
                 logging.debug("Applied LIMIT %s, now %s results", limit, len(results))
-
+                
             # Project columns (select specific columns or all)
             result_columns = []
             result_rows = []
-
+            
             # Figure out which columns to include in the result, with original case
             if "*" in columns:
                 # Make sure we have results and they have keys
                 if results and isinstance(results[0], dict) and results[0]:
                     # Use all columns from first record (original case)
                     result_columns = list(results[0].keys())
-
+                    
                     # Log column names that will be returned
-                    logging.error("SELECT * will return these columns: %s", result_columns)
-
+                    logging.info("SELECT * will return these columns: %s", result_columns)
+                    
                     # Create rows with ALL columns from each record IN ORDER
                     for record in results:
                         row = []
@@ -294,10 +309,10 @@ class SelectExecutor:
                         if actual_col.lower() == col.lower():
                             original_case_col = actual_col
                             break
-
+                            
                     # Use original case if found, otherwise use as provided
                     result_columns.append(original_case_col or col)
-
+                    
                 # Create rows with the selected columns
                 for record in results:
                     row = []
@@ -310,15 +325,13 @@ class SelectExecutor:
                                 break
                         row.append(value)
                     result_rows.append(row)
-
-            logging.error("Final result: %s rows with columns: %s",
-                            len(result_rows), result_columns
-                        )
+                    
+            logging.info("Final result: %s rows with columns: %s", len(result_rows), result_columns)
             # Debug print first row to verify data
             if result_rows:
-                logging.error("First row data: %s", result_rows[0])
-
-            # ENHANCEMENT: Add scan_type and index_used to the result
+                logging.debug("First row data: %s", result_rows[0])
+                
+            # Return the formatted results
             return {
                 "columns": result_columns,  # Original case preserved
                 "rows": result_rows,
@@ -327,10 +340,8 @@ class SelectExecutor:
                 "scan_type": "INDEX_SCAN" if index_info else "FULL_SCAN",
                 "index_used": index_info["name"] if index_info else None
             }
-
-        except RuntimeError as e:
-            import traceback
-
+                
+        except Exception as e:
             logging.error("Error executing SELECT: %s", str(e))
             logging.error(traceback.format_exc())
             return {

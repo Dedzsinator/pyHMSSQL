@@ -33,7 +33,7 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] SQL Query Support (SELECT, INSERT, DELETE, UPDATE)
   - [ ] Views (CREATE VIEW, DROP VIEW)
   - [ ] Temporary tables
-  - [ ] Basic joins and subqueries
+  - [x] Basic joins and subqueries
   - [ ] Transaction support (begin, commit, rollback)
 
 - [x] **Indexing**
@@ -44,8 +44,8 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [] Index-based optimizations
 
 - [ ] **Query Optimization**
-  - [ ] Index-based query planning
-  - [ ] Join optimization (hash join, index join, sort-merge join)
+  - [x] Index-based query planning
+  - [x] Join optimization (hash join, index join, sort-merge join)
   - [ ] Filter pushdown
   - [ ] Plan rewriting
   - [ ] Join reordering
@@ -90,7 +90,7 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [ ] Views for logical data abstraction
   - [ ] Temporary tables for intermediate results
   - [ ] Complex subquery support
-  - [ ] Multiple aggregation functions
+  - [x] Multiple aggregation functions
 
 ## 📋 Requirements
 
@@ -371,6 +371,17 @@ query INSERT INTO employees (id, name, dept_id, salary) VALUES (2, 'Bob', 1, 700
 query INSERT INTO employees (id, name, dept_id, salary) VALUES (3, 'Charlie', 2, 65000)
 query INSERT INTO employees (id, name, dept_id, salary) VALUES (4, 'Dave', 2, 68000)
 query INSERT INTO employees (id, name, dept_id, salary) VALUES (5, 'Eve', 3, 78000)
+
+--- testing FK Constraints
+
+-- Test 1: Try to delete a department that has employees (should fail)
+query DELETE FROM departments WHERE id = 1 ✅
+
+-- Test 2: Try to update a department ID that is referenced by employees (should fail)
+query UPDATE departments SET id = 10 WHERE id = 1 ✅
+
+-- Test 3: Try to insert an employee with a non-existent department (should fail)
+query INSERT INTO employees (id, name, dept_id) VALUES (4, 'Dave', 3) ✅
 
 ---
 -- JOIN SPECIFIC TESTS
