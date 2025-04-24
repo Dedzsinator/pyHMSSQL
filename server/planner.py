@@ -112,6 +112,33 @@ class Planner:
 
         return optimized_plan
 
+    def plan_join_query(self, parsed_query):
+        """Plan a JOIN query."""
+        # Extract join info from the parsed query
+        join_info = parsed_query.get("join_info", {})
+
+        table1 = join_info.get("table1", "")
+        table2 = join_info.get("table2", "")
+        join_type = join_info.get("type", "INNER")
+        condition = join_info.get("condition", "")
+        join_algorithm = join_info.get("join_algorithm", "HASH")
+
+        # Extract columns to select
+        columns = parsed_query.get("columns", ["*"])
+
+        # Create plan
+        plan = {
+            "type": "JOIN",
+            "join_type": join_type,
+            "join_algorithm": join_algorithm,  # Use the algorithm from the hint
+            "table1": table1,
+            "table2": table2,
+            "condition": condition,
+            "columns": columns
+        }
+
+        return plan
+
     def plan_query(self, parsed_query):
         """
         Generate an execution plan from the parsed query.
@@ -509,64 +536,34 @@ class Planner:
         # Get join-specific information if available
         join_info = parsed_query.get("join_info", {})
         join_type = join_info.get("type", "INNER").upper()
-        join_condition = join_info.get("condition") or parsed_query.get(
-            "join_condition"
-        )
+        join_condition = join_info.get("condition") or parsed_query.get("join_condition")
 
-        # Determine join algorithm - look for optimization hints first
-        join_algorithm = "HASH"  # Default algorithm
+        # IMPORTANT FIX: Extract join_algorithm directly from join_info
+        join_algorithm = join_info.get("join_algorithm")
 
-        # Check for hints like WITH (JOIN_TYPE='HASH')
-        if "WITH" in parsed_query.get("query", "").upper():
-            hint_match = re.search(
-                r"WITH\s*\(\s*JOIN_TYPE\s*=\s*'(\w+)'\s*\)",
-                parsed_query.get("query", ""),
-                re.IGNORECASE,
-            )
-            if hint_match:
-                algorithm_hint = hint_match.group(1).upper()
-                if algorithm_hint in ["HASH", "MERGE", "NESTED_LOOP", "INDEX"]:
-                    join_algorithm = algorithm_hint
-                    logging.debug(
-                        "Using join algorithm from hint: %s", join_algorithm)
+        # Only if no algorithm was specified in join_info, try other methods
+        if not join_algorithm:
+            # Try to extract from hint
+            if "WITH" in parsed_query.get("query", "").upper():
+                hint_match = re.search(
+                    r"WITH\s*\(\s*JOIN_TYPE\s*=\s*'(\w+)'\s*\)",
+                    parsed_query.get("query", ""),
+                    re.IGNORECASE,
+                )
+                if hint_match:
+                    join_algorithm = hint_match.group(1).upper()
 
-        # If no hint was provided, let's choose the algorithm
-        if not join_algorithm or join_algorithm == "HASH":
-            join_algorithm = self._choose_join_algorithm(
-                tables, join_condition)
-
-        # Ensure we have at least two tables for join
-        if len(tables) < 2:
-            if len(tables) == 1 and isinstance(tables[0], str) and " " in tables[0]:
-                # Try to split on space (might be alias)
-                tables = [tables[0].split()[0]]
-
-        # Get the first two tables (most common case)
-        table1 = tables[0] if tables else None
-        table2 = tables[1] if len(tables) > 1 else None
-
-        # Remove any alias from table names if present
-        if table1 and " " in table1:
-            table1_parts = table1.split()
-            table_name = table1_parts[0]
-            table_alias = table1_parts[1] if len(
-                table1_parts) > 1 else table_name
-            table1 = f"{table_name} {table_alias}"
-
-        if table2 and " " in table2:
-            table2_parts = table2.split()
-            table_name = table2_parts[0]
-            table_alias = table2_parts[1] if len(
-                table2_parts) > 1 else table_name
-            table2 = f"{table_name} {table_alias}"
+        # If still no algorithm, set a default
+        if not join_algorithm:
+            join_algorithm = "HASH"  # Default algorithm
 
         # Build the join plan
         join_plan = {
             "type": "JOIN",
             "join_type": join_type,
             "join_algorithm": join_algorithm,
-            "table1": table1,
-            "table2": table2,
+            "table1": join_info.get("table1", "") or tables[0] if tables else "",
+            "table2": join_info.get("table2", "") or (tables[1] if len(tables) > 1 else ""),
             "condition": join_condition,
             "columns": columns,
             "where_condition": condition,

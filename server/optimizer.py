@@ -229,6 +229,11 @@ class Optimizer:
         Optimize a JOIN query by selecting the most appropriate join algorithm.
         """
         logging.debug("Optimizing JOIN plan: %s", plan)
+        
+        # If a join algorithm is already specified, respect it
+        if "join_algorithm" in plan and plan["join_algorithm"]:
+            logging.debug("Using specified join algorithm: %s", plan["join_algorithm"])
+            return plan
 
         table1 = plan.get("table1", "")
         table2 = plan.get("table2", "")

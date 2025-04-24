@@ -1436,3 +1436,37 @@ class CatalogManager:
         record["id"] = record_id
 
         return self.insert_record(table_name, record)
+
+    def get_table_size(self, table_name):
+        """
+        Get the approximate size (number of records) of a table.
+
+        Args:
+            table_name: Name of the table
+
+        Returns:
+            Approximate number of records in the table
+        """
+        db_name = self.get_current_database()
+        if not db_name:
+            return 0
+
+        # Load the table file
+        table_file = os.path.join(
+            self.tables_dir, db_name, f"{table_name}.tbl"
+        )
+        if not os.path.exists(table_file):
+            return 0
+
+        try:
+            # Load the B+ tree
+            tree = BPlusTree.load_from_file(table_file)
+            if tree is None:
+                return 0
+
+            # Count records
+            all_records = tree.range_query(float("-inf"), float("inf"))
+            return len(all_records) if all_records else 0
+        except RuntimeError as e:
+            logging.error("Error getting table size: %s", str(e))
+            return 0

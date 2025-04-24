@@ -148,7 +148,7 @@ python client/cli_client.py localhost 9999
 Start the server (NEW):
 
 ```bash
-python server/server.py --name "My Custom HMSSQL Server"
+python server.py --name "My Custom HMSSQL Server"
 ```
 
 Start the GUI client:
@@ -376,27 +376,27 @@ query INSERT INTO employees (id, name, dept_id, salary) VALUES (5, 'Eve', 3, 780
 -- JOIN SPECIFIC TESTS
 
 -- INNER JOIN (default)
-SELECT e.name, d.name FROM employees e INNER JOIN departments d ON e.dept_id = d.id
+query SELECT e.name, d.name FROM employees e INNER JOIN departments d ON e.dept_id = d.id ✅
 
 -- LEFT OUTER JOIN
-SELECT e.name, d.name FROM employees e LEFT JOIN departments d ON e.dept_id = d.id
+query SELECT e.name, d.name FROM employees e LEFT JOIN departments d ON e.dept_id = d.id ✅
 
 -- RIGHT OUTER JOIN
-SELECT e.name, d.name FROM employees e RIGHT JOIN departments d ON e.dept_id = d.id
+query SELECT e.name, d.name FROM employees e RIGHT JOIN departments d ON e.dept_id = d.id ✅
 
 -- FULL OUTER JOIN
-SELECT e.name, d.name FROM employees e FULL JOIN departments d ON e.dept_id = d.id
+query SELECT e.name, d.name FROM employees e FULL JOIN departments d ON e.dept_id = d.id ✅
 
 -- CROSS JOIN (no condition needed)
-SELECT e.name, d.name FROM employees e CROSS JOIN departments d
+query SELECT e.name, d.name FROM employees e CROSS JOIN departments d ✅
 
 -- Specifying join algorithm with hints
-SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='HASH')
-SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='NESTED_LOOP')
-SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='MERGE')
-SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='INDEX')
+query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='HASH') ✅
+query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='NESTED_LOOP') ✅
+query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='MERGE') ✅
+query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='INDEX')
 
----
+--- ✅
 
 -- Hash Join (default)
 query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id
@@ -407,6 +407,8 @@ query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d
 -- Index Join (needs an index)
 query CREATE INDEX idx_dept_id ON employees(dept_id)
 query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d.id WITH (JOIN_TYPE='INDEX')
+
+---
 
 -- Subquery
 query SELECT * FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE name = 'Engineering')

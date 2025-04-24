@@ -255,6 +255,8 @@ class ExecutionEngine:
                 result = self.execute_set_preference(plan)
             elif plan_type == "VISUALIZE":
                 result = self.execute_visualize_index(plan)
+            elif plan_type == "JOIN":
+                result = self.join_executor.execute_join(plan)
 
             else:
                 result = {

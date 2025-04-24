@@ -1,9 +1,20 @@
+"""_summary_
+
+Raises:
+    ValueError: _description_
+
+Returns:
+    _type_: _description_
+"""
 import logging
 import re
 import traceback
 
 
 class JoinExecutor:
+    """
+    Class to execute JOIN queries using different join algorithms.
+    """
     def __init__(self, catalog_manager, index_manager):
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
@@ -11,33 +22,39 @@ class JoinExecutor:
     def execute_join(self, plan):
         """Execute a JOIN query using the appropriate join algorithm."""
         join_type = plan.get("join_type", "INNER").upper()
+        if not join_type and plan.get("join_info", {}).get("type"):
+            join_type = plan.get("join_info", {}).get("type").upper()
+            
         join_algorithm = plan.get("join_algorithm", "HASH").upper()
+        
+        # Get tables from different possible locations in the plan
+        join_info = plan.get("join_info", {})
         table1 = plan.get("table1", "")
         table2 = plan.get("table2", "")
+        
+        # Use join_info if table1/table2 aren't directly in plan
+        if not table1 and join_info.get("table1"):
+            table1 = join_info.get("table1", "")
+        if not table2 and join_info.get("table2"):
+            table2 = join_info.get("table2", "")
+            
         condition = plan.get("condition")
+        if condition is None and join_info.get("condition") is not None:
+            condition = join_info.get("condition")
 
-        logging.info(f"Executing {join_type} JOIN using {
-                     join_algorithm} algorithm")
-        logging.info(f"Table 1: {table1}")
-        logging.info(f"Table 2: {table2}")
-        logging.info(f"Condition: {condition}")
-
-        # Handle ON clause in table2 if condition not provided separately
-        if condition is None and isinstance(table2, str) and " ON " in table2.upper():
-            parts = table2.split(" ON ", 1)
-            table2 = parts[0].strip()
-            condition = parts[1].strip()
+        logging.info("Executing %s JOIN using %s algorithm", join_type, join_algorithm)
+        logging.info("Table 1: %s", table1)
+        logging.info("Table 2: %s", table2)
+        logging.info("Condition: %s", condition)
 
         # Handle table aliases
         table1_parts = table1.split() if isinstance(table1, str) else []
         table1_name = table1_parts[0] if table1_parts else ""
-        table1_alias = table1_parts[1] if len(
-            table1_parts) > 1 else table1_name
+        table1_alias = table1_parts[1] if len(table1_parts) > 1 else table1_name
 
         table2_parts = table2.split() if isinstance(table2, str) else []
         table2_name = table2_parts[0] if table2_parts else ""
-        table2_alias = table2_parts[1] if len(
-            table2_parts) > 1 else table2_name
+        table2_alias = table2_parts[1] if len(table2_parts) > 1 else table2_name
 
         # Get current database
         db_name = self.catalog_manager.get_current_database()
@@ -63,15 +80,13 @@ class JoinExecutor:
                 "type": "error",
             }
 
-        # Parse join condition (e.g., "e.dept_id = d.id")
-        if not condition and join_type != "CROSS":
+        # Skip condition check for CROSS JOINs
+        if join_type != "CROSS" and not condition:
             return {
                 "error": "No join condition specified",
                 "status": "error",
                 "type": "error",
             }
-
-        logging.debug(f"Join condition: {condition}")
 
         try:
             # Get data from both tables
@@ -82,15 +97,26 @@ class JoinExecutor:
                 table2_name, [], ["*"]
             )
 
-            # Parse the join condition to extract column names
-            join_columns = (
-                self._parse_join_condition(
-                    condition) if condition else (None, None)
-            )
-            left_column, right_column = join_columns
+            # For CROSS JOINs, we don't need join columns
+            if join_type == "CROSS":
+                left_column, right_column = None, None
+            else:
+                # Parse the join condition to extract column names
+                join_columns = self._parse_join_condition(condition) if condition else (None, None)
+                left_column, right_column = join_columns
 
-            # Choose and execute join algorithm
-            if join_algorithm == "HASH":
+            # For CROSS JOIN, we should use nested loop regardless of the algorithm specified
+            if join_type == "CROSS":
+                result = self._execute_nested_loop_join(
+                    table1_data,
+                    table2_data,
+                    left_column,
+                    right_column,
+                    table1_alias,
+                    table2_alias,
+                    join_type,
+                )
+            elif join_algorithm == "HASH":
                 result = self._execute_hash_join(
                     table1_data,
                     table2_data,

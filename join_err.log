@@ -1,6 +1,4 @@
-hms-sql [admin]> SELECT e.name, d.name FROM employees e INNER JOIN departments d ON e.dept_id = d.id
-*** Unknown syntax: SELECT e.name, d.name FROM employees e INNER JOIN departments d ON e.dept_id = d.id
-hms-sql [admin]> SELECT e.name, d.name FROM employees e LEFT JOIN departments d ON e.dept_id = d.id
+hms-sql [admin]> query SELECT e.name, d.name FROM employees e LEFT JOIN departments d ON e.dept_id = d.id
 *** Unknown syntax: SELECT e.name, d.name FROM employees e LEFT JOIN departments d ON e.dept_id = d.id
 -- INNER JOIN (default)
 SELECT e.name, d.name FROM employees e INNER JOIN departments d ON e.dept_id = d.id

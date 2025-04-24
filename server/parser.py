@@ -200,40 +200,70 @@ class SQLParser:
                 original_from_clause = original_sql.split(" FROM ", 1)[1].strip()[:table_end]
                 tables_part = original_from_clause.strip()
 
-                # Add enhanced JOIN support
                 if re.search(r'\s+(JOIN|INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL JOIN|CROSS JOIN)\s+',\
                     from_clause, re.IGNORECASE):
                     # This query has JOIN syntax
                     result["type"] = "JOIN"
 
-                    # Extract table aliases and JOIN condition
-                    join_match = re.search(
-                        r'(\w+)(?:\s+(\w+))?\s+(JOIN|INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL JOIN|CROSS JOIN)\s+(\w+)(?:\s+(\w+))?\s+ON\s+(.+?)(?:\s+WHERE|\s+ORDER|\s+LIMIT|\s*$)',
-                        from_clause,
+                    # First check for CROSS JOIN which doesn't need an ON clause
+                    cross_join_match = re.search(
+                        r'(\w+)(?:\s+(\w+))?\s+(CROSS\s+JOIN)\s+(\w+)(?:\s+(\w+))?',
+                        original_from_clause,
                         re.IGNORECASE
                     )
 
-                    if join_match:
-                        table1 = join_match.group(1)
-                        alias1 = join_match.group(2) or table1
-                        join_type = join_match.group(3).upper().replace(" JOIN", "")
-                        table2 = join_match.group(4)
-                        alias2 = join_match.group(5) or table2
-                        join_condition = join_match.group(6)
+                    if cross_join_match:
+                        table1 = cross_join_match.group(1)
+                        alias1 = cross_join_match.group(2) or table1
+                        table2 = cross_join_match.group(4)
+                        alias2 = cross_join_match.group(5) or table2
 
                         # Build tables list with aliases
                         tables = [f"{table1} {alias1}", f"{table2} {alias2}"]
 
                         # Store the join info for the execution engine
                         result["join_info"] = {
-                            "type": join_type,
-                            "condition": join_condition,
+                            "type": "CROSS",
+                            "condition": None,  # CROSS JOIN has no condition
                             "table1": f"{table1} {alias1}",
                             "table2": f"{table2} {alias2}"
                         }
                     else:
-                        # Fall back to simple tables if JOIN syntax isn't matched
-                        tables = self._process_from_clause(from_clause)
+                        # Check for other JOIN types with ON clause
+                        join_match = re.search(
+                            r'(\w+)(?:\s+(\w+))?\s+(JOIN|INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL JOIN)\s+(\w+)(?:\s+(\w+))?\s+ON\s+(.+?)(?:\s+WITH\s*\(|\s+WHERE|\s+ORDER|\s+LIMIT|\s*$)',
+                            original_from_clause,
+                            re.IGNORECASE
+                        )
+
+                        if join_match:
+                            table1 = join_match.group(1)
+                            alias1 = join_match.group(2) or table1
+                            join_type = join_match.group(3).upper().replace(" JOIN", "")
+                            table2 = join_match.group(4)
+                            alias2 = join_match.group(5) or table2
+                            join_condition = join_match.group(6)
+                            
+                            # Check for JOIN algorithm hint
+                            join_algorithm = "HASH"  # Default
+                            hint_match = re.search(r"WITH\s*\(\s*JOIN_TYPE\s*=\s*'(\w+)'\s*\)", original_from_clause, re.IGNORECASE)
+                            if hint_match:
+                                join_algorithm = hint_match.group(1).upper()
+                            
+                            # Build tables list with aliases
+                            tables = [f"{table1} {alias1}", f"{table2} {alias2}"]
+                            
+                            # Store the join info for the execution engine
+                            result["join_info"] = {
+                                "type": join_type,
+                                "condition": join_condition,
+                                "table1": f"{table1} {alias1}",
+                                "table2": f"{table2} {alias2}",
+                                "join_algorithm": join_algorithm
+                            }
+                        else:
+                            # Fall back to simple tables if JOIN syntax isn't matched
+                            tables = self._process_from_clause(from_clause)
                 else:
                     # No JOIN syntax, process as normal table list
                     tables = self._process_from_clause(from_clause)
