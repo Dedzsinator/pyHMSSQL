@@ -164,6 +164,29 @@ class CatalogManager:
 
         logging.info("Database %s dropped.", db_name)
         return f"Database {db_name} dropped."
+    
+    def get_all_tables(self):
+        """Get a list of all tables across all databases.
+
+        Returns:
+            list: A list of tuples (database_name, table_name) for all tables
+        """
+        all_tables = []
+        current_db = self.get_current_database()
+        
+        # Iterate through all databases
+        for db_name in self.list_databases():
+            # Get tables for this database
+            tables = self.list_tables(db_name)
+            for table_name in tables:
+                all_tables.append([db_name, table_name])
+        
+        # Restore original database if needed
+        if current_db:
+            self.set_current_database(current_db)
+            
+        logging.info(f"Retrieved {len(all_tables)} tables across all databases")
+        return all_tables
 
     def set_current_database(self, database_name):
         """Set the current database for subsequent operations."""

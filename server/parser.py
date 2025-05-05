@@ -736,6 +736,8 @@ class SQLParser:
 
         if "SHOW DATABASES" in raw_sql:
             object_type = "DATABASES"
+        elif "SHOW ALL_TABLES" in raw_sql:  # Add support for SHOW ALL_TABLES
+            object_type = "ALL_TABLES"
         elif "SHOW TABLES" in raw_sql:
             object_type = "TABLES"
         elif "SHOW INDEXES FOR" in raw_sql:

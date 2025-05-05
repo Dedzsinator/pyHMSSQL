@@ -183,6 +183,19 @@ class SchemaManager:
                 "rows": [[table] for table in tables],
                 "status": "success",
             }
+            
+        elif object_type.upper() == "ALL_TABLES":
+            # Show all tables across all databases
+            logging.info("Executing SHOW ALL_TABLES command")
+            all_tables = self.catalog_manager.get_all_tables()
+            
+            return {
+                "columns": ["DATABASE_NAME", "TABLE_NAME"],
+                "rows": all_tables,
+                "status": "success",
+                "execution_time_ms": 0.001 * 1000,
+                "message": f"Retrieved {len(all_tables)} tables across all databases"
+            }
 
         elif object_type.upper() == "INDEXES":
             # Show indexes

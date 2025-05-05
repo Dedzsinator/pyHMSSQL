@@ -161,7 +161,7 @@ python gui_client.py
 Start the java client (experimental):
 
 ```bash
-cd e:\Programming\pyHMSSQL\client\java_client
+cd pyHMSSQL\client\java_client
 mvn clean compile
 mvn javafx:run
 ```

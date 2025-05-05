@@ -403,8 +403,7 @@ class DBMSClient(cmd.Cmd):
 
             return response
         except ConnectionRefusedError:
-            print(f"Error: Could not connect to server at {
-                  self.host}:{self.port}")
+            print(f"Error: Could not connect to server at {self.host}:{self.port}")
             return None
         except RuntimeError as e:
             print(f"Error: {str(e)}")
@@ -416,12 +415,21 @@ class DBMSClient(cmd.Cmd):
         if isinstance(result, dict) and "type" in result:
             del result["type"]
 
-        # First check if there's a simple message to display
+        # Check if this is a SHOW ALL_TABLES result - prioritize showing the tree
+        if isinstance(result, dict) and "rows" in result and "columns" in result:
+            # Check if the query was SHOW ALL_TABLES
+            if (len(result["columns"]) >= 2 and 
+                "DATABASE_NAME" in result["columns"] and 
+                "TABLE_NAME" in result["columns"]):
+                self.display_tables_tree(result)
+                return
+
+        # Show message if present and no special handling was done above
         if isinstance(result, dict) and "message" in result:
             print(result["message"])
             return
 
-        # Then check for rows and columns (table data)
+        # Normal table display for other results
         if isinstance(result, dict) and "rows" in result and "columns" in result:
             columns = result["columns"]
             rows = result["rows"]
@@ -469,12 +477,42 @@ class DBMSClient(cmd.Cmd):
             else:
                 print(result)
 
+    def display_tables_tree(self, result):
+        """Display tables in a tree structure organized by database"""
+        if not result.get("rows"):
+            print("No tables found.")
+            return
+        
+        # Get the indices of the database and table name columns
+        db_idx = result["columns"].index("DATABASE_NAME") if "DATABASE_NAME" in result["columns"] else 0
+        table_idx = result["columns"].index("TABLE_NAME") if "TABLE_NAME" in result["columns"] else 1
+        
+        # Organize tables by database
+        databases = {}
+        for row in result["rows"]:
+            db_name = row[db_idx]
+            table_name = row[table_idx]
+            
+            if db_name not in databases:
+                databases[db_name] = []
+            databases[db_name].append(table_name)
+        
+        # Print the tree
+        print("Database Schema:")
+        print("└── System")
+        for db_name, tables in sorted(databases.items()):
+            print(f"│   └── {db_name}")
+            for i, table in enumerate(sorted(tables)):
+                prefix = "│       └── " if i == len(tables) - 1 else "│       ├── "
+                print(f"{prefix}{table}")
+        
+        print(f"\n{len(result['rows'])} table(s) in {len(databases)} database(s)")
+
     def handle_visualization_response(self, response):
         """Handle visualization response from server"""
         if response.get("status") == "success":
             if "visualization_path" in response:
-                print(f"Visualization saved to: {
-                      response['visualization_path']}")
+                print(f"Visualization saved to: {response['visualization_path']}")
 
                 # On Windows, try to open the image
                 if os.name == "nt" and response["visualization_path"].endswith(".png"):
@@ -485,9 +523,7 @@ class DBMSClient(cmd.Cmd):
                             ["start", response["visualization_path"]], shell=True
                         )
                         print(
-                            f"Opening visualization file: {
-                                response['visualization_path']
-                            }"
+                            f"Opening visualization file: {response['visualization_path']}"
                         )
                     except RuntimeError as e:
                         print(f"Error opening visualization: {str(e)}")
