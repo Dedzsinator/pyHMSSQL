@@ -411,9 +411,10 @@ class DBMSClient(cmd.Cmd):
 
     def display_result(self, result):
         """Display the result of a query in a formatted table"""
-        # Remove type field if present to avoid confusion
-        if isinstance(result, dict) and "type" in result:
-            del result["type"]
+        # If the result has status='error', it's an error message
+        if isinstance(result, dict) and result.get("status") == "error" and "error" in result:
+            print(f"Error: {result['error']}")
+            return
 
         # Check if this is a SHOW ALL_TABLES result - prioritize showing the tree
         if isinstance(result, dict) and "rows" in result and "columns" in result:

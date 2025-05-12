@@ -5,6 +5,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.MouseButton;
+import javafx.application.Platform;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
@@ -273,14 +274,98 @@ public class DbExplorer extends VBox {
                 selectDataItem.setOnAction(e -> executeSelectQuery(dbName, tableName));
                 MenuItem newQueryItem = new MenuItem("New Query");
                 newQueryItem.setOnAction(e -> openNewQueryTab(dbName, tableName));
+
+                // Add new option to open in Query Builder
+                MenuItem openInBuilderItem = new MenuItem("Open in Query Builder");
+                openInBuilderItem.setOnAction(e -> openTableInQueryBuilder(dbName, tableName));
+
                 MenuItem dropTableItem = new MenuItem("Drop Table");
                 dropTableItem.setOnAction(e -> dropTable(dbName, tableName));
-                contextMenu.getItems().addAll(refreshItem, selectDataItem, newQueryItem, new SeparatorMenuItem(),
+                contextMenu.getItems().addAll(refreshItem, selectDataItem, newQueryItem, openInBuilderItem,
+                        new SeparatorMenuItem(),
                         dropTableItem);
             }
 
             // Show the context menu
             contextMenu.show(treeView, event.getScreenX(), event.getScreenY());
+        }
+    }
+
+    /**
+     * Opens the specified table in the Visual Query Builder
+     * 
+     * @param dbName    Database name
+     * @param tableName Table name
+     */
+    private void openTableInQueryBuilder(String dbName, String tableName) {
+        // Create an event to be handled by the main window
+        fireEvent(new QueryBuilderTableEvent(dbName, tableName));
+    }
+
+    /**
+     * Custom event for opening a table in the query builder
+     */
+    public static class QueryBuilderTableEvent extends javafx.event.Event {
+        private static final javafx.event.EventType<QueryBuilderTableEvent> EVENT_TYPE = new javafx.event.EventType<>(
+                javafx.event.Event.ANY, "QUERY_BUILDER_TABLE");
+
+        private final String dbName;
+        private final String tableName;
+
+        public QueryBuilderTableEvent(String dbName, String tableName) {
+            super(EVENT_TYPE);
+            this.dbName = dbName;
+            this.tableName = tableName;
+        }
+
+        public String getDbName() {
+            return dbName;
+        }
+
+        public String getTableName() {
+            return tableName;
+        }
+
+        // Renamed to avoid conflict with parent class method
+        public static javafx.event.EventType<QueryBuilderTableEvent> getEventTypeQB() {
+            return EVENT_TYPE;
+        }
+    }
+
+    /**
+     * Custom event for opening a new query tab
+     */
+    public static class NewQueryEvent extends javafx.event.Event {
+        private static final javafx.event.EventType<NewQueryEvent> EVENT_TYPE = new javafx.event.EventType<>(
+                javafx.event.Event.ANY, "NEW_QUERY");
+
+        private final String dbName;
+        private final String tableName;
+        private final String query;
+
+        public NewQueryEvent(String dbName, String tableName, String query) {
+            super(EVENT_TYPE);
+            this.dbName = dbName;
+            this.tableName = tableName;
+            this.query = query;
+        }
+
+        public String getDbName() {
+            return dbName;
+        }
+
+        public String getTableName() {
+            return tableName;
+        }
+
+        public String getQuery() {
+            return query;
+        }
+
+        // Renamed to avoid conflict with parent class method (just like in
+        // QueryBuilderTableEvent)
+        public static javafx.event.EventType<NewQueryEvent> getEventTypeNQ() {
+            return EVENT_TYPE;
         }
     }
 
@@ -339,9 +424,15 @@ public class DbExplorer extends VBox {
     }
 
     private void executeSelectQuery(String dbName, String tableName) {
-        // This would typically open a new query tab with the SELECT statement
+        // Create a SELECT statement and fire an event for the main window to handle
         String query = "SELECT TOP 1000 * FROM " + dbName + "." + tableName;
-        openNewQueryTab(dbName, tableName, query);
+
+        // Ensure we're on the JavaFX thread
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> fireEvent(new NewQueryEvent(dbName, tableName, query)));
+        } else {
+            fireEvent(new NewQueryEvent(dbName, tableName, query));
+        }
     }
 
     private void openNewQueryTab(String dbName, String tableName) {
@@ -349,10 +440,11 @@ public class DbExplorer extends VBox {
     }
 
     private void openNewQueryTab(String dbName, String tableName, String query) {
-        // This would be implemented in the main application to open a new query tab
-        // For now, we'll just execute the query if provided
-        if (query != null) {
-            executeQuery(query);
+        // Fire an event for the main window to handle query tab creation
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> fireEvent(new NewQueryEvent(dbName, tableName, query)));
+        } else {
+            fireEvent(new NewQueryEvent(dbName, tableName, query));
         }
     }
 

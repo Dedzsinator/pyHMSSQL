@@ -1,0 +1,48 @@
+/* SQL syntax highlighting styles */
+.keyword {
+    -fx-fill: #3366cc;
+    -fx-font-weight: bold;
+}
+
+.string {
+    -fx-fill: #008800;
+}
+
+.comment {
+    -fx-fill: #808080;
+    -fx-font-style: italic;
+}
+
+.number {
+    -fx-fill: #c04040;
+}
+
+.error {
+    -fx-fill: red;
+    -fx-font-weight: bold;
+    -fx-underline: true;
+}
+
+.paren {
+    -fx-fill: #804080;
+    -fx-font-weight: bold;
+}
+
+.bracket {
+    -fx-fill: #804080;
+    -fx-font-weight: bold;
+}
+
+.brace {
+    -fx-fill: #804080;
+    -fx-font-weight: bold;
+}
+
+.semicolon {
+    -fx-font-weight: bold;
+}
+
+.operator {
+    -fx-fill: #333333;
+    -fx-font-weight: bold;
+}

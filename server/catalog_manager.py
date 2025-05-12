@@ -205,8 +205,14 @@ class CatalogManager:
 
     def create_table(self, table_name, columns, constraints=None):
         """Create a table in the catalog."""
-        if constraints is None:
-            constraints = []
+        table_level_constraints = []
+        if constraints is not None:
+            if isinstance(constraints, list):
+                table_level_constraints.extend(constraints)
+                logging.info(f"Added {len(constraints)} constraints to table {table_name}")
+            else:
+                table_level_constraints.append(str(constraints))
+                logging.info(f"Added 1 constraint to table {table_name}")
 
         db_name = self.get_current_database()
         if not db_name:
@@ -214,81 +220,112 @@ class CatalogManager:
 
         table_id = f"{db_name}.{table_name}"
 
-        # Check if table already exists
         if table_id in self.tables:
             return f"Table {table_name} already exists."
 
-        # Process columns for IDENTITY
         processed_columns = {}
-        for col_def in columns:
-            if isinstance(col_def, dict):
-                col_name = col_def.get("name", "")
-                processed_columns[col_name] = col_def
+        
+        temp_columns_list_for_processing = []
+        
+        if isinstance(columns, list):
+            for item in columns:
+                if isinstance(item, str):
+                    item_stripped = item.strip()
+                    item_upper = item_stripped.upper()
+                    if item_upper.startswith("FOREIGN KEY") or \
+                       item_upper.startswith("PRIMARY KEY (") or \
+                       item_upper.startswith("UNIQUE (") or \
+                       item_upper.startswith("CONSTRAINT ") or \
+                       item_upper.startswith("CHECK ("):
+                        if item_stripped not in table_level_constraints:
+                            table_level_constraints.append(item_stripped)
+                    else:
+                        temp_columns_list_for_processing.append(item_stripped)
+                elif isinstance(item, dict):
+                    temp_columns_list_for_processing.append(item)
+                else:
+                    logging.warning(f"Unsupported item type in columns list for table '{table_name}': {item}")
+        else:
+            logging.error(f"Columns parameter for create_table ('{table_name}') was not a list: {columns}")
+            return f"Invalid columns format for table {table_name}."
 
-                # Check for IDENTITY attribute in column definition
-                if "identity" in col_def:
-                    logging.debug("Found IDENTITY column: %s", col_name)
+        for col_def_source in temp_columns_list_for_processing:
+            col_name = None
+            column_attributes = {}
+
+            if isinstance(col_def_source, dict):
+                col_name = col_def_source.get("name")
+                if not col_name:
+                    logging.warning(f"Column definition dictionary missing name in table '{table_name}': {col_def_source}")
+                    continue
+                column_attributes = {key: value for key, value in col_def_source.items() if key != "name"}
+
+            elif isinstance(col_def_source, str):
+                parts = col_def_source.split()
+                if not parts:
+                    logging.warning(f"Empty column definition string in table '{table_name}'.")
+                    continue
+                
+                col_name = parts[0]
+                column_attributes["type"] = parts[1] if len(parts) > 1 else "UNKNOWN"
+                
+                col_def_upper_str = col_def_source.upper()
+
+                if "NOT NULL" in col_def_upper_str:
+                    column_attributes["not_null"] = True
+                
+                if "PRIMARY KEY" in col_def_upper_str and "PRIMARY KEY (" not in col_def_upper_str:
+                    column_attributes["primary_key"] = True
+                
+                if "UNIQUE" in col_def_upper_str and "UNIQUE (" not in col_def_upper_str and not column_attributes.get("primary_key"):
+                    column_attributes["unique"] = True
+
+                if "IDENTITY" in col_def_upper_str:
+                    column_attributes["identity"] = True
+                    identity_match = re.search(r"IDENTITY\s*\((\d+),\s*(\d+)\)", col_def_source, re.IGNORECASE)
+                    if identity_match:
+                        column_attributes["identity_seed"] = int(identity_match.group(1))
+                        column_attributes["identity_increment"] = int(identity_match.group(2))
+                    else:
+                        column_attributes["identity_seed"] = 1
+                        column_attributes["identity_increment"] = 1
+                    if not column_attributes.get("primary_key"):
+                        is_other_pk = any("PRIMARY KEY" in constr.upper() for constr in table_level_constraints)
+                        if not is_other_pk:
+                            column_attributes["primary_key"] = True
+            
+            if col_name:
+                if col_name in processed_columns:
+                    logging.warning(f"Duplicate column name '{col_name}' in table '{table_name}'. Overwriting.")
+                processed_columns[col_name] = column_attributes
             else:
-                # For string format, parse it to look for IDENTITY
-                parts = str(col_def).split()
-                if len(parts) >= 2:
-                    col_name = parts[0]
-                    col_type = parts[1]
+                logging.warning(f"Could not determine column name from definition: {col_def_source} in table '{table_name}'")
 
-                    # Create column definition
-                    column_def = {"type": col_type}
-
-                    # Check for IDENTITY
-                    if "IDENTITY" in str(col_def).upper():
-                        column_def["identity"] = True
-
-                        # Extract seed and increment if specified
-                        identity_match = re.search(
-                            r"IDENTITY\s*\((\d+),\s*(\d+)\)",
-                            str(col_def),
-                            re.IGNORECASE,
-                        )
-                        if identity_match:
-                            column_def["identity_seed"] = int(
-                                identity_match.group(1))
-                            column_def["identity_increment"] = int(
-                                identity_match.group(2)
-                            )
-                        else:
-                            column_def["identity_seed"] = 1
-                            column_def["identity_increment"] = 1
-
-                        logging.debug("Parsed IDENTITY column: %s", col_name)
-
-                    # Check for PRIMARY KEY
-                    if "PRIMARY KEY" in str(col_def).upper():
-                        column_def["primary_key"] = True
-
-                    processed_columns[col_name] = column_def
-
-        # Create table metadata
         self.tables[table_id] = {
             "database": db_name,
             "name": table_name,
             "columns": processed_columns,
-            "constraints": constraints,
+            "constraints": table_level_constraints,
             "created_at": datetime.datetime.now().isoformat(),
         }
+        
+        # Log constraints properly
+        logging.info(f"Storing table with {len(table_level_constraints)} constraints: {table_level_constraints}")
 
-        # Add to database's tables list
         if table_name not in self.databases[db_name]["tables"]:
             self.databases[db_name]["tables"].append(table_name)
 
-        # Create a B+ tree for the table
-        table_file = os.path.join(
-            self.tables_dir, db_name, f"{table_name}.tbl")
-        tree = BPlusTree(order=50, name=table_name)
+        db_specific_tables_dir = os.path.join(self.tables_dir, db_name)
+        os.makedirs(db_specific_tables_dir, exist_ok=True)
+        table_file = os.path.join(db_specific_tables_dir, f"{table_name}.tbl")
+        
+        tree = BPlusTree(order=50, name=f"{db_name}_{table_name}") # Using a more unique name for the tree
         tree.save_to_file(table_file)
 
-        # Save changes
         self._save_json(self.tables_file, self.tables)
         self._save_json(self.databases_file, self.databases)
 
+        logging.info(f"Table '{table_name}' created in database '{db_name}' with columns: {list(processed_columns.keys())} and constraints: {table_level_constraints}")
         return True
 
     def get_preferences(self):
@@ -588,10 +625,30 @@ class CatalogManager:
         # Check if table exists
         if table_id not in self.tables:
             return f"Table {table_name} does not exist."
-
-        fk_violation = self._check_fk_constraints_for_insert(db_name, table_name, record)
-        if fk_violation:
-            return {"error": fk_violation, "status": "error"}
+        
+        # Check if record is a list and validate column count
+        if isinstance(record, list):
+            # Get table schema to extract column names
+            table_info = self.tables[table_id]
+            columns_data = table_info.get("columns", {})
+            column_names = []
+            
+            # Extract column names
+            if isinstance(columns_data, dict):
+                column_names = list(columns_data.keys())
+            elif isinstance(columns_data, list):
+                for col in columns_data:
+                    if isinstance(col, dict) and "name" in col:
+                        column_names.append(col["name"])
+                    elif isinstance(col, str):
+                        col_name = col.split()[0] if " " in col else col
+                        column_names.append(col_name)
+                        
+            # Validate count
+            if len(record) != len(column_names):
+                error_msg = f"Column count mismatch: provided {len(record)} values but table has {len(column_names)} columns"
+                logging.error(error_msg)
+                return {"error": error_msg, "status": "error"}
 
         # Check if record is already mapped and clean up flag if present
         already_mapped = record.pop("_already_mapped", False) if isinstance(record, dict) else False
@@ -756,8 +813,13 @@ class CatalogManager:
                 # Generate a unique ID if no primary key
                 record_id = int(datetime.datetime.now().timestamp() * 1000000)
 
-            logging.debug("Inserting record with ID %s: %s", record_id, record)
+            if isinstance(record, dict):  # Make sure we have a dictionary to check
+                fk_violation = self._check_fk_constraints_for_insert(db_name, table_name, record)
+                if fk_violation:
+                    logging.error(f"FK constraint violation during insert into {table_name}: {fk_violation}")
+                    return {"error": fk_violation, "status": "error"}
 
+            logging.debug("Inserting record with ID %s: %s", record_id, record)
             # Insert the record into the B+ tree
             tree.insert(record_id, record)
 
@@ -778,53 +840,140 @@ class CatalogManager:
             logging.error(traceback.format_exc())
             return f"Error inserting record: {str(e)}"
 
-    def _check_fk_constraints_for_insert(self, db_name, table_name, record):
-        """Check if an insert would violate any foreign key constraints."""
-        # Get table schema
-        table_id = f"{db_name}.{table_name}"
-        if table_id not in self.tables:
-            return f"Table {table_name} does not exist"
+    def _check_fk_constraints_for_delete(self, db_name, table_name, records_to_delete):
+        """Check if deleting records would violate any foreign key constraints."""
+        if not records_to_delete:
+            return None  # No records to delete, no constraint violations
 
-        table_schema = self.tables[table_id]
-        constraints = table_schema.get("constraints", [])
-
-        # Check for string-based constraints list
-        if isinstance(constraints, list):
-            for constraint in constraints:
-                if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
-                    fk_match = re.search(r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
-                                        constraint, re.IGNORECASE)
-
-                    if fk_match:
-                        fk_column = fk_match.group(1)
-                        ref_table = fk_match.group(2)
-                        ref_column = fk_match.group(3)
-
-                        # Skip if FK column isn't in the record being inserted
-                        if fk_column not in record:
-                            continue
-
-                        fk_value = record[fk_column]
-
-                        # Skip null value if the FK allows nulls
-                        if fk_value is None:
-                            continue
-
-                        # Check if referenced value exists in parent table
-                        referenced_records = self.query_with_condition(
-                            ref_table,
-                            [{
-                                "column": ref_column,
-                                "operator": "=",
-                                "value": fk_value
-                            }],
+        logging.info(f"Checking FK constraints for deleting from {table_name}")
+        
+        # Get all tables that might reference this one
+        all_tables = self.list_tables(db_name)
+        
+        # For each record we want to delete
+        for record in records_to_delete:
+            # Only check records with an 'id' field
+            if 'id' not in record:
+                continue
+                
+            record_id = record['id']
+            
+            # Check each other table for any column ending with _id that might reference our table
+            for other_table in all_tables:
+                if other_table == table_name:
+                    continue  # Skip the table we're deleting from
+                    
+                # Get a sample record to see the column names
+                sample_records = self.catalog_manager.query_with_condition(other_table, [], ["*"], limit=1)
+                if not sample_records:
+                    continue  # Empty table, nothing to check
+                    
+                sample_record = sample_records[0]
+                
+                # Check each column in the other table that might reference our table
+                for col_name in sample_record.keys():
+                    # Check if column looks like a FK to our table
+                    ref_table_base = table_name
+                    # Remove trailing 's' if present (departments -> department)
+                    if ref_table_base.endswith('s'):
+                        ref_table_base = ref_table_base[:-1]
+                        
+                    # Check if this column might reference our table
+                    if col_name.endswith('_id') and (col_name.startswith(ref_table_base) or 
+                    ref_table_base.startswith(col_name[:-3])):
+                    
+                        logging.info(f"Checking for references: {other_table}.{col_name} -> {table_name}.id = {record_id}")
+                        
+                        # Check if any records reference our ID
+                        referencing_records = self.catalog_manager.query_with_condition(
+                            other_table,
+                            [{"column": col_name, "operator": "=", "value": record_id}],
                             ["*"]
                         )
+                        
+                        if referencing_records:
+                            error_msg = f"Cannot delete from {table_name} where id = {record_id} because {len(referencing_records)} records in {other_table} reference it via {col_name}"
+                            logging.error(error_msg)
+                            return error_msg
+                            
+        return None  # No constraints violated
 
-                        if not referenced_records:
-                            return f"Foreign key constraint violation: {fk_column}={fk_value} does not exist in {ref_table}.{ref_column}"
+    def _check_fk_constraints_for_insert(self, db_name, table_name, record):
+        """Check if an insert would violate foreign key constraints."""
+        if not isinstance(record, dict):
+            return None
 
-        return None  # No violation
+        table_id = f"{db_name}.{table_name}"
+        if table_id not in self.tables:
+            return f"Table {table_name} does not exist."
+
+        table_info = self.tables[table_id]
+        constraints = table_info.get('constraints', [])
+        
+        for constraint in constraints:
+            # Parse out FOREIGN KEY constraints
+            if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
+                # Parse the FK definition using regex
+                pattern = r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)"
+                match = re.search(pattern, constraint, re.IGNORECASE)
+                
+                if match:
+                    fk_column = match.group(1)
+                    ref_table = match.group(2)
+                    ref_column = match.group(3)
+                    
+                    # Skip if the FK column isn't in our record or is NULL
+                    if fk_column not in record or record[fk_column] is None:
+                        continue
+                    
+                    fk_value = record[fk_column]
+                    
+                    # Check if the referenced value exists
+                    ref_records = self.query_with_condition(
+                        ref_table, 
+                        [{"column": ref_column, "operator": "=", "value": fk_value}], 
+                        [ref_column]
+                    )
+                    
+                    if not ref_records:
+                        return f"Foreign key constraint violation: Value {fk_value} in {table_name}.{fk_column} does not exist in {ref_table}.{ref_column}"
+        
+        # For heuristic FK checks (columns ending with _id)
+        for col_name, value in record.items():
+            if value is not None and col_name.endswith('_id') and col_name != 'id':
+                # Try to determine referenced table name
+                ref_table_base = col_name[:-3]  # Remove '_id' suffix
+                
+                # Try these patterns
+                possible_tables = [
+                    f"{ref_table_base}s",      # user_id -> users
+                    ref_table_base,            # dept_id -> dept
+                    f"{ref_table_base}es",     # box_id -> boxes
+                    f"{ref_table_base}ies" if ref_table_base.endswith('y') else None,
+                    f"{ref_table_base}ment",   # depart_id -> department
+                    f"{ref_table_base}ments"   # depart_id -> departments
+                ]
+                
+                # Filter out None values
+                possible_tables = [t for t in possible_tables if t]
+                
+                # Check each possible referenced table
+                for ref_table in possible_tables:
+                    if ref_table in self.list_tables(db_name):
+                        logging.info(f"Heuristic FK check: {table_name}.{col_name} -> {ref_table}.id = {value}")
+                        
+                        # Check if referenced value exists
+                        ref_records = self.query_with_condition(
+                            ref_table, 
+                            [{"column": "id", "operator": "=", "value": value}], 
+                            ["id"]
+                        )
+                        
+                        if not ref_records:
+                            return f"Foreign key constraint violation: Value {value} in {table_name}.{col_name} does not exist in {ref_table}.id"
+                        break
+        
+        return None  # No violations
 
     def _update_indexes_after_insert(self, db_name, table_name, record_id, record):
         """Update indexes after a record is inserted."""
@@ -916,7 +1065,7 @@ class CatalogManager:
 
         # Load the table file
         table_file = os.path.join(self.tables_dir, db_name, f"{
-                                  actual_table_name}.tbl")
+                                actual_table_name}.tbl")
         if not os.path.exists(table_file):
             return "Table data file not found."
 
@@ -1024,6 +1173,13 @@ class CatalogManager:
 
             if not records_to_delete:
                 return "0 records deleted."
+                
+            # CHECK FOREIGN KEY CONSTRAINTS BEFORE DELETE
+            fk_violation = self._check_fk_constraints_for_delete(db_name, actual_table_name, records_to_delete)
+            if fk_violation:
+                logging.error(f"FK constraint violation during delete from {table_name}: {fk_violation}")
+                # Return a dictionary with error information
+                return {"error": fk_violation, "status": "error"}
 
             # Create a new tree with only the records to keep
             new_tree = BPlusTree(order=50, name=actual_table_name)

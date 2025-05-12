@@ -716,8 +716,9 @@ class Planner:
         logging.debug("Planning CREATE TABLE query: %s", parsed_query)
         return {
             "type": "CREATE_TABLE",
-            "table": parsed_query["table"],
-            "columns": parsed_query["columns"],
+            "table": parsed_query.get("table"),
+            "columns": parsed_query.get("columns"),
+            "constraints": parsed_query.get("constraints", [])
         }
 
     def plan_create_view(self, parsed_query):

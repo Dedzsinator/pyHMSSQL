@@ -40,12 +40,31 @@ public class MainWindow extends BorderPane {
         // Edit menu
         Menu editMenu = new Menu("Edit");
         MenuItem copyItem = new MenuItem("Copy");
+        copyItem.setOnAction(e -> {
+            // Get the currently focused component
+            if (getScene() != null && getScene().getFocusOwner() instanceof TextInputControl) {
+                ((TextInputControl) getScene().getFocusOwner()).copy();
+            }
+        });
         MenuItem pasteItem = new MenuItem("Paste");
+        pasteItem.setOnAction(e -> {
+            // Get the currently focused component
+            if (getScene() != null && getScene().getFocusOwner() instanceof TextInputControl) {
+                ((TextInputControl) getScene().getFocusOwner()).paste();
+            }
+        });
         editMenu.getItems().addAll(copyItem, pasteItem);
 
         // Query menu
         Menu queryMenu = new Menu("Query");
         MenuItem executeItem = new MenuItem("Execute");
+        executeItem.setOnAction(e -> {
+            // Find active query editor and execute its query
+            QueryEditor activeEditor = getCurrentQueryEditor();
+            if (activeEditor != null) {
+                activeEditor.executeQuery();
+            }
+        });
         MenuItem newQueryItem = new MenuItem("New Query");
         newQueryItem.setOnAction(e -> openNewQueryTab());
         queryMenu.getItems().addAll(executeItem, newQueryItem);
@@ -62,23 +81,86 @@ public class MainWindow extends BorderPane {
         preferencesItem.setOnAction(e -> openPreferencesDialog());
         toolsMenu.getItems().addAll(queryBuilderItem, indexViewerItem, transactionItem, preferencesItem);
 
-        menuBar.getMenus().addAll(fileMenu, editMenu, queryMenu, toolsMenu);
+        // Database menu
+        Menu databaseMenu = new Menu("Database");
+        MenuItem refreshItem = new MenuItem("Refresh Databases");
+        refreshItem.setOnAction(e -> {
+            if (dbExplorer != null) {
+                dbExplorer.refreshDatabases();
+            }
+
+            // Also refresh any open query editors
+            for (Tab tab : tabPane.getTabs()) {
+                if (tab.getContent() instanceof SplitPane) {
+                    SplitPane splitPane = (SplitPane) tab.getContent();
+                    for (javafx.scene.Node node : splitPane.getItems()) {
+                        if (node instanceof QueryEditor) {
+                            ((QueryEditor) node).refreshDatabases();
+                        }
+                    }
+                }
+            }
+        });
+        databaseMenu.getItems().add(refreshItem);
+
+        menuBar.getMenus().addAll(fileMenu, editMenu, queryMenu, toolsMenu, databaseMenu);
         setTop(menuBar);
+    }
+
+    // Helper to get the current active query editor
+    private QueryEditor getCurrentQueryEditor() {
+        Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+        if (selectedTab != null && selectedTab.getContent() instanceof SplitPane) {
+            SplitPane splitPane = (SplitPane) selectedTab.getContent();
+            for (javafx.scene.Node node : splitPane.getItems()) {
+                if (node instanceof QueryEditor) {
+                    return (QueryEditor) node;
+                }
+            }
+        }
+        return null;
     }
 
     private void initTabPane() {
         tabPane = new TabPane();
-        setCenter(tabPane);
+        // Add tab pane styles to ensure it's clearly defined on the right side
+        tabPane.setStyle("-fx-border-color: #cccccc; -fx-border-width: 0 0 0 1;");
+        // Make sure tab pane expands to fill available space
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
+        HBox.setHgrow(tabPane, Priority.ALWAYS);
     }
 
     private void initDbExplorer() {
         dbExplorer = new DbExplorer(connectionManager);
 
-        // Add to left side with splitter
+        // Add handler for Query Builder table events
+        dbExplorer.addEventHandler(DbExplorer.QueryBuilderTableEvent.getEventTypeQB(), event -> {
+            openTableInQueryBuilder(event.getDbName(), event.getTableName());
+        });
+
+        dbExplorer.addEventHandler(DbExplorer.NewQueryEvent.getEventTypeNQ(), event -> {
+            String title = event.getTableName() != null
+                    ? "Query - " + event.getTableName()
+                    : "New Query";
+
+            String query = event.getQuery() != null
+                    ? event.getQuery()
+                    : "";
+
+            openNewQueryTab(title, query);
+        });
+
+        // Create split pane with correct divider position
         SplitPane splitPane = new SplitPane();
         splitPane.getItems().add(dbExplorer);
         splitPane.getItems().add(tabPane);
-        splitPane.setDividerPositions(0.25);
+
+        // Set a more appropriate divider position to give more space to the tabPane
+        splitPane.setDividerPositions(0.2);
+
+        // Ensure the split pane fills the available space
+        VBox.setVgrow(splitPane, Priority.ALWAYS);
+        HBox.setHgrow(splitPane, Priority.ALWAYS);
 
         setCenter(splitPane);
     }
@@ -86,8 +168,12 @@ public class MainWindow extends BorderPane {
     private void showLoginPanel() {
         LoginPanel loginPanel = new LoginPanel(connectionManager);
         loginPanel.setOnLoginSuccess(() -> {
-            dbExplorer.refreshDatabases();
-            openNewQueryTab();
+            Platform.runLater(() -> {
+                if (dbExplorer != null) {
+                    dbExplorer.refreshDatabases();
+                }
+                openNewQueryTab();
+            });
         });
 
         Dialog<ButtonType> dialog = new Dialog<>();
@@ -104,16 +190,19 @@ public class MainWindow extends BorderPane {
         okButton.setText("Login");
         okButton.setDefaultButton(true);
 
-        dialog.setResultConverter(buttonType -> {
-            if (buttonType == ButtonType.OK) {
-                // Instead of just closing, trigger the login process
-                loginPanel.login();
-                return null;
-            } else if (buttonType == discoverButtonType) {
-                discoverServers();
-                return null;
-            }
-            return buttonType;
+        // Always make sure the dialog is initialized before handling button actions
+        Platform.runLater(() -> {
+            dialog.setResultConverter(buttonType -> {
+                if (buttonType == ButtonType.OK) {
+                    // Instead of just closing, trigger the login process
+                    loginPanel.login();
+                    return null;
+                } else if (buttonType == discoverButtonType) {
+                    discoverServers();
+                    return null;
+                }
+                return buttonType;
+            });
         });
 
         dialog.showAndWait();
@@ -196,18 +285,40 @@ public class MainWindow extends BorderPane {
 
             LoginPanel loginPanel = new LoginPanel(connectionManager);
             loginPanel.setOnLoginSuccess(() -> {
-                dbExplorer.refreshDatabases();
+                if (dbExplorer != null) {
+                    dbExplorer.refreshDatabases();
+                }
                 openNewQueryTab();
             });
             loginPanel.setServerInfo(server.getHost(), server.getPort());
 
             loginDialog.getDialogPane().setContent(loginPanel);
             loginDialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+            // Get the OK button and make it default
+            Button okButton = (Button) loginDialog.getDialogPane().lookupButton(ButtonType.OK);
+            okButton.setText("Login");
+            okButton.setDefaultButton(true);
+
+            // Set up the result converter
+            loginDialog.setResultConverter(buttonType -> {
+                if (buttonType == ButtonType.OK) {
+                    loginPanel.login();
+                }
+                return buttonType;
+            });
+
             loginDialog.showAndWait();
         });
     }
 
     private void openNewQueryTab(String title, String sql) {
+        // Ensure we're on the JavaFX thread
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> openNewQueryTab(title, sql));
+            return;
+        }
+
         Tab queryTab = new Tab(title);
         queryTab.setClosable(true);
 
@@ -218,22 +329,30 @@ public class MainWindow extends BorderPane {
         QueryEditor queryEditor = new QueryEditor(connectionManager);
         ResultPane resultPane = new ResultPane();
 
-        // Set the query text
-        queryEditor.setQuery(sql);
-
-        // Set the database if available
-        String selectedDb = dbExplorer.getSelectedDatabase();
-        if (selectedDb != null && !selectedDb.isEmpty()) {
-            queryEditor.setDatabase(selectedDb);
-        }
-
         // Connect editor to results pane
         queryEditor.setOnExecuteQuery(resultPane::displayResults);
 
-        splitPane.getItems().addAll(queryEditor, resultPane);
-        splitPane.setDividerPositions(0.5);
+        // Add components to the SplitPane
+        splitPane.getItems().add(queryEditor);
+        splitPane.getItems().add(resultPane);
+        splitPane.setDividerPositions(0.6);
 
         queryTab.setContent(splitPane);
+
+        // Now that everything is initialized, set the query text
+        if (sql != null && !sql.isEmpty()) {
+            // Small delay to ensure the CodeArea is fully initialized
+            Platform.runLater(() -> queryEditor.setQuery(sql));
+        }
+
+        // Set the database if available
+        if (dbExplorer != null) {
+            String selectedDb = dbExplorer.getSelectedDatabase();
+            if (selectedDb != null && !selectedDb.isEmpty()) {
+                queryEditor.setDatabase(selectedDb);
+            }
+        }
+
         tabPane.getTabs().add(queryTab);
         tabPane.getSelectionModel().select(queryTab);
     }
@@ -243,18 +362,31 @@ public class MainWindow extends BorderPane {
     }
 
     private void openQueryBuilder() {
+        // Create a new tab for the query builder
         Tab builderTab = new Tab("Query Builder");
         builderTab.setClosable(true);
 
-        VisualQueryBuilder visualBuilder = new VisualQueryBuilder(connectionManager,
-                sql -> {
-                    // Open the generated SQL in a new query tab
-                    openNewQueryTab("Query", sql);
-                });
+        // Create the query builder component
+        VisualQueryBuilder queryBuilder = new VisualQueryBuilder(connectionManager, sql -> {
+            // This consumer gets called when the user clicks "Apply to Editor"
+            // Create a new tab with the generated SQL
+            openNewQueryTab("Generated Query", sql);
+        });
 
-        builderTab.setContent(visualBuilder);
+        // Set the visual query builder as the tab content
+        builderTab.setContent(queryBuilder);
+
+        // Add the tab to the tab pane and select it
         tabPane.getTabs().add(builderTab);
         tabPane.getSelectionModel().select(builderTab);
+
+        // Set database if one is selected
+        if (dbExplorer != null) {
+            String selectedDb = dbExplorer.getSelectedDatabase();
+            if (selectedDb != null && !selectedDb.isEmpty()) {
+                queryBuilder.setCurrentDatabase(selectedDb);
+            }
+        }
     }
 
     private void openIndexViewer() {
@@ -281,6 +413,60 @@ public class MainWindow extends BorderPane {
 
     private void openPreferencesDialog() {
         UserPreferencesDialog dialog = new UserPreferencesDialog(connectionManager);
+        dialog.initOwner(getScene().getWindow());
         dialog.showAndWait();
+    }
+
+    /**
+     * Opens a table in the visual query builder
+     * 
+     * @param dbName    Database name
+     * @param tableName Table name
+     */
+    private void openTableInQueryBuilder(String dbName, String tableName) {
+        // Create a new tab for the query builder
+        Tab builderTab = new Tab("Query Builder - " + tableName);
+        builderTab.setClosable(true);
+
+        // Create the query builder component
+        VisualQueryBuilder queryBuilder = new VisualQueryBuilder(connectionManager, sql -> {
+            // Create a new tab with the generated SQL when Apply is clicked
+            openNewQueryTab("Generated Query", sql);
+        });
+
+        // Set the query builder as the tab content
+        builderTab.setContent(queryBuilder);
+
+        // Add the tab and select it
+        tabPane.getTabs().add(builderTab);
+        tabPane.getSelectionModel().select(builderTab);
+
+        // Set database and add table using the public methods
+        Platform.runLater(() -> {
+            try {
+                // Set the database first
+                queryBuilder.setCurrentDatabase(dbName);
+
+                // Wait a bit for the database to load, then add the table
+                new java.util.Timer().schedule(
+                        new java.util.TimerTask() {
+                            @Override
+                            public void run() {
+                                Platform.runLater(() -> {
+                                    try {
+                                        // Use the public method to add table
+                                        queryBuilder.addTable(tableName, 50, 50);
+                                    } catch (Exception ex) {
+                                        System.err.println("Error adding table to diagram: " + ex.getMessage());
+                                    }
+                                });
+                            }
+                        },
+                        500 // Short delay to ensure database is fully loaded
+                );
+            } catch (Exception ex) {
+                System.err.println("Error in query builder: " + ex.getMessage());
+            }
+        });
     }
 }

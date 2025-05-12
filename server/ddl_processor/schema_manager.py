@@ -261,6 +261,10 @@ class SchemaManager:
         """Execute CREATE TABLE operation."""
         table_name = plan.get("table")
         column_strings = plan.get("columns", [])
+        # Directly get constraints from the plan. This should contain table-level constraints like FOREIGN KEY.
+        table_level_constraints_from_plan = plan.get("constraints", [])
+
+        logging.info(f"SchemaManager: Received plan for CREATE TABLE {table_name}. Table-level constraints from plan: {table_level_constraints_from_plan}")
 
         if not table_name:
             return {
@@ -269,12 +273,10 @@ class SchemaManager:
                 "type": "error",
             }
 
-        # Get the current database
         db_name, error = get_current_database_or_error(self.catalog_manager)
         if error:
             return error
 
-        # Check if table already exists
         existing_tables = self.catalog_manager.list_tables(db_name)
         if table_name in existing_tables:
             return {
@@ -283,61 +285,47 @@ class SchemaManager:
                 "type": "error",
             }
 
-        # Parse column definitions
-        columns = []
-        constraints = []
+        parsed_column_definitions = []
+        # Initialize the list for catalog manager with table-level constraints from the plan
+        final_constraints_for_catalog = list(table_level_constraints_from_plan) # Make a copy
 
+        if table_level_constraints_from_plan:
+            logging.info(f"SchemaManager: Initialized final_constraints_for_catalog with: {final_constraints_for_catalog}")
+        else:
+            logging.info(f"SchemaManager: No table-level constraints provided in the plan for {table_name}.")
+
+        # Process column strings to define columns and extract any column-level constraints
         for col_str in column_strings:
-            if col_str.upper().startswith(
-                ("PRIMARY", "FOREIGN", "UNIQUE", "CHECK", "CONSTRAINT")
-            ):
-                constraints.append(col_str)
-                continue
+            # Basic parsing of column definition (name, type, attributes)
+            # This part needs to be robust to correctly parse column definitions
+            # e.g., "id INT PRIMARY KEY", "name VARCHAR(100) NOT NULL"
+            parts = col_str.split() # Simplistic split
+            col_name = parts[0]
+            col_type = parts[1] if len(parts) > 1 else "UNKNOWN"
+            
+            col_def = {"name": col_name, "type": col_type} # Store basic definition
 
-            # Extract column definition parts
-            parts = col_str.split()
-            if len(parts) >= 2:
-                col_name = parts[0]
-                col_type = parts[1]
+            # Extract attributes like PRIMARY KEY, NOT NULL, UNIQUE from col_str
+            # and add them to col_def
+            if "PRIMARY KEY" in col_str.upper():
+                col_def["primary_key"] = True
+                # Optionally, decide if column-level PK should also be added to final_constraints_for_catalog
+                # e.g., final_constraints_for_catalog.append(f"PRIMARY KEY ({col_name})")
+            if "NOT NULL" in col_str.upper():
+                col_def["not_null"] = True
+            if "UNIQUE" in col_str.upper() and not col_str.upper().startswith("UNIQUE"): # Column-level UNIQUE
+                 col_def["unique"] = True
+                # Optionally, final_constraints_for_catalog.append(f"UNIQUE ({col_name})")
 
-                # Create column definition
-                col_def = {"name": col_name, "type": col_type}
+            parsed_column_definitions.append(col_def)
 
-                # Check for additional column attributes
-                col_str_upper = col_str.upper()
+        # The `pending_fk_constraints` logic might be redundant if this is handled correctly.
+        # For now, we rely on `final_constraints_for_catalog` being correctly populated.
 
-                # Handle PRIMARY KEY
-                if "PRIMARY KEY" in col_str_upper:
-                    col_def["primary_key"] = True
-
-                # Handle NOT NULL
-                if "NOT NULL" in col_str_upper:
-                    col_def["nullable"] = False
-
-                # Handle IDENTITY(seed, increment)
-                if "IDENTITY" in col_str_upper:
-                    col_def["identity"] = True
-
-                    # Extract seed and increment values if specified
-                    identity_match = re.search(
-                        r"IDENTITY\s*\((\d+),\s*(\d+)\)", col_str, re.IGNORECASE
-                    )
-                    if identity_match:
-                        col_def["identity_seed"] = int(identity_match.group(1))
-                        col_def["identity_increment"] = int(
-                            identity_match.group(2))
-                    else:
-                        # Default seed=1, increment=1
-                        col_def["identity_seed"] = 1
-                        col_def["identity_increment"] = 1
-
-                # Add the column definition
-                columns.append(col_def)
-
-        # Create the table through catalog manager
         try:
-            result = self.catalog_manager.create_table(
-                table_name, columns, constraints)
+            # Pass the parsed column definitions and the consolidated list of constraints
+            result = self.catalog_manager.create_table(table_name, parsed_column_definitions, final_constraints_for_catalog)
+            
             if result is True:
                 return {
                     "message": f"Table '{table_name}' created in database '{db_name}'",
@@ -345,9 +333,10 @@ class SchemaManager:
                     "type": "create_table_result",
                 }
             else:
-                return {"error": result, "status": "error", "type": "error"}
+                return {"error": str(result), "status": "error", "type": "error"}
         except RuntimeError as e:
             logging.error("Error creating table: %s", str(e))
+            # ...existing code...
             return {
                 "error": f"Error creating table: {str(e)}",
                 "status": "error",

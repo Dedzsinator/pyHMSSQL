@@ -23,10 +23,12 @@ import java.util.function.Consumer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.List;
+import java.util.ArrayList;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import javafx.stage.FileChooser;
+import javafx.application.Platform;
 
 public class QueryEditor extends BorderPane {
     private CodeArea codeArea;
@@ -36,6 +38,10 @@ public class QueryEditor extends BorderPane {
     private ExecutorService executor;
     private ToolBar toolBar;
     private String currentDatabase;
+    private Label statusLabel; // Added status label
+    private ComboBox<String> databaseComboBox;
+    private ComboBox<String> historyComboBox;
+    private ArrayList<String> queryHistory = new ArrayList<>();
 
     // SQL keywords for syntax highlighting
     private static final String[] KEYWORDS = new String[] {
@@ -70,6 +76,10 @@ public class QueryEditor extends BorderPane {
         // Set up the UI
         setPadding(new Insets(0));
 
+        // Create status label first (to avoid null pointer)
+        statusLabel = new Label("Ready");
+        statusLabel.setPadding(new Insets(5, 10, 5, 10));
+
         // Create code area with syntax highlighting
         setupCodeArea();
 
@@ -77,25 +87,24 @@ public class QueryEditor extends BorderPane {
         setupToolbar();
 
         // Create results pane
-        setupResultPane();
+        resultPane = new ResultPane();
 
-        // Layout components
-        setTop(toolBar);
-
-        SplitPane splitPane = new SplitPane();
-        splitPane.setOrientation(Orientation.VERTICAL);
-        splitPane.getItems().addAll(
-                new VirtualizedScrollPane<>(codeArea),
-                resultPane);
-        splitPane.setDividerPositions(0.6);
-
-        setCenter(splitPane);
+        // Add status label at the bottom
+        HBox statusBar = new HBox();
+        statusBar.getChildren().add(statusLabel);
+        setBottom(statusBar);
     }
 
     private void setupCodeArea() {
         codeArea = new CodeArea();
+
+        // Set initial content before setting up line numbers and other features
+        codeArea.appendText("-- Write your SQL query here\n");
+
+        // Now set up line numbers factory
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
 
+        // Setup syntax highlighting with proper error handling
         codeArea.multiPlainChanges()
                 .successionEnds(Duration.ofMillis(500))
                 .retainLatestUntilLater(executor)
@@ -103,7 +112,14 @@ public class QueryEditor extends BorderPane {
                     return new javafx.concurrent.Task<StyleSpans<Collection<String>>>() {
                         @Override
                         protected StyleSpans<Collection<String>> call() throws Exception {
-                            return computeHighlighting(codeArea.getText());
+                            String text = codeArea.getText();
+                            if (text == null || text.isEmpty()) {
+                                // Return empty style spans for empty text
+                                return new StyleSpansBuilder<Collection<String>>()
+                                        .add(Collections.emptyList(), 0)
+                                        .create();
+                            }
+                            return computeHighlighting(text);
                         }
                     };
                 })
@@ -116,7 +132,16 @@ public class QueryEditor extends BorderPane {
                         return Optional.empty();
                     }
                 })
-                .subscribe(highlighting -> codeArea.setStyleSpans(0, highlighting));
+                .subscribe(highlighting -> {
+                    if (highlighting != null && codeArea.getLength() > 0) {
+                        try {
+                            codeArea.setStyleSpans(0, highlighting);
+                        } catch (IndexOutOfBoundsException e) {
+                            // Ignore index out of bounds - this can happen during rapid edits
+                            System.err.println("Ignored style spans error: " + e.getMessage());
+                        }
+                    }
+                });
 
         // Add keyboard shortcuts
         codeArea.addEventHandler(KeyEvent.KEY_PRESSED, event -> {
@@ -132,11 +157,32 @@ public class QueryEditor extends BorderPane {
             }
         });
 
-        // Initial text with a placeholder
-        codeArea.replaceText(0, 0, "-- Write your SQL query here\n");
-
         // Add syntax highlighting styles
-        codeArea.getStylesheets().add(getClass().getResource("/css/sql-highlighting.css").toExternalForm());
+        try {
+            java.net.URL cssResource = getClass().getResource("/css/sql-highlighting.css");
+            if (cssResource != null) {
+                codeArea.getStylesheets().add(cssResource.toExternalForm());
+            } else {
+                // Apply default styles directly if the CSS file is not found
+                addDefaultStyles();
+            }
+        } catch (Exception e) {
+            System.err.println("Could not load SQL highlighting CSS: " + e.getMessage());
+            addDefaultStyles();
+        }
+    }
+
+    /**
+     * Adds default syntax highlighting styles when the CSS file isn't found
+     */
+    private void addDefaultStyles() {
+        // Create an inline style to use as fallback
+        String defaultCss = ".keyword { -fx-fill: blue; -fx-font-weight: bold; } " +
+                ".string { -fx-fill: green; } " +
+                ".comment { -fx-fill: gray; -fx-font-style: italic; } " +
+                ".number { -fx-fill: #a04040; } ";
+
+        codeArea.setStyle(defaultCss);
     }
 
     private void setupToolbar() {
@@ -158,16 +204,22 @@ public class QueryEditor extends BorderPane {
         saveButton.setTooltip(new Tooltip("Save the query to a file (Ctrl+S)"));
 
         // Database selector
-        ComboBox<String> databaseComboBox = new ComboBox<>();
+        databaseComboBox = new ComboBox<>();
         databaseComboBox.setPromptText("Select Database");
         databaseComboBox.setPrefWidth(150);
         databaseComboBox.setOnAction(e -> {
             currentDatabase = databaseComboBox.getValue();
-            connectionManager.setCurrentDatabase(currentDatabase);
+            if (currentDatabase != null && !currentDatabase.isEmpty()) {
+                connectionManager.setCurrentDatabase(currentDatabase);
+                statusLabel.setText("Database changed to: " + currentDatabase);
+            }
         });
 
+        // Load databases immediately
+        loadDatabases();
+
         // History dropdown
-        ComboBox<String> historyComboBox = new ComboBox<>();
+        historyComboBox = new ComboBox<>();
         historyComboBox.setPromptText("Query History");
         historyComboBox.setPrefWidth(200);
         historyComboBox.setOnAction(e -> {
@@ -195,15 +247,18 @@ public class QueryEditor extends BorderPane {
                 new Separator(),
                 newQueryButton);
 
-        // Load databases into combo box
-        loadDatabases(databaseComboBox);
+        // Layout components
+        setTop(toolBar);
+
+        // Use the standalone QueryEditor (don't add VirtualizedScrollPane in the
+        // constructor)
+        setCenter(new VirtualizedScrollPane<>(codeArea));
     }
 
-    private void setupResultPane() {
-        resultPane = new ResultPane();
-    }
+    private void loadDatabases() {
+        // Set status message
+        statusLabel.setText("Loading databases...");
 
-    private void loadDatabases(ComboBox<String> databaseComboBox) {
         connectionManager.getDatabases()
                 .thenAccept(result -> {
                     if (result.containsKey("databases")) {
@@ -217,10 +272,19 @@ public class QueryEditor extends BorderPane {
                             if (currentDatabase != null && databases.contains(currentDatabase)) {
                                 databaseComboBox.setValue(currentDatabase);
                             }
+
+                            statusLabel.setText("Databases loaded successfully");
+                        });
+                    } else {
+                        Platform.runLater(() -> {
+                            statusLabel.setText("Failed to load databases");
                         });
                     }
                 })
                 .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        statusLabel.setText("Error: " + ex.getMessage());
+                    });
                     ex.printStackTrace();
                     return null;
                 });
@@ -257,13 +321,51 @@ public class QueryEditor extends BorderPane {
             return;
         }
 
+        // Update status
+        statusLabel.setText("Executing query...");
+
+        // Check if current database is selected
+        if (currentDatabase == null || currentDatabase.isEmpty()) {
+            if (databaseComboBox.getItems().size() > 0) {
+                currentDatabase = databaseComboBox.getItems().get(0);
+                databaseComboBox.setValue(currentDatabase);
+                connectionManager.setCurrentDatabase(currentDatabase);
+                statusLabel.setText("Selected default database: " + currentDatabase);
+            } else {
+                showAlert(Alert.AlertType.WARNING, "Warning",
+                        "No Database Selected", "Please select a database before executing queries.");
+                statusLabel.setText("Error: No database selected");
+                return;
+            }
+        }
+
         // Show a loading indicator
-        resultPane.showLoading();
+        if (resultPane != null) {
+            resultPane.showLoading();
+        } else {
+            // Create the result pane if it doesn't exist
+            resultPane = new ResultPane();
+            resultPane.showLoading();
+        }
+
+        // Add query to history
+        addToQueryHistory(query);
 
         connectionManager.executeQuery(query)
                 .thenAccept(result -> {
                     javafx.application.Platform.runLater(() -> {
-                        resultPane.displayResults(result);
+                        if (resultPane != null) {
+                            resultPane.displayResults(result);
+                        }
+
+                        // Update status with result message
+                        if (result.containsKey("error")) {
+                            statusLabel.setText("Error: " + result.get("error"));
+                        } else if (result.containsKey("message")) {
+                            statusLabel.setText(result.get("message").toString());
+                        } else {
+                            statusLabel.setText("Query executed successfully");
+                        }
 
                         // If we have a callback, invoke it
                         if (onExecuteQuery != null) {
@@ -273,18 +375,83 @@ public class QueryEditor extends BorderPane {
                 })
                 .exceptionally(ex -> {
                     javafx.application.Platform.runLater(() -> {
-                        resultPane.showError("Error executing query: " + ex.getMessage());
+                        if (resultPane != null) {
+                            resultPane.showError("Error executing query: " + ex.getMessage());
+                        }
+                        statusLabel.setText("Error: " + ex.getMessage());
                     });
                     ex.printStackTrace();
                     return null;
                 });
     }
 
+    private void addToQueryHistory(String query) {
+        // Limit history size and avoid duplicates
+        if (!queryHistory.contains(query)) {
+            queryHistory.add(0, query); // Add to beginning
+
+            // Limit history size to 20 entries
+            if (queryHistory.size() > 20) {
+                queryHistory.remove(queryHistory.size() - 1);
+            }
+
+            // Update history dropdown
+            Platform.runLater(() -> {
+                historyComboBox.getItems().clear();
+                for (String historyItem : queryHistory) {
+                    // Truncate long queries for display
+                    String displayText = historyItem.length() > 50
+                            ? historyItem.substring(0, 47) + "..."
+                            : historyItem;
+                    historyComboBox.getItems().add(displayText);
+                }
+            });
+        }
+    }
+
     private void formatQuery() {
-        // In a real implementation, this would call a SQL formatter library
-        // For now, we'll just show a placeholder message
-        showAlert(Alert.AlertType.INFORMATION, "Format SQL",
-                "SQL formatting", "SQL formatting will be implemented in a future version.");
+        // Get the current query
+        String query = codeArea.getText();
+        if (query.trim().isEmpty()) {
+            statusLabel.setText("No query to format");
+            return;
+        }
+
+        statusLabel.setText("Formatting query...");
+
+        // Simple SQL formatting logic
+        try {
+            StringBuilder formatted = new StringBuilder();
+            String[] lines = query.split("\n");
+
+            // Process each line
+            for (String line : lines) {
+                // Skip empty lines and comments
+                if (line.trim().isEmpty() || line.trim().startsWith("--")) {
+                    formatted.append(line).append("\n");
+                    continue;
+                }
+
+                // Process keywords
+                String formattedLine = line;
+                for (String keyword : KEYWORDS) {
+                    String pattern = "(?i)\\b" + keyword + "\\b";
+                    formattedLine = formattedLine.replaceAll(pattern, keyword.toUpperCase());
+                }
+
+                formatted.append(formattedLine).append("\n");
+            }
+
+            // Update the code area with formatted SQL
+            final String formattedQuery = formatted.toString();
+            Platform.runLater(() -> {
+                codeArea.replaceText(formattedQuery);
+                statusLabel.setText("Query formatted successfully");
+            });
+        } catch (Exception e) {
+            statusLabel.setText("Error formatting query: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void saveQuery() {
@@ -294,13 +461,19 @@ public class QueryEditor extends BorderPane {
         fileChooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("SQL Files", "*.sql"));
 
+        // Get the window to show the dialog
+        if (getScene() == null) {
+            statusLabel.setText("Error: Cannot save - window not available");
+            return;
+        }
+
         File file = fileChooser.showSaveDialog(getScene().getWindow());
         if (file != null) {
             try {
                 Files.write(file.toPath(), codeArea.getText().getBytes());
-                showAlert(Alert.AlertType.INFORMATION, "Save SQL",
-                        "Query saved", "Query successfully saved to " + file.getPath());
+                statusLabel.setText("Query saved to " + file.getPath());
             } catch (IOException e) {
+                statusLabel.setText("Error saving file: " + e.getMessage());
                 showAlert(Alert.AlertType.ERROR, "Error",
                         "Save failed", "Failed to save query: " + e.getMessage());
                 e.printStackTrace();
@@ -317,8 +490,32 @@ public class QueryEditor extends BorderPane {
     }
 
     public void setQuery(String query) {
-        if (query != null) {
-            codeArea.replaceText(query);
+        if (query == null) {
+            return;
+        }
+
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> setQuery(query));
+            return;
+        }
+
+        try {
+            // Replace text safely within bounds
+            codeArea.clear();
+            codeArea.appendText(query);
+        } catch (Exception e) {
+            System.err.println("Error setting query text: " + e.getMessage());
+            e.printStackTrace();
+
+            // Fallback approach
+            Platform.runLater(() -> {
+                try {
+                    codeArea.clear();
+                    codeArea.appendText(query);
+                } catch (Exception ex) {
+                    System.err.println("Fallback for setting query text failed: " + ex.getMessage());
+                }
+            });
         }
     }
 
@@ -329,6 +526,17 @@ public class QueryEditor extends BorderPane {
     public void setDatabase(String database) {
         this.currentDatabase = database;
         connectionManager.setCurrentDatabase(database);
+
+        // Update the combo box
+        if (databaseComboBox != null && database != null) {
+            Platform.runLater(() -> {
+                if (!databaseComboBox.getItems().contains(database)) {
+                    databaseComboBox.getItems().add(database);
+                }
+                databaseComboBox.setValue(database);
+                statusLabel.setText("Database set to: " + database);
+            });
+        }
     }
 
     public String getDatabase() {
@@ -346,5 +554,12 @@ public class QueryEditor extends BorderPane {
      */
     public CodeArea getCodeArea() {
         return codeArea;
+    }
+
+    /**
+     * Refresh the database list
+     */
+    public void refreshDatabases() {
+        loadDatabases();
     }
 }

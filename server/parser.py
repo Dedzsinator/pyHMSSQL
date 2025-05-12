@@ -627,24 +627,45 @@ class SQLParser:
         elif create_type == "TABLE":
             # Extract table name
             match = re.search(r"CREATE\s+TABLE\s+(\w+)",
-                              raw_sql, re.IGNORECASE)
+                            raw_sql, re.IGNORECASE)
             if match:
                 table_name = match.group(1)
 
             # Extract column definitions
             if "(" in raw_sql and ")" in raw_sql:
-                col_text = raw_sql.split("(", 1)[1].rsplit(")", 1)[0]
-                col_defs = [c.strip() for c in col_text.split(",")]
-                for col_def in col_defs:
-                    if col_def:
-                        if re.match(
-                            r"^\s*(PRIMARY|FOREIGN|UNIQUE|CHECK|CONSTRAINT)",
-                            col_def,
-                            re.IGNORECASE,
-                        ):
-                            constraints.append(col_def)
-                        else:
-                            columns.append(col_def)
+                # Extract content between first ( and last )
+                columns_str = raw_sql.split("(", 1)[1].rsplit(")", 1)[0].strip()
+                
+                # Split by commas, but respect nested parentheses
+                depth = 0
+                current = ""
+                in_string = False  # Initialize in_string variable here
+                
+                for char in columns_str + ",":  # Add trailing comma to process the last item
+                    if char == "'" or char == '"':  # Toggle in_string when encountering quotes
+                        in_string = not in_string
+                        current += char
+                    elif char == "(" and not in_string:
+                        depth += 1
+                        current += char
+                    elif char == ")" and not in_string:
+                        depth -= 1
+                        current += char
+                    elif char == "," and depth == 0 and not in_string:
+                        item = current.strip()
+                        if item:
+                            # Check if this is a column definition or constraint
+                            item_upper = item.upper()
+                            if item_upper.startswith("FOREIGN KEY") or item_upper.startswith("PRIMARY KEY") or \
+                            item_upper.startswith("UNIQUE") or item_upper.startswith("CHECK"):
+                                constraints.append(item)  # This is a constraint
+                            else:
+                                columns.append(item)  # This is a column definition
+                        current = ""
+                    else:
+                        current += char
+                
+                logging.info(f"Extracted columns: {columns}, constraints: {constraints}")
 
             # Update result type
             result["type"] = "CREATE_TABLE"
