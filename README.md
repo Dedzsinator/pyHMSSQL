@@ -223,6 +223,8 @@ query DROP DATABASE test_db ✅
 -- Create database for testing
 query CREATE DATABASE test_db ✅
 
+query SCRIPT /path/to/my_schema.sql
+
 ---
 
 query DROP INDEX name ON customers ✅
@@ -381,7 +383,7 @@ query DELETE FROM departments WHERE id = 1 ✅
 query UPDATE departments SET id = 10 WHERE id = 1 ✅
 
 -- Test 3: Try to insert an employee with a non-existent department (should fail)
-query INSERT INTO employees (id, name, dept_id) VALUES (7, 'Dave', 4)
+query INSERT INTO employees (id, name, dept_id) VALUES (7, 'Dave', 4) ✅
 
 ---
 -- JOIN SPECIFIC TESTS

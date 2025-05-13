@@ -477,6 +477,107 @@ class DBMSClient(cmd.Cmd):
                         print(f"{key}: {value}")
             else:
                 print(result)
+            
+    def do_query(self, sql_query):
+        """
+        Execute an SQL query or run a script file.
+        Usage: query <SQL statement>
+            query SCRIPT <filepath>
+        Example: query SELECT * FROM users
+                query SCRIPT my_queries.sql
+        """
+        if not sql_query:
+            print("Error: SQL query cannot be empty.")
+            return
+
+        if not self.session_id:
+            print("Error: You are not logged in. Please login first.")
+            return
+            
+        # Check if this is a SCRIPT command
+        if sql_query.upper().startswith("SCRIPT "):
+            # Extract the filepath
+            filepath = sql_query[7:].strip()
+            
+            # Clean up filepath - remove quotes if present
+            if filepath.startswith('"') and filepath.endswith('"'):
+                filepath = filepath[1:-1]
+            elif filepath.startswith("'") and filepath.endswith("'"):
+                filepath = filepath[1:-1]
+            
+            # Expand relative paths
+            if not os.path.isabs(filepath):
+                filepath = os.path.abspath(os.path.join(os.getcwd(), filepath))
+            
+            try:
+                if not os.path.exists(filepath):
+                    print(f"Error: File not found: {filepath}")
+                    return
+                
+                print(f"Executing script from {filepath}...")
+                
+                with open(filepath, 'r') as file:
+                    lines = file.readlines()
+                
+                total_commands = 0
+                successful_commands = 0
+                failed_commands = 0
+                
+                for i, line in enumerate(lines, 1):
+                    # Skip empty lines and comments
+                    line = line.strip()
+                    if not line or line.startswith('--') or line.startswith('#'):
+                        continue
+                    
+                    total_commands += 1
+                    print(f"\nExecuting command {total_commands}: {line}")
+                    
+                    # Execute the query
+                    request = {
+                        "action": "query",
+                        "session_id": self.session_id, 
+                        "query": line
+                    }
+                    
+                    response = self.send_request(request)
+                    
+                    # Display result
+                    if isinstance(response, dict):
+                        if response.get("status") == "error":
+                            print(f"Error: {response.get('error', 'Unknown error')}")
+                            failed_commands += 1
+                        else:
+                            self.display_result(response)
+                            successful_commands += 1
+                    else:
+                        print(response)
+                        if "error" in str(response).lower():
+                            failed_commands += 1
+                        else:
+                            successful_commands += 1
+                
+                print(f"\nScript execution complete.")
+                print(f"Total commands executed: {total_commands}")
+                print(f"Successful: {successful_commands}")
+                print(f"Failed: {failed_commands}")
+                
+            except Exception as e:
+                print(f"Error executing script: {str(e)}")
+            
+        else:
+            # Regular query execution
+            # Prepare request
+            request = {"action": "query", 
+                    "session_id": self.session_id, "query": sql_query}
+
+            # Send request to server
+            response = self.send_request(request)
+
+            # Handle response
+            if isinstance(response, dict):
+                self.display_result(response)
+            else:
+                print(response)
 
     def display_tables_tree(self, result):
         """Display tables in a tree structure organized by database"""
