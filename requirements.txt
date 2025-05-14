@@ -2,3 +2,4 @@ sqlparse
 graphviz
 networkx
 matplotlib
+cython

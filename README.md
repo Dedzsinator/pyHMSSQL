@@ -223,7 +223,7 @@ query DROP DATABASE test_db ✅
 -- Create database for testing
 query CREATE DATABASE test_db ✅
 
-query SCRIPT /path/to/my_schema.sql
+query SCRIPT a.sql ✅ (no need for `query` keyword in the script file)
 
 ---
 

@@ -1,0 +1,87 @@
+"""
+Adapter module to provide API compatibility between original BPlusTree
+and optimized BPlusTreeOptimized implementations.
+"""
+import logging
+import os
+from typing import Any, Optional, Tuple, List, Union
+
+# Import both implementations
+from bptree import BPlusTree as OriginalBPlusTree
+from bptree_optimized import BPlusTreeOptimized
+
+# Setup logging
+logger = logging.getLogger("bptree_adapter")
+
+class BPlusTreeFactory:
+    """Factory for creating B+ trees with automatic selection of implementation"""
+    
+    @staticmethod
+    def create(
+        order: int = 50, 
+        name: Optional[str] = None, 
+        use_optimized: bool = True
+    ) -> Union[BPlusTreeOptimized, OriginalBPlusTree]:
+        """
+        Create a new B+ tree with the specified implementation
+        
+        Args:
+            order: The order of the B+ tree
+            name: Optional name for the tree
+            use_optimized: Whether to use the optimized implementation
+            
+        Returns:
+            A B+ tree instance
+        """
+        if use_optimized:
+            logger.info(f"Creating optimized B+ tree with order {order}")
+            return BPlusTreeOptimized(order=order, name=name)
+        else:
+            logger.info(f"Creating original B+ tree with order {order}")
+            return OriginalBPlusTree(order=order, name=name)
+    
+    @staticmethod
+    def load_from_file(
+        file_path: str, 
+        prefer_optimized: bool = True
+    ) -> Union[BPlusTreeOptimized, OriginalBPlusTree]:
+        """
+        Load a B+ tree from a file, attempting to use the specified implementation
+        
+        Args:
+            file_path: Path to the serialized B+ tree file
+            prefer_optimized: Whether to prefer the optimized implementation
+            
+        Returns:
+            A loaded B+ tree instance or None if unsuccessful
+        """
+        if not os.path.exists(file_path):
+            logger.error(f"File not found: {file_path}")
+            return None
+        
+        # Try the preferred implementation first
+        if prefer_optimized:
+            try:
+                tree = BPlusTreeOptimized.load_from_file(file_path)
+                if tree is not None:
+                    return tree
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load with optimized implementation: {str(e)}. "
+                    "Falling back to original implementation."
+                )
+            
+            # Fall back to original implementation
+            return OriginalBPlusTree.load_from_file(file_path)
+        else:
+            # Try original implementation first
+            tree = OriginalBPlusTree.load_from_file(file_path)
+            if tree is not None:
+                return tree
+            
+            # Fall back to optimized implementation
+            try:
+                return BPlusTreeOptimized.load_from_file(file_path)
+            except Exception as e:
+                logger.error(f"Failed to load B+ tree: {str(e)}")
+                return None

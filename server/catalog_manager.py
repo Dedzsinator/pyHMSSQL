@@ -6,8 +6,7 @@ import shutil
 import logging
 from hashlib import sha256
 import datetime
-from bptree import BPlusTree
-
+from bptree_wrapper import BPlusTreeFactory
 
 class CatalogManager:
     """_summary_
@@ -319,7 +318,8 @@ class CatalogManager:
         os.makedirs(db_specific_tables_dir, exist_ok=True)
         table_file = os.path.join(db_specific_tables_dir, f"{table_name}.tbl")
         
-        tree = BPlusTree(order=50, name=f"{db_name}_{table_name}") # Using a more unique name for the tree
+        # Create a new tree using the factory (will use optimized by default)
+        tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
         tree.save_to_file(table_file)
 
         self._save_json(self.tables_file, self.tables)
@@ -448,7 +448,7 @@ class CatalogManager:
             if os.path.exists(index_file):
                 try:
                     logging.info("Loading index file: %s", index_file)
-                    index_tree = BPlusTree.load_from_file(index_file)
+                    index_tree = BPlusTreeFactory.load_from_file(index_file)
                     record_key = index_tree.search(condition_value)
                     if record_key:
                         logging.info("Found record key %s using index %s", record_key, index_to_use)
@@ -472,7 +472,7 @@ class CatalogManager:
         try:
             # Load B+ tree
             logging.debug("Performing full table scan on: %s", table_file)
-            tree = BPlusTree.load_from_file(table_file)
+            tree = BPlusTreeFactory.load_from_file(table_file)
 
             if tree is None:
                 logging.error("Failed to load B+ tree for %s", table_file)
@@ -755,12 +755,12 @@ class CatalogManager:
         try:
             # Load or create B+ tree
             if os.path.exists(table_file):
-                tree = BPlusTree.load_from_file(table_file)
+                tree = BPlusTreeFactory.load_from_file(table_file)
                 if tree is None:
                     # If loading failed, create a new tree
-                    tree = BPlusTree(order=50, name=table_name)
+                    tree = BPlusTreeFactory(order=50, name=table_name)
             else:
-                tree = BPlusTree(order=50, name=table_name)
+                tree = BPlusTreeFactory(order=50, name=table_name)
 
             # Get all existing records to check constraints and get max identity value
             all_records = tree.range_query(float("-inf"), float("inf"))
@@ -997,17 +997,17 @@ class CatalogManager:
             # Load or create the index
             if os.path.exists(index_path):
                 try:
-                    index_tree = BPlusTree.load_from_file(index_path)
+                    index_tree = BPlusTreeFactory.load_from_file(index_path)
                     if index_tree is None:
-                        index_tree = BPlusTree(
+                        index_tree = BPlusTreeFactory.create(
                             order=50, name=f"{table_name}_{column}_index"
                         )
                 except RuntimeError:
-                    index_tree = BPlusTree(
+                    index_tree = BPlusTreeFactory.create(
                         order=50, name=f"{table_name}_{column}_index"
                     )
             else:
-                index_tree = BPlusTree(
+                index_tree = BPlusTreeFactory.create(
                     order=50, name=f"{table_name}_{column}_index")
 
             # Add the record to the index
@@ -1071,7 +1071,7 @@ class CatalogManager:
 
         try:
             # Load the B+ tree
-            tree = BPlusTree.load_from_file(table_file)
+            tree = BPlusTreeFactory.load_from_file(table_file)
             if tree is None:
                 return f"Could not load table data for {actual_table_name}."
 
@@ -1182,7 +1182,7 @@ class CatalogManager:
                 return {"error": fk_violation, "status": "error"}
 
             # Create a new tree with only the records to keep
-            new_tree = BPlusTree(order=50, name=actual_table_name)
+            new_tree = BPlusTreeFactory.create(order=50, name=actual_table_name)
 
             # Add records to keep to the new tree
             for key, record in records_to_keep:
@@ -1223,7 +1223,7 @@ class CatalogManager:
 
         try:
             # Load the B+ tree
-            tree = BPlusTree.load_from_file(table_file)
+            tree = BPlusTreeFactory.load_from_file(table_file)
             if tree is None:
                 return False
 
@@ -1312,12 +1312,12 @@ class CatalogManager:
         try:
             # Load table data
             if os.path.exists(table_file):
-                table_tree = BPlusTree.load_from_file(table_file)
+                table_tree = BPlusTreeFactory.load_from_file(table_file)
                 all_records = table_tree.range_query(
                     float("-inf"), float("inf"))
 
                 # Create index tree
-                index_tree = BPlusTree(
+                index_tree = BPlusTreeFactory.create(
                     order=50, name=f"{table_name}_{column_name}_index"
                 )
 
@@ -1494,7 +1494,7 @@ class CatalogManager:
 
         try:
             # Load the B+ tree
-            tree = BPlusTree.load_from_file(table_file)
+            tree = BPlusTreeFactory.load_from_file(table_file)
             if tree is None:
                 return None
 
@@ -1612,7 +1612,7 @@ class CatalogManager:
 
         try:
             # Load the B+ tree
-            tree = BPlusTree.load_from_file(table_file)
+            tree = BPlusTreeFactory.load_from_file(table_file)
             if tree is None:
                 logging.error("Failed to load B+ tree for %s", table_file)
                 return []
@@ -1691,7 +1691,7 @@ class CatalogManager:
 
         try:
             # Load the B+ tree
-            tree = BPlusTree.load_from_file(table_file)
+            tree = BPlusTreeFactory.load_from_file(table_file)
             if tree is None:
                 return 0
 
