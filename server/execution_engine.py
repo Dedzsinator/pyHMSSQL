@@ -443,7 +443,6 @@ class ExecutionEngine:
         if plan_type in ["UNION", "INTERSECT", "EXCEPT"]:
             return self.execute_set_operation(plan)
 
-        # Handle transaction control operations first
         if plan_type == "BEGIN_TRANSACTION":
             return self.transaction_manager.execute_transaction_operation("BEGIN_TRANSACTION")
         elif plan_type == "COMMIT":

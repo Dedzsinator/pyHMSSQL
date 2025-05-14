@@ -242,6 +242,12 @@ class Planner:
                 plan = self.plan_use_database(parsed_query)
             elif parsed_query["type"] == "VISUALIZE":
                 return self.plan_visualize(parsed_query)
+            elif parsed_query["type"] == "BEGIN_TRANSACTION":
+                return self.plan_transaction_operation(parsed_query)
+            elif parsed_query["type"] == "COMMIT":
+                return self.plan_transaction_operation(parsed_query)
+            elif parsed_query["type"] == "ROLLBACK":
+                return self.plan_transaction_operation(parsed_query)
             else:
                 return {"error": f"Unsupported query type: {parsed_query['type']}"}
         except ValueError as e:
@@ -268,6 +274,18 @@ class Planner:
             plan["error"] = f"Unknown visualization object: {object_type}"
 
         return plan
+    
+    def plan_transaction_operation(self, parsed_query):
+        """
+        Plan for transaction control operations (BEGIN, COMMIT, ROLLBACK).
+        """
+        logging.debug("Planning transaction operation: %s", parsed_query)
+        
+        # Simply pass through the transaction type
+        return {
+            "type": parsed_query["type"],
+            "transaction_id": parsed_query.get("transaction_id")
+        }
 
     def plan_use_database(self, parsed_query):
         """

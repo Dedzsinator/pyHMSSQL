@@ -377,7 +377,7 @@ class CatalogManager:
 
         return result
 
-    def query_with_condition(self, table_name, conditions=None, columns=None):
+    def query_with_condition(self, table_name, conditions=None, columns=None, limit=None):
         """Query table data with conditions."""
         if conditions is None:
             conditions = []
@@ -607,6 +607,9 @@ class CatalogManager:
 
                 logging.info("Found %s matching records after filtering", len(results))
 
+            if limit is not None and isinstance(limit, int):
+                results = results[:limit]
+                
             return results
 
         except RuntimeError as e:
@@ -841,61 +844,125 @@ class CatalogManager:
             return f"Error inserting record: {str(e)}"
 
     def _check_fk_constraints_for_delete(self, db_name, table_name, records_to_delete):
-        """Check if deleting records would violate any foreign key constraints."""
+        """
+        Check if deleting records would violate any foreign key constraints.
+        """
         if not records_to_delete:
             return None  # No records to delete, no constraint violations
 
         logging.info(f"Checking FK constraints for deleting from {table_name}")
-        
-        # Get all tables that might reference this one
-        all_tables = self.list_tables(db_name)
-        
-        # For each record we want to delete
-        for record in records_to_delete:
-            # Only check records with an 'id' field
-            if 'id' not in record:
-                continue
-                
-            record_id = record['id']
-            
-            # Check each other table for any column ending with _id that might reference our table
-            for other_table in all_tables:
-                if other_table == table_name:
-                    continue  # Skip the table we're deleting from
-                    
-                # Get a sample record to see the column names
-                sample_records = self.catalog_manager.query_with_condition(other_table, [], ["*"], limit=1)
-                if not sample_records:
-                    continue  # Empty table, nothing to check
-                    
-                sample_record = sample_records[0]
-                
-                # Check each column in the other table that might reference our table
-                for col_name in sample_record.keys():
-                    # Check if column looks like a FK to our table
-                    ref_table_base = table_name
-                    # Remove trailing 's' if present (departments -> department)
-                    if ref_table_base.endswith('s'):
-                        ref_table_base = ref_table_base[:-1]
-                        
-                    # Check if this column might reference our table
-                    if col_name.endswith('_id') and (col_name.startswith(ref_table_base) or 
-                    ref_table_base.startswith(col_name[:-3])):
-                    
-                        logging.info(f"Checking for references: {other_table}.{col_name} -> {table_name}.id = {record_id}")
-                        
-                        # Check if any records reference our ID
-                        referencing_records = self.catalog_manager.query_with_condition(
-                            other_table,
-                            [{"column": col_name, "operator": "=", "value": record_id}],
-                            ["*"]
-                        )
-                        
-                        if referencing_records:
-                            error_msg = f"Cannot delete from {table_name} where id = {record_id} because {len(referencing_records)} records in {other_table} reference it via {col_name}"
-                            logging.error(error_msg)
-                            return error_msg
-                            
+
+        # Get all tables in the database
+        tables = self.list_tables(db_name)
+
+        # Direct check for each table that could reference this one
+        for other_table in tables:
+            if other_table == table_name:
+                continue  # Skip the table we're deleting from
+
+            # First, retrieve actual data structure of the tables to inspect
+            other_schema = self.get_table_schema(other_table)
+            logging.info(f"Checking constraints in {other_table} schema: {other_schema}")
+
+            # Detect all possible foreign key constraints (more comprehensive)
+            fk_relationships = []
+
+            # Check if it's a dictionary with a columns key
+            if isinstance(other_schema, dict) and "columns" in other_schema:
+                for col in other_schema["columns"]:
+                    if isinstance(col, dict) and "constraints" in col:
+                        for constraint in col["constraints"]:
+                            if isinstance(constraint, str) and "REFERENCES" in constraint.upper():
+                                fk_relationships.append({
+                                    "referencing_column": col["name"],
+                                    "constraint": constraint
+                                })
+
+            # Check if it's a list of column definitions
+            elif isinstance(other_schema, list):
+                for col in other_schema:
+                    if isinstance(col, dict) and "constraints" in col:
+                        for constraint in col["constraints"]:
+                            if isinstance(constraint, str) and "REFERENCES" in constraint.upper():
+                                fk_relationships.append({
+                                    "referencing_column": col["name"],
+                                    "constraint": constraint
+                                })
+                    elif isinstance(col, str) and "REFERENCES" in col.upper():
+                        col_parts = col.split()
+                        fk_relationships.append({
+                            "referencing_column": col_parts[0],
+                            "constraint": col
+                        })
+
+            # Check for table-level constraints
+            if isinstance(other_schema, dict) and "constraints" in other_schema:
+                for constraint in other_schema["constraints"]:
+                    if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
+                        fk_relationships.append({
+                            "referencing_column": None,  # Will extract from constraint
+                            "constraint": constraint
+                        })
+
+            # Process all found relationships
+            for relationship in fk_relationships:
+                constraint_str = relationship["constraint"]
+                referencing_column = relationship["referencing_column"]
+                logging.info(f"Processing potential FK constraint: {constraint_str}")
+
+                # Extract the referenced table and columns with multiple patterns
+                fk_column = referencing_column  # Default if not extracted from constraint
+                ref_table = None
+                ref_column = None
+
+                # Try these patterns in sequence
+                patterns = [
+                    r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
+                    r"REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
+                    r"FOREIGN\s+KEY\s*[\(\s](\w+)[\)\s]+REFERENCES\s+(\w+)\s*[\(\s](\w+)"
+                ]
+
+                for pattern in patterns:
+                    match = re.search(pattern, constraint_str, re.IGNORECASE)
+                    if match:
+                        if len(match.groups()) == 3:
+                            fk_column = match.group(1)
+                            ref_table = match.group(2)
+                            ref_column = match.group(3)
+                        elif len(match.groups()) == 2:
+                            ref_table = match.group(1)
+                            ref_column = match.group(2)
+                        break  # Stop after first successful match
+
+                # If we found a reference to the table we're deleting from
+                if ref_table and ref_table.lower() == table_name.lower():
+                    logging.info(f"Found FK reference: {other_table}.{fk_column} -> {table_name}.{ref_column}")
+
+                    # For each record we're trying to delete
+                    for record in records_to_delete:
+                        # Get the value of the referenced column
+                        if ref_column in record:
+                            ref_value = record[ref_column]
+                            logging.info(f"Checking references to value: {ref_value}")
+
+                            # Check for references with type handling
+                            conditions = [{"column": fk_column, "operator": "=", "value": ref_value}]
+
+                            # Convert string values for comparison if needed
+                            if isinstance(ref_value, (int, float)) and not isinstance(ref_value, bool):
+                                str_value = str(ref_value)
+                                conditions.append({"column": fk_column, "operator": "=", "value": str_value})
+
+                            # Check if any records reference this value - FIXED: Removed 'limit' parameter
+                            referencing_records = self.query_with_condition(
+                                other_table, conditions, ["*"]
+                            )
+
+                            if referencing_records:
+                                logging.info(f"Found {len(referencing_records)} referencing records: {referencing_records}")
+                                error_msg = f"Cannot delete from {table_name} because records in {other_table} reference it via foreign key {fk_column}->{ref_column}"
+                                return error_msg
+
         return None  # No constraints violated
 
     def _check_fk_constraints_for_insert(self, db_name, table_name, record):
@@ -1205,63 +1272,98 @@ class CatalogManager:
             logging.error(traceback.format_exc())
             return f"Error deleting records: {str(e)}"
 
-    def update_record(self, table_name, record_id, update_data):
-        """Update a record by its primary key."""
+    def execute_update(self, plan):
+        """Execute an UPDATE operation."""
+        table_name = plan.get("table")
+        updates_data = plan.get("updates", {}) or plan.get("set", {})
+        condition = plan.get("condition")
+
+        # Check for valid database
         db_name = self.get_current_database()
         if not db_name:
-            return False
+            return {"error": "No database selected", "status": "error", "type": "error"}
 
-        table_id = f"{db_name}.{table_name}"
-        if table_id not in self.tables:
-            return False
+        # Convert updates to dictionary format if it's a list of tuples
+        updates = {}
+        if isinstance(updates_data, list):
+            for col, val in updates_data:
+                # Handle quoted string values
+                if isinstance(val, str) and val.startswith("'") and val.endswith("'"):
+                    val = val[1:-1]
+                updates[col] = val
+        else:
+            updates = updates_data  # Already a dict
 
-        # Get the table file path
-        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+        # Get records that will be updated
+        parsed_conditions = self._parse_conditions(condition)
+        records_to_update = self.query_with_condition(
+            table_name, parsed_conditions, ["*"]
+        )
 
-        if not os.path.exists(table_file):
-            return False
+        if not records_to_update:
+            return {
+                "status": "success",
+                "message": "0 records updated - no matching records found",
+                "type": "update_result",
+                "rowCount": 0
+            }
 
-        try:
-            # Load the B+ tree
-            tree = BPlusTreeFactory.load_from_file(table_file)
-            if tree is None:
-                return False
+        # Check if any primary key columns are being updated
+        table_schema = self.get_table_schema(table_name)
+        pk_columns = []
 
-            # First find the record by querying with conditions to get the actual B+ tree key
-            conditions = [{"column": "id", "operator": "=", "value": record_id}]
-            records = self.query_with_condition(table_name, conditions)
+        # Extract primary key columns from schema
+        for column in table_schema:
+            if isinstance(column, dict) and column.get("primary_key"):
+                pk_columns.append(column.get("name"))
+            elif isinstance(column, str) and "PRIMARY KEY" in column.upper():
+                col_name = column.split()[0]
+                pk_columns.append(col_name)
 
-            if not records or len(records) == 0:
-                return False
+        # Check for FK constraints if we're updating a primary key
+        for update_col in updates.keys():
+            if update_col in pk_columns:
+                fk_violation = self._check_fk_constraints_for_update(
+                    db_name, table_name, update_col, records_to_update
+                )
+                if fk_violation:
+                    return {
+                        "error": fk_violation,
+                        "status": "error",
+                        "type": "error"
+                    }
 
-            # Find out which key in the B+ tree corresponds to this record
-            all_records = tree.range_query(float('-inf'), float('inf'))
-            tree_key = None
+        # Update each matching record
+        updated_count = 0
+        for record in records_to_update:
+            # Get record ID (typically the primary key value)
+            record_id = None
+            if pk_columns and pk_columns[0] in record:
+                record_id = record[pk_columns[0]]
+            else:
+                # If no primary key, try using 'id' field
+                record_id = record.get('id')
+                
+            if record_id is not None:
+                # Call update_record with the correct parameters
+                result = self.update_record(
+                    table_name,
+                    record_id,  # Pass the actual ID value, not a dictionary
+                    updates
+                )
+                
+                if result:
+                    updated_count += 1
+                    logging.info(f"Updated record with ID {record_id} in table {table_name}")
+            else:
+                logging.warning(f"Could not determine record ID for update in table {table_name}")
 
-            for key, record in all_records:
-                if record.get("id") == record_id:
-                    tree_key = key
-                    break
-
-            if tree_key is None:
-                return False
-
-            # Get the existing record and update it
-            updated_record = records[0].copy()
-            for field, value in update_data.items():
-                updated_record[field] = value
-
-            # Update in the tree using the correct key
-            tree.insert(tree_key, updated_record)
-
-            # Save the updated tree
-            tree.save_to_file(table_file)
-
-            return True
-
-        except RuntimeError as e:
-            logging.error("Error updating record: %s", str(e))
-            return False
+        return {
+            "status": "success",
+            "message": f"Updated {updated_count} records",
+            "type": "update_result",
+            "rowCount": updated_count
+        }
 
     def create_index(
         self,
@@ -1571,6 +1673,87 @@ class CatalogManager:
 
         # Table not found
         return []
+
+    def update_record(self, table_name, record_id, update_data):
+        """Update a record by its primary key.
+
+        Args:
+            table_name: Table name
+            record_id: Primary key value
+            update_data: New data to update in the record
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        db_name = self.get_current_database()
+        if not db_name:
+            return False
+
+        table_id = f"{db_name}.{table_name}"
+        if table_id not in self.tables:
+            return False
+
+        # Get the table file path
+        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+
+        if not os.path.exists(table_file):
+            return False
+
+        try:
+            # Load the B+ tree
+            tree = BPlusTreeFactory.load_from_file(table_file)
+            if tree is None:
+                return False
+
+            # Get all records
+            all_records = tree.range_query(float('-inf'), float('inf'))
+            
+            # Find the record to update
+            record_to_update = None
+            record_key = None
+            
+            for key, record in all_records:
+                # Check if this is the record we're looking for
+                if isinstance(record_id, dict):
+                    # If record_id is a dictionary of primary key values
+                    matches = True
+                    for pk_col, pk_val in record_id.items():
+                        if pk_col not in record or record[pk_col] != pk_val:
+                            matches = False
+                            break
+                    
+                    if matches:
+                        record_to_update = record
+                        record_key = key
+                        break
+                else:
+                    # If record_id is a single value (assuming 'id' column)
+                    if 'id' in record and record['id'] == record_id:
+                        record_to_update = record
+                        record_key = key
+                        break
+            
+            if not record_to_update:
+                return False
+            
+            # Update the record
+            for field, value in update_data.items():
+                record_to_update[field] = value
+            
+            # Update in the tree
+            tree.insert(record_key, record_to_update)
+            
+            # Save the updated tree
+            tree.save_to_file(table_file)
+            
+            # Update indexes if needed
+            self._update_indexes_after_insert(db_name, table_name, record_key, record_to_update)
+            
+            return True
+            
+        except RuntimeError as e:
+            logging.error("Error updating record: %s", str(e))
+            return False
 
     def get_all_records_with_keys(self, table_name):
         """Get all records from a table along with their keys.

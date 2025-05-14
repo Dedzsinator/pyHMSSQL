@@ -22,6 +22,15 @@ class SQLParser:
         """
         Parse SQL query into a structured format.
         """
+        
+        if not sql or not sql.strip():
+            return {"error": "Empty query"}
+            
+        # Parse transaction control statements first (they need special handling)
+        transaction_result = self._parse_transaction_statement(sql)
+        if transaction_result:
+            return transaction_result
+        
         try:
             # First check for set operations (UNION, INTERSECT, EXCEPT)
             if re.search(r'\s+UNION\s+|\s+INTERSECT\s+|\s+EXCEPT\s+', sql, re.IGNORECASE):
@@ -130,6 +139,35 @@ class SQLParser:
                 # Otherwise, just use VISUALIZE BPTREE (for all B+ trees)
 
         return result
+    
+    def _parse_transaction_statement(self, sql_string):
+        """Parse transaction control statements."""
+        # Normalize the SQL string for easier pattern matching
+        sql_upper = sql_string.strip().upper()
+        
+        # BEGIN TRANSACTION pattern
+        if re.match(r'^BEGIN\s+TRANSACTION\s*$|^START\s+TRANSACTION\s*$', sql_upper):
+            logging.info("Detected BEGIN TRANSACTION statement")
+            return {
+                "type": "BEGIN_TRANSACTION"
+            }
+            
+        # COMMIT TRANSACTION pattern
+        if re.match(r'^COMMIT\s+TRANSACTION\s*$|^COMMIT\s*$', sql_upper):
+            logging.info("Detected COMMIT TRANSACTION statement")
+            return {
+                "type": "COMMIT"
+            }
+            
+        # ROLLBACK TRANSACTION pattern
+        if re.match(r'^ROLLBACK\s+TRANSACTION\s*$|^ROLLBACK\s*$', sql_upper):
+            logging.info("Detected ROLLBACK TRANSACTION statement")
+            return {
+                "type": "ROLLBACK"
+            }
+            
+        # Not a transaction statement
+        return None
 
     def _parse_set_operation(self, sql):
         """Parse a set operation (UNION, INTERSECT, EXCEPT)"""

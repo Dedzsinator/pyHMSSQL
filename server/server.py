@@ -108,6 +108,9 @@ class DBMSServer:
         self.server_name = server_name or f"{platform.node()}'s HMSSQL Server"
 
         self.sessions = {}
+        
+        self.active_transactions = {} 
+        
         logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../logs")
         os.makedirs(logs_dir, exist_ok=True)
 
@@ -115,6 +118,22 @@ class DBMSServer:
         self.discovery_thread = threading.Thread(target=self._broadcast_presence, daemon=True)
         self.discovery_thread.start()
         logging.info("Discovery broadcast started for server: %s", self.server_name)
+
+    def _store_transaction_id(self, session_id, transaction_id):
+        """Store a transaction ID for a session."""
+        if transaction_id:
+            self.active_transactions[session_id] = transaction_id
+            logging.info(f"Stored transaction {transaction_id} for session {session_id}")
+
+    def _get_transaction_id(self, session_id):
+        """Get the active transaction ID for a session."""
+        return self.active_transactions.get(session_id)
+        
+    def _clear_transaction_id(self, session_id):
+        """Clear the transaction ID for a session after commit/rollback."""
+        if session_id in self.active_transactions:
+            transaction_id = self.active_transactions.pop(session_id)
+            logging.info(f"Cleared transaction {transaction_id} for session {session_id}")
 
     def _broadcast_presence(self):
         """Broadcast server presence on the network"""
@@ -579,7 +598,6 @@ class DBMSServer:
             for key, value in result.items():
                 if key not in ["status", "type"]:  # Skip non-content fields
                     print(f"{key}: {value}")
-
 
 def start_server(server_name=None):
     """_summary_"""
