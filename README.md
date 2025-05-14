@@ -25,7 +25,7 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Command Line Interface (CLI)
   - [x] Graphical User Interface (GUI)
   - [x] Batch processing via script files
-  - [ ] REST API (planned)
+  - [x] REST API (planned)
 
 - [ ] **Database Operations**
   - [x] Create/Drop Databases
@@ -41,7 +41,7 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Serialization for persistence
   - [x] Index-based lookups
   - [x] Range queries
-  - [] Index-based optimizations
+  - [x] Index-based optimizations
 
 - [ ] **Query Optimization**
   - [x] Index-based query planning
@@ -92,6 +92,36 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [ ] Complex subquery support
   - [x] Multiple aggregation functions
 
+## 📱 REST API
+
+pyHMSSQL now provides a REST API for applications to connect and interact with the database server. This allows you to integrate with the database using HTTP requests rather than direct socket connections.
+
+### REST API Endpoints
+
+| Endpoint                  | Method | Description                      |
+|---------------------------|--------|----------------------------------|
+| /api/login                | POST   | Log in to the database           |
+| /api/register             | POST   | Register a new user              |
+| /api/logout               | POST   | Log out from the database        |
+| /api/query                | POST   | Execute a SQL query              |
+| /api/databases            | GET    | Get list of databases            |
+| /api/tables               | GET    | Get list of tables               |
+| /api/indexes              | GET    | Get index information            |
+| /api/table/<table_name>   | GET    | Get table schema information     |
+| /api/status               | GET    | Get server status information    |
+| /api/use_database         | POST   | Set the current database         |
+
+Example usage:
+
+```bash
+from client.rest_client import HMSSQLRestClient
+
+client = HMSSQLRestClient()
+client.login('admin', 'admin')
+result = client.execute_query('SELECT * FROM users')
+print(result)
+```
+
 ## 📋 Requirements
 
 - Python 3.7+
@@ -99,6 +129,8 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
 - graphviz
 - networkx
 - matplotlib
+- flask
+- flask-cors
 
 See requirements.txt for the full and updated list of dependencies.
 
@@ -149,6 +181,12 @@ Start the server (NEW):
 
 ```bash
 python server.py --name "My Custom HMSSQL Server"
+```
+
+Or run in rest api mode:
+
+```bash
+python server.py --use-api --api-port 5000
 ```
 
 Start the GUI client:

@@ -16,6 +16,8 @@ import json
 import socket
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor
+import argparse  # Make sure argparse is imported at the top level
 
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -634,9 +636,30 @@ def start_server(server_name=None):
 
 if __name__ == "__main__":
     # Parse command line arguments
-    import argparse
     parser = argparse.ArgumentParser(description='Start the HMSSQL server')
     parser.add_argument('--name', help='Custom server name')
+    # Add REST API related arguments
+    parser.add_argument('--use-api', action='store_true', help='Start the REST API server')
+    parser.add_argument('--api-host', default='0.0.0.0', help='Host address for REST API to bind')
+    parser.add_argument('--api-port', type=int, default=5000, help='Port for REST API to bind')
+    parser.add_argument('--api-debug', action='store_true', help='Run REST API in debug mode')
 
     args = parser.parse_args()
-    start_server(server_name=args.name)
+    
+    # Check if we should start the REST API server
+    if args.use_api:
+        try:
+            # Import here to avoid circular imports
+            from rest_api import app
+            
+            print(f"Starting HMSSQL REST API server on {args.api_host}:{args.api_port}")
+            logging.info(f"Starting HMSSQL REST API server on {args.api_host}:{args.api_port}")
+            app.run(host=args.api_host, port=args.api_port, debug=args.api_debug)
+        except ImportError as e:
+            logging.critical(f"Failed to import REST API module: {str(e)}")
+            print(f"Error: Failed to import REST API module. Make sure it's installed.")
+            print(f"Error details: {str(e)}")
+            sys.exit(1)
+    else:
+        # Start the regular socket server
+        start_server(server_name=args.name)

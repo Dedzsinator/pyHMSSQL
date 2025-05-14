@@ -1,8 +1,0 @@
-
--- Subquery
-query SELECT * FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE name = 'Engineering')
-
--- UNION
-query SELECT id, name FROM employees UNION SELECT id, name FROM departments
-
--- these all return with Unknown syntax or no result
