@@ -1576,11 +1576,11 @@ class CatalogManager:
     def get_record_by_key(self, table_name, record_key):
         """
         Retrieve a record by its key from a table.
-
+        
         Args:
             table_name: The name of the table
             record_key: The key of the record to retrieve
-
+            
         Returns:
             The record if found, otherwise None
         """
@@ -1589,8 +1589,7 @@ class CatalogManager:
             return None
 
         # Load the table file
-        table_file = os.path.join(
-            self.tables_dir, db_name, f"{table_name}.tbl")
+        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
         if not os.path.exists(table_file):
             return None
 
@@ -1600,10 +1599,22 @@ class CatalogManager:
             if tree is None:
                 return None
 
-            # Search for the record
-            return tree.search(record_key)
+            # Get all records and find the one with matching ID
+            all_records = tree.range_query(float('-inf'), float('inf'))
+            
+            for key, record in all_records:
+                if isinstance(record, dict) and 'id' in record and record['id'] == record_key:
+                    return record
+                    
+            # If we're looking for ID but couldn't find an exact match, try as key
+            for key, record in all_records:
+                if key == record_key:
+                    return record
+                
+            return None
+
         except RuntimeError as e:
-            logging.error("Error retrieving record by key: %s", str(e))
+            logging.error("Error retrieving record: %s", str(e))
             return None
 
     def table_exists(self, table_name, db_name=None):
@@ -1714,24 +1725,10 @@ class CatalogManager:
             
             for key, record in all_records:
                 # Check if this is the record we're looking for
-                if isinstance(record_id, dict):
-                    # If record_id is a dictionary of primary key values
-                    matches = True
-                    for pk_col, pk_val in record_id.items():
-                        if pk_col not in record or record[pk_col] != pk_val:
-                            matches = False
-                            break
-                    
-                    if matches:
-                        record_to_update = record
-                        record_key = key
-                        break
-                else:
-                    # If record_id is a single value (assuming 'id' column)
-                    if 'id' in record and record['id'] == record_id:
-                        record_to_update = record
-                        record_key = key
-                        break
+                if isinstance(record, dict) and "id" in record and record["id"] == record_id:
+                    record_to_update = record
+                    record_key = key
+                    break
             
             if not record_to_update:
                 return False
@@ -1745,9 +1742,6 @@ class CatalogManager:
             
             # Save the updated tree
             tree.save_to_file(table_file)
-            
-            # Update indexes if needed
-            self._update_indexes_after_insert(db_name, table_name, record_key, record_to_update)
             
             return True
             

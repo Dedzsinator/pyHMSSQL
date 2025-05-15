@@ -135,6 +135,38 @@ class DBMSServer:
             transaction_id = self.active_transactions.pop(session_id)
             logging.info(f"Cleared transaction {transaction_id} for session {session_id}")
 
+    def _log_query_audit(self, username, query):
+        """
+        Log a query for audit purposes.
+
+        Args:
+            username: The username of the user executing the query
+            query: The SQL query string
+        """
+        try:
+            timestamp = datetime.datetime.now().isoformat()
+            log_entry = {"timestamp": timestamp,
+                        "username": username, "query": query}
+
+            # Log to the audit log file
+            logs_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "../logs"
+            )
+            audit_log_file = os.path.join(logs_dir, "query_audit.log")
+
+            with open(audit_log_file, "a", encoding="utf-8") as f:
+                f.write(f"{timestamp} | {username} | {query}\n")
+
+            # Also log to the standard logger
+            logging.info("AUDIT: User %s executed: %s", username, query)
+
+            # Optionally store in a database for more advanced auditing
+            # Just log an error instead of trying to use self.audit_db which doesn't exist
+            # self._store_audit_log(log_entry)
+        except Exception as e:
+            # Don't let logging errors affect query execution
+            logging.error(f"Failed to log query audit: {str(e)}")
+
     def _broadcast_presence(self):
         """Broadcast server presence on the network"""
         discovery_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -221,11 +253,21 @@ class DBMSServer:
             if request_type == "login":
                 return self.handle_login(data)
             elif request_type == "query":
+                # Extract the query string from the data dictionary
+                query = data.get("query", "")
+                session_id = data.get("session_id")
+                
+                # Get user from session if available
+                user = None
+                if session_id in self.sessions:
+                    user = self.sessions[session_id].get("username")
+                    
                 # Check if this is a VISUALIZE query and redirect
-                query = data.get("query", "").strip().upper()
-                if query.startswith("VISUALIZE"):
+                if isinstance(query, str) and query.strip().upper().startswith("VISUALIZE"):
                     return self.handle_visualize(data)
-                return self.handle_query(data)
+                    
+                # Pass the extracted query string instead of the whole data dictionary
+                return self.handle_query(query, session_id, user)
             elif request_type == "register":
                 return self.handle_register(data)
             elif request_type == "visualize":
@@ -235,7 +277,7 @@ class DBMSServer:
             else:
                 logging.error("Unknown request type: %s", request_type)
                 return {
-                    "error": "Unknown request type: {request_type}",
+                    "error": f"Unknown request type: {request_type}",
                     "status": "error",
                 }
         except (TypeError, ValueError, KeyError, AttributeError, RuntimeError) as e:
@@ -433,89 +475,103 @@ class DBMSServer:
         ) as e:
             logging.error("Failed to store audit log: %s", str(e))
 
-    def handle_query(self, data):
-        """
-        Handle query requests.
-        """
-        session_id = data.get("session_id")
-        if session_id not in self.sessions:
-            logging.warning(
-                "Unauthorized query attempt with invalid session ID: %s", session_id
-            )
-            return {"error": "Unauthorized. Please log in.", "status": "error"}
-
-        user = self.sessions[session_id]
-        query = data.get("query", "")
-
-        logging.info("Query from %s: %s", user.get(
-            "username", "Unknown"), query)
-
-        # Log the query for audit
-        self._log_query(user.get("username"), query)
-
-        # Print current database for debugging
-        current_db = self.catalog_manager.get_current_database()
-        logging.info("Current database: %s", current_db)
-
-        # Parse and execute with planner and optimizer integration
+    def handle_query(self, query, session_id=None, user=None):
+        """Handle a query request."""
+        start_time = time.time()
+        if not query:
+            return {"error": "Empty query", "status": "error"}
+        
+        logging.info("Query from %s: %s", user or "anonymous", query)
+        
+        # Log to audit trail
         try:
-            # 1. Parse SQL query
-            parsed = self.sql_parser.parse_sql(query)
-            if "error" in parsed:
-                logging.error("SQL parsing error: %s", parsed["error"])
-                return {"error": parsed["error"], "status": "error"}
-
-            # Log the parsed query structure
-            logging.info("▶️ Parsed query: %s", parsed)
-
-            # 2. Generate execution plan using planner
-            execution_plan = self.planner.plan_query(parsed)
-            if "error" in execution_plan:
-                logging.error("Error generating plan: %s",
-                              execution_plan["error"])
-                return {"error": execution_plan["error"], "status": "error"}
-
-            logging.info("🔄 Initial execution plan:")
-            logging.info("---------------------------------------------")
-            self._log_plan_details(execution_plan)
-            logging.info("---------------------------------------------")
-
-            # 3. Optimize the execution plan
-            optimized_plan = self.optimizer.optimize(execution_plan)
-            if "error" in optimized_plan:
-                logging.error("Error optimizing plan: %s",
-                              optimized_plan["error"])
-                return {"error": optimized_plan["error"], "status": "error"}
-
-            logging.info("✅ Optimized execution plan:")
-            logging.info("---------------------------------------------")
-            self._log_plan_details(optimized_plan)
-            logging.info("---------------------------------------------")
-
-            # 4. Execute the optimized plan
-            start_time = datetime.datetime.now()
-            result = self.execution_engine.execute(optimized_plan)
-            execution_time = (datetime.datetime.now() -
-                              start_time).total_seconds()
-
+            self._log_query_audit(user, query)
+        except AttributeError:
+            # Fallback to _log_query if _log_query_audit doesn't exist
+            try:
+                self._log_query(user, query)
+            except AttributeError:
+                logging.error("Failed to log audit: neither _log_query_audit nor _log_query methods defined")
+        
+        # For debugging
+        logging.info("Current database: %s", self.catalog_manager.get_current_database())
+        
+        # Check for transaction control statements
+        is_transaction_start = query.strip().upper().startswith("BEGIN TRANSACTION")
+        is_transaction_commit = query.strip().upper().startswith("COMMIT")
+        is_transaction_rollback = query.strip().upper().startswith("ROLLBACK")
+        
+        if is_transaction_start:
+            logging.info("Detected BEGIN TRANSACTION statement")
+        elif is_transaction_commit:
+            logging.info("Detected COMMIT statement")
+        elif is_transaction_rollback:
+            logging.info("Detected ROLLBACK TRANSACTION statement")
+        
+        try:
+            # Parse the query - FIXED: using parse_sql instead of parse_query
+            parsed_query = self.sql_parser.parse_sql(query)
+            logging.info("▶️ Parsed query: %s", parsed_query)
+            
+            # Plan the query
+            plan = self.planner.plan_query(parsed_query)
+            
+            # Add session ID to plan
+            if session_id:
+                plan["session_id"] = session_id
+            
+            # Important: Add transaction ID to the plan if in transaction
+            if session_id and session_id in self.active_transactions:
+                plan["transaction_id"] = self.active_transactions[session_id]
+                logging.info(f"Added transaction ID {plan['transaction_id']} to query plan")
+            
+            # Execute the query
+            result = self.execution_engine.execute(plan)
+            
+            # Handle transaction operations
+            if is_transaction_start and result.get("status") == "success":
+                # Store transaction ID in session
+                transaction_id = result.get("transaction_id")
+                if session_id and transaction_id:
+                    self._store_transaction_id(session_id, transaction_id)
+            elif (is_transaction_commit or is_transaction_rollback) and result.get("status") == "success":
+                # Clear transaction ID after commit or rollback
+                if session_id and session_id in self.active_transactions:
+                    self._clear_transaction_id(session_id)
+            
+            # Calculate query execution time
+            execution_time_ms = (time.time() - start_time) * 1000
+            
             # Add execution time to result
             if isinstance(result, dict):
-                result["execution_time_ms"] = round(execution_time * 1000, 2)
-
-            logging.info("⏱️ Query executed in %s ms",
-                         round(execution_time * 1000, 2))
+                result["execution_time_ms"] = round(execution_time_ms, 2)
+            
+            logging.info("⏱️ Query executed in %.2f ms", execution_time_ms)
+            
             return result
-        except (
-            ValueError,
-            SyntaxError,
-            TypeError,
-            AttributeError,
-            KeyError,
-            RuntimeError,
-        ) as e:
-            logging.error("Error executing query: %s", str(e))
-            logging.error(traceback.format_exc())
-            return {"error": str(e), "status": "error"}
+            
+        except Exception as e:
+            error_msg = str(e)
+            stack_trace = traceback.format_exc()
+            logging.error("Error executing query: %s", error_msg)
+            logging.error(stack_trace)
+            return {"error": error_msg, "status": "error", "execution_time_ms": round((time.time() - start_time) * 1000, 2)}
+
+    def _store_transaction_id(self, session_id, transaction_id):
+        """Store a transaction ID for a session."""
+        if session_id and transaction_id:
+            self.active_transactions[session_id] = transaction_id
+            logging.info(f"Stored transaction ID {transaction_id} for session {session_id}")
+        else:
+            logging.warning(f"Couldn't store transaction ID: session_id={session_id}, transaction_id={transaction_id}")
+
+    def _clear_transaction_id(self, session_id):
+        """Clear the transaction ID for a session."""
+        if session_id and session_id in self.active_transactions:
+            transaction_id = self.active_transactions.pop(session_id)
+            logging.info(f"Cleared transaction ID {transaction_id} for session {session_id}")
+        else:
+            logging.warning(f"No transaction found for session {session_id}")
 
     def is_query_allowed(self, role, query):
         """

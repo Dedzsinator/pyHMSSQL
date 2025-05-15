@@ -8,8 +8,9 @@ import time
 import os
 import datetime
 import traceback
+from collections import OrderedDict, defaultdict
 from transaction.lock_manager import LockManager
-from bptree import BPlusTree
+from bptree_wrapper import BPlusTreeFactory
 
 
 class TransactionManager:
@@ -17,13 +18,23 @@ class TransactionManager:
 
     def __init__(self, catalog_manager):
         self.catalog_manager = catalog_manager
-        self.transactions = {}  # Unified transaction storage
+        # Use OrderedDict for transactions to maintain operation order
+        self.transactions = OrderedDict()  # {transaction_id: {status, operations, start_time}}
+        # Table snapshots for efficient rollback - stores original data before modification
+        self.table_snapshots = defaultdict(dict)  # {transaction_id: {table_name: {record_id: original_record}}}
         self.lock_manager = LockManager()
         self.logger = logging.getLogger(__name__)
 
-
     def record_operation(self, transaction_id, operation):
-        """Record an operation in the transaction log."""
+        """Record an operation in the transaction log.
+        
+        Args:
+            transaction_id: The ID of the transaction
+            operation: Dictionary with operation details (type, table, etc.)
+            
+        Returns:
+            bool: True if operation was recorded
+        """
         if transaction_id not in self.transactions:
             # Create the transaction if it doesn't exist
             self.logger.warning(f"Transaction {transaction_id} not found, creating it")
@@ -33,12 +44,42 @@ class TransactionManager:
                 "start_time": time.time()
             }
 
+        # For INSERT, UPDATE, DELETE operations, take snapshots for efficient rollback
+        table_name = operation.get("table")
+        if table_name:
+            # For DELETE and UPDATE, store original data
+            if operation["type"] in ["DELETE", "UPDATE"]:
+                # Take a snapshot of the original record for rollback
+                record = operation.get("record") or operation.get("old_values")
+                if record and "id" in record:
+                    record_id = record["id"]
+                    # Only store the first snapshot (original state) for each record
+                    if transaction_id not in self.table_snapshots or \
+                       table_name not in self.table_snapshots[transaction_id] or \
+                       record_id not in self.table_snapshots[transaction_id].get(table_name, {}):
+                        if transaction_id not in self.table_snapshots:
+                            self.table_snapshots[transaction_id] = {}
+                        if table_name not in self.table_snapshots[transaction_id]:
+                            self.table_snapshots[transaction_id][table_name] = {}
+                        
+                        # Store a copy of the original record
+                        self.table_snapshots[transaction_id][table_name][record_id] = record.copy()
+                        self.logger.info(f"Stored snapshot for {table_name}.{record_id} in transaction {transaction_id}")
+            
+        # Add the operation to the transaction log
         self.transactions[transaction_id]["operations"].append(operation)
         return True
 
     def execute_transaction_operation(self, operation_type, transaction_id=None):
-        """Execute a transaction operation (BEGIN, COMMIT, ROLLBACK)."""
-
+        """Execute a transaction operation (BEGIN, COMMIT, ROLLBACK).
+        
+        Args:
+            operation_type: Type of operation (BEGIN_TRANSACTION, COMMIT, ROLLBACK)
+            transaction_id: ID of existing transaction (for COMMIT/ROLLBACK)
+            
+        Returns:
+            dict: Result of operation
+        """
         if operation_type == "BEGIN_TRANSACTION":
             # Generate a transaction ID and create a new transaction
             transaction_id = str(uuid.uuid4())
@@ -55,15 +96,54 @@ class TransactionManager:
             }
 
         elif operation_type == "ROLLBACK":
+            # Add comprehensive logging for debugging
+            self.logger.info(f"Attempting to rollback transaction: {transaction_id}")
+            
             # Check if transaction exists
+            if not transaction_id:
+                self.logger.error("No transaction ID provided for rollback")
+                return {"status": "error", "error": "No transaction ID provided"}
+                
             if transaction_id not in self.transactions:
+                self.logger.error(f"Transaction {transaction_id} not found. Available transactions: {list(self.transactions.keys())}")
                 return {"status": "error", "error": f"Transaction {transaction_id} not found"}
 
             # Get operations in reverse order
             operations = list(reversed(self.transactions[transaction_id].get("operations", [])))
             rollback_success = True
+            self.logger.info(f"Rolling back {len(operations)} operations")
 
-            # Process each operation in reverse order
+            # First use the more efficient snapshot-based rollback when possible
+            if transaction_id in self.table_snapshots:
+                self.logger.info(f"Found {len(self.table_snapshots[transaction_id])} table snapshots for rollback")
+                for table_name, records in self.table_snapshots[transaction_id].items():
+                    self.logger.info(f"Restoring {len(records)} records in table {table_name}")
+                    for record_id, original_record in records.items():
+                        # Check if the record was deleted and needs to be restored
+                        current_record = self.catalog_manager.get_record_by_key(table_name, record_id)
+                        if current_record is None:
+                            # Record was deleted, restore it
+                            self.logger.info(f"Restoring deleted record: {table_name}.{record_id}")
+                            result = self.catalog_manager.insert_record_with_id(
+                                table_name, record_id, original_record
+                            )
+                            if not result:
+                                rollback_success = False
+                                self.logger.error(f"Failed to restore deleted record: {table_name}.{record_id}")
+                        else:
+                            # Record exists but may have been modified, restore original values
+                            self.logger.info(f"Restoring original values for record: {table_name}.{record_id}")
+                            result = self.catalog_manager.update_record(
+                                table_name, record_id, original_record
+                            )
+                            if not result:
+                                rollback_success = False
+                                self.logger.error(f"Failed to restore original values: {table_name}.{record_id}")
+                    
+                    # Clear the snapshots for this transaction
+                    del self.table_snapshots[transaction_id]
+
+            # Process each operation in reverse order (for INSERT operations not covered by snapshots)
             for op in operations:
                 if op["type"] == "INSERT":
                     # Remove inserted record
@@ -71,39 +151,46 @@ class TransactionManager:
                     record_id = op.get("record_id")
 
                     if record_id is not None:
-                        # Delete the inserted record directly from the B+ tree
-                        db_name = self.catalog_manager.get_current_database()
-                        table_file = os.path.join(self.catalog_manager.tables_dir, db_name, f"{table}.tbl")
-
-                        if os.path.exists(table_file):
-                            tree = BPlusTree.load_from_file(table_file)
-                            if tree:
-                                # Find the exact key for this record
-                                all_records = tree.range_query(float('-inf'), float('inf'))
-                                for key, record in all_records:
-                                    if record.get("id") == record_id:
-                                        tree.delete(key)
-                                        tree.save_to_file(table_file)
-                                        self.logger.info(f"Rollback: Deleted record {record_id} from {table}")
-                                        break
+                        # Delete the inserted record directly using catalog manager
+                        self.logger.info(f"Rolling back inserted record: {table}.{record_id}")
+                        result = self.catalog_manager.delete_record_by_id(table, record_id)
+                        if result:
+                            self.logger.info(f"Rollback: Deleted record {record_id} from {table}")
                         else:
                             rollback_success = False
+                            self.logger.error(f"Failed to delete record {record_id} from {table} during rollback")
 
             # Mark transaction as rolled back
             self.transactions[transaction_id]["status"] = "rolled_back"
-
+            
+            # Clean up transaction data
             if rollback_success:
+                # Keep transaction in history but clean up
+                self.logger.info(f"Transaction {transaction_id} rolled back successfully")
                 return {"status": "success", "message": "Transaction rolled back successfully"}
             else:
+                self.logger.error(f"Transaction {transaction_id} rollback encountered errors")
                 return {"status": "error", "message": "Transaction rollback failed"}
 
         # Handle COMMIT
         elif operation_type == "COMMIT":
             # Simply mark as committed
+            self.logger.info(f"Committing transaction: {transaction_id}")
+            if not transaction_id:
+                self.logger.error("No transaction ID provided for commit")
+                return {"status": "error", "error": "No transaction ID provided"}
+                
             if transaction_id in self.transactions:
                 self.transactions[transaction_id]["status"] = "committed"
+                
+                # Clean up snapshots when committing
+                if transaction_id in self.table_snapshots:
+                    del self.table_snapshots[transaction_id]
+                
+                self.logger.info(f"Transaction {transaction_id} committed successfully")
                 return {"status": "success", "message": "Transaction committed"}
             else:
+                self.logger.error(f"Transaction {transaction_id} not found for commit")
                 return {"status": "error", "error": f"Transaction {transaction_id} not found"}
 
         else:
@@ -121,31 +208,11 @@ class TransactionManager:
 
             # Remove the inserted record
             try:
-                # Use the actual key in the B+ tree
-                db_name = self.catalog_manager.get_current_database()
-                table_file = os.path.join(self.catalog_manager.tables_dir, db_name, f"{table}.tbl")
-
-                if os.path.exists(table_file):
-                    tree = BPlusTree.load_from_file(table_file)
-                    if tree:
-                        # Find records matching the ID
-                        all_records = tree.range_query(float('-inf'), float('inf'))
-                        for key, record in all_records:
-                            if record.get("id") == record_id:
-                                # Delete using the correct tree key
-                                tree.delete(key)
-                                tree.save_to_file(table_file)
-                                self.logger.info(f"Rolled back INSERT in {table} for record {record_id}")
-                                return True
-
-                # Fallback to using conditions
-                conditions = [{"column": "id", "operator": "=", "value": record_id}]
-                result = self.catalog_manager.delete_records(table, conditions)
+                result = self.catalog_manager.delete_record_by_id(table, record_id)
                 if result:
                     self.logger.info(f"Rolled back INSERT in {table} for record {record_id}")
                     return True
                 return False
-
             except RuntimeError as e:
                 self.logger.error(f"Error rolling back INSERT: {str(e)}")
                 return False
@@ -183,133 +250,28 @@ class TransactionManager:
 
         return False  # Unknown operation type
     
-    def handle_query(self, data):
-        """
-        Handle query requests.
-        """
-        session_id = data.get("session_id")
-        if session_id not in self.sessions:
-            logging.warning(
-                "Unauthorized query attempt with invalid session ID: %s", session_id
-            )
-            return {"error": "Unauthorized. Please log in.", "status": "error"}
-
-        user = self.sessions[session_id]
-        query = data.get("query", "")
-
-        logging.info("Query from %s: %s", user.get(
-            "username", "Unknown"), query)
-
-        # Log the query for audit
-        self._log_query(user.get("username"), query)
-
-        # Print current database for debugging
-        current_db = self.catalog_manager.get_current_database()
-        logging.info("Current database: %s", current_db)
-
-        # Parse and execute with planner and optimizer integration
-        try:
-            # 1. Parse SQL query
-            parsed = self.sql_parser.parse_sql(query)
-            if "error" in parsed:
-                logging.error("SQL parsing error: %s", parsed["error"])
-                return {"error": parsed["error"], "status": "error"}
-
-            # Handle transaction ID propagation
-            if parsed and parsed.get("type") == "BEGIN_TRANSACTION":
-                # Generate execution plan
-                execution_plan = self.planner.plan_query(parsed)
-                if "error" in execution_plan:
-                    logging.error("Error generating plan: %s", execution_plan["error"])
-                    return {"error": execution_plan["error"], "status": "error"}
-                    
-                # Execute the plan
-                result = self.execution_engine.execute(execution_plan)
+    def get_transaction_status(self, transaction_id):
+        """Get the status of a transaction."""
+        if transaction_id in self.transactions:
+            return self.transactions[transaction_id]["status"]
+        return None
+    
+    def cleanup_old_transactions(self, max_age_hours=24):
+        """Clean up old transactions to prevent memory leaks."""
+        current_time = time.time()
+        to_remove = []
+        
+        for tx_id, tx_data in self.transactions.items():
+            # Keep active transactions
+            if tx_data["status"] == "active":
+                continue
                 
-                # Store transaction ID in session if created successfully
-                if result and result.get("status") == "success" and "transaction_id" in result:
-                    if not hasattr(self, "active_transactions"):
-                        self.active_transactions = {}
-                    self.active_transactions[session_id] = result["transaction_id"]
-                    
-                return result
-            elif parsed and parsed.get("type") in ["COMMIT", "ROLLBACK"]:
-                # Add transaction ID from session to the parsed query
-                if hasattr(self, "active_transactions") and session_id in self.active_transactions:
-                    transaction_id = self.active_transactions[session_id]
-                    parsed["transaction_id"] = transaction_id
-                    
-                    # Generate execution plan
-                    execution_plan = self.planner.plan_query(parsed)
-                    if "error" in execution_plan:
-                        logging.error("Error generating plan: %s", execution_plan["error"])
-                        return {"error": execution_plan["error"], "status": "error"}
-                    
-                    # Execute the plan
-                    result = self.execution_engine.execute(execution_plan)
-                    
-                    # Clean up the session's transaction tracking
-                    if result and result.get("status") == "success":
-                        del self.active_transactions[session_id]
-                        
-                    return result
-                else:
-                    return {"error": "No active transaction for this session", "status": "error"}
-            else:
-                # For DML queries in a transaction, attach the transaction ID
-                if hasattr(self, "active_transactions") and session_id in self.active_transactions:
-                    # Add transaction ID to the parsed query for INSERT, UPDATE, DELETE operations
-                    if parsed.get("type") in ["INSERT", "UPDATE", "DELETE"]:
-                        parsed["transaction_id"] = self.active_transactions[session_id]
-
-            # Log the parsed query structure
-            logging.info("▶️ Parsed query: %s", parsed)
-
-            # 2. Generate execution plan using planner
-            execution_plan = self.planner.plan_query(parsed)
-            if "error" in execution_plan:
-                logging.error("Error generating plan: %s",
-                            execution_plan["error"])
-                return {"error": execution_plan["error"], "status": "error"}
-
-            logging.info("🔄 Initial execution plan:")
-            logging.info("---------------------------------------------")
-            self._log_plan_details(execution_plan)
-            logging.info("---------------------------------------------")
-
-            # 3. Optimize the execution plan
-            optimized_plan = self.optimizer.optimize(execution_plan)
-            if "error" in optimized_plan:
-                logging.error("Error optimizing plan: %s",
-                            optimized_plan["error"])
-                return {"error": optimized_plan["error"], "status": "error"}
-
-            logging.info("✅ Optimized execution plan:")
-            logging.info("---------------------------------------------")
-            self._log_plan_details(optimized_plan)
-            logging.info("---------------------------------------------")
-
-            # 4. Execute the optimized plan
-            start_time = datetime.datetime.now()
-            result = self.execution_engine.execute(optimized_plan)
-            execution_time = (datetime.datetime.now() -
-                            start_time).total_seconds()
-
-            # Add execution time to result
-            if isinstance(result, dict):
-                result["execution_time_ms"] = round(execution_time * 1000, 2)
-
-            logging.info("⏱️ Query executed in %s ms",
-                        round(execution_time * 1000, 2))
-            return result
-        except (
-            ValueError,
-            SyntaxError,
-            TypeError,
-            AttributeError,
-            KeyError,
-            RuntimeError,
-        ) as e:
-            logging.error("Error executing query: %s", str(e))
-            logging.error(traceback.format_exc())
-            return {"error": str(e), "status": "error"}
+            # Remove old completed transactions
+            if current_time - tx_data["start_time"] > max_age_hours * 3600:
+                to_remove.append(tx_id)
+                
+        # Remove old transactions
+        for tx_id in to_remove:
+            del self.transactions[tx_id]
+            if tx_id in self.table_snapshots:
+                del self.table_snapshots[tx_id]

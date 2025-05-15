@@ -602,21 +602,27 @@ class DMLExecutor:
         # Update each matching record
         updated_count = 0
         for record in records_to_update:
-            # Get primary key for the record
-            pk_values = {}
-            for pk_col in pk_columns:
-                if pk_col in record:
-                    pk_values[pk_col] = record[pk_col]
-
-            # Apply updates
-            result = self.catalog_manager.update_record(
-                table_name,
-                pk_values if pk_values else None,  # Use PK if available
-                updates
-            )
-
-            if result:
-                updated_count += 1
+            # Get record ID (typically the primary key value)
+            record_id = None
+            if pk_columns and pk_columns[0] in record:
+                record_id = record[pk_columns[0]]
+            else:
+                # If no primary key, try using 'id' field
+                record_id = record.get('id')
+                
+            if record_id is not None:
+                # Call update_record with the correct parameters
+                result = self.catalog_manager.update_record(
+                    table_name,
+                    record_id,
+                    updates
+                )
+                
+                if result:
+                    updated_count += 1
+                    logging.info(f"Updated record with ID {record_id} in table {table_name}")
+            else:
+                logging.warning(f"Could not determine record ID for update in table {table_name}")
 
         return {
             "status": "success",

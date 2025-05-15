@@ -494,7 +494,7 @@ query COMMIT TRANSACTION
 
 -- Test rollback
 query BEGIN TRANSACTION
-query DELETE FROM departments WHERE id = 3
+query DELETE FROM customers WHERE id = 3
 query ROLLBACK TRANSACTION
 
 -- Create a view
