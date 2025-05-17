@@ -392,11 +392,19 @@ class DBMSClient(cmd.Cmd):
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((self.host, self.port))
 
-            # Send request
-            send_data(sock, request)
+            # Send request - ensure we're using the utilities correctly
+            try:
+                send_data(sock, request)
+            except Exception as e:
+                print(f"Error sending data: {str(e)}")
+                return None
 
             # Receive response
-            response = receive_data(sock)
+            try:
+                response = receive_data(sock)
+            except Exception as e:
+                print(f"Error receiving data: {str(e)}")
+                return None
 
             # Close the socket
             sock.close()
@@ -578,6 +586,101 @@ class DBMSClient(cmd.Cmd):
                 self.display_result(response)
             else:
                 print(response)
+
+    def do_REPLICATE(self, arg):
+        """
+        Setup replication with another node
+        Usage: REPLICATE AS REPLICA OF primary_host primary_port
+            REPLICATE STATUS
+        """
+        if not arg:
+            print("Error: Missing arguments. Use 'REPLICATE AS REPLICA OF host port' or 'REPLICATE STATUS'")
+            return
+        
+        args = arg.split()
+        
+        if arg.upper().startswith("STATUS"):
+            # Get replication status
+            response = self._send_command({"command": "get_status", "action": "node"})
+            if response and response.get("status") == "success":
+                role = response.get("role", "unknown")
+                print(f"Current node role: {role}")
+                
+                if role == "primary":
+                    replicas = response.get("replicas", {})
+                    print(f"Replicas ({len(replicas)}):")
+                    for replica_id, info in replicas.items():
+                        status = info.get("status", "unknown")
+                        host = info.get("host", "unknown")
+                        port = info.get("port", "unknown")
+                        lag = info.get("lag", 0)
+                        print(f"  - {replica_id[:8]}: {host}:{port} ({status}, lag: {lag})")
+                elif role == "replica":
+                    primary_id = response.get("primary_id", "unknown")
+                    lag = response.get("lag", 0)
+                    print(f"Primary: {primary_id[:8]}")
+                    print(f"Replication lag: {lag} operations")
+            else:
+                print(f"Error: {response.get('error', 'Unknown error')}")
+        
+        elif len(args) >= 5 and args[0].upper() == "AS" and args[1].upper() == "REPLICA" and args[2].upper() == "OF":
+            # Register as replica
+            primary_host = args[3]
+            primary_port = args[4]
+            
+            try:
+                primary_port = int(primary_port)
+            except ValueError:
+                print(f"Error: Port must be a number")
+                return
+            
+            response = self._send_command({
+                "command": "set_as_replica", 
+                "primary_host": primary_host,
+                "primary_port": primary_port,
+                "action": "node"
+            })
+            
+            if response and response.get("status") == "success":
+                print(response.get("message", "Successfully registered as replica"))
+            else:
+                print(f"Error: {response.get('error', 'Unknown error')}")
+        else:
+            print("Error: Invalid syntax. Use 'REPLICATE AS REPLICA OF host port' or 'REPLICATE STATUS'")
+
+    def do_PROMOTE(self, arg):
+        """
+        Promote this node to primary (use in case primary fails)
+        Usage: PROMOTE
+        """
+        response = self._send_command({"command": "promote_to_primary", "action": "node"})
+        
+        if response and response.get("status") == "success":
+            print(response.get("message", "Successfully promoted to primary"))
+        else:
+            print(f"Error: {response.get('error', 'Unknown error')}")
+
+    def _send_command(self, command_data):
+        """Send a command to the server."""
+        # Add session ID if available
+        if self.session_id:
+            command_data["session_id"] = self.session_id
+        
+        try:
+            data = json.dumps(command_data).encode()
+            self.sock.sendall(len(data).to_bytes(4, byteorder="big"))
+            self.sock.sendall(data)
+            
+            # Receive response
+            response_size_bytes = self.sock.recv(4)
+            response_size = int.from_bytes(response_size_bytes, byteorder="big")
+            response_data = self.sock.recv(response_size)
+            response = json.loads(response_data.decode())
+            
+            return response
+        except ConnectionError:
+            print("Error: Connection to server lost.")
+            return None
 
     def display_tables_tree(self, result):
         """Display tables in a tree structure organized by database"""

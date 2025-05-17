@@ -9,7 +9,7 @@
 [![Lines of Code](https://img.shields.io/github/languages/code-size/dedzsinator/pyhmssql)](https://github.com/dedzsinator/pyhmssql)
 [![License](https://img.shields.io/github/license/dedzsinator/pyhmssql)](https://github.com/dedzsinator/pyhmssql/blob/main/LICENSE)
 [![Tests](https://img.shields.io/github/actions/workflow/status/dedzsinator/pyhmssql/tests.yml?branch=main&label=Tests)](https://github.com/dedzsinator/pyhmssql/actions/workflows/tests.yml)
-[![Lines of Code](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Dedzsinator/pyHMSSQL/loc-badge/loc-badge.json)](https://github.com/Dedzsinator/pyHMSSQL)
+[![Lines of Code](https://tokei.rs/b1/github/Dedzsinator/pyHMSSQL?category=code)](https://github.com/Dedzsinator/pyHMSSQL/)
 
 A lightweight, powerful database management system built in Python. pyHMSSQL implements a client-server architecture with B+ tree indexing for efficient data retrieval operations.
 
@@ -217,6 +217,69 @@ cd e:\Programming\pyHMSSQL\client\java_client
 mvn clean package
 ```
 
+## 🧩 Server Configuration Options
+
+| **Option**        | **Default**                  | **Description**                                                                      |
+| ----------------- | ---------------------------- | ------------------------------------------------------------------------------------ |
+| `--name`          | Auto-generated from hostname | Sets a custom name for the server instance. Useful for identifying specific servers. |
+| `--use-api`       | `False`                      | Starts the REST API server instead of the socket server, enabling HTTP-based access. |
+| `--api-host`      | `0.0.0.0`                    | Host address for REST API server. Use `127.0.0.1` for local-only access.             |
+| `--api-port`      | `5000`                       | Port number for the REST API server to listen on.                                    |
+| `--api-debug`     | `False`                      | Enables debug mode with extra logging and auto-reload for the REST API server.       |
+| `--replica-of`    | `None`                       | Configures this server as a replica. Format: `host:port` (e.g., `localhost:9999`).   |
+| `--sync-mode`     | `semi-sync`                  | Replication mode: `sync`, `semi-sync`, or `async`.                                   |
+| `--sync-replicas` | `1`                          | Number of replicas that must acknowledge writes in `semi-sync` mode.                 |
+
+## 🔁 Replication Modes Explained
+
+| **Mode**    | **Description**                                                                                    | **Use Case**                                        |
+| ----------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `sync`      | Fully synchronous replication. All replicas must confirm write operations before primary responds. | Highest consistency where data safety is critical.  |
+| `semi-sync` | Primary waits for a set number of replicas to acknowledge before responding.                       | Balanced tradeoff between performance and safety.   |
+| `async`     | Primary doesn't wait for any acknowledgment from replicas.                                         | Max performance where some data loss is acceptable. |
+
+### All of the start opions as commands
+
+#### Start a primary server with a custom name
+
+```bash
+python server.py --name "Primary HMSSQL Server"
+```
+
+#### Start a replica server that replicates from a primary
+
+```bash
+python server.py --name "Replica Server" --replica-of localhost:9999
+```
+
+#### Start a server with REST API enabled
+
+```bash
+python server.py --use-api --api-port 8080
+```
+
+#### Start a primary with fully synchronous replication
+
+```bash
+python server.py --sync-mode sync
+```
+
+#### Start a primary that waits for at least 2 replicas to acknowledge writes
+
+```bash
+python server.py --sync-mode semi-sync --sync-replicas 2
+```
+
+## ⚙️ Default Server Configuration (No Flags)
+
+### When started without any flags, the server will
+
+- Run as a primary server
+- Use semi-synchronous replication waiting for 1 replica
+- Listen for socket connections on port 9999
+- Enable automatic node discovery
+- Use optimized B+ tree, buffer pool, and cost-based optimization
+
 ## 📝 Example Commands
 
 ```sql
@@ -263,6 +326,28 @@ query CREATE DATABASE test_db ✅
 
 query SCRIPT a.sql ✅ (no need for `query` keyword in the script file)
 
+---
+-- Get detailed cache statistics
+CACHE STATS
+
+-- Clear all caches (query cache and buffer pool)
+CACHE CLEAR ALL
+
+-- Clear cache entries for a specific table
+CACHE CLEAR TABLE customers
+
+-- After altering a table, clear its cache entries
+CACHE CLEAR TABLE products
+
+-- Clear all caches before benchmarking for consistent results
+CACHE CLEAR ALL
+
+-- When checking if query results are cached or not
+CACHE STATS
+
+-- Then after running a query, check again
+SELECT * FROM orders WHERE customer_id = 1234;
+CACHE STATS
 ---
 
 query DROP INDEX name ON customers ✅

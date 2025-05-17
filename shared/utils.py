@@ -44,63 +44,36 @@ def get_current_database_or_error(catalog_manager, include_type=True):
 
 
 def send_data(sock, data):
-    """
-    Send JSON data over a socket.
-    """
-    sock.send(json.dumps(data, cls=JSONEncoder).encode())
-
+    """Send JSON data to a socket with size prefix"""
+    # Serialize the data to JSON
+    json_data = json.dumps(data).encode('utf-8')
+    
+    # Send the size of the data as 4 bytes (big-endian) 
+    size_bytes = len(json_data).to_bytes(4, byteorder='big')
+    sock.sendall(size_bytes)
+    
+    # Send the actual JSON data
+    sock.sendall(json_data)
 
 def receive_data(sock):
-    """
-    Receive data from a socket.
-    """
-    try:
-        data = b""
-        while True:
-            part = sock.recv(4096)
-            if not part:
-                break  # Connection closed by client
-            data += part
-            if len(part) < 4096:
-                break  # End of message
-
-        if not data:
-            logging.warning("Received empty data from client")
-            return None
-
-        # Debug the raw received data
-        logging.debug("Raw received data: %s", data)
-
-        # Try to decode as JSON
-        try:
-            decoded = data.decode("utf-8")
-            logging.debug("Decoded string: %s", decoded)
-            parsed_data = json.loads(decoded)
-
-            # Verify the parsed data is properly formatted
-            if not isinstance(parsed_data, dict):
-                logging.error("Parsed data is not a dictionary: %s", parsed_data)
-                return {
-                    "type": "error",
-                    "error": "Invalid data format, expected JSON object",
-                }
-
-            # Ensure type field exists
-            if "type" not in parsed_data:
-                logging.error("Missing 'type' field in request: %s", parsed_data)
-                # Set a default type to avoid None errors
-                parsed_data["type"] = "unknown"
-
-            return parsed_data
-        except json.JSONDecodeError as e:
-            logging.error("JSON decode error: %s", str(e))
-            logging.error(
-                "Attempted to parse: %s", data.decode('utf-8', errors='replace')
-                )
-            return {"type": "error", "error": f"Invalid JSON format: {str(e)}"}
-        except RuntimeError as e:
-            logging.error("Error parsing received data: %s", str(e))
-            return {"type": "error", "error": f"Data parsing error: {str(e)}"}
-    except RuntimeError as e:
-        logging.error("Socket receive error: %s", str(e))
-        return {"type": "error", "error": f"Communication error: {str(e)}"}
+    """Receive JSON data from a socket with size prefix"""
+    # Read the data size (4 bytes, big-endian)
+    size_bytes = sock.recv(4)
+    if not size_bytes:
+        raise RuntimeError("Connection closed by remote host")
+    
+    size = int.from_bytes(size_bytes, byteorder='big')
+    
+    # Read the JSON data according to the size
+    data_bytes = bytearray()
+    bytes_remaining = size
+    
+    while bytes_remaining > 0:
+        chunk = sock.recv(min(bytes_remaining, 4096))
+        if not chunk:
+            raise RuntimeError("Connection closed by remote host")
+        data_bytes.extend(chunk)
+        bytes_remaining -= len(chunk)
+    
+    # Deserialize the JSON data
+    return json.loads(data_bytes.decode('utf-8'))

@@ -11,6 +11,7 @@ Returns:
 
 import logging
 import re
+import copy
 
 
 class Planner:
@@ -22,6 +23,7 @@ class Planner:
         """
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
+        self.plan_cache = {}
 
     def log_execution_plan(self, plan):
         """
@@ -139,10 +141,39 @@ class Planner:
 
         return plan
 
+
     def plan_query(self, parsed_query):
         """
-        Generate an execution plan from the parsed query.
+        Plan a query based on its parsed structure.
         """
+        # Generate a cache key for common queries
+        query_type = parsed_query.get("type")
+        
+        # Simple key for common query types
+        if query_type in ("SELECT", "SHOW"):
+            key_parts = [query_type]
+            
+            # Add table information for SELECT
+            if query_type == "SELECT" and "tables" in parsed_query:
+                key_parts.append(",".join(sorted(str(t) for t in parsed_query["tables"])))
+                
+            # Add object for SHOW
+            if query_type == "SHOW" and "object" in parsed_query:
+                key_parts.append(str(parsed_query["object"]))
+                
+            cache_key = "_".join(key_parts)
+            
+            # Check if we have a cached plan template
+            if cache_key in self.plan_cache:
+                # Copy the cached plan and customize it
+                plan = copy.deepcopy(self.plan_cache[cache_key])
+                
+                # Customize the template with query-specific details
+                if query_type == "SELECT":
+                    plan["columns"] = parsed_query.get("columns", ["*"])
+                    if "condition" in parsed_query:
+                        plan["condition"] = parsed_query["condition"]
+
         logging.info("Planning query of type: %s",
                      parsed_query.get("type", "UNKNOWN"))
         plan = None

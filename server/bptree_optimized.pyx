@@ -31,11 +31,25 @@ ctypedef struct BPNode:
     BPNode** children
     BPNode* next  # For leaf nodes' linked list
 
+cdef class ValueHolder:
+    """Lightweight class to hold values with optimized memory usage"""
+    __slots__ = ('value',)
+    
+    cdef public object value  # Added explicit declaration for the value attribute
+    
+    def __init__(self, value):
+        self.value = value
+
 cdef class BPlusTreeOptimized:
     """
     Optimized B+ tree implementation using Cython.
     Optimized for numeric keys (doubles) and arbitrary value pointers.
     """
+    __slots__ = (
+    'root', 'order', 'max_keys', 'name', 'operation_counter', 
+    'value_store', 'next_value_id'
+    )
+    
     cdef:
         BPNode* root
         int order
@@ -366,7 +380,7 @@ cdef class BPlusTreeOptimized:
         # Store value and get its pointer
         self.operation_counter += 1
         cdef size_t value_ptr = self.next_value_id
-        self.value_store[value_ptr] = value
+        self.value_store[value_ptr] = ValueHolder(value)
         self.next_value_id += 1
         
         # Log operation
@@ -519,7 +533,8 @@ cdef class BPlusTreeOptimized:
         cdef size_t result_ptr = self._search_internal(self.root, k)
         if result_ptr == 0:
             return None
-        return self.value_store.get(result_ptr)
+        value_holder = self.value_store.get(result_ptr)
+        return value_holder.value if value_holder else None
 
     cdef size_t _search_internal(self, BPNode* node, double key) nogil:
         """Improved search function with better floating point comparison"""
@@ -695,9 +710,9 @@ cdef class BPlusTreeOptimized:
             # Collect items from leaf
             for i in range(node.num_keys):
                 kv = node.keys[i]
-                value = self.value_store.get(kv.value_ptr)
-                if value is not None:
-                    items.append((kv.key, value))
+                value_holder = self.value_store.get(kv.value_ptr)
+                if value_holder is not None:
+                    items.append((kv.key, value_holder.value))
                 
         else:
             # Visit children in order (for sorted output)
@@ -765,9 +780,9 @@ cdef class BPlusTreeOptimized:
                 if key >= start_key - epsilon:
                     value_ptr = current_leaf.keys[i].value_ptr
                     if value_ptr > 0:
-                        value = self.value_store.get(value_ptr)
-                        if value is not None:
-                            results.append((key, value))
+                        value_holder = self.value_store.get(value_ptr)
+                        if value_holder is not None:
+                            results.append((key, value_holder.value))
             
             # Move to next leaf
             current_leaf = current_leaf.next
