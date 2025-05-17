@@ -1162,8 +1162,7 @@ class CatalogManager:
             return f"Table {actual_table_name} does not exist."
 
         # Load the table file
-        table_file = os.path.join(self.tables_dir, db_name, f"{
-                                actual_table_name}.tbl")
+        table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
         if not os.path.exists(table_file):
             return "Table data file not found."
 
