@@ -550,13 +550,13 @@ query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d
 query SELECT * FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE name = 'Engineering')
 
 -- UNION
-query SELECT id, name FROM employees UNION SELECT id, name FROM departments # returns 
+query SELECT id, name FROM employees UNION SELECT id, name FROM departments ✅
 
 -- INTERSECT
 query SELECT dept_id FROM employees INTERSECT SELECT id FROM departments ✅
 
 -- EXCEPT
-query SELECT id FROM departments EXCEPT SELECT dept_id FROM employees
+query SELECT id FROM departments EXCEPT SELECT dept_id FROM employees ✅
 
 -- AND operation
 query SELECT * FROM employees WHERE salary > 70000 AND dept_id = 1

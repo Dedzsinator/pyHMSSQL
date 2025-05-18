@@ -225,6 +225,19 @@ class Planner:
 
                     # Return the plan immediately without further processing
                     return self.log_execution_plan(aggregate_plan)
+        elif parsed_query["type"] in ["UNION", "INTERSECT", "EXCEPT"]:
+            # Recursively plan both sides of the set operation
+            left_plan = self.plan_query(parsed_query.get("left", {}))
+            right_plan = self.plan_query(parsed_query.get("right", {}))
+            
+            # Create a set operation plan
+            plan = {
+                "type": parsed_query["type"],  # Preserve the set operation type
+                "left": left_plan,
+                "right": right_plan,
+                "query": parsed_query.get("query", "")
+            }
+            return self.log_execution_plan(plan)
 
         try:
             # Handle database operations directly

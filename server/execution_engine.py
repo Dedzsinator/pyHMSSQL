@@ -399,7 +399,7 @@ class ExecutionEngine:
         if "parsed_condition" in plan and self._has_subquery(plan["parsed_condition"]):
             self._resolve_subqueries(plan["parsed_condition"])
 
-        # Set operations are handled separately
+        # Set operations are handled separately - PROPERLY CHECK FOR SET OPERATION TYPES
         if plan_type in ["UNION", "INTERSECT", "EXCEPT"]:
             return self.execute_set_operation(plan)
 
