@@ -32,9 +32,9 @@ class ExecutionEngine:
             catalog_manager, self.join_executor, self.aggregate_executor
         )
 
+        # Set execution_engine reference only once (removing duplicate)
         self.select_executor.execution_engine = self
 
-        self.select_executor.execution_engine = self
         self.dml_executor = DMLExecutor(catalog_manager, index_manager)
         self.schema_manager = SchemaManager(catalog_manager)
         self.view_manager = ViewManager(catalog_manager)
@@ -386,6 +386,10 @@ class ExecutionEngine:
         plan_type = plan.get("type", "UNKNOWN") if isinstance(plan, dict) else "UNKNOWN"
         transaction_id = plan.get("transaction_id") if isinstance(plan, dict) else None
 
+        # DISABLE CACHING: Add a flag to indicate that caching is disabled
+        if isinstance(plan, dict):
+            plan["no_cache"] = True
+
         # If plan is None or empty, return error
         if not plan or not isinstance(plan, dict):
             logging.error("Invalid plan received: %s", plan)
@@ -412,7 +416,26 @@ class ExecutionEngine:
 
             # Consolidated SQL query operations - each operation executed only ONCE
             if plan_type == "SELECT":
-                result = self.select_executor.execute_select(plan)
+                # Ensure limit and order_by are properly extracted from plan
+                limit = plan.get("limit")
+                order_by = plan.get("order_by")
+                
+                # Make a copy to ensure parameters aren't lost
+                execution_plan = plan.copy()
+                
+                # Log what we're actually executing with
+                if limit is not None:
+                    logging.info(f"Executing SELECT with LIMIT: {limit}")
+                else:
+                    logging.info("Executing SELECT without LIMIT")
+                
+                if order_by:
+                    logging.info(f"Executing SELECT with ORDER BY: {order_by}")
+                else:
+                    logging.info("Executing SELECT without ORDER BY")
+                
+                # Execute with the complete plan
+                result = self.select_executor.execute_select(execution_plan)
             elif plan_type == "AGGREGATE":
                 result = self.aggregate_executor.execute_aggregate(plan)
             elif plan_type == "JOIN":

@@ -148,34 +148,44 @@ class Planner:
         """
         # Generate a cache key for common queries
         query_type = parsed_query.get("type")
-        
+
         # Simple key for common query types
         if query_type in ("SELECT", "SHOW"):
             key_parts = [query_type]
-            
+
             # Add table information for SELECT
             if query_type == "SELECT" and "tables" in parsed_query:
                 key_parts.append(",".join(sorted(str(t) for t in parsed_query["tables"])))
-                
+
+                # Add important variations to the cache key
+                if "limit" in parsed_query:
+                    key_parts.append(f"limit:{parsed_query['limit']}")
+
+                if "order_by" in parsed_query:
+                    if isinstance(parsed_query["order_by"], dict):
+                        key_parts.append(f"orderby:{parsed_query['order_by'].get('column')}:{parsed_query['order_by'].get('direction', 'ASC')}")
+                    else:
+                        key_parts.append(f"orderby:{parsed_query['order_by']}")
+
+                if "condition" in parsed_query:
+                    # Use a hash to keep the key size reasonable
+                    cond_str = str(parsed_query["condition"])
+                    key_parts.append(f"cond:{hash(cond_str) & 0xffffffff}")
+
             # Add object for SHOW
             if query_type == "SHOW" and "object" in parsed_query:
                 key_parts.append(str(parsed_query["object"]))
-                
+
             cache_key = "_".join(key_parts)
-            
+
             # Check if we have a cached plan template
             if cache_key in self.plan_cache:
-                # Copy the cached plan and customize it
+                logging.info("Using cached optimized plan for key: %s", cache_key)
                 plan = copy.deepcopy(self.plan_cache[cache_key])
-                
-                # Customize the template with query-specific details
-                if query_type == "SELECT":
-                    plan["columns"] = parsed_query.get("columns", ["*"])
-                    if "condition" in parsed_query:
-                        plan["condition"] = parsed_query["condition"]
+                return self.log_execution_plan(plan)
 
-        logging.info("Planning query of type: %s",
-                     parsed_query.get("type", "UNKNOWN"))
+        # DISABLED CACHING FOR NOW
+        logging.info("Creating a new optimized plan (caching disabled)")
         plan = None
 
         # Add diagnostic logging to see what parsed_query contains
@@ -305,13 +315,13 @@ class Planner:
             plan["error"] = f"Unknown visualization object: {object_type}"
 
         return plan
-    
+
     def plan_transaction_operation(self, parsed_query):
         """
         Plan for transaction control operations (BEGIN, COMMIT, ROLLBACK).
         """
         logging.debug("Planning transaction operation: %s", parsed_query)
-        
+
         # Simply pass through the transaction type
         return {
             "type": parsed_query["type"],
@@ -456,9 +466,7 @@ class Planner:
         return self.plan_select(parsed_query)  # Fallback to regular select
 
     def plan_select(self, parsed_query):
-        """
-        Plan for SELECT queries.
-        """
+        """Plan for SELECT queries."""
         tables = parsed_query.get("tables", [])
 
         # If there are multiple tables or a join condition, this is a JOIN query
@@ -470,14 +478,50 @@ class Planner:
         # Extract condition (WHERE clause)
         condition = parsed_query.get("condition")
 
-        # Extract ORDER BY clause
+        # Extract and fix ORDER BY clause
         order_by = parsed_query.get("order_by")
+
+        # Ensure order_by has a consistent structure
+        if order_by:
+            # Make sure it's a dictionary with column and direction
+            if isinstance(order_by, str):
+                # Convert string to proper structure
+                parts = order_by.strip().split()
+                column_name = parts[0]
+                direction = "DESC" if len(parts) > 1 and parts[1].upper() == "DESC" else "ASC"
+                order_by = {"column": column_name, "direction": direction}
+            elif isinstance(order_by, dict) and "column" not in order_by:
+                # Handle missing column key
+                if "name" in order_by:
+                    order_by["column"] = order_by["name"]
+                elif "field" in order_by:
+                    order_by["column"] = order_by["field"]
+
+            # Log the standardized ORDER BY structure
+            logging.info(f"SELECT plan will include ORDER BY: {order_by}")
 
         # Extract LIMIT clause
         limit = parsed_query.get("limit")
+        if limit is not None:
+            try:
+                # Ensure limit is an integer
+                limit = int(limit)
+                logging.info(f"SELECT plan will include LIMIT: {limit}")
+            except (ValueError, TypeError):
+                logging.error(f"Invalid LIMIT value: {limit}")
+                limit = None
+
+        # Extract OFFSET clause
+        offset = parsed_query.get("offset")
 
         # Check for aggregation functions in columns
         columns = parsed_query.get("columns", [])
+
+        # Log to ensure LIMIT and ORDER BY are included in the plan
+        if limit is not None:
+            logging.info(f"SELECT plan will include LIMIT: {limit}")
+        if order_by:
+            logging.info(f"SELECT plan will include ORDER BY: {order_by}")
         logging.error("Planner checking columns for aggregates: %s", columns)
 
         for col in columns:
@@ -570,7 +614,9 @@ class Planner:
             "condition": condition,
             "order_by": order_by,
             "limit": limit,
+            "offset": offset,
             "tables": tables,  # Include tables list for compatibility
+            "operation": "SELECT"  # Added to maintain consistency with other code
         }
 
     def plan_join(self, parsed_query):

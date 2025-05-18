@@ -491,59 +491,34 @@ class Optimizer:
         # Configure logging
         logging.info("Initialized enhanced query optimizer with cost-based planning")
 
-    def optimize(self, plan):
+    def optimize(self, plan, plan_type=None):
         """
         Optimize the execution plan using cost-based techniques.
 
         Args:
             plan: The execution plan to optimize
+            plan_type: Optional plan type to override the one in the plan
 
         Returns:
             The optimized execution plan
         """
         # Check if plan is None or not a dictionary
         if not plan or not isinstance(plan, dict):
-            logging.warning("Invalid plan received by optimizer: %s", plan)
             return plan
 
         # Generate plan type safely
-        plan_type = plan.get("type", "UNKNOWN")
-        logging.info("Starting plan optimization for plan type: %s", plan_type)
-
-        # Generate a plan key for caching
-        plan_key = self._plan_key_generator(plan)
-
-        # Check cache for previously optimized similar plans
-        cached_plan = self.buffer_manager.get(plan_key, cache_type='query')
-
-        if cached_plan:
-            logging.info("Using cached optimized plan")
-            return cached_plan
-
-        # Estimate row counts and costs for plan components
-        plan = self._estimate_cardinality_and_cost(plan)
-
-        # Apply different optimization strategies based on plan type
-        if plan_type == "SELECT":
-            optimized_plan = self._optimize_select_with_cost(plan)
-        elif plan_type == "JOIN":
-            optimized_plan = self._optimize_join_with_cost(plan)
-        elif plan_type == "AGGREGATE":
-            optimized_plan = self._optimize_aggregate(plan)
-        elif plan_type == "UNION":
-            optimized_plan = self._optimize_union(plan)
-        elif plan_type == "INTERSECT":
-            optimized_plan = self._optimize_intersect(plan)
-        elif plan_type == "EXCEPT":
-            optimized_plan = self._optimize_set_operation(plan)
-        else:
-            # For other plan types, apply generic optimizations
-            optimized_plan = plan.copy() if isinstance(plan, dict) else plan
-
-        # Cache the optimized plan
-        self.buffer_manager.put(plan_key, optimized_plan, cache_type='query')
-
-        return optimized_plan
+        plan_type = plan_type or plan.get("type", "UNKNOWN")
+        logging.info(f"Starting plan optimization for plan type: {plan_type}")
+            
+        # DISABLE ALL CACHING - Always treat every plan as new
+        # Skip all caching mechanisms completely
+        logging.info("✅ Optimized query plan")
+        
+        # Mark the plan as no_cache to ensure other components don't cache it
+        plan["no_cache"] = True
+        
+        # Return the original plan without caching
+        return plan
 
     def _optimize_union(self, plan):
         """

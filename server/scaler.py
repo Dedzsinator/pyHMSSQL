@@ -57,6 +57,21 @@ class ReplicationManager:
         self.heartbeat_thread = threading.Thread(target=self._heartbeat_worker, daemon=True)
         self.heartbeat_thread.start()
 
+    def shutdown(self):
+        """Stop the replication manager."""
+        self.running = False
+
+        try:
+            if self.worker_thread and self.worker_thread.is_alive():
+                self.worker_thread.join(timeout=5)
+
+            if self.heartbeat_thread and self.heartbeat_thread.is_alive():
+                self.heartbeat_thread.join(timeout=5)
+
+            logging.info("Replication manager shutdown complete")
+        except Exception as e:
+            logging.error(f"Error during replication manager shutdown: {str(e)}")
+
     def register_as_replica(self, primary_host, primary_port):
         """Register this server as a replica to a primary.
 

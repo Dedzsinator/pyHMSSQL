@@ -34,9 +34,7 @@ from execution_engine import ExecutionEngine  # noqa: E402
 from planner import Planner  # noqa: E402
 from ddl_processor.index_manager import IndexManager  # noqa: E402
 from catalog_manager import CatalogManager  # noqa: E402
-from buffer_pool_manager import BufferPool, CacheStrategy  # noqa: E402
-from scaler import ReplicationManager, ReplicationMode,ReplicaRole  # noqa: E402
-from buffer_pool_manager import BufferPool, CacheStrategy, QueryResultCache  # noqa: E402
+from scaler import ReplicationManager, ReplicationMode, ReplicaRole  # noqa: E402
 
 def setup_logging():
     """
@@ -103,12 +101,6 @@ class DBMSServer:
 
         # Initialize statistics manager for cost-based optimization
         self.statistics_manager = TableStatistics(self.catalog_manager)
-
-        # Initialize buffer pool for caching
-        self.buffer_pool = BufferPool(capacity=1000, strategy=CacheStrategy.HYBRID)
-
-        # Initialize query cache
-        self.query_cache = QueryResultCache(capacity=100)
 
         # Initialize execution engine with new components
         self.execution_engine = ExecutionEngine(
@@ -283,25 +275,17 @@ class DBMSServer:
         return session_token in self.sessions
 
     def handle_request(self, data):
-        """
-        Handle incoming request.
-        """
+        """Handle incoming request."""
         try:
             # Use 'action' field for determining request type
-            request_type = data.get(
-                "action", data.get("type"))  # Try both fields
+            request_type = data.get("action", data.get("type"))  # Try both fields
 
             if not request_type:
-                logging.error("Missing request type in request: %s", data)
-                return {"error": "Missing request type in request", "status": "error"}
+                return {"error": "Invalid request: missing action/type", "status": "error"}
 
             # Extract query for multiple handlers that need it
             query = data.get("query", "")
             session_id = data.get("session_id")
-
-            # Handle CACHE command as a special case if query starts with CACHE
-            if isinstance(query, str) and query.strip().upper().startswith("CACHE "):
-                return self.handle_cache_command(query, session_id)
 
             # Process the request based on action
             if request_type == "login":
@@ -622,398 +606,105 @@ class DBMSServer:
         return {"error": "Unknown node command", "status": "error"}
 
     def handle_query(self, query, session_id=None, user=None):
-        """Handle a query request with enhanced optimization and smart caching."""
+        """Handle a query request with enhanced optimization."""
         start_time = time.time()
         if not query:
-            return {"error": "Empty query", "status": "error"}
+            return {"error": "No query provided", "status": "error"}
 
         logging.info("Query from %s: %s", user or "anonymous", query)
 
         # Log to audit trail
         try:
-            self._log_query_audit(user, query)
-        except AttributeError:
-            # Fallback to _log_query if _log_query_audit doesn't exist
-            try:
-                self._log_query(user, query)
-            except AttributeError:
-                logging.error("Failed to log audit: neither _log_query_audit nor _log_query methods defined")
+            self._log_query_audit(user.get("username", "anonymous") if user else "anonymous", query)
+        except Exception as e:
+            logging.error(f"Error logging query audit: {str(e)}")
 
-        # Fast path for common metadata queries
-        if query.strip().upper() == "SHOW DATABASES":
-            databases = self.catalog_manager.list_databases()
-            return {
-                "status": "success",
-                "columns": ["Database"],
-                "rows": [[db] for db in databases],
-                "execution_time_ms": round((time.time() - start_time) * 1000, 2)
-            }
-
-        if query.strip().upper() == "SHOW TABLES":
-            db = self.catalog_manager.get_current_database()
-            if not db:
-                return {"error": "No database selected", "status": "error"}
-
-            tables = self.catalog_manager.list_tables()
-            return {
-                "status": "success",
-                "columns": ["Table"],
-                "rows": [[tbl] for tbl in tables],
-                "execution_time_ms": round((time.time() - start_time) * 1000, 2)
-            }
+        # DISABLED CACHING FOR NOW
+        try:
+            # Get the current database
+            db_name = self.catalog_manager.get_current_database()
+            if db_name:
+                # Get all tables in the database
+                tables = self.catalog_manager.list_tables(db_name)
+                for table in tables:
+                    logging.info(f"Invalidating cache for table: {table}")
+                    # Check if the method exists before calling it
+                    if hasattr(self.catalog_manager, '_invalidate_table_cache'):
+                        self.catalog_manager._invalidate_table_cache(table)
+        except Exception as e:
+            logging.error(f"Error invalidating cache: {str(e)}")
 
         # Check if this is a DML query that modifies data
-        is_modifying_query = query.strip().upper().startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER", "BEGIN", "COMMIT", "ROLLBACK"))
+        is_modifying_query = (
+            query.strip().upper().startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER")) or
+            "INSERT INTO" in query.upper() or
+            "UPDATE " in query.upper() or
+            "DELETE FROM" in query.upper()
+        )
 
-        # Only check cache for non-modifying queries
-        query_hash = hashlib.md5(query.strip().lower().encode()).hexdigest()
-        if not is_modifying_query:
-            cached_result = self.query_cache.get(query_hash)
+        # Extract table name from modification queries for cache invalidation
+        target_table = None
+        if is_modifying_query:
+            # Try to extract the table name using regex patterns
+            if "INSERT INTO" in query.upper():
+                match = re.search(r"INSERT\s+INTO\s+(\w+)", query, re.IGNORECASE)
+                if match:
+                    target_table = match.group(1)
+            elif "UPDATE" in query.upper():
+                match = re.search(r"UPDATE\s+(\w+)", query, re.IGNORECASE)
+                if match:
+                    target_table = match.group(1)
+            elif "DELETE FROM" in query.upper():
+                match = re.search(r"DELETE\s+FROM\s+(\w+)", query, re.IGNORECASE)
+                if match:
+                    target_table = match.group(1)
 
-            if cached_result:
-                logging.info("Query cache hit for: %s", query)
-                # Add execution time for consistency
-                if isinstance(cached_result, dict) and "execution_time_ms" not in cached_result:
-                    cached_result["execution_time_ms"] = 0.0
-                return cached_result
+            if target_table:
+                logging.info(f"Identified target table for modification: {target_table}")
 
         # Current database is useful for debugging
         logging.info("Current database: %s", self.catalog_manager.get_current_database())
 
-        # Check for transaction control statements
-        is_transaction_start = query.strip().upper().startswith("BEGIN TRANSACTION")
-        is_transaction_commit = query.strip().upper().startswith("COMMIT")
-        is_transaction_rollback = query.strip().upper().startswith("ROLLBACK")
-
-        if is_transaction_start:
-            logging.info("Detected BEGIN TRANSACTION statement")
-        elif is_transaction_commit:
-            logging.info("Detected COMMIT statement")
-        elif is_transaction_rollback:
-            logging.info("Detected ROLLBACK TRANSACTION statement")
-
         try:
-            # Parse the query
+            # Parse and execute the query
             parsed_query = self.sql_parser.parse_sql(query)
-            logging.info("▶️ Parsed query: %s", parsed_query)
+            logging.info(f"▶️ Parsed query: {parsed_query}")
 
             # Plan the query
             plan = self.planner.plan_query(parsed_query)
 
-            # Check if plan is None or invalid
-            if not plan or not isinstance(plan, dict):
-                return {"error": "Failed to generate a valid query plan", "status": "error"}
-
-            # Ensure plan has a 'type' key
-            if "type" not in plan and parsed_query and "type" in parsed_query:
-                plan["type"] = parsed_query["type"]
-                logging.info(f"Added missing 'type' from parsed query: {plan['type']}")
-
-            # Special handling for UNION/INTERSECT/EXCEPT operations
-            if parsed_query and parsed_query.get("type") in ["UNION", "INTERSECT", "EXCEPT"]:
-                if "type" not in plan:
-                    plan["type"] = parsed_query["type"]
-                # Make sure left and right queries are included
-                if "left" in parsed_query and "left" not in plan:
-                    plan["left"] = parsed_query["left"]
-                if "right" in parsed_query and "right" not in plan:
-                    plan["right"] = parsed_query["right"]
-
-            if is_modifying_query and parsed_query.get("type") == "INSERT" and "values" in parsed_query:
-                # Make sure plan uses the correct values from the parsed query
-                if "values" in parsed_query and "values" in plan:
-                    plan["values"] = parsed_query["values"]
-
-            # Get table name for potential cache update
-            table_name = None
-            if "table" in plan:
-                table_name = plan["table"]
-            elif "table_name" in plan:
-                table_name = plan["table_name"]
-
-            # Add session ID to plan
-            if session_id:
-                plan["session_id"] = session_id
-
-            # Add transaction ID to the plan if in transaction
-            if session_id and session_id in self.active_transactions:
-                plan["transaction_id"] = self.active_transactions[session_id]
-                logging.info(f"Added transaction ID {plan['transaction_id']} to query plan")
-
-            # Apply optimization with safeguards
-            try:
-                optimized_plan = self.optimizer.optimize(plan)
+            # Optimize the plan
+            if hasattr(self, 'optimizer'):
+                plan_type = plan.get("type")
+                optimized_plan = self.optimizer.optimize(plan, plan_type)
                 logging.info("✅ Optimized query plan")
+            else:
+                optimized_plan = plan
 
-                # Ensure optimized_plan retains type information
-                if "type" not in optimized_plan and "type" in plan:
-                    optimized_plan["type"] = plan["type"]
-                    logging.info(f"Preserved plan type after optimization: {optimized_plan['type']}")
+            # For DML operations, mark as no-cache to prevent caching the results
+            if is_modifying_query and isinstance(optimized_plan, dict):
+                optimized_plan["_no_cache"] = True
 
-            except (TypeError, AttributeError, KeyError) as e:
-                # Bypass optimization on error
-                logging.warning(f"Bypassing optimizer due to error: {str(e)}. Using unoptimized plan.")
-                optimized_plan = plan.copy() if isinstance(plan, dict) else plan
-
-                # Ensure plan type is present
-                if isinstance(optimized_plan, dict) and "type" not in optimized_plan and parsed_query and "type" in parsed_query:
-                    optimized_plan["type"] = parsed_query["type"]
-
-            # Execute the query with optimized plan
+            # Execute the plan
             result = self.execution_engine.execute(optimized_plan)
 
-            # Handle transaction operations
-            if is_transaction_start and result.get("status") == "success":
-                # Store transaction ID in session
-                transaction_id = result.get("transaction_id")
-                if session_id and transaction_id:
-                    self._store_transaction_id(session_id, transaction_id)
-            elif (is_transaction_commit or is_transaction_rollback) and result.get("status") == "success":
-                # Clear transaction ID after commit or rollback
-                if session_id and session_id in self.active_transactions:
-                    self._clear_transaction_id(session_id)
-
-            # Calculate execution time
-            execution_time_ms = (time.time() - start_time) * 1000
-
-            # Add execution time to result
+            # Add execution time
+            duration = time.time() - start_time
             if isinstance(result, dict):
-                result["execution_time_ms"] = round(execution_time_ms, 2)
+                result["_duration"] = duration
 
-            # Cache management
-            if not is_modifying_query:
-                # Cache the result for SELECT queries with related table information
-                affected_tables = []
+            # Log execution time
+            logging.info(f"⏱️ Query executed in {duration*1000:.2f} ms")
 
-                # Determine tables affected by this query
-                if table_name:
-                    affected_tables.append(table_name)
-                elif "tables" in parsed_query:
-                    affected_tables.extend(parsed_query["tables"])
-
-                # Cache with table information
-                if hasattr(self.query_cache, 'put'):
-                    self.query_cache.put(query_hash, result, affected_tables=affected_tables)
-            else:
-                # For modifying queries, invalidate related caches
-                if table_name:
-                    self.invalidate_caches_for_table(table_name)
-
-            logging.info("⏱️ Query executed in %.2f ms", execution_time_ms)
             return result
-
-        except RuntimeError as e:
-            error_msg = str(e)
-            stack_trace = traceback.format_exc()
-            logging.error("Error executing query: %s", error_msg)
-            logging.error(stack_trace)
-            return {"error": error_msg, "status": "error", "execution_time_ms": round((time.time() - start_time) * 1000, 2)}
-
-    def _store_transaction_id(self, session_id, transaction_id):
-        """Store a transaction ID for a session."""
-        if session_id and transaction_id:
-            self.active_transactions[session_id] = transaction_id
-            logging.info(f"Stored transaction ID {transaction_id} for session {session_id}")
-        else:
-            logging.warning(f"Couldn't store transaction ID: session_id={session_id}, transaction_id={transaction_id}")
-
-    def _clear_transaction_id(self, session_id):
-        """Clear the transaction ID for a session."""
-        if session_id and session_id in self.active_transactions:
-            transaction_id = self.active_transactions.pop(session_id)
-            logging.info(f"Cleared transaction ID {transaction_id} for session {session_id}")
-        else:
-            logging.warning(f"No transaction found for session {session_id}")
-
-    def is_query_allowed(self, role, query):
-        """
-        Check if a query is allowed for the user's role.
-        """
-        # Admin can do anything
-        if role == "admin":
-            return True
-
-        # Convert to uppercase for case-insensitive comparison
-        query_upper = query.upper().strip()
-
-        # Regular users cannot do certain operations
-        if any(
-            query_upper.startswith(prefix)
-            for prefix in [
-                "DROP DATABASE",
-                "CREATE DATABASE",
-                "CREATE USER",
-                "DROP USER",
-                "ALTER USER",
-                "GRANT",
-                "REVOKE",
-            ]
-        ):
-            return False
-
-        # All other queries are allowed for all roles
-        return True
-
-    def handle_cache_command(self, query, session_id):
-        """Handle CACHE management commands.
-
-        Args:
-            query: The SQL query string (should start with CACHE)
-            session_id: The session ID
-
-        Returns:
-            dict: Command result
-        """
-        # Check if user has admin rights
-        if session_id not in self.sessions or self.sessions[session_id].get("role") != "admin":
-            return {
-                "error": "CACHE commands require admin privileges",
-                "status": "error"
-            }
-
-        query_upper = query.strip().upper()
-
-        # Handle different cache commands
-        if query_upper == "CACHE STATS":
-            # Get cache statistics
-            stats = self.get_cache_stats()
-            return {
-                "status": "success",
-                "stats": stats,
-                "message": "Cache statistics retrieved successfully"
-            }
-        elif query_upper == "CACHE CLEAR ALL":
-            # Clear all caches
-            if hasattr(self, 'query_cache'):
-                self.query_cache.clear()
-            if hasattr(self, 'buffer_pool'):
-                self.buffer_pool.flush_all()
-            return {
-                "status": "success",
-                "message": "All caches cleared successfully"
-            }
-        elif query_upper.startswith("CACHE CLEAR TABLE "):
-            # Extract table name
-            table_name = query_upper.replace("CACHE CLEAR TABLE ", "").strip()
-            if not table_name:
-                return {"error": "Table name required", "status": "error"}
-
-            # Invalidate caches for this table
-            stats = self.invalidate_caches_for_table(table_name)
-            return {
-                "status": "success",
-                "stats": stats,
-                "message": f"Cache entries for table {table_name} cleared successfully"
-            }
-        else:
-            return {
-                "error": "Unknown CACHE command. Supported commands: CACHE STATS, CACHE CLEAR ALL, CACHE CLEAR TABLE <name>",
-                "status": "error"
-            }
-
-    def get_cache_stats(self):
-        """Get statistics about all caching components.
-
-        Returns:
-            dict: Combined statistics from all caching components
-        """
-        stats = {}
-
-        # Buffer pool stats
-        if hasattr(self, 'buffer_pool'):
-            try:
-                stats["buffer_pool"] = self.buffer_pool.get_stats()
-            except RuntimeError as e:
-                stats["buffer_pool"] = {"error": str(e)}
-
-        # Query cache stats
-        if hasattr(self, 'query_cache'):
-            try:
-                stats["query_cache"] = self.query_cache.get_stats()
-            except RuntimeError as e:
-                stats["query_cache"] = {"error": str(e)}
-
-        # Overall memory usage estimation
-        import psutil
-        try:
-            process = psutil.Process()
-            stats["memory_usage"] = {
-                "rss": process.memory_info().rss / (1024 * 1024),  # MB
-                "vms": process.memory_info().vms / (1024 * 1024),  # MB
-                "percent": process.memory_percent()
-            }
-        except (ImportError, Exception) as e:
-            stats["memory_usage"] = {"error": str(e)}
-
-        return stats
-
-    def invalidate_caches_for_table(self, table_name):
-        """Invalidate all caches related to a specific table.
-
-        This method centralizes cache invalidation logic to ensure consistency
-        when tables are modified.
-
-        Args:
-            table_name: Name of the modified table
-
-        Returns:
-            dict: Statistics about what was invalidated
-        """
-        stats = {
-            "buffer_pool_pages": 0,
-            "query_cache_entries": 0,
-            "statistics_entries": None
-        }
-
-        # Invalidate buffer pool pages for this table
-        if hasattr(self, 'buffer_pool'):
-            try:
-                if hasattr(self.buffer_pool, 'invalidate'):
-                    pages_invalidated = self.buffer_pool.invalidate(table_name)
-                    stats["buffer_pool_pages"] = pages_invalidated
-                # Also check for index invalidation method
-                if hasattr(self.buffer_pool, 'invalidate_index'):
-                    self.buffer_pool.invalidate_index(table_name)
-            except RuntimeError as e:
-                logging.error(f"Error invalidating buffer pool for {table_name}: {str(e)}")
-
-        # Invalidate query cache entries for this table
-        if hasattr(self, 'query_cache'):
-            try:
-                # Try version update first (preferred method)
-                if hasattr(self.query_cache, 'update_table_version'):
-                    self.query_cache.update_table_version(table_name)
-                    stats["query_cache_entries"] = 0  # Not actually invalidating any entries yet
-                # Fallback to direct invalidation if available
-                elif hasattr(self.query_cache, 'invalidate_for_table'):
-                    entries_invalidated = self.query_cache.invalidate_for_table(table_name)
-                    stats["query_cache_entries"] = entries_invalidated
-            except RuntimeError as e:
-                logging.error(f"Error invalidating query cache for {table_name}: {str(e)}")
-
-        # Invalidate statistics for this table
-        if hasattr(self, 'statistics_manager'):
-            try:
-                self.statistics_manager.invalidate_statistics(table_name)
-            except RuntimeError as e:
-                logging.error(f"Error invalidating statistics for {table_name}: {str(e)}")
-
-        return stats
+        except Exception as e:
+            logging.error(f"Error executing query: {str(e)}")
+            logging.error(traceback.format_exc())
+            return {"error": f"Error executing query: {str(e)}", "status": "error"}
 
     def shutdown(self):
         """Perform clean shutdown tasks."""
         logging.info("Server shutting down, performing cleanup...")
-
-        # Flush buffer pool
-        if hasattr(self, 'buffer_pool'):
-            try:
-                flush_result = self.buffer_pool.flush_all()
-                if flush_result:
-                    logging.info("Successfully flushed all dirty pages from buffer pool")
-                else:
-                    logging.warning("Failed to flush all dirty pages from buffer pool")
-            except RuntimeError as e:
-                logging.error(f"Error flushing buffer pool: {str(e)}")
 
         # Close any database connections
         if hasattr(self, 'catalog_manager'):

@@ -162,7 +162,7 @@ class CatalogManager:
             shutil.rmtree(db_dir)
 
         logging.info("Database %s dropped.", db_name)
-        return f"Database {db_name} dropped."
+        return f"Database %s dropped."
 
     def get_all_tables(self):
         """Get a list of all tables across all databases.
@@ -506,7 +506,7 @@ class CatalogManager:
 
         return record_value in value_list
 
-    def query_with_condition(self, table_name, conditions=None, columns=None, limit=None):
+    def query_with_condition(self, table_name, conditions=None, columns=None, limit=None, order_by=None):
         """Query table data with conditions."""
         if conditions is None:
             conditions = []
@@ -525,14 +525,14 @@ class CatalogManager:
         if table_name in db_tables:
             actual_table_name = table_name
         else:
-            # Try case-insensitive match
+            # Case-insensitive match
             for db_table in db_tables:
                 if db_table.lower() == table_name.lower():
                     actual_table_name = db_table
                     break
 
         if not actual_table_name:
-            logging.warning("Table '%s' not found in database '%s'", table_name, db_name)
+            logging.warning("Table not found: %s", table_name)
             return []
 
         # Use the correct table name for the lookup
@@ -540,7 +540,7 @@ class CatalogManager:
 
         # Check if table exists
         if table_id not in self.tables:
-            logging.warning("Table ID '%s' not found in catalog", table_id)
+            logging.warning("Table not found in catalog: %s", table_id)
             return []
 
         # Try to use index for simple equality conditions
@@ -548,44 +548,25 @@ class CatalogManager:
         condition_value = None
 
         if len(conditions) == 1 and conditions[0].get("operator") == "=":
-            col = conditions[0].get("column")
-            val = conditions[0].get("value")
-
-            # Handle string values - remove quotes if present
-            if isinstance(val, str):
-                if (val.startswith("'") and val.endswith("'")) or \
-                (val.startswith('"') and val.endswith('"')):
-                    val = val[1:-1]
-
-            # Check for available indexes on this column
+            column_name = conditions[0].get("column")
+            condition_value = conditions[0].get("value")
+            # Check if we have an index for this column
             indexes = self.get_indexes_for_table(actual_table_name)
-            for _, idx_info in indexes.items(): # idx_name was not used
-                if idx_info.get("column").lower() == col.lower():
+            for idx_name, idx_info in indexes.items():
+                if idx_info.get("column").lower() == column_name.lower():
                     index_to_use = idx_info
-                    condition_value = val
                     break
 
         if index_to_use and condition_value is not None:
-            # Use index lookup instead of full table scan
-            index_file = os.path.join(self.indexes_dir,\
-                f"{db_name}_{actual_table_name}_{conditions[0].get('column')}.idx")
+            index_file = os.path.join(
+                self.indexes_dir,
+                f"{db_name}_{actual_table_name}_{index_to_use.get('column')}.idx"
+            )
             if os.path.exists(index_file):
                 try:
-                    # Check if the index is in the buffer pool cache first
-                    index_id = f"{db_name}_{actual_table_name}_{conditions[0].get('column')}"
-                    index = None
-
-                    if hasattr(self, 'buffer_pool'):
-                        index = self.buffer_pool.get_index(index_id)
-
-                    if not index:
-                        # Load the index
-                        index = BPlusTreeFactory.load_from_file(index_file)
-
-                        # Cache it for future use
-                        if hasattr(self, 'buffer_pool'):
-                            self.buffer_pool.cache_index(index_id, index)
-
+                    # Load the index
+                    index = BPlusTreeFactory.load_from_file(index_file)
+                    
                     if index:
                         # Use the index for lookup
                         results = []
@@ -596,6 +577,15 @@ class CatalogManager:
                             record = self.get_record_by_key(actual_table_name, record_id)
                             if record:
                                 results.append(record)
+
+                        # Apply order_by if specified
+                        if order_by and isinstance(order_by, dict):
+                            order_column = order_by.get("column")
+                            direction = order_by.get("direction", "ASC")
+                            if order_column:
+                                results = sorted(results, 
+                                            key=lambda r: self._get_sortable_value(r.get(order_column, "")),
+                                            reverse=(direction.upper() == "DESC"))
 
                         # Apply limit if specified
                         if limit is not None and isinstance(limit, int):
@@ -641,9 +631,30 @@ class CatalogManager:
                 if self._record_matches_conditions(record, conditions):
                     results.append(record)
 
+            # Apply order_by if specified
+            if order_by and isinstance(order_by, dict):
+                order_column = order_by.get("column")
+                direction = order_by.get("direction", "ASC")
+                if order_column:
+                    # Log the values to help debug sorting issues
+                    logging.info(f"Sorting by column: {order_column}, direction: {direction}")
+                    
+                    # Log some values for debugging
+                    if results and order_column in results[0]:
+                        sample_values = [self._get_sortable_value(r.get(order_column, "")) for r in results[:3]]
+                        logging.info(f"Sample values for sorting: {sample_values}")
+                    
+                    # Sort using the sortable value function and correct direction
+                    results = sorted(results, 
+                                key=lambda r: self._get_sortable_value(r.get(order_column, "")),
+                                reverse=(direction.upper() == "DESC"))
+                    logging.info(f"Sorted results by {order_column} {direction}")
+
             # Apply limit if specified
             if limit is not None and isinstance(limit, int):
+                logging.info(f"Applying LIMIT {limit} to result set of {len(results)} rows")
                 results = results[:limit]
+                logging.info(f"After LIMIT: {len(results)} rows")
 
             # Select specific columns if requested
             if columns != ["*"]:
@@ -654,9 +665,30 @@ class CatalogManager:
                 return filtered_results
 
             return results
-        except RuntimeError as e:
-            logging.error("Error reading table data: %s", str(e))
+        except Exception as e:
+            logging.error("Error querying table %s: %s", actual_table_name, str(e))
+            logging.error(traceback.format_exc())
             return []
+
+    def _get_sortable_value(self, value):
+        """Convert value to a sortable format."""
+        # If value is already a number, return it as is
+        if isinstance(value, (int, float)):
+            return value
+            
+        # Try to convert string to number if possible
+        if isinstance(value, str):
+            try:
+                if '.' in value:
+                    return float(value)
+                else:
+                    return int(value)
+            except (ValueError, TypeError):
+                # Keep as string for lexicographic comparison
+                return value
+                
+        # If all else fails, return the value as is for default comparison
+        return value
 
     def insert_record(self, table_name, record):
         """Insert a record into a table."""
@@ -752,7 +784,8 @@ class CatalogManager:
                         is_identity = True
                         identity_seed = col_def.get("identity_seed", 1)
                         identity_increment = col_def.get(
-                            "identity_increment", 1)
+                            "identity_increment", 1
+                        )
                         pk_column = (
                             col_name  # IDENTITY columns are typically primary keys
                         )
@@ -803,9 +836,9 @@ class CatalogManager:
                 tree = BPlusTreeFactory.load_from_file(table_file)
                 if tree is None:
                     # If loading failed, create a new tree
-                    tree = BPlusTreeFactory(order=50, name=table_name)
+                    tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
             else:
-                tree = BPlusTreeFactory(order=50, name=table_name)
+                tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
 
             # Get all existing records to check constraints and get max identity value
             all_records = tree.range_query(float("-inf"), float("inf"))
@@ -840,16 +873,32 @@ class CatalogManager:
                 )
 
                 # Check if this primary key already exists
+                pk_exists = False
                 for _, existing_record in all_records:
-                    if (
-                        pk_column in existing_record
-                        and existing_record[pk_column] == pk_value
-                    ):
-                        logging.warning(
-                            "Primary key violation: %s=%s already exists",
-                            pk_column, pk_value
+                    if pk_column in existing_record:
+                        existing_pk_value = existing_record[pk_column]
+                        # Ensure consistent type comparison for primary keys
+                        if isinstance(pk_value, str) and not isinstance(existing_pk_value, str):
+                            existing_pk_value = str(existing_pk_value)
+                        elif isinstance(existing_pk_value, str) and not isinstance(pk_value, str):
+                            pk_value = str(pk_value)
+                            
+                        logging.debug(
+                            "Comparing PK values: new=%s (%s) vs. existing=%s (%s)",
+                            pk_value, type(pk_value), existing_pk_value, type(existing_pk_value)
                         )
-                        return f"Primary key violation: {pk_column}={pk_value} already exists"
+                            
+                        if existing_pk_value == pk_value:
+                            pk_exists = True
+                            logging.warning(
+                                "Primary key violation: %s=%s already exists",
+                                pk_column, pk_value
+                            )
+                            return f"Primary key violation: {pk_column}={pk_value} already exists"
+
+                if not pk_exists:
+                    logging.debug("Primary key %s=%s is unique, proceeding with insert", 
+                                 pk_column, pk_value)
 
             # Generate a unique record ID (use primary key if available)
             if pk_column and pk_column in record:
@@ -859,6 +908,8 @@ class CatalogManager:
                 record_id = int(datetime.datetime.now().timestamp() * 1000000)
 
             if isinstance(record, dict):  # Make sure we have a dictionary to check
+                # Use the current record for FK constraint check, not a cached one
+                logging.info("Processing INSERT record: %s", record)
                 fk_violation = self._check_fk_constraints_for_insert(db_name, table_name, record)
                 if fk_violation:
                     logging.error("FK constraint violation during insert into %s: %s",
@@ -877,6 +928,9 @@ class CatalogManager:
             # Update indexes if any
             self._update_indexes_after_insert(
                 db_name, table_name, record_id, record)
+                
+            # Invalidate cache for this table if we have access to cache mechanisms
+            self._invalidate_table_cache(table_name)
 
             return True
 
@@ -1319,6 +1373,9 @@ class CatalogManager:
                 self._update_indexes_after_insert(
                     db_name, actual_table_name, key, record
                 )
+                
+            # Invalidate cache for this table
+            self._invalidate_table_cache(actual_table_name)
 
             return f"{len(records_to_delete)} records deleted."
 
@@ -1529,7 +1586,7 @@ class CatalogManager:
         self._save_json(self.indexes_file, self.indexes)
 
         logging.info("Index %s dropped from %s", index_name, table_name)
-        return f"Index {index_name} dropped from {table_name}"
+        return f"Index %s dropped from %s" % (index_name, table_name)
 
     def drop_table(self, table_name):
         """Drop a table from the catalog."""
@@ -1626,7 +1683,7 @@ class CatalogManager:
         self._save_json(self.views_file, self.views)
 
         logging.info("View %s dropped", view_name)
-        return f"View {view_name} dropped"
+        return f"View %s dropped"
 
     def get_record_by_key(self, table_name, record_key):
         """
@@ -1797,6 +1854,9 @@ class CatalogManager:
 
             # Save the updated tree
             tree.save_to_file(table_file)
+            
+            # Invalidate cache for this table
+            self._invalidate_table_cache(table_name)
 
             return True
 
@@ -1940,3 +2000,24 @@ class CatalogManager:
         # No actual database connections to close in file-based storage
         # This method exists for compatibility with the server shutdown process
         return True
+
+    def _invalidate_table_cache(self, table_name):
+        """Helper method to invalidate cache for a table if possible."""
+        try:
+            # Try to find query_cache in our attributes
+            if hasattr(self, 'query_cache'):
+                if hasattr(self.query_cache, 'invalidate'):
+                    self.query_cache.invalidate(table_name)
+                    logging.info(f"Invalidated query cache for table: {table_name}")
+                elif hasattr(self.query_cache, 'update_table_version'):
+                    self.query_cache.update_table_version(table_name)
+                    logging.info(f"Updated version for table: {table_name}")
+                    
+            # If we're part of a server instance that has invalidation methods
+            elif hasattr(self, '_server') and hasattr(self._server, 'invalidate_caches_for_table'):
+                self._server.invalidate_caches_for_table(table_name)
+                logging.info(f"Invalidated server caches for table: {table_name}")
+                
+        except Exception as e:
+            # Don't let cache invalidation errors affect the main operation
+            logging.error(f"Error during cache invalidation for {table_name}: {str(e)}")

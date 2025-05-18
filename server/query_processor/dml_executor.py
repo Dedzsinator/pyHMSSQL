@@ -30,11 +30,37 @@ class DMLExecutor:
         self.strict_heuristic_fk_validation = False  # Changed from True to False
 
     def execute_insert(self, plan):
-        #! READD CONCURRENCY CONTROL
         """Execute an INSERT operation."""
         table_name = plan.get("table")
         columns = plan.get("columns", [])
-        values = plan.get("values", [])
+        values_list = plan.get("values", [])
+        
+        # CRITICAL FIX: Always use the original values from the current plan
+        # rather than potentially cached values
+        values_list_to_use = values_list
+        
+        # Debug log to ensure we're using the correct values
+        logging.info(f"INSERT plan values: {values_list}")
+        
+        # If the values don't match the query string, this is likely a cached plan with stale values
+        if "query" in plan:
+            query = plan.get("query", "")
+            # Basic check - if the plan's query mentions different values than what's in values_list
+            if "VALUES" in query and str(values_list) not in query:
+                logging.warning("Potential cached plan with stale values detected, extracting fresh values")
+                # Use fresh values from the parsed query if available
+                if "fresh_values" in plan:
+                    values_list_to_use = plan.get("fresh_values")
+                    logging.info(f"Using fresh values for INSERT: {values_list_to_use}")
+        
+        if not table_name:
+            return {"error": "Table name not specified", "status": "error"}
+            
+        if not columns:
+            return {"error": "No columns specified for INSERT", "status": "error"}
+            
+        if not values_list_to_use:
+            return {"error": "No values specified for INSERT", "status": "error"}
 
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
@@ -43,7 +69,7 @@ class DMLExecutor:
         logging.info(f"--- Starting FK constraint checks for INSERT into {table_name} ---")
 
         # If no columns are specified, get them from the table schema
-        if not columns and values:
+        if not columns and values_list_to_use:
             table_schema = self.catalog_manager.get_table_schema(table_name)
             if table_schema:
                 columns = []
@@ -63,7 +89,7 @@ class DMLExecutor:
         logging.info(f"Table {table_name} schema: {table_schema}")
 
         success_count = 0
-        for value_row in values:
+        for value_row in values_list_to_use:  # Use the properly selected values
             # Create the record mapping columns to values
             record = {}
 
@@ -72,9 +98,8 @@ class DMLExecutor:
                     if i < len(columns):
                         col_name = columns[i]
                         # Clean string values
-                        if isinstance(value, str):
-                            if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
-                                value = value[1:-1]  # Remove quotes
+                        if isinstance(value, str) and value.startswith("'") and value.endswith("'"):
+                            value = value[1:-1]
                         record[col_name] = value
 
             record["_already_mapped"] = True
