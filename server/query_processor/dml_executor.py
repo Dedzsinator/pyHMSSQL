@@ -4,9 +4,7 @@ This module implements the Data Manipulation Language (DML) operations,
 including INSERT, UPDATE, and DELETE, with concurrency control.
 """
 import logging
-import traceback
 import os
-import uuid
 from bptree import BPlusTree
 import re
 from parsers.condition_parser import ConditionParser
@@ -41,7 +39,7 @@ class DMLExecutor:
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
             return {"error": "No database selected", "status": "error"}
-                
+
         logging.info(f"--- Starting FK constraint checks for INSERT into {table_name} ---")
 
         # If no columns are specified, get them from the table schema
@@ -60,7 +58,7 @@ class DMLExecutor:
 
         # Load the table schema to check for foreign key constraints
         table_schema = self.catalog_manager.get_table_schema(table_name)
-        
+
         # Debug - log the entire schema
         logging.info(f"Table {table_name} schema: {table_schema}")
 
@@ -68,7 +66,7 @@ class DMLExecutor:
         for value_row in values:
             # Create the record mapping columns to values
             record = {}
-            
+
             if columns:
                 for i, value in enumerate(value_row):
                     if i < len(columns):
@@ -80,7 +78,7 @@ class DMLExecutor:
                         record[col_name] = value
 
             record["_already_mapped"] = True
-            
+
             logging.info(f"Processing INSERT record: {record}")
             logging.info(f"--- Checking heuristic FK constraints ---")
 
@@ -95,21 +93,21 @@ class DMLExecutor:
                 if "constraints" in table_schema:
                     constraints = table_schema.get("constraints", [])
                     logging.info(f"Found {len(constraints)} table-level constraints")
-                    
+
                     for constraint in constraints:
                         if isinstance(constraint, str) and ("FOREIGN KEY" in constraint.upper() or "REFERENCES" in constraint.upper()):
                             logging.info(f"Found table-level FK constraint: {constraint}")
                             fk_constraints.append(constraint)
-                
+
                 # Also check if constraints exist at table root level (not in a 'constraints' array)
                 for key, value in table_schema.items():
                     if key == "constraints":
                         continue  # Already processed above
-                    
+
                     if isinstance(key, str) and key.startswith("FOREIGN KEY"):
                         logging.info(f"Found root-level FK constraint key: {key}")
                         fk_constraints.append(key)
-                    
+
                     if isinstance(value, str) and "REFERENCES" in value.upper():
                         logging.info(f"Found root-level FK constraint value: {value}")
                         fk_constraints.append(value)
@@ -142,11 +140,11 @@ class DMLExecutor:
                 fk_constraints.extend(pending_constraints)
 
             logging.info(f"Total FK constraints found: {len(fk_constraints)}")
-            
+
             # First parse all constraints to find explicitly defined foreign keys
             for constraint in fk_constraints:
                 logging.info(f"Pre-processing FK constraint: {constraint}")
-                
+
                 # Pattern 1: FOREIGN KEY (col) REFERENCES table(col)
                 pattern1 = r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(?:(\w+)\.)?(\w+)\s*\(\s*(\w+)\s*\)"
                 match = re.search(pattern1, constraint, re.IGNORECASE)
@@ -155,7 +153,7 @@ class DMLExecutor:
                     explicitly_constrained_columns.add(fk_column)
                     logging.info(f"Found explicit FK constraint for column: {fk_column}")
                     continue
-                
+
                 # Pattern 2: col_name REFERENCES table(col)
                 pattern2 = r"(\w+)\s+.*REFERENCES\s+(?:(\w+)\.)?(\w+)\s*\(\s*(\w+)\s*\)"
                 match = re.search(pattern2, constraint, re.IGNORECASE)
@@ -171,35 +169,35 @@ class DMLExecutor:
                 if col_name.endswith('_id') and value is not None:
                     # Try to determine referenced table
                     ref_table_base = col_name[:-3]  # Remove '_id' suffix
-                    
+
                     # Try common naming patterns in this order
                     possible_ref_tables = [
                         f"{ref_table_base}s",      # dept_id -> departments
                         ref_table_base,            # department_id -> department
                         f"{ref_table_base}es",     # box_id -> boxes
                         f"{ref_table_base}ies" if ref_table_base.endswith('y') else None,
-                        f"{ref_table_base}ment",  
-                        f"{ref_table_base}ments"  
+                        f"{ref_table_base}ment",
+                        f"{ref_table_base}ments"
                     ]
-                    
+
                     # Filter out None values
                     possible_ref_tables = [t for t in possible_ref_tables if t]
-                    
+
                     # Log which tables we're checking
                     logging.info(f"Checking possible reference tables for {col_name}: {possible_ref_tables}")
-                    
+
                     referenced_table = None  # Initialize the variable
                     for ref_table_name in possible_ref_tables:
                         if ref_table_name in self.catalog_manager.list_tables(db_name):
                             logging.info(f"Found candidate reference table {ref_table_name} for {col_name}")
-                            
+
                             # Check if the value exists in reference table
                             ref_records = self.catalog_manager.query_with_condition(
                                 ref_table_name,
                                 [{"column": "id", "operator": "=", "value": value}],
                                 ["id"]
                             )
-                            
+
                             if not ref_records:
                                 error_msg = f"Foreign key constraint violation: Value {value} in {table_name}.{col_name} does not exist in {ref_table_name}.id"
                                 logging.error(error_msg)
@@ -208,7 +206,7 @@ class DMLExecutor:
                                 logging.info(f"FK constraint satisfied: {col_name}={value} exists in {ref_table_name}")
                                 referenced_table = ref_table_name  # Set the referenced table name
                                 break
-                            
+
                     # If we found a referenced table, check if the value exists in it
                     if referenced_table:
                         logging.info(f"Checking heuristic FK: {table_name}.{col_name} -> {referenced_table}.id = {value}")
@@ -217,9 +215,9 @@ class DMLExecutor:
                             [{"column": "id", "operator": "=", "value": value}],
                             ["id"]
                         )
-                        
+
                         logging.info(f"Referenced records found: {referenced_records}")
-                        
+
                         if not referenced_records:
                             error_msg = f"Foreign key constraint violation: Value {value} in {table_name}.{col_name} does not exist in {referenced_table}.id"
                             logging.error(error_msg)
@@ -230,38 +228,38 @@ class DMLExecutor:
                         # No matching referenced table found for this potential FK
                         warning_msg = f"No matching referenced table found for {col_name}, skipping heuristic check"
                         logging.info(warning_msg)
-                        
+
                         # If strict validation is enabled, block the insert
                         if self.strict_heuristic_fk_validation:
                             error_msg = f"Strict FK validation failed: Column {col_name} appears to be a foreign key, but no referenced table ('{col_name[:-3]}' or '{col_name[:-3]}s') was found"
                             logging.error(error_msg)
                             return {"error": error_msg, "status": "error"}
-            
+
             table_id = f"{db_name}.{table_name}"
             if table_id in self.catalog_manager.tables:
                 table_info = self.catalog_manager.tables[table_id]
                 constraints = table_info.get("constraints", [])
-                
+
                 for constraint in constraints:
                     if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
                         pattern = r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)"
                         match = re.search(pattern, constraint, re.IGNORECASE)
-                        
+
                         if match:
                             fk_column = match.group(1)
                             ref_table = match.group(2)
                             ref_column = match.group(3)
-                            
+
                             if fk_column in record and record[fk_column] is not None:
                                 fk_value = record[fk_column]
-                                
+
                                 # Check if referenced value exists
                                 ref_records = self.catalog_manager.query_with_condition(
                                     ref_table,
                                     [{"column": ref_column, "operator": "=", "value": fk_value}],
                                     [ref_column]
                                 )
-                                
+
                                 if not ref_records:
                                     error_msg = f"Foreign key constraint violation: Value {fk_value} in {table_name}.{fk_column} does not exist in {ref_table}.{ref_column}"
                                     logging.error(error_msg)
@@ -271,7 +269,7 @@ class DMLExecutor:
 
             if not fk_heuristic_applied:
                 logging.info("No heuristic FK constraints were applied (no *_id columns found)")
-            
+
             logging.info(f"--- Checking schema-defined FK constraints ---")
 
             # Check each foreign key constraint
@@ -328,7 +326,7 @@ class DMLExecutor:
                             [{"column": referenced_column, "operator": "=", "value": fk_value}],
                             [referenced_column]
                         )
-                        
+
                         logging.info(f"Referenced records found: {referenced_records}")
 
                         if not referenced_records:
@@ -381,33 +379,33 @@ class DMLExecutor:
         """Execute a DELETE statement."""
         table_name = plan.get("table")
         condition = plan.get("condition")
-        
+
         # Get database name
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
             return {"error": "No database selected", "status": "error"}
-        
+
         # Parse the condition
         parsed_conditions = self._parse_conditions(condition) if condition else []
-        
+
         # First query the records that would be deleted to check constraints
         records_to_delete = self.catalog_manager.query_with_condition(
             table_name, parsed_conditions, ["*"]
         )
-        
+
         # Check if deleting would violate foreign key constraints
         fk_violation = self._check_fk_constraints_for_delete(db_name, table_name, records_to_delete)
         if fk_violation:
             return {"error": fk_violation, "status": "error"}
-            
+
         # Execute delete
         result = self.catalog_manager.delete_records(table_name, parsed_conditions)
-        
+
         # Important: Check if result is an error dictionary
         if isinstance(result, dict) and "error" in result and "status" in result:
             logging.error(f"DELETE failed: {result['error']}")
             return result  # Return error dictionary to the client
-            
+
         # Success case - return formatted result
         return {
             "message": result,  # This will be like "1 records deleted."
@@ -609,7 +607,7 @@ class DMLExecutor:
             else:
                 # If no primary key, try using 'id' field
                 record_id = record.get('id')
-                
+
             if record_id is not None:
                 # Call update_record with the correct parameters
                 result = self.catalog_manager.update_record(
@@ -617,7 +615,7 @@ class DMLExecutor:
                     record_id,
                     updates
                 )
-                
+
                 if result:
                     updated_count += 1
                     logging.info(f"Updated record with ID {record_id} in table {table_name}")

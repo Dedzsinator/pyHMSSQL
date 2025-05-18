@@ -4,7 +4,8 @@ This module provides a REST API interface to the HMSSQL database system.
 """
 import os
 import sys
-import json
+import uuid
+import datetime
 import logging
 import traceback
 from flask import Flask, request, jsonify, g
@@ -55,11 +56,11 @@ def require_auth(f):
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
             return jsonify({"error": "Unauthorized. Missing or invalid token.", "status": "error"}), 401
-        
+
         session_id = auth_header.split("Bearer ")[1].strip()
         if session_id not in sessions:
             return jsonify({"error": "Unauthorized. Invalid session.", "status": "error"}), 401
-        
+
         # Store user in Flask's g object for use in the view function
         g.user = sessions[session_id]
         g.session_id = session_id
@@ -72,16 +73,15 @@ def login():
     data = request.json
     if not data:
         return jsonify({"error": "Missing request body", "status": "error"}), 400
-    
+
     username = data.get("username")
     password = data.get("password")
-    
+
     if not username or not password:
         return jsonify({"error": "Username and password required", "status": "error"}), 400
-    
+
     user = catalog_manager.authenticate_user(username, password)
     if user:
-        import uuid
         session_id = str(uuid.uuid4())
         sessions[session_id] = user
         logging.info(f"User {username} logged in successfully (role: {user['role']})")
@@ -101,14 +101,14 @@ def register():
     data = request.json
     if not data:
         return jsonify({"error": "Missing request body", "status": "error"}), 400
-    
+
     username = data.get("username")
     password = data.get("password")
     role = data.get("role", "user")
-    
+
     if not username or not password:
         return jsonify({"error": "Username and password required", "status": "error"}), 400
-    
+
     result = catalog_manager.register_user(username, password, role)
     if "error" not in str(result).lower():
         logging.info(f"User {username} registered successfully with role: {role}")
@@ -128,7 +128,7 @@ def logout():
     """Handle user logout via the REST API."""
     session_id = g.session_id
     username = g.user.get("username", "Unknown")
-    
+
     del sessions[session_id]
     logging.info(f"User {username} logged out successfully")
     return jsonify({
@@ -143,17 +143,17 @@ def execute_query():
     data = request.json
     if not data:
         return jsonify({"error": "Missing request body", "status": "error"}), 400
-    
+
     query = data.get("query")
     if not query:
         return jsonify({"error": "Missing query parameter", "status": "error"}), 400
-    
+
     user = g.user
     username = user.get("username", "Unknown")
-    
+
     # Log the query for audit
     _log_query(username, query)
-    
+
     # Check if query is allowed for the user's role
     role = user.get("role", "user")
     if not is_query_allowed(role, query):
@@ -162,7 +162,7 @@ def execute_query():
             "error": "You don't have permission to execute this query.",
             "status": "error"
         }), 403
-    
+
     # Parse and execute with planner and optimizer integration
     try:
         # 1. Parse SQL query
@@ -170,32 +170,31 @@ def execute_query():
         if "error" in parsed:
             logging.error(f"SQL parsing error: {parsed['error']}")
             return jsonify({"error": parsed["error"], "status": "error"}), 400
-        
+
         # 2. Generate execution plan using planner
         execution_plan = planner.plan_query(parsed)
         if "error" in execution_plan:
             logging.error(f"Error generating plan: {execution_plan['error']}")
             return jsonify({"error": execution_plan["error"], "status": "error"}), 400
-        
+
         # 3. Optimize the execution plan
         optimized_plan = optimizer.optimize(execution_plan)
         if "error" in optimized_plan:
             logging.error(f"Error optimizing plan: {optimized_plan['error']}")
             return jsonify({"error": optimized_plan["error"], "status": "error"}), 400
-        
+
         # 4. Execute the optimized plan
-        import datetime
         start_time = datetime.datetime.now()
         result = execution_engine.execute(optimized_plan)
         execution_time = (datetime.datetime.now() - start_time).total_seconds()
-        
+
         # Add execution time to result
         if isinstance(result, dict):
             result["execution_time_ms"] = round(execution_time * 1000, 2)
-        
+
         logging.info(f"Query executed in {round(execution_time * 1000, 2)} ms")
         return jsonify(result)
-    
+
     except (ValueError, SyntaxError, TypeError, AttributeError, KeyError, RuntimeError) as e:
         logging.error(f"Error executing query: {str(e)}")
         logging.error(traceback.format_exc())
@@ -212,7 +211,7 @@ def get_databases():
             "rows": [[db] for db in databases],
             "status": "success"
         })
-    except Exception as e:
+    except RuntimeError as e:
         logging.error(f"Error listing databases: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
 
@@ -221,13 +220,13 @@ def get_databases():
 def get_tables():
     """Get a list of tables in the current database."""
     db_name = request.args.get("database")
-    
+
     try:
         if not db_name:
             db_name = catalog_manager.get_current_database()
             if not db_name:
                 return jsonify({"error": "No database selected", "status": "error"}), 400
-        
+
         tables = catalog_manager.list_tables(db_name)
         return jsonify({
             "columns": ["Table Name"],
@@ -235,7 +234,7 @@ def get_tables():
             "status": "success",
             "database": db_name
         })
-    except Exception as e:
+    except RuntimeError as e:
         logging.error(f"Error listing tables: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
 
@@ -244,12 +243,12 @@ def get_tables():
 def get_indexes():
     """Get indexes for a table or all tables in current database."""
     table_name = request.args.get("table")
-    
+
     try:
         db_name = catalog_manager.get_current_database()
         if not db_name:
             return jsonify({"error": "No database selected", "status": "error"}), 400
-        
+
         if table_name:
             # Show indexes for specific table
             indexes = catalog_manager.get_indexes_for_table(table_name)
@@ -260,7 +259,7 @@ def get_indexes():
                     "status": "success",
                     "message": f"No indexes found for table '{table_name}'"
                 })
-            
+
             rows = []
             for idx_name, idx_info in indexes.items():
                 column_name = idx_info.get("column", "")
@@ -270,7 +269,7 @@ def get_indexes():
                     f"{idx_name}",
                     idx_info.get("type", "BTREE"),
                 ])
-            
+
             return jsonify({
                 "columns": ["Table", "Column", "Index Name", "Type"],
                 "rows": rows,
@@ -293,13 +292,13 @@ def get_indexes():
                             f"{index_name}",
                             index_type
                         ])
-            
+
             return jsonify({
                 "columns": ["Table", "Column", "Index Name", "Type"],
                 "rows": all_indexes,
                 "status": "success"
             })
-    except Exception as e:
+    except RuntimeError as e:
         logging.error(f"Error listing indexes: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
 
@@ -311,14 +310,14 @@ def get_table_schema(table_name):
         db_name = catalog_manager.get_current_database()
         if not db_name:
             return jsonify({"error": "No database selected", "status": "error"}), 400
-        
+
         table_id = f"{db_name}.{table_name}"
         if table_id not in catalog_manager.tables:
             return jsonify({"error": f"Table '{table_name}' not found", "status": "error"}), 404
-        
+
         table_info = catalog_manager.tables[table_id]
         columns = []
-        
+
         for col_name, col_info in table_info.get("columns", {}).items():
             columns.append({
                 "name": col_name,
@@ -327,13 +326,13 @@ def get_table_schema(table_name):
                 "primary_key": col_info.get("primary_key", False),
                 "foreign_key": col_info.get("foreign_key", None)
             })
-        
+
         return jsonify({
             "table_name": table_name,
             "columns": columns,
             "status": "success"
         })
-    except Exception as e:
+    except RuntimeError as e:
         logging.error(f"Error getting table schema: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
 
@@ -345,7 +344,7 @@ def get_status():
     username = user.get("username", "Unknown")
     role = user.get("role", "user")
     current_db = catalog_manager.get_current_database()
-    
+
     return jsonify({
         "status": "success",
         "server_info": {
@@ -363,18 +362,18 @@ def use_database():
     data = request.json
     if not data:
         return jsonify({"error": "Missing request body", "status": "error"}), 400
-    
+
     db_name = data.get("database")
     if not db_name:
         return jsonify({"error": "Missing database parameter", "status": "error"}), 400
-    
+
     try:
         catalog_manager.set_current_database(db_name)
         return jsonify({
             "message": f"Using database '{db_name}'",
             "status": "success"
         })
-    except Exception as e:
+    except RuntimeError as e:
         logging.error(f"Error setting current database: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
 
@@ -383,10 +382,10 @@ def is_query_allowed(role, query):
     # Admin can do anything
     if role == "admin":
         return True
-    
+
     # Convert to uppercase for case-insensitive comparison
     query_upper = query.upper().strip()
-    
+
     # Regular users cannot do certain operations
     if any(
         query_upper.startswith(prefix)
@@ -401,39 +400,38 @@ def is_query_allowed(role, query):
         ]
     ):
         return False
-    
+
     # All other queries are allowed for all roles
     return True
 
 def _log_query(username, query):
     """Log a query for audit purposes."""
     try:
-        import datetime
         timestamp = datetime.datetime.now().isoformat()
-        
+
         # Log to the audit log file
         logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../logs")
         os.makedirs(logs_dir, exist_ok=True)
         audit_log_file = os.path.join(logs_dir, "rest_api_audit.log")
-        
+
         with open(audit_log_file, "a", encoding="utf-8") as f:
             f.write(f"{timestamp} | {username} | {query}\n")
-        
+
         # Also log to the standard logger
         logging.info(f"AUDIT: User {username} executed: {query}")
-    except Exception as e:
+    except RuntimeError as e:
         # Don't let logging errors affect query execution
         logging.error(f"Failed to log query: {str(e)}")
 
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Start the HMSSQL REST API server")
     parser.add_argument("--host", default="0.0.0.0", help="Host address to bind")
     parser.add_argument("--port", type=int, default=5000, help="Port to bind")
     parser.add_argument("--debug", action="store_true", help="Run in debug mode")
-    
+
     args = parser.parse_args()
-    
+
     print(f"Starting HMSSQL REST API server on {args.host}:{args.port}")
     app.run(host=args.host, port=args.port, debug=args.debug)

@@ -100,46 +100,46 @@ class DBMSServer:
     def __init__(self, host="localhost", port=9999, data_dir="data", server_name=None):
         self.catalog_manager = CatalogManager(data_dir)
         self.index_manager = IndexManager(self.catalog_manager)
-        
+
         # Initialize statistics manager for cost-based optimization
         self.statistics_manager = TableStatistics(self.catalog_manager)
-        
+
         # Initialize buffer pool for caching
         self.buffer_pool = BufferPool(capacity=1000, strategy=CacheStrategy.HYBRID)
-        
+
         # Initialize query cache
         self.query_cache = QueryResultCache(capacity=100)
-        
+
         # Initialize execution engine with new components
         self.execution_engine = ExecutionEngine(
-            self.catalog_manager, 
+            self.catalog_manager,
             self.index_manager
         )
-        
+
         # Initialize parser
         self.sql_parser = SQLParser(self.execution_engine)
-        
+
         # Initialize enhanced optimizer with statistics
         self.optimizer = Optimizer(self.catalog_manager, self.index_manager)
-        
+
         # Initialize planner with optimizer
         self.planner = Planner(self.catalog_manager, self.index_manager)
-        
+
         # Initialize replication manager (start as primary)
         self.replication_manager = ReplicationManager(
             mode=ReplicationMode.SEMI_SYNC,
             sync_replicas=1
         )
-        
+
         self.host = host
         self.port = port
         # Use provided server name or generate default from host
         self.server_name = server_name or f"{platform.node()}'s HMSSQL Server"
 
         self.sessions = {}
-        
-        self.active_transactions = {} 
-        
+
+        self.active_transactions = {}
+
         self._statistics_manager = None
         self._optimizer = None
         self._parallel_coordinator = None
@@ -156,7 +156,7 @@ class DBMSServer:
             if self._optimizer is None:
                 self._optimizer = Optimizer(self.catalog_manager, self.index_manager)
             return self._optimizer
-        
+
         logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../logs")
         os.makedirs(logs_dir, exist_ok=True)
 
@@ -174,7 +174,7 @@ class DBMSServer:
     def _get_transaction_id(self, session_id):
         """Get the active transaction ID for a session."""
         return self.active_transactions.get(session_id)
-        
+
     def _clear_transaction_id(self, session_id):
         """Clear the transaction ID for a session after commit/rollback."""
         if session_id in self.active_transactions:
@@ -209,7 +209,7 @@ class DBMSServer:
             # Optionally store in a database for more advanced auditing
             # Just log an error instead of trying to use self.audit_db which doesn't exist
             # self._store_audit_log(log_entry)
-        except Exception as e:
+        except RuntimeError as e:
             # Don't let logging errors affect query execution
             logging.error(f"Failed to log query audit: {str(e)}")
 
@@ -298,11 +298,11 @@ class DBMSServer:
             # Extract query for multiple handlers that need it
             query = data.get("query", "")
             session_id = data.get("session_id")
-            
+
             # Handle CACHE command as a special case if query starts with CACHE
             if isinstance(query, str) and query.strip().upper().startswith("CACHE "):
                 return self.handle_cache_command(query, session_id)
-                
+
             # Process the request based on action
             if request_type == "login":
                 return self.handle_login(data)
@@ -311,11 +311,11 @@ class DBMSServer:
                 user = None
                 if session_id in self.sessions:
                     user = self.sessions[session_id].get("username")
-                    
+
                 # Check if this is a VISUALIZE query and redirect
                 if isinstance(query, str) and query.strip().upper().startswith("VISUALIZE"):
                     return self.handle_visualize(data)
-                    
+
                 # Pass the extracted query string instead of the whole data dictionary
                 return self.handle_query(query, session_id, user)
             elif request_type == "register":
@@ -535,25 +535,25 @@ class DBMSServer:
     def handle_node_command(self, data):
         """Handle node management commands for replication."""
         command = data.get("command")
-        
+
         if command == "set_as_replica":
             primary_host = data.get("primary_host")
             primary_port = data.get("primary_port")
-            
+
             if not primary_host or not primary_port:
                 return {"error": "Missing primary host or port", "status": "error"}
-            
+
             # Try to register with the primary
             success = self.replication_manager.register_as_replica(primary_host, primary_port)
-            
+
             if success:
                 return {
-                    "status": "success", 
+                    "status": "success",
                     "message": f"Registered as replica to {primary_host}:{primary_port}"
                 }
             else:
                 return {"error": "Failed to register as replica", "status": "error"}
-        
+
         elif command == "get_status":
             # Get replication status
             if self.replication_manager.role == ReplicaRole.PRIMARY:
@@ -571,23 +571,23 @@ class DBMSServer:
                     "primary_id": self.replication_manager.primary_id,
                     "lag": self.replication_manager.oplog_position
                 }
-        
+
         elif command == "promote_to_primary":
             # Only allow if current role is replica
             if self.replication_manager.role != ReplicaRole.REPLICA:
                 return {"error": "Only a replica can be promoted", "status": "error"}
-            
+
             # by trying to connect to it or verify the election mechanism
             try:
                 # Get the primary information
                 primary_host = self.replication_manager.primary_host
                 primary_port = self.replication_manager.primary_port
-                
+
                 # Try to connect to primary to see if it's still alive
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(3.0)  # Short timeout
                 primary_alive = False
-                
+
                 try:
                     sock.connect((primary_host, primary_port))
                     # If we can connect, primary is still alive
@@ -597,28 +597,28 @@ class DBMSServer:
                     primary_alive = False
                 finally:
                     sock.close()
-                    
+
                 if primary_alive:
                     return {
                         "error": "Cannot promote to primary: current primary is still active",
                         "status": "error"
                     }
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error(f"Error checking primary status: {str(e)}")
                 # Continue with promotion, but log the error
-            
+
             # Update role to primary
             self.replication_manager.role = ReplicaRole.PRIMARY
             self.replication_manager.primary_id = None
-            
+
             # Start accepting write operations
             logging.info(f"Promoted from replica to primary server")
-            
+
             return {
                 "status": "success",
                 "message": "Promoted to primary"
             }
-        
+
         return {"error": "Unknown node command", "status": "error"}
 
     def handle_query(self, query, session_id=None, user=None):
@@ -626,9 +626,9 @@ class DBMSServer:
         start_time = time.time()
         if not query:
             return {"error": "Empty query", "status": "error"}
-        
+
         logging.info("Query from %s: %s", user or "anonymous", query)
-        
+
         # Log to audit trail
         try:
             self._log_query_audit(user, query)
@@ -638,7 +638,7 @@ class DBMSServer:
                 self._log_query(user, query)
             except AttributeError:
                 logging.error("Failed to log audit: neither _log_query_audit nor _log_query methods defined")
-        
+
         # Fast path for common metadata queries
         if query.strip().upper() == "SHOW DATABASES":
             databases = self.catalog_manager.list_databases()
@@ -648,12 +648,12 @@ class DBMSServer:
                 "rows": [[db] for db in databases],
                 "execution_time_ms": round((time.time() - start_time) * 1000, 2)
             }
-        
+
         if query.strip().upper() == "SHOW TABLES":
             db = self.catalog_manager.get_current_database()
             if not db:
                 return {"error": "No database selected", "status": "error"}
-            
+
             tables = self.catalog_manager.list_tables()
             return {
                 "status": "success",
@@ -661,79 +661,107 @@ class DBMSServer:
                 "rows": [[tbl] for tbl in tables],
                 "execution_time_ms": round((time.time() - start_time) * 1000, 2)
             }
-        
+
         # Check if this is a DML query that modifies data
         is_modifying_query = query.strip().upper().startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER", "BEGIN", "COMMIT", "ROLLBACK"))
-        
+
         # Only check cache for non-modifying queries
         query_hash = hashlib.md5(query.strip().lower().encode()).hexdigest()
         if not is_modifying_query:
             cached_result = self.query_cache.get(query_hash)
-            
+
             if cached_result:
                 logging.info("Query cache hit for: %s", query)
                 # Add execution time for consistency
                 if isinstance(cached_result, dict) and "execution_time_ms" not in cached_result:
                     cached_result["execution_time_ms"] = 0.0
                 return cached_result
-        
+
         # Current database is useful for debugging
         logging.info("Current database: %s", self.catalog_manager.get_current_database())
-        
+
         # Check for transaction control statements
         is_transaction_start = query.strip().upper().startswith("BEGIN TRANSACTION")
         is_transaction_commit = query.strip().upper().startswith("COMMIT")
         is_transaction_rollback = query.strip().upper().startswith("ROLLBACK")
-        
+
         if is_transaction_start:
             logging.info("Detected BEGIN TRANSACTION statement")
         elif is_transaction_commit:
             logging.info("Detected COMMIT statement")
         elif is_transaction_rollback:
             logging.info("Detected ROLLBACK TRANSACTION statement")
-        
+
         try:
             # Parse the query
             parsed_query = self.sql_parser.parse_sql(query)
             logging.info("▶️ Parsed query: %s", parsed_query)
-            
+
             # Plan the query
             plan = self.planner.plan_query(parsed_query)
-            
-            # Fix for INSERT queries: ensure values are properly mapped
+
+            # Check if plan is None or invalid
+            if not plan or not isinstance(plan, dict):
+                return {"error": "Failed to generate a valid query plan", "status": "error"}
+
+            # Ensure plan has a 'type' key
+            if "type" not in plan and parsed_query and "type" in parsed_query:
+                plan["type"] = parsed_query["type"]
+                logging.info(f"Added missing 'type' from parsed query: {plan['type']}")
+
+            # Special handling for UNION/INTERSECT/EXCEPT operations
+            if parsed_query and parsed_query.get("type") in ["UNION", "INTERSECT", "EXCEPT"]:
+                if "type" not in plan:
+                    plan["type"] = parsed_query["type"]
+                # Make sure left and right queries are included
+                if "left" in parsed_query and "left" not in plan:
+                    plan["left"] = parsed_query["left"]
+                if "right" in parsed_query and "right" not in plan:
+                    plan["right"] = parsed_query["right"]
+
             if is_modifying_query and parsed_query.get("type") == "INSERT" and "values" in parsed_query:
                 # Make sure plan uses the correct values from the parsed query
                 if "values" in parsed_query and "values" in plan:
                     plan["values"] = parsed_query["values"]
-            
+
             # Get table name for potential cache update
             table_name = None
             if "table" in plan:
                 table_name = plan["table"]
             elif "table_name" in plan:
                 table_name = plan["table_name"]
-            
+
             # Add session ID to plan
             if session_id:
                 plan["session_id"] = session_id
-            
+
             # Add transaction ID to the plan if in transaction
             if session_id and session_id in self.active_transactions:
                 plan["transaction_id"] = self.active_transactions[session_id]
                 logging.info(f"Added transaction ID {plan['transaction_id']} to query plan")
-            
-            # Apply optimization
+
+            # Apply optimization with safeguards
             try:
                 optimized_plan = self.optimizer.optimize(plan)
                 logging.info("✅ Optimized query plan")
-            except TypeError:
+
+                # Ensure optimized_plan retains type information
+                if "type" not in optimized_plan and "type" in plan:
+                    optimized_plan["type"] = plan["type"]
+                    logging.info(f"Preserved plan type after optimization: {optimized_plan['type']}")
+
+            except (TypeError, AttributeError, KeyError) as e:
                 # Bypass optimization on error
-                logging.warning("Bypassing optimizer due to TypeError. Using unoptimized plan.")
-                optimized_plan = plan
-            
+                logging.warning(f"Bypassing optimizer due to error: {str(e)}. Using unoptimized plan.")
+                optimized_plan = plan.copy() if isinstance(plan, dict) else plan
+
+                # Ensure plan type is present
+                if isinstance(optimized_plan, dict) and "type" not in optimized_plan and parsed_query and "type" in parsed_query:
+                    optimized_plan["type"] = parsed_query["type"]
+
             # Execute the query with optimized plan
             result = self.execution_engine.execute(optimized_plan)
-            
+
             # Handle transaction operations
             if is_transaction_start and result.get("status") == "success":
                 # Store transaction ID in session
@@ -744,73 +772,37 @@ class DBMSServer:
                 # Clear transaction ID after commit or rollback
                 if session_id and session_id in self.active_transactions:
                     self._clear_transaction_id(session_id)
-            
+
             # Calculate execution time
             execution_time_ms = (time.time() - start_time) * 1000
-            
+
             # Add execution time to result
             if isinstance(result, dict):
                 result["execution_time_ms"] = round(execution_time_ms, 2)
-            
+
             # Cache management
             if not is_modifying_query:
                 # Cache the result for SELECT queries with related table information
                 affected_tables = []
-                
+
                 # Determine tables affected by this query
                 if table_name:
                     affected_tables.append(table_name)
                 elif "tables" in parsed_query:
                     affected_tables.extend(parsed_query["tables"])
-                
+
                 # Cache with table information
                 if hasattr(self.query_cache, 'put'):
                     self.query_cache.put(query_hash, result, affected_tables=affected_tables)
             else:
-                # For modifying queries, ALWAYS update table version or invalidate cache
+                # For modifying queries, invalidate related caches
                 if table_name:
-                    # First invalidate buffer pool for this table to ensure fresh data is loaded
-                    if hasattr(self, 'buffer_pool') and hasattr(self.buffer_pool, 'invalidate'):
-                        try:
-                            pages_invalidated = self.buffer_pool.invalidate(table_name)
-                            logging.info(f"Invalidated {pages_invalidated} buffer pool pages for table {table_name}")
-                        except Exception as e:
-                            logging.error(f"Error invalidating buffer pool for {table_name}: {str(e)}")
-                    
-                    # Then update query cache version or invalidate entries
-                    if hasattr(self.query_cache, 'update_table_version'):
-                        # Using the enhanced version-tracking cache
-                        new_version = self.query_cache.update_table_version(table_name)
-                        logging.info(f"Updated version for table {table_name} to {new_version}")
-                    else:
-                        # Fallback to traditional invalidation
-                        invalidation_stats = self.invalidate_caches_for_table(table_name)
-                        logging.info(f"Cache invalidation after {optimized_plan.get('type')} on {table_name}: {invalidation_stats}")
-            
-            # Replication for modifying queries if running as primary
-            if (hasattr(self, 'replication_manager') and 
-                self.replication_manager.role == ReplicaRole.PRIMARY and
-                is_modifying_query):
-                
-                # Create operation log with query details
-                operation = {
-                    "query": query,
-                    "plan": optimized_plan,
-                    "type": optimized_plan.get("type"),
-                    "table": table_name
-                }
-                
-                # Log to replication manager
-                try:
-                    self.replication_manager.log_operation(operation)
-                    logging.info(f"Replicated {optimized_plan.get('type')} operation to replicas")
-                except Exception as e:
-                    logging.warning(f"Replication failed: {str(e)}")
-            
+                    self.invalidate_caches_for_table(table_name)
+
             logging.info("⏱️ Query executed in %.2f ms", execution_time_ms)
             return result
-            
-        except Exception as e:
+
+        except RuntimeError as e:
             error_msg = str(e)
             stack_trace = traceback.format_exc()
             logging.error("Error executing query: %s", error_msg)
@@ -861,14 +853,14 @@ class DBMSServer:
 
         # All other queries are allowed for all roles
         return True
-    
+
     def handle_cache_command(self, query, session_id):
         """Handle CACHE management commands.
-        
+
         Args:
             query: The SQL query string (should start with CACHE)
             session_id: The session ID
-            
+
         Returns:
             dict: Command result
         """
@@ -878,9 +870,9 @@ class DBMSServer:
                 "error": "CACHE commands require admin privileges",
                 "status": "error"
             }
-        
+
         query_upper = query.strip().upper()
-        
+
         # Handle different cache commands
         if query_upper == "CACHE STATS":
             # Get cache statistics
@@ -905,7 +897,7 @@ class DBMSServer:
             table_name = query_upper.replace("CACHE CLEAR TABLE ", "").strip()
             if not table_name:
                 return {"error": "Table name required", "status": "error"}
-            
+
             # Invalidate caches for this table
             stats = self.invalidate_caches_for_table(table_name)
             return {
@@ -918,29 +910,29 @@ class DBMSServer:
                 "error": "Unknown CACHE command. Supported commands: CACHE STATS, CACHE CLEAR ALL, CACHE CLEAR TABLE <name>",
                 "status": "error"
             }
-    
+
     def get_cache_stats(self):
         """Get statistics about all caching components.
-        
+
         Returns:
             dict: Combined statistics from all caching components
         """
         stats = {}
-        
+
         # Buffer pool stats
         if hasattr(self, 'buffer_pool'):
             try:
                 stats["buffer_pool"] = self.buffer_pool.get_stats()
-            except Exception as e:
+            except RuntimeError as e:
                 stats["buffer_pool"] = {"error": str(e)}
-        
+
         # Query cache stats
         if hasattr(self, 'query_cache'):
             try:
                 stats["query_cache"] = self.query_cache.get_stats()
-            except Exception as e:
+            except RuntimeError as e:
                 stats["query_cache"] = {"error": str(e)}
-        
+
         # Overall memory usage estimation
         import psutil
         try:
@@ -952,18 +944,18 @@ class DBMSServer:
             }
         except (ImportError, Exception) as e:
             stats["memory_usage"] = {"error": str(e)}
-        
+
         return stats
-    
+
     def invalidate_caches_for_table(self, table_name):
         """Invalidate all caches related to a specific table.
-        
+
         This method centralizes cache invalidation logic to ensure consistency
         when tables are modified.
-        
+
         Args:
             table_name: Name of the modified table
-            
+
         Returns:
             dict: Statistics about what was invalidated
         """
@@ -972,7 +964,7 @@ class DBMSServer:
             "query_cache_entries": 0,
             "statistics_entries": None
         }
-        
+
         # Invalidate buffer pool pages for this table
         if hasattr(self, 'buffer_pool'):
             try:
@@ -982,9 +974,9 @@ class DBMSServer:
                 # Also check for index invalidation method
                 if hasattr(self.buffer_pool, 'invalidate_index'):
                     self.buffer_pool.invalidate_index(table_name)
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error(f"Error invalidating buffer pool for {table_name}: {str(e)}")
-        
+
         # Invalidate query cache entries for this table
         if hasattr(self, 'query_cache'):
             try:
@@ -996,22 +988,22 @@ class DBMSServer:
                 elif hasattr(self.query_cache, 'invalidate_for_table'):
                     entries_invalidated = self.query_cache.invalidate_for_table(table_name)
                     stats["query_cache_entries"] = entries_invalidated
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error(f"Error invalidating query cache for {table_name}: {str(e)}")
-        
+
         # Invalidate statistics for this table
         if hasattr(self, 'statistics_manager'):
             try:
                 self.statistics_manager.invalidate_statistics(table_name)
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error(f"Error invalidating statistics for {table_name}: {str(e)}")
-        
+
         return stats
 
     def shutdown(self):
         """Perform clean shutdown tasks."""
         logging.info("Server shutting down, performing cleanup...")
-        
+
         # Flush buffer pool
         if hasattr(self, 'buffer_pool'):
             try:
@@ -1020,25 +1012,25 @@ class DBMSServer:
                     logging.info("Successfully flushed all dirty pages from buffer pool")
                 else:
                     logging.warning("Failed to flush all dirty pages from buffer pool")
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error(f"Error flushing buffer pool: {str(e)}")
-        
+
         # Close any database connections
         if hasattr(self, 'catalog_manager'):
             try:
                 self.catalog_manager.close_all_connections()
                 logging.info("Closed all database connections")
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error(f"Error closing database connections: {str(e)}")
-        
+
         # Stop replication
         if hasattr(self, 'replication_manager'):
             try:
                 self.replication_manager.shutdown()
                 logging.info("Shut down replication manager")
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error(f"Error shutting down replication manager: {str(e)}")
-        
+
         logging.info("Server shutdown complete")
 
     def display_result(self, result):
@@ -1106,7 +1098,7 @@ def start_server(server_name=None, replication_mode=ReplicationMode.SEMI_SYNC, s
         sys.exit(1)
 
     server = DBMSServer(data_dir="data", server_name=server_name)
-    
+
     # Configure replication manager
     server.replication_manager.mode = replication_mode
     server.replication_manager.sync_replicas = sync_replicas
@@ -1119,11 +1111,12 @@ def start_server(server_name=None, replication_mode=ReplicationMode.SEMI_SYNC, s
     sock.listen(5)
     logging.info("Server listening on %s:%s", SERVER_HOST, SERVER_PORT)
     print(f"Server listening on {SERVER_HOST}:{SERVER_PORT}...")
-    
+
     # Start a thread to listen for incoming connections - NON-DAEMON thread
-    server_thread = threading.Thread(target=_server_connection_handler, args=(sock, server), daemon=False)
+    server_thread = threading.Thread(target=_server_connection_handler,
+                                    args=(sock, server), daemon=False)
     server_thread.start()
-    
+
     # Return server instance for further configuration
     return server
 
@@ -1140,15 +1133,15 @@ def _server_connection_handler(sock, server):
                 size_bytes = client.recv(4)
                 if not size_bytes:
                     client.close()
-                    logging.warning(f"Empty size received from {address}, closing connection")
+                    logging.warning("Empty size received from %s, closing connection", address)
                     continue
 
                 size = int.from_bytes(size_bytes, byteorder="big")
                 data_bytes = client.recv(size)
-                
+
                 if not data_bytes:
                     client.close()
-                    logging.warning(f"Empty data received from {address}, closing connection") 
+                    logging.warning("Empty data received from %s, closing connection", address)
                     continue
 
                 # Parse the JSON data
@@ -1172,14 +1165,14 @@ def _server_connection_handler(sock, server):
                 logging.error("Error handling client connection: %s", str(e))
                 try:
                     client.close()
-                except:
+                except RuntimeError:
                     pass
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error("Unexpected error: %s", str(e))
                 logging.error(traceback.format_exc())
                 try:
                     client.close()
-                except:
+                except RuntimeError:
                     pass
     except KeyboardInterrupt:
         shutdown_msg = "Server shutting down..."
@@ -1188,8 +1181,8 @@ def _server_connection_handler(sock, server):
         # Call shutdown cleanup
         try:
             server.shutdown()
-        except Exception as e:
-            logging.error(f"Error during server shutdown: {str(e)}")
+        except RuntimeError as e:
+            logging.error("Error during server shutdown: %s", str(e))
     finally:
         sock.close()
         logging.info("Server socket closed")
@@ -1203,29 +1196,29 @@ if __name__ == "__main__":
     parser.add_argument('--api-host', default='0.0.0.0', help='Host address for REST API to bind')
     parser.add_argument('--api-port', type=int, default=5000, help='Port for REST API to bind')
     parser.add_argument('--api-debug', action='store_true', help='Run REST API in debug mode')
-    
+
     # Add replication arguments
     parser.add_argument('--replica-of', help='Primary server to replicate from (host:port)')
     parser.add_argument('--sync-mode', choices=['sync', 'semi-sync', 'async'], default='semi-sync',
                        help='Replication synchronization mode')
-    parser.add_argument('--sync-replicas', type=int, default=1, 
+    parser.add_argument('--sync-replicas', type=int, default=1,
                        help='Number of replicas to wait for in semi-sync mode')
 
     args = parser.parse_args()
-    
+
     # Configure replication mode
     replication_mode = ReplicationMode.SEMI_SYNC
     if args.sync_mode == 'sync':
         replication_mode = ReplicationMode.SYNC
     elif args.sync_mode == 'async':
         replication_mode = ReplicationMode.ASYNC
-    
+
     # Check if we should start the REST API server
     if args.use_api:
         try:
             # Import here to avoid circular imports
             from rest_api import app
-            
+
             print(f"Starting HMSSQL REST API server on {args.api_host}:{args.api_port}")
             logging.info(f"Starting HMSSQL REST API server on {args.api_host}:{args.api_port}")
             app.run(host=args.api_host, port=args.api_port, debug=args.api_debug)
@@ -1235,28 +1228,33 @@ if __name__ == "__main__":
             print(f"Error details: {str(e)}")
             sys.exit(1)
     else:
-        server = start_server(server_name=args.name, replication_mode=replication_mode, 
+        server = start_server(server_name=args.name, replication_mode=replication_mode,
                             sync_replicas=args.sync_replicas)
-        
+
         # If configured as replica, register with primary
         if args.replica_of and server:
             try:
                 primary_host, primary_port = args.replica_of.split(':')
                 primary_port = int(primary_port)
-                
+
                 # Register with primary
-                success = server.replication_manager.register_as_replica(primary_host, primary_port)
-                
-                if success:
-                    logging.info(f"Successfully registered as replica of {primary_host}:{primary_port}")
+                SUCCESS = server.replication_manager.\
+                    register_as_replica(primary_host, primary_port)
+
+                if SUCCESS:
+                    logging.info("Successfully registered \
+                        as replica of %s:%s", primary_host, primary_port)
                     print(f"Successfully registered as replica of {primary_host}:{primary_port}")
                 else:
-                    logging.error(f"Failed to register as replica of {primary_host}:{primary_port}")
+                    logging.error("Failed to register \
+                        as replica of %s:%s", primary_host, primary_port)
                     print(f"Failed to register as replica of {primary_host}:{primary_port}")
             except ValueError:
-                logging.error(f"Invalid primary server specification: {args.replica_of}. Use host:port format.")
-                print(f"Invalid primary server specification: {args.replica_of}. Use host:port format.")
-                
+                logging.error("Invalid primary server \
+                    specification: %s. Use host:port format.", args.replica_of)
+                print(f"Invalid primary server specification:\
+                    {args.replica_of}. Use host:port format.")
+
         try:
             # This is an infinite loop that keeps the main thread alive
             # but allows for keyboard interrupts

@@ -163,7 +163,7 @@ class CatalogManager:
 
         logging.info("Database %s dropped.", db_name)
         return f"Database {db_name} dropped."
-    
+
     def get_all_tables(self):
         """Get a list of all tables across all databases.
 
@@ -172,19 +172,19 @@ class CatalogManager:
         """
         all_tables = []
         current_db = self.get_current_database()
-        
+
         # Iterate through all databases
         for db_name in self.list_databases():
             # Get tables for this database
             tables = self.list_tables(db_name)
             for table_name in tables:
                 all_tables.append([db_name, table_name])
-        
+
         # Restore original database if needed
         if current_db:
             self.set_current_database(current_db)
-            
-        logging.info(f"Retrieved {len(all_tables)} tables across all databases")
+
+        logging.info("Retrieved %s tables across all databases", len(all_tables))
         return all_tables
 
     def set_current_database(self, database_name):
@@ -208,10 +208,10 @@ class CatalogManager:
         if constraints is not None:
             if isinstance(constraints, list):
                 table_level_constraints.extend(constraints)
-                logging.info(f"Added {len(constraints)} constraints to table {table_name}")
+                logging.info("Added %s constraints to table %s", len(constraints), table_name)
             else:
                 table_level_constraints.append(str(constraints))
-                logging.info(f"Added 1 constraint to table {table_name}")
+                logging.info("Added 1 constraint to table %s", table_name)
 
         db_name = self.get_current_database()
         if not db_name:
@@ -223,9 +223,9 @@ class CatalogManager:
             return f"Table {table_name} already exists."
 
         processed_columns = {}
-        
+
         temp_columns_list_for_processing = []
-        
+
         if isinstance(columns, list):
             for item in columns:
                 if isinstance(item, str):
@@ -243,9 +243,13 @@ class CatalogManager:
                 elif isinstance(item, dict):
                     temp_columns_list_for_processing.append(item)
                 else:
-                    logging.warning(f"Unsupported item type in columns list for table '{table_name}': {item}")
+                    logging.warning("Unsupported item type in columns list for table '%s': %s",
+                        table_name, item
+                    )
         else:
-            logging.error(f"Columns parameter for create_table ('{table_name}') was not a list: {columns}")
+            logging.error("Columns parameter for create_table ('%s') was not a list: %s",
+                        table_name, columns
+                        )
             return f"Invalid columns format for table {table_name}."
 
         for col_def_source in temp_columns_list_for_processing:
@@ -255,33 +259,38 @@ class CatalogManager:
             if isinstance(col_def_source, dict):
                 col_name = col_def_source.get("name")
                 if not col_name:
-                    logging.warning(f"Column definition dictionary missing name in table '{table_name}': {col_def_source}")
+                    logging.warning("Column definition dictionary missing name in table '%s': %s",
+                                    table_name, col_def_source
+                                    )
                     continue
-                column_attributes = {key: value for key, value in col_def_source.items() if key != "name"}
+                column_attributes = {key: value for key, value in\
+                    col_def_source.items() if key != "name"}
 
             elif isinstance(col_def_source, str):
                 parts = col_def_source.split()
                 if not parts:
-                    logging.warning(f"Empty column definition string in table '{table_name}'.")
+                    logging.warning("Empty column definition string in table '%s'.", table_name)
                     continue
-                
+
                 col_name = parts[0]
                 column_attributes["type"] = parts[1] if len(parts) > 1 else "UNKNOWN"
-                
+
                 col_def_upper_str = col_def_source.upper()
 
                 if "NOT NULL" in col_def_upper_str:
                     column_attributes["not_null"] = True
-                
+
                 if "PRIMARY KEY" in col_def_upper_str and "PRIMARY KEY (" not in col_def_upper_str:
                     column_attributes["primary_key"] = True
-                
-                if "UNIQUE" in col_def_upper_str and "UNIQUE (" not in col_def_upper_str and not column_attributes.get("primary_key"):
+
+                if "UNIQUE" in col_def_upper_str and "UNIQUE (" not in\
+                    col_def_upper_str and not column_attributes.get("primary_key"):
                     column_attributes["unique"] = True
 
                 if "IDENTITY" in col_def_upper_str:
                     column_attributes["identity"] = True
-                    identity_match = re.search(r"IDENTITY\s*\((\d+),\s*(\d+)\)", col_def_source, re.IGNORECASE)
+                    identity_match = re.search(r"IDENTITY\s*\((\d+),\s*(\d+)\)",
+                                            col_def_source, re.IGNORECASE)
                     if identity_match:
                         column_attributes["identity_seed"] = int(identity_match.group(1))
                         column_attributes["identity_increment"] = int(identity_match.group(2))
@@ -289,16 +298,19 @@ class CatalogManager:
                         column_attributes["identity_seed"] = 1
                         column_attributes["identity_increment"] = 1
                     if not column_attributes.get("primary_key"):
-                        is_other_pk = any("PRIMARY KEY" in constr.upper() for constr in table_level_constraints)
+                        is_other_pk = any("PRIMARY KEY" in constr.upper()\
+                            for constr in table_level_constraints)
                         if not is_other_pk:
                             column_attributes["primary_key"] = True
-            
+
             if col_name:
                 if col_name in processed_columns:
-                    logging.warning(f"Duplicate column name '{col_name}' in table '{table_name}'. Overwriting.")
+                    logging.warning("Duplicate column name '%s' in table '%s'. Overwriting.",
+                                    col_name, table_name)
                 processed_columns[col_name] = column_attributes
             else:
-                logging.warning(f"Could not determine column name from definition: {col_def_source} in table '{table_name}'")
+                logging.warning("Could not determine column name from definition: %s in table '%s'",
+                                col_def_source, table_name)
 
         self.tables[table_id] = {
             "database": db_name,
@@ -307,9 +319,10 @@ class CatalogManager:
             "constraints": table_level_constraints,
             "created_at": datetime.datetime.now().isoformat(),
         }
-        
+
         # Log constraints properly
-        logging.info(f"Storing table with {len(table_level_constraints)} constraints: {table_level_constraints}")
+        logging.info("Storing table with %s constraints: %s",
+                        len(table_level_constraints), table_level_constraints)
 
         if table_name not in self.databases[db_name]["tables"]:
             self.databases[db_name]["tables"].append(table_name)
@@ -317,7 +330,7 @@ class CatalogManager:
         db_specific_tables_dir = os.path.join(self.tables_dir, db_name)
         os.makedirs(db_specific_tables_dir, exist_ok=True)
         table_file = os.path.join(db_specific_tables_dir, f"{table_name}.tbl")
-        
+
         # Create a new tree using the factory (will use optimized by default)
         tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
         tree.save_to_file(table_file)
@@ -325,14 +338,15 @@ class CatalogManager:
         self._save_json(self.tables_file, self.tables)
         self._save_json(self.databases_file, self.databases)
 
-        logging.info(f"Table '{table_name}' created in database '{db_name}' with columns: {list(processed_columns.keys())} and constraints: {table_level_constraints}")
+        logging.info("Table '%s' created in database '%s' with columns: %s and constraints: %s",
+                    table_name, db_name, list(processed_columns.keys()), table_level_constraints)
         return True
 
     def get_preferences(self):
         """Get the current preferences."""
         return self.preferences
 
-    def update_preferences(self, prefs, user_id=None):
+    def update_preferences(self, prefs, _ =None): # user_id was not used
         """Update user preferences."""
         # Update preferences
         for key, value in prefs.items():
@@ -376,109 +390,104 @@ class CatalogManager:
                 result[index_name] = index_info
 
         return result
-    
+
+    def _convert_to_numeric(self, value):
+        """Convert value to numeric if possible."""
+        if isinstance(value, (int, float)):
+            return value
+
+        if isinstance(value, str):
+            # Remove quotes if present
+            if value.startswith(("'", '"')) and value.endswith(("'", '"')):
+                value = value[1:-1]
+
+            # Try to convert to numeric
+            try:
+                if '.' in value:
+                    return float(value)
+                return int(value)
+            except ValueError:
+                return value
+        return value
+
     def _record_matches_conditions(self, record, conditions):
-        """Check if a record matches the provided conditions.
-        
-        Args:
-            record: Dictionary containing record data
-            conditions: List of condition dictionaries with column, operator and value
-            
-        Returns:
-            bool: True if the record matches all conditions, False otherwise
-        """
+        """Check if a record matches the provided conditions."""
         if not conditions:
             return True  # No conditions, record matches
-            
+
         for condition in conditions:
             column = condition.get("column")
             operator = condition.get("operator")
             value = condition.get("value")
-            
+
             if column not in record:
                 return False
-                
+
             record_value = record[column]
-            
+
+            # Convert both to numeric if possible
+            value = self._convert_to_numeric(value)
+            record_value = self._convert_to_numeric(record_value)
+
             # Handle different operators
             if operator == "=":
-                # Handle string comparison (strip quotes)
-                if isinstance(value, str) and isinstance(record_value, str):
-                    if value.startswith(("'", '"')) and value.endswith(("'", '"')):
-                        value = value[1:-1]
-                    if not (record_value == value):
-                        return False
-                # Handle numeric comparison
-                elif not (record_value == value):
+                if record_value != value:
                     return False
-                    
             elif operator == "!=":
-                if isinstance(value, str) and isinstance(record_value, str):
-                    if value.startswith(("'", '"')) and value.endswith(("'", '"')):
-                        value = value[1:-1]
-                    if not (record_value != value):
-                        return False
-                elif not (record_value != value):
+                if record_value == value:
                     return False
-                    
             elif operator == ">":
-                if not (record_value > value):
+                if not record_value > value:
                     return False
-                    
             elif operator == ">=":
-                if not (record_value >= value):
+                if not record_value >= value:
                     return False
-                    
             elif operator == "<":
-                if not (record_value < value):
+                if not record_value < value:
                     return False
-                    
             elif operator == "<=":
-                if not (record_value <= value):
+                if not record_value <= value:
                     return False
-                    
             elif operator.upper() == "LIKE":
                 if not self._matches_like_pattern(str(record_value), str(value)):
                     return False
-                    
             elif operator.upper() == "IN":
                 if not self._matches_in_condition(record_value, value):
                     return False
-            
+
         # All conditions passed
         return True
 
     def _matches_like_pattern(self, record_value, pattern):
         """Check if a value matches a LIKE pattern.
-        
+
         Args:
             record_value: String value from the record
             pattern: LIKE pattern (with % wildcards)
-            
+
         Returns:
             bool: True if the value matches the pattern
         """
         # Remove quotes if present
         if pattern.startswith(("'", '"')) and pattern.endswith(("'", '"')):
             pattern = pattern[1:-1]
-            
+
         # Convert SQL LIKE pattern to regex
         # % in SQL LIKE is .* in regex
         # _ in SQL LIKE is . in regex
         # Escape other regex special characters
-        import re
         regex_pattern = pattern.replace('%', '.*').replace('_', '.')
         regex_pattern = f"^{regex_pattern}$"  # Match whole string
-        
+
         return re.match(regex_pattern, record_value, re.IGNORECASE) is not None
 
     def _matches_in_condition(self, record_value, value_list):
         """Check if a value is in a list for IN operator.
-        
+
         Args:
             record_value: Value from the record
             value_list: List of values or string representing a list
-            
+
         Returns:
             bool: True if the value is in the list
         """
@@ -494,7 +503,7 @@ class CatalogManager:
                     item = item[1:-1]
                 items.append(item)
             value_list = items
-        
+
         return record_value in value_list
 
     def query_with_condition(self, table_name, conditions=None, columns=None, limit=None):
@@ -550,7 +559,7 @@ class CatalogManager:
 
             # Check for available indexes on this column
             indexes = self.get_indexes_for_table(actual_table_name)
-            for idx_name, idx_info in indexes.items():
+            for _, idx_info in indexes.items(): # idx_name was not used
                 if idx_info.get("column").lower() == col.lower():
                     index_to_use = idx_info
                     condition_value = val
@@ -565,43 +574,44 @@ class CatalogManager:
                     # Check if the index is in the buffer pool cache first
                     index_id = f"{db_name}_{actual_table_name}_{conditions[0].get('column')}"
                     index = None
-                    
+
                     if hasattr(self, 'buffer_pool'):
                         index = self.buffer_pool.get_index(index_id)
-                    
+
                     if not index:
                         # Load the index
                         index = BPlusTreeFactory.load_from_file(index_file)
-                        
+
                         # Cache it for future use
                         if hasattr(self, 'buffer_pool'):
                             self.buffer_pool.cache_index(index_id, index)
-                    
+
                     if index:
                         # Use the index for lookup
                         results = []
                         record_id = index.get(condition_value)
-                        
+
                         if record_id is not None:
                             # Get actual record using the ID
                             record = self.get_record_by_key(actual_table_name, record_id)
                             if record:
                                 results.append(record)
-                        
+
                         # Apply limit if specified
                         if limit is not None and isinstance(limit, int):
                             results = results[:limit]
-                        
+
                         # Select specific columns if requested
                         if columns != ["*"]:
                             filtered_results = []
                             for record in results:
-                                filtered_record = {col: record.get(col) for col in columns if col in record}
+                                filtered_record = \
+                                    {col: record.get(col) for col in columns if col in record}
                                 filtered_results.append(filtered_record)
                             return filtered_results
-                        
+
                         return results
-                except Exception as e:
+                except RuntimeError as e:
                     logging.error("Error using index: %s", str(e))
             else:
                 logging.warning("Index file not found: %s", index_file)
@@ -611,30 +621,30 @@ class CatalogManager:
         if not os.path.exists(table_file):
             logging.warning("Table file not found: %s", table_file)
             return []
-        
+
         try:
             # Load the B+ tree
             tree = BPlusTreeFactory.load_from_file(table_file)
             if tree is None:
-                logging.error(f"Failed to load B+ tree for table {actual_table_name}")
+                logging.error("Failed to load B+ tree for table %s", actual_table_name)
                 return []
-            
+
             # Get all records from the tree
             all_records = []
             tree_records = tree.range_query(float('-inf'), float('inf'))
             for _, record in tree_records:
                 all_records.append(record)
-            
+
             # Filter based on conditions
             results = []
             for record in all_records:
                 if self._record_matches_conditions(record, conditions):
                     results.append(record)
-            
+
             # Apply limit if specified
             if limit is not None and isinstance(limit, int):
                 results = results[:limit]
-            
+
             # Select specific columns if requested
             if columns != ["*"]:
                 filtered_results = []
@@ -642,9 +652,9 @@ class CatalogManager:
                     filtered_record = {col: record.get(col) for col in columns if col in record}
                     filtered_results.append(filtered_record)
                 return filtered_results
-            
+
             return results
-        except Exception as e:
+        except RuntimeError as e:
             logging.error("Error reading table data: %s", str(e))
             return []
 
@@ -659,14 +669,14 @@ class CatalogManager:
         # Check if table exists
         if table_id not in self.tables:
             return f"Table {table_name} does not exist."
-        
+
         # Check if record is a list and validate column count
         if isinstance(record, list):
             # Get table schema to extract column names
             table_info = self.tables[table_id]
             columns_data = table_info.get("columns", {})
             column_names = []
-            
+
             # Extract column names
             if isinstance(columns_data, dict):
                 column_names = list(columns_data.keys())
@@ -677,10 +687,11 @@ class CatalogManager:
                     elif isinstance(col, str):
                         col_name = col.split()[0] if " " in col else col
                         column_names.append(col_name)
-                        
+
             # Validate count
             if len(record) != len(column_names):
-                error_msg = f"Column count mismatch: provided {len(record)} values but table has {len(column_names)} columns"
+                error_msg = f"Column count mismatch: provided\
+                    {len(record)} values but table has {len(column_names)} columns"
                 logging.error(error_msg)
                 return {"error": error_msg, "status": "error"}
 
@@ -850,7 +861,8 @@ class CatalogManager:
             if isinstance(record, dict):  # Make sure we have a dictionary to check
                 fk_violation = self._check_fk_constraints_for_insert(db_name, table_name, record)
                 if fk_violation:
-                    logging.error(f"FK constraint violation during insert into {table_name}: {fk_violation}")
+                    logging.error("FK constraint violation during insert into %s: %s",
+                                table_name, fk_violation)
                     return {"error": fk_violation, "status": "error"}
 
             logging.debug("Inserting record with ID %s: %s", record_id, record)
@@ -881,7 +893,7 @@ class CatalogManager:
         if not records_to_delete:
             return None  # No records to delete, no constraint violations
 
-        logging.info(f"Checking FK constraints for deleting from {table_name}")
+        logging.info("Checking FK constraints for deleting from %s", table_name)
 
         # Get all tables in the database
         tables = self.list_tables(db_name)
@@ -893,7 +905,8 @@ class CatalogManager:
 
             # First, retrieve actual data structure of the tables to inspect
             other_schema = self.get_table_schema(other_table)
-            logging.info(f"Checking constraints in {other_table} schema: {other_schema}")
+            logging.info("Checking constraints in %s schema: %s",
+                            other_table, other_schema)
 
             # Detect all possible foreign key constraints (more comprehensive)
             fk_relationships = []
@@ -939,7 +952,7 @@ class CatalogManager:
             for relationship in fk_relationships:
                 constraint_str = relationship["constraint"]
                 referencing_column = relationship["referencing_column"]
-                logging.info(f"Processing potential FK constraint: {constraint_str}")
+                logging.info("Processing potential FK constraint: %s", constraint_str)
 
                 # Extract the referenced table and columns with multiple patterns
                 fk_column = referencing_column  # Default if not extracted from constraint
@@ -967,31 +980,37 @@ class CatalogManager:
 
                 # If we found a reference to the table we're deleting from
                 if ref_table and ref_table.lower() == table_name.lower():
-                    logging.info(f"Found FK reference: {other_table}.{fk_column} -> {table_name}.{ref_column}")
+                    logging.info("Found FK reference: %s.%s -> %s.%s",
+                                    other_table, fk_column, table_name, ref_column)
 
                     # For each record we're trying to delete
                     for record in records_to_delete:
                         # Get the value of the referenced column
                         if ref_column in record:
                             ref_value = record[ref_column]
-                            logging.info(f"Checking references to value: {ref_value}")
+                            logging.info("Checking references to value: %s", ref_value)
 
                             # Check for references with type handling
-                            conditions = [{"column": fk_column, "operator": "=", "value": ref_value}]
+                            conditions = \
+                                [{"column": fk_column, "operator": "=", "value": ref_value}]
 
                             # Convert string values for comparison if needed
-                            if isinstance(ref_value, (int, float)) and not isinstance(ref_value, bool):
+                            if isinstance(ref_value, (int, float)) and not\
+                                isinstance(ref_value, bool):
                                 str_value = str(ref_value)
-                                conditions.append({"column": fk_column, "operator": "=", "value": str_value})
+                                conditions.append({"column": fk_column,\
+                                    "operator": "=", "value": str_value})
 
-                            # Check if any records reference this value - FIXED: Removed 'limit' parameter
                             referencing_records = self.query_with_condition(
                                 other_table, conditions, ["*"]
                             )
 
                             if referencing_records:
-                                logging.info(f"Found {len(referencing_records)} referencing records: {referencing_records}")
-                                error_msg = f"Cannot delete from {table_name} because records in {other_table} reference it via foreign key {fk_column}->{ref_column}"
+                                logging.info("Found %s referencing records: %s",
+                                                len(referencing_records), referencing_records)
+                                error_msg = f"Cannot delete from {table_name} \
+                                    because records in {other_table}\
+                                        reference it via foreign key {fk_column}->{ref_column}"
                                 return error_msg
 
         return None  # No constraints violated
@@ -1007,41 +1026,43 @@ class CatalogManager:
 
         table_info = self.tables[table_id]
         constraints = table_info.get('constraints', [])
-        
+
         for constraint in constraints:
             # Parse out FOREIGN KEY constraints
             if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
                 # Parse the FK definition using regex
                 pattern = r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)"
                 match = re.search(pattern, constraint, re.IGNORECASE)
-                
+
                 if match:
                     fk_column = match.group(1)
                     ref_table = match.group(2)
                     ref_column = match.group(3)
-                    
+
                     # Skip if the FK column isn't in our record or is NULL
                     if fk_column not in record or record[fk_column] is None:
                         continue
-                    
+
                     fk_value = record[fk_column]
-                    
+
                     # Check if the referenced value exists
                     ref_records = self.query_with_condition(
-                        ref_table, 
-                        [{"column": ref_column, "operator": "=", "value": fk_value}], 
+                        ref_table,
+                        [{"column": ref_column, "operator": "=", "value": fk_value}],
                         [ref_column]
                     )
-                    
+
                     if not ref_records:
-                        return f"Foreign key constraint violation: Value {fk_value} in {table_name}.{fk_column} does not exist in {ref_table}.{ref_column}"
-        
+                        return f"Foreign key constraint violation:\
+                            Value {fk_value} in {table_name}.{fk_column}\
+                                does not exist in {ref_table}.{ref_column}"
+
         # For heuristic FK checks (columns ending with _id)
         for col_name, value in record.items():
             if value is not None and col_name.endswith('_id') and col_name != 'id':
                 # Try to determine referenced table name
                 ref_table_base = col_name[:-3]  # Remove '_id' suffix
-                
+
                 # Try these patterns
                 possible_tables = [
                     f"{ref_table_base}s",      # user_id -> users
@@ -1051,26 +1072,29 @@ class CatalogManager:
                     f"{ref_table_base}ment",   # depart_id -> department
                     f"{ref_table_base}ments"   # depart_id -> departments
                 ]
-                
+
                 # Filter out None values
                 possible_tables = [t for t in possible_tables if t]
-                
+
                 # Check each possible referenced table
                 for ref_table in possible_tables:
                     if ref_table in self.list_tables(db_name):
-                        logging.info(f"Heuristic FK check: {table_name}.{col_name} -> {ref_table}.id = {value}")
-                        
+                        logging.info("Heuristic FK check: %s.%s -> %s.id = %s",
+                                    table_name, col_name, ref_table, value)
+
                         # Check if referenced value exists
                         ref_records = self.query_with_condition(
-                            ref_table, 
-                            [{"column": "id", "operator": "=", "value": value}], 
+                            ref_table,
+                            [{"column": "id", "operator": "=", "value": value}],
                             ["id"]
                         )
-                        
+
                         if not ref_records:
-                            return f"Foreign key constraint violation: Value {value} in {table_name}.{col_name} does not exist in {ref_table}.id"
+                            return f"Foreign key constraint violation:\
+                                Value {value} in {table_name}.{col_name}\
+                                    does not exist in {ref_table}.id"
                         break
-        
+
         return None  # No violations
 
     def _update_indexes_after_insert(self, db_name, table_name, record_id, record):
@@ -1270,11 +1294,13 @@ class CatalogManager:
 
             if not records_to_delete:
                 return "0 records deleted."
-                
+
             # CHECK FOREIGN KEY CONSTRAINTS BEFORE DELETE
-            fk_violation = self._check_fk_constraints_for_delete(db_name, actual_table_name, records_to_delete)
+            fk_violation = self._check_fk_constraints_for_delete(db_name,\
+                actual_table_name, records_to_delete)
             if fk_violation:
-                logging.error(f"FK constraint violation during delete from {table_name}: {fk_violation}")
+                logging.error("FK constraint violation during delete from %s: %s",
+                            table_name, fk_violation)
                 # Return a dictionary with error information
                 return {"error": fk_violation, "status": "error"}
 
@@ -1373,7 +1399,7 @@ class CatalogManager:
             else:
                 # If no primary key, try using 'id' field
                 record_id = record.get('id')
-                
+
             if record_id is not None:
                 # Call update_record with the correct parameters
                 result = self.update_record(
@@ -1381,12 +1407,12 @@ class CatalogManager:
                     record_id,  # Pass the actual ID value, not a dictionary
                     updates
                 )
-                
+
                 if result:
                     updated_count += 1
-                    logging.info(f"Updated record with ID {record_id} in table {table_name}")
+                    logging.info("Updated record with ID %s in table %s", record_id, table_name)
             else:
-                logging.warning(f"Could not determine record ID for update in table {table_name}")
+                logging.warning("Could not determine record ID for update in table %s", table_name)
 
         return {
             "status": "success",
@@ -1539,8 +1565,7 @@ class CatalogManager:
                 # Remove index file
                 column_name = index_info.get("column")
                 index_file = os.path.join(
-                    self.indexes_dir, f"{db_name}_{
-                        table_name}_{column_name}.idx"
+                    self.indexes_dir, f"{db_name}_{table_name}_{column_name}.idx"
                 )
                 if os.path.exists(index_file):
                     os.remove(index_file)
@@ -1606,11 +1631,11 @@ class CatalogManager:
     def get_record_by_key(self, table_name, record_key):
         """
         Retrieve a record by its key from a table.
-        
+
         Args:
             table_name: The name of the table
             record_key: The key of the record to retrieve
-            
+
         Returns:
             The record if found, otherwise None
         """
@@ -1631,16 +1656,16 @@ class CatalogManager:
 
             # Get all records and find the one with matching ID
             all_records = tree.range_query(float('-inf'), float('inf'))
-            
+
             for key, record in all_records:
                 if isinstance(record, dict) and 'id' in record and record['id'] == record_key:
                     return record
-                    
+
             # If we're looking for ID but couldn't find an exact match, try as key
             for key, record in all_records:
                 if key == record_key:
                     return record
-                
+
             return None
 
         except RuntimeError as e:
@@ -1748,33 +1773,33 @@ class CatalogManager:
 
             # Get all records
             all_records = tree.range_query(float('-inf'), float('inf'))
-            
+
             # Find the record to update
             record_to_update = None
             record_key = None
-            
+
             for key, record in all_records:
                 # Check if this is the record we're looking for
                 if isinstance(record, dict) and "id" in record and record["id"] == record_id:
                     record_to_update = record
                     record_key = key
                     break
-            
+
             if not record_to_update:
                 return False
-            
+
             # Update the record
             for field, value in update_data.items():
                 record_to_update[field] = value
-            
+
             # Update in the tree
             tree.insert(record_key, record_to_update)
-            
+
             # Save the updated tree
             tree.save_to_file(table_file)
-            
+
             return True
-            
+
         except RuntimeError as e:
             logging.error("Error updating record: %s", str(e))
             return False
@@ -1908,3 +1933,10 @@ class CatalogManager:
         except RuntimeError as e:
             logging.error("Error getting table size: %s", str(e))
             return 0
+
+    def close_all_connections(self):
+        """Close all open database connections."""
+        logging.info("CatalogManager: Closing all connections")
+        # No actual database connections to close in file-based storage
+        # This method exists for compatibility with the server shutdown process
+        return True

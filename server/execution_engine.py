@@ -4,6 +4,7 @@ Returns:
     _type_: _description_
 """
 import logging
+import re
 from query_processor.join_executor import JoinExecutor
 from query_processor.aggregate_executor import AggregateExecutor
 from query_processor.select_executor import SelectExecutor
@@ -314,135 +315,91 @@ class ExecutionEngine:
                         self._resolve_subqueries(item)
 
     def _evaluate_condition(self, record, condition):
-        """Evaluate a complex condition against a record."""
+        """
+        Evaluate a condition against a record.
+
+        Args:
+            record: The record to check
+            condition: Condition dictionary with operator, column, and value
+
+        Returns:
+            bool: True if the record matches the condition
+        """
         if not condition:
             return True
 
-        logging.debug(f"Evaluating condition: {condition}")
-        logging.debug(f"Against record: {record}")
+        if condition.get("operator") == "AND":
+            return all(self._evaluate_condition(record, operand)
+                    for operand in condition.get("operands", []))
 
-        if "operator" in condition:
-            op = condition["operator"].upper()
+        if condition.get("operator") == "OR":
+            return any(self._evaluate_condition(record, operand)
+                    for operand in condition.get("operands", []))
 
-            # Logical operators
-            if op == "AND":
-                operands = condition.get("operands", [])
-                return all(self._evaluate_condition(record, operand) for operand in operands)
+        column = condition.get("column")
+        operator = condition.get("operator")
+        value = condition.get("value")
 
-            elif op == "OR":
-                operands = condition.get("operands", [])
-                return any(self._evaluate_condition(record, operand) for operand in operands)
+        if not column or not operator or column not in record:
+            return False
 
-            elif op == "NOT":
-                operand = condition.get("operand")
-                return not self._evaluate_condition(record, operand)
+        record_value = record[column]
 
-            # Comparison operators
-            elif op in ["=", "<>", "!=", ">", "<", ">=", "<="]:
-                column = condition.get("column")
-                value = condition.get("value")
+        # Convert string values to numeric for comparison if needed
+        try:
+            # Convert to numeric if both values are numeric strings
+            if isinstance(value, str) and value.replace('.', '', 1).replace('-', '', 1).isdigit():
+                value = float(value) if '.' in value else int(value)
 
-                # Case-insensitive column lookup
-                record_value = None
-                column_found = False
+            if isinstance(record_value, str) and record_value.replace('.', '', 1).replace('-', '', 1).isdigit():
+                record_value = float(record_value) if '.' in record_value else int(record_value)
+        except (ValueError, TypeError):
+            # If conversion fails, keep original values
+            pass
 
-                # Try exact match first
-                if column in record:
-                    record_value = record[column]
-                    column_found = True
-                else:
-                    # Try case-insensitive match
-                    for record_col in record:
-                        if isinstance(column, str) and isinstance(record_col, str) and column.lower() == record_col.lower():
-                            record_value = record[record_col]
-                            column_found = True
-                            break
+        # Apply operator
+        if operator == "=":
+            return record_value == value
+        elif operator == "!=":
+            return record_value != value
+        elif operator == ">":
+            return record_value > value
+        elif operator == ">=":
+            return record_value >= value
+        elif operator == "<":
+            return record_value < value
+        elif operator == "<=":
+            return record_value <= value
+        elif operator.upper() == "LIKE":
+            if not isinstance(record_value, str) or not isinstance(value, str):
+                return False
+            pattern = value.replace("%", ".*").replace("_", ".")
+            return bool(re.match(f"^{pattern}$", record_value))
+        elif operator.upper() == "IN":
+            return record_value in value if isinstance(value, list) else False
 
-                if column_found:
-                    # Handle string values - remove quotes
-                    if isinstance(value, str) and (value.startswith("'") and value.endswith("'")) or \
-                    (value.startswith('"') and value.endswith('"')):
-                        value = value[1:-1]  # Remove quotes
-
-                    # Convert types for comparison
-                    try:
-                        if isinstance(record_value, (int, float)) and isinstance(value, str):
-                            value = float(value) if '.' in value else int(value)
-                    except ValueError:
-                        pass  # Keep original value if conversion fails
-
-                    # Compare based on operator
-                    if op == "=":
-                        return record_value == value
-                    elif op in ["<>", "!="]:
-                        return record_value != value
-                    elif op == ">":
-                        return record_value > value
-                    elif op == "<":
-                        return record_value < value
-                    elif op == ">=":
-                        return record_value >= value
-                    elif op == "<=":
-                        return record_value <= value
-
-            # IN operator with subquery or value list
-            elif op == "IN":
-                column = condition.get("column")
-                values = condition.get("values", [])
-
-                # Case-insensitive column lookup
-                record_value = None
-                column_found = False
-
-                # Try exact match first
-                if column in record:
-                    record_value = record[column]
-                    column_found = True
-                else:
-                    # Try case-insensitive match
-                    for record_col in record:
-                        if isinstance(column, str) and isinstance(record_col, str) and column.lower() == record_col.lower():
-                            record_value = record[record_col]
-                            column_found = True
-                            break
-
-                if column_found:
-                    # For numeric comparisons, ensure types match
-                    if isinstance(record_value, (int, float)):
-                        # Convert string values to numeric if needed
-                        numeric_values = []
-                        for val in values:
-                            if isinstance(val, str) and val.isdigit():
-                                numeric_values.append(int(val))
-                            elif isinstance(val, str) and '.' in val:
-                                try:
-                                    numeric_values.append(float(val))
-                                except ValueError:
-                                    numeric_values.append(val)
-                            else:
-                                numeric_values.append(val)
-
-                        logging.debug(f"Checking if {record_value} IN {numeric_values}")
-                        return record_value in numeric_values
-                    else:
-                        logging.debug(f"Checking if {record_value} IN {values}")
-                        return record_value in values
-
-        # If we can't evaluate the condition, default to True
-        logging.debug("Couldn't evaluate condition, defaulting to True")
-        return True
+        return False
 
     def execute(self, plan):
         """Execute the query plan by dispatching to appropriate module."""
-        plan_type = plan.get("type")
-        transaction_id = plan.get("transaction_id")
+        # Safely get plan_type with a default value to avoid NoneType errors
+        plan_type = plan.get("type", "UNKNOWN") if isinstance(plan, dict) else "UNKNOWN"
+        transaction_id = plan.get("transaction_id") if isinstance(plan, dict) else None
 
+        # If plan is None or empty, return error
+        if not plan or not isinstance(plan, dict):
+            logging.error("Invalid plan received: %s", plan)
+            return {"status": "error", "error": "Invalid execution plan"}
+
+        # Handle subqueries if present
         if "parsed_condition" in plan and self._has_subquery(plan["parsed_condition"]):
             self._resolve_subqueries(plan["parsed_condition"])
 
+        # Set operations are handled separately
         if plan_type in ["UNION", "INTERSECT", "EXCEPT"]:
             return self.execute_set_operation(plan)
 
+        # Transaction operations
         if plan_type == "BEGIN_TRANSACTION":
             return self.transaction_manager.execute_transaction_operation("BEGIN_TRANSACTION")
         elif plan_type == "COMMIT":

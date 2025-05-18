@@ -34,7 +34,7 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [ ] Views (CREATE VIEW, DROP VIEW)
   - [ ] Temporary tables
   - [x] Basic joins and subqueries
-  - [ ] Transaction support (begin, commit, rollback)
+  - [x] Transaction support (begin, commit, rollback)
 
 - [x] **Indexing**
   - [x] Custom B+ Tree Implementation
@@ -550,10 +550,10 @@ query SELECT e.name, d.name FROM employees e JOIN departments d ON e.dept_id = d
 query SELECT * FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE name = 'Engineering')
 
 -- UNION
-query SELECT id, name FROM employees UNION SELECT id, name FROM departments
+query SELECT id, name FROM employees UNION SELECT id, name FROM departments # returns 
 
 -- INTERSECT
-query SELECT dept_id FROM employees INTERSECT SELECT id FROM departments
+query SELECT dept_id FROM employees INTERSECT SELECT id FROM departments ✅
 
 -- EXCEPT
 query SELECT id FROM departments EXCEPT SELECT dept_id FROM employees
@@ -568,19 +568,19 @@ query SELECT * FROM employees WHERE salary > 75000 OR dept_id = 3
 query SELECT * FROM departments WHERE NOT id IN (SELECT dept_id FROM employees)
 
 -- Start a transaction
-query BEGIN TRANSACTION
+query BEGIN TRANSACTION ✅
 
 -- Make changes within transaction
-query INSERT INTO departments (id, name) VALUES (4, 'HR')
-query UPDATE employees SET salary = 80000 WHERE id = 1
+query INSERT INTO departments (id, name) VALUES (4, 'HR') ✅
+query UPDATE employees SET salary = 80000 WHERE id = 1 ✅
 
 -- Commit transaction
-query COMMIT TRANSACTION
+query COMMIT TRANSACTION ✅
 
 -- Test rollback
-query BEGIN TRANSACTION
-query DELETE FROM customers WHERE id = 3
-query ROLLBACK TRANSACTION
+query BEGIN TRANSACTION ✅
+query DELETE FROM customers WHERE id = 3 ✅
+query ROLLBACK TRANSACTION ✅
 
 -- Create a view
 query CREATE VIEW engineering_staff AS SELECT * FROM employees WHERE dept_id = 1
@@ -614,17 +614,10 @@ query SHOW INDEXES
 query SHOW INDEXES FOR employees
 
 -- Query with multiple joins, conditions and sorting
-query SELECT e.name, d.name, e.salary
-FROM employees e
-JOIN departments d ON e.dept_id = d.id
-WHERE e.salary > 65000
-ORDER BY e.salary DESC
-LIMIT 3
+query SELECT e.name, d.name, e.salary FROM employees e JOIN departments d ON e.dept_id = d.id WHERE e.salary > 65000 ORDER BY e.salary DESC LIMIT 3
 
 -- Query with aggregation and grouping
-query SELECT dept_id, AVG(salary) as avg_salary, COUNT(*) as emp_count
-FROM employees
-GROUP BY dept_id
+query SELECT dept_id, AVG(salary) as avg_salary, COUNT(*) as emp_count FROM employees GROUP BY dept_id
 
 -- Nested subqueries
 query SELECT * FROM employees

@@ -1,0 +1,36 @@
+[MASTER]
+ignore=CVS,venv,env,migrations,__pycache__
+extension-pkg-whitelist=numpy
+
+[MESSAGES CONTROL]
+disable=
+    # Broad except statements
+    broad-except,
+    # String formatting
+    f-string-without-interpolation,
+    logging-fstring-interpolation,
+    logging-not-lazy,
+    logging-format-interpolation,
+    # Common style issues you might want to ignore
+    missing-docstring,
+    invalid-name,
+    line-too-long,
+    too-many-arguments,
+    too-many-locals,
+    too-many-instance-attributes,
+    too-many-public-methods,
+    protected-access,
+    # Import issues
+    import-error,
+    wrong-import-order,
+    wrong-import-position
+
+[FORMAT]
+max-line-length=100
+
+[BASIC]
+good-names=i,j,k,ex,id,db,ip,_
+
+[TYPECHECK]
+ignored-modules=numpy,cv2,tensorflow
+generated-members=numpy.*

@@ -75,11 +75,11 @@ class TableStatistics:
                                 if os.path.exists(hist_file):
                                     with open(hist_file, 'r') as f:
                                         self.histograms[f"{db_name}.{table_name}"] = json.load(f)
-                            except Exception as e:
+                            except RuntimeError as e:
                                 logging.error(f"Error loading statistics for {db_name}.{table_name}: {e}")
                 
                 logging.info(f"Loaded statistics for {loaded_count} tables")
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error(f"Error loading statistics: {e}")
     
     def get_table_statistics(self, table_name):
@@ -232,7 +232,7 @@ class TableStatistics:
                                     "counts": hist.tolist(),
                                     "bins": bin_edges.tolist()
                                 }
-                            except Exception as e:
+                            except RuntimeError as e:
                                 logging.error(f"Error creating histogram for {column}: {e}")
                     else:
                         # For string columns, collect distinct values and top values
@@ -273,7 +273,7 @@ class TableStatistics:
                 
                 logging.info(f"Collected statistics for {table_name}: {row_count} rows")
                 return True
-            except Exception as e:
+            except RuntimeError as e:
                 logging.error(f"Error collecting statistics for {table_name}: {e}")
                 return False
     
@@ -285,7 +285,7 @@ class TableStatistics:
         try:
             with open(filepath, 'w') as f:
                 json.dump(stats, f, indent=2)
-        except Exception as e:
+        except RuntimeError as e:
             logging.error(f"Error saving statistics for {table_name}: {e}")
     
     def _save_histograms(self, db_name, table_name, histograms):
@@ -296,7 +296,7 @@ class TableStatistics:
         try:
             with open(filepath, 'w') as f:
                 json.dump(histograms, f, indent=2)
-        except Exception as e:
+        except RuntimeError as e:
             logging.error(f"Error saving histograms for {table_name}: {e}")
     
     def get_column_statistics(self, table_name, column_name):

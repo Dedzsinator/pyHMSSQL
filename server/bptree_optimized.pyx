@@ -686,7 +686,7 @@ cdef class BPlusTreeOptimized:
                     tree.insert(key, value)
                 
                 return tree
-        except Exception as e:
+        except RuntimeError as e:
             logging.error(f"Error loading B+ tree from {file_path}: {str(e)}")
             return None
     

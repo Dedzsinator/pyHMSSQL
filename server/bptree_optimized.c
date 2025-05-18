@@ -12608,7 +12608,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
  *                     tree.insert(key, value)
  * 
  *                 return tree             # <<<<<<<<<<<<<<
- *         except Exception as e:
+ *         except RuntimeError as e:
  *             logging.error(f"Error loading B+ tree from {file_path}: {str(e)}")
 */
               __Pyx_XDECREF(__pyx_r);
@@ -12737,7 +12737,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
     /* "bptree_optimized.pyx":689
  * 
  *                 return tree
- *         except Exception as e:             # <<<<<<<<<<<<<<
+ *         except RuntimeError as e:             # <<<<<<<<<<<<<<
  *             logging.error(f"Error loading B+ tree from {file_path}: {str(e)}")
  *             return None
 */
@@ -12754,7 +12754,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
 
         /* "bptree_optimized.pyx":690
  *                 return tree
- *         except Exception as e:
+ *         except RuntimeError as e:
  *             logging.error(f"Error loading B+ tree from {file_path}: {str(e)}")             # <<<<<<<<<<<<<<
  *             return None
  * 
@@ -12802,7 +12802,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
         __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
 
         /* "bptree_optimized.pyx":691
- *         except Exception as e:
+ *         except RuntimeError as e:
  *             logging.error(f"Error loading B+ tree from {file_path}: {str(e)}")
  *             return None             # <<<<<<<<<<<<<<
  * 
@@ -12819,7 +12819,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
       /* "bptree_optimized.pyx":689
  * 
  *                 return tree
- *         except Exception as e:             # <<<<<<<<<<<<<<
+ *         except RuntimeError as e:             # <<<<<<<<<<<<<<
  *             logging.error(f"Error loading B+ tree from {file_path}: {str(e)}")
  *             return None
 */

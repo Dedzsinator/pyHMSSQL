@@ -341,7 +341,7 @@ class SelectExecutor:
                 "index_used": index_info["name"] if index_info else None
             }
                 
-        except Exception as e:
+        except RuntimeError as e:
             logging.error("Error executing SELECT: %s", str(e))
             logging.error(traceback.format_exc())
             return {

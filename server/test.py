@@ -25,7 +25,7 @@ def test_original_tree(num_insertions=100, order=5):
             tree.insert(i, f"value_{i}")
             if i % 10 == 0:
                 print(f"  Inserted key: {i}")
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error at key {i}: {e}")
             return
     
@@ -53,7 +53,7 @@ def test_original_tree(num_insertions=100, order=5):
             tree.insert(key, f"random_{key}")
             if i % 10 == 0:
                 print(f"  Inserted random key: {key}")
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error at random key {key}: {e}")
             return
     

@@ -21,7 +21,7 @@ def run_benchmark(num_keys=100000, batch_size=10000, order=50):
     # Setup tree
     try:
         optimized_tree = BPlusTreeOptimized(order=order, name="optimized")
-    except Exception as e:
+    except RuntimeError as e:
         print(f"Error setting up tree: {e}")
         logger.exception("Failed to setup tree")
         return
@@ -59,7 +59,7 @@ def run_benchmark(num_keys=100000, batch_size=10000, order=50):
             else:
                 print(f"  - Time: {batch_time:.3f}s (too fast to measure rate)")
                 insertion_rates.append(0)  # Avoid division by zero
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error during insertion: {e}")
             logger.exception("Error in insertion")
             traceback.print_exc()
@@ -194,7 +194,7 @@ def run_benchmark(num_keys=100000, batch_size=10000, order=50):
         plt.tight_layout()
         plt.savefig('operation_rates.png')
         plt.close()
-    except Exception as e:
+    except RuntimeError as e:
         print(f"Error generating plot: {e}")
         logger.exception("Error in plotting")
         
@@ -217,7 +217,7 @@ if __name__ == "__main__":
         print("Benchmark script executed successfully!")
     except KeyboardInterrupt:
         print("\nBenchmark interrupted by user!")
-    except Exception as e:
+    except RuntimeError as e:
         print(f"Unexpected error: {e}")
         traceback.print_exc()
     sys.exit(0)

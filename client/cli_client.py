@@ -395,14 +395,14 @@ class DBMSClient(cmd.Cmd):
             # Send request - ensure we're using the utilities correctly
             try:
                 send_data(sock, request)
-            except Exception as e:
+            except RuntimeError as e:
                 print(f"Error sending data: {str(e)}")
                 return None
 
             # Receive response
             try:
                 response = receive_data(sock)
-            except Exception as e:
+            except RuntimeError as e:
                 print(f"Error receiving data: {str(e)}")
                 return None
 
@@ -569,7 +569,7 @@ class DBMSClient(cmd.Cmd):
                 print(f"Successful: {successful_commands}")
                 print(f"Failed: {failed_commands}")
                 
-            except Exception as e:
+            except RuntimeError as e:
                 print(f"Error executing script: {str(e)}")
             
         else:

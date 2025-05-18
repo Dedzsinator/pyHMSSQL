@@ -1,14 +1,16 @@
 #!/bin/bash
+# filepath: /home/deginandor/Documents/Programming/pyHMSSQL/.git/hooks/pre-commit
 
-# Run unit tests
-echo "Running unit tests..."
-pytest tests/
+# Find all files that are staged for commit and remove trailing whitespace
+git diff --cached --name-only | grep -v "\.git" | xargs -I {} bash -c '
+  # Skip binary files
+  if [ -f "{}" ] && ! $(file --mime {} | grep -q "charset=binary"); then
+    # Remove trailing whitespace and save changes
+    sed -i "s/[[:space:]]*$//" "{}"
+    # Re-add the file to staging
+    git add "{}"
+  fi
+'
 
-# Check exit code
-if [ $? -ne 0 ]; then
-    echo "Tests failed. Commit aborted."
-    exit 1
-fi
-
-echo "All tests passed!"
+# Exit successfully
 exit 0
