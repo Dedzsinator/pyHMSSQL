@@ -592,7 +592,7 @@ query SELECT * FROM engineering_staff
 query DROP VIEW engineering_staff
 
 -- Get distinct departments
-query SELECT DISTINCT dept_id FROM employees
+query SELECT DISTINCT dept_id FROM employees ✅
 
 -- Set display preferences
 query SET PREFERENCE max_results 50

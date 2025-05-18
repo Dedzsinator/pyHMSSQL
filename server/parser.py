@@ -213,16 +213,35 @@ class SQLParser:
         limit = None
         join_type = None
         join_condition = None
+        distinct = False
 
         # Get original SQL to preserve case for column names
         original_sql = str(parsed)
 
+        if re.search(r"SELECT\s+DISTINCT\s+", original_sql, re.IGNORECASE):
+            distinct = True
+            result["distinct"] = True
+
         # Extract columns from SELECT part
-        select_match = re.search(r"SELECT\s+(.+?)\s+FROM", original_sql, re.IGNORECASE)
+        select_part_regex = r"SELECT\s+(DISTINCT\s+)?(.+?)\s+FROM"
+        select_match = re.search(select_part_regex, original_sql, re.IGNORECASE)
         if select_match:
-            columns_part = select_match.group(1).strip()
-            columns = [col.strip() for col in columns_part.split(',')]
-            result["columns"] = columns
+            # Get the columns part, ignoring the DISTINCT keyword if present
+            is_distinct = select_match.group(1) is not None
+            columns_part = select_match.group(2).strip()
+            
+            # Handle DISTINCT operation specially if only one column
+            if is_distinct and "," not in columns_part:
+                # Extract the simple column name
+                column_name = columns_part.strip()
+                # Set type to DISTINCT operation
+                result["type"] = "DISTINCT"
+                result["column"] = column_name
+                result["operation"] = "DISTINCT"
+            else:
+                # Regular columns handling
+                columns = [col.strip() for col in columns_part.split(',')]
+                result["columns"] = columns
 
         # Extract table name properly - don't include WHERE clause
         from_match = re.search(r"FROM\s+(\w+(?:\s+\w+)?(?:\s*,\s*\w+(?:\s+\w+)?)*)\s*(?:WHERE|ORDER BY|LIMIT|GROUP BY|HAVING|$)",

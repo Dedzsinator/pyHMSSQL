@@ -63,14 +63,30 @@ class ExecutionEngine:
         # Get the database name after confirming it exists
         db_name = self.catalog_manager.get_current_database()
 
+        # Handle case sensitivity for table names
+        tables = self.catalog_manager.list_tables(db_name)
+        case_corrected_table = None
+        
+        # Try direct match first
+        if table_name in tables:
+            case_corrected_table = table_name
+        else:
+            # Try case-insensitive match
+            for db_table in tables:
+                if db_table.lower() == table_name.lower():
+                    case_corrected_table = db_table
+                    break
+        
         # Verify the table exists
-        if not self.catalog_manager.list_tables(db_name) or \
-            table_name not in self.catalog_manager.list_tables(db_name):
+        if not case_corrected_table:
             return {"error": f"Table '{table_name}' does not exist", "status": "error"}
 
+        # Use the case-corrected table name for the query
+        actual_table_name = case_corrected_table
+        
         # Use catalog manager to get data
         results = self.catalog_manager.query_with_condition(
-            table_name, [], [column])
+            actual_table_name, [], [column])
 
         # Extract distinct values
         distinct_values = set()
@@ -78,9 +94,12 @@ class ExecutionEngine:
             if column in record and record[column] is not None:
                 distinct_values.add(record[column])
 
+        # Sort the distinct values for consistent output
+        sorted_values = sorted(distinct_values, key=lambda x: (x is None, x))
+
         return {
             "columns": [column],
-            "rows": [[value] for value in distinct_values],
+            "rows": [[value] for value in sorted_values],
             "status": "success",
         }
 
@@ -436,6 +455,8 @@ class ExecutionEngine:
                 
                 # Execute with the complete plan
                 result = self.select_executor.execute_select(execution_plan)
+            elif plan_type == "DISTINCT":
+                result = self.execute_distinct(plan)
             elif plan_type == "AGGREGATE":
                 result = self.aggregate_executor.execute_aggregate(plan)
             elif plan_type == "JOIN":

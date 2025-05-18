@@ -148,6 +148,18 @@ class Planner:
         """
         # Generate a cache key for common queries
         query_type = parsed_query.get("type")
+        
+        # Special handling for DISTINCT queries
+        if query_type == "DISTINCT":
+            logging.info("Planning DISTINCT query")
+            table = parsed_query.get("tables", [""])[0] if parsed_query.get("tables") else ""
+            column = parsed_query.get("column", "")
+            
+            return {
+                "type": "DISTINCT",
+                "table": table,
+                "column": column
+            }
 
         # Simple key for common query types
         if query_type in ("SELECT", "SHOW"):
