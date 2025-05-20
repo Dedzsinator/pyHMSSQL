@@ -5,6 +5,8 @@ Returns:
 """
 import logging
 import re
+import time
+import traceback
 from query_processor.join_executor import JoinExecutor
 from query_processor.aggregate_executor import AggregateExecutor
 from query_processor.select_executor import SelectExecutor
@@ -66,7 +68,7 @@ class ExecutionEngine:
         # Handle case sensitivity for table names
         tables = self.catalog_manager.list_tables(db_name)
         case_corrected_table = None
-        
+
         # Try direct match first
         if table_name in tables:
             case_corrected_table = table_name
@@ -76,14 +78,14 @@ class ExecutionEngine:
                 if db_table.lower() == table_name.lower():
                     case_corrected_table = db_table
                     break
-        
+
         # Verify the table exists
         if not case_corrected_table:
             return {"error": f"Table '{table_name}' does not exist", "status": "error"}
 
         # Use the case-corrected table name for the query
         actual_table_name = case_corrected_table
-        
+
         # Use catalog manager to get data
         results = self.catalog_manager.query_with_condition(
             actual_table_name, [], [column])
@@ -157,6 +159,71 @@ class ExecutionEngine:
                     "error": f"Error visualizing indexes: {str(e)}",
                     "status": "error",
                 }
+
+    def execute_batch_insert(self, plan):
+        """Execute a batch insert operation."""
+        table_name = plan.get("table")
+        records = plan.get("records", [])
+
+        if not records:
+            return {"status": "error", "error": "No records to insert"}
+
+        # Check for valid database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error"}
+
+        # Get optimal batch size (default to 1000)
+        batch_size = plan.get("batch_size", 1000)
+
+        logging.info(f"Starting batch insert of {len(records)} records into {table_name} with batch size {batch_size}")
+
+        try:
+            # Start a batch operation in the catalog manager
+            self.catalog_manager.begin_batch_operation()
+
+            # Insert records in batches
+            total_inserted = 0
+            batch_number = 0
+
+            for i in range(0, len(records), batch_size):
+                batch_number += 1
+                current_batch = records[i:i+batch_size]
+                batch_start_time = time.time()
+
+                logging.info(f"Processing batch {batch_number} with {len(current_batch)} records")
+
+                # Insert the batch
+                result = self.catalog_manager.insert_records_batch(table_name, current_batch)
+
+                if isinstance(result, dict) and "error" in result:
+                    # Rollback on error
+                    self.catalog_manager.end_batch_operation(commit=False)
+                    return result
+
+                total_inserted += result
+                batch_time = time.time() - batch_start_time
+                batch_rate = len(current_batch) / batch_time if batch_time > 0 else 0
+
+                logging.info(f"Batch {batch_number} completed in {batch_time:.2f}s ({batch_rate:.0f} inserts/sec)")
+
+            # Commit all changes
+            self.catalog_manager.end_batch_operation(commit=True)
+
+            # Return success message
+            return {
+                "status": "success",
+                "message": f"Inserted {total_inserted} records into {table_name}",
+                "count": total_inserted,
+                "type": "batch_insert_result"
+            }
+
+        except Exception as e:
+            # Rollback on any exception
+            self.catalog_manager.end_batch_operation(commit=False)
+            logging.error(f"Error in batch insert: {str(e)}")
+            logging.error(traceback.format_exc())
+            return {"status": "error", "error": f"Error in batch insert: {str(e)}"}
 
     def execute_set_operation(self, plan):
         """Execute a set operation (UNION, INTERSECT, EXCEPT)."""
@@ -438,21 +505,21 @@ class ExecutionEngine:
                 # Ensure limit and order_by are properly extracted from plan
                 limit = plan.get("limit")
                 order_by = plan.get("order_by")
-                
+
                 # Make a copy to ensure parameters aren't lost
                 execution_plan = plan.copy()
-                
+
                 # Log what we're actually executing with
                 if limit is not None:
                     logging.info(f"Executing SELECT with LIMIT: {limit}")
                 else:
                     logging.info("Executing SELECT without LIMIT")
-                
+
                 if order_by:
                     logging.info(f"Executing SELECT with ORDER BY: {order_by}")
                 else:
                     logging.info("Executing SELECT without ORDER BY")
-                
+
                 # Execute with the complete plan
                 result = self.select_executor.execute_select(execution_plan)
             elif plan_type == "DISTINCT":
@@ -462,6 +529,8 @@ class ExecutionEngine:
             elif plan_type == "JOIN":
                 result = self.join_executor.execute_join(plan)
             # DML operations
+            elif plan_type == "BATCH_INSERT":
+                result = self.execute_batch_insert(plan)
             elif plan_type == "INSERT":
                 result = self.dml_executor.execute_insert(plan)
 

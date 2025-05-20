@@ -22,16 +22,19 @@ class SQLParser:
         """
         Parse SQL query into a structured format.
         """
-        
+
         if not sql or not sql.strip():
             return {"error": "Empty query"}
-            
+
         # Parse transaction control statements first (they need special handling)
         transaction_result = self._parse_transaction_statement(sql)
         if transaction_result:
             return transaction_result
-        
+
         try:
+            if re.match(r"^\s*BATCH\s+INSERT\s+INTO", sql, re.IGNORECASE):
+                return self._parse_batch_insert_statement(sql)
+
             # First check for set operations (UNION, INTERSECT, EXCEPT)
             if re.search(r'\s+UNION\s+|\s+INTERSECT\s+|\s+EXCEPT\s+', sql, re.IGNORECASE):
                 return self._parse_set_operation(sql)
@@ -139,33 +142,33 @@ class SQLParser:
                 # Otherwise, just use VISUALIZE BPTREE (for all B+ trees)
 
         return result
-    
+
     def _parse_transaction_statement(self, sql_string):
         """Parse transaction control statements."""
         # Normalize the SQL string for easier pattern matching
         sql_upper = sql_string.strip().upper()
-        
+
         # BEGIN TRANSACTION pattern
         if re.match(r'^BEGIN\s+TRANSACTION\s*$|^START\s+TRANSACTION\s*$', sql_upper):
             logging.info("Detected BEGIN TRANSACTION statement")
             return {
                 "type": "BEGIN_TRANSACTION"
             }
-            
+
         # COMMIT TRANSACTION pattern
         if re.match(r'^COMMIT\s+TRANSACTION\s*$|^COMMIT\s*$', sql_upper):
             logging.info("Detected COMMIT TRANSACTION statement")
             return {
                 "type": "COMMIT"
             }
-            
+
         # ROLLBACK TRANSACTION pattern
         if re.match(r'^ROLLBACK\s+TRANSACTION\s*$|^ROLLBACK\s*$', sql_upper):
             logging.info("Detected ROLLBACK TRANSACTION statement")
             return {
                 "type": "ROLLBACK"
             }
-            
+
         # Not a transaction statement
         return None
 
@@ -203,6 +206,107 @@ class SQLParser:
             "query": sql
         }
 
+    def _parse_batch_insert_statement(self, sql):
+        """Parse a BATCH INSERT statement."""
+        # First, normalize the SQL by replacing newlines with spaces
+        # and preserving string literals correctly
+        normalized_sql = ''
+        in_quotes = False
+        i = 0
+
+        # Process the entire SQL string to handle newlines properly
+        while i < len(sql):
+            if sql[i] == "'" and (i == 0 or sql[i-1] != '\\'):
+                in_quotes = not in_quotes
+                normalized_sql += sql[i]
+            elif not in_quotes and sql[i].isspace():
+                # Replace any whitespace with a single space when not in quotes
+                normalized_sql += ' '
+                # Skip additional whitespace
+                while i < len(sql) and sql[i].isspace():
+                    i += 1
+                continue
+            else:
+                normalized_sql += sql[i]
+            i += 1
+
+        # Log the normalized SQL for debugging
+        logging.debug("Normalized BATCH INSERT SQL: %s", normalized_sql)
+
+        # Process the normalized SQL with a proper regex pattern
+        # This pattern handles multi-line statements properly
+        match = re.match(r"BATCH\s+INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(.+)",
+                        normalized_sql, re.IGNORECASE | re.DOTALL)
+        if not match:
+            logging.error("Failed to match BATCH INSERT pattern: %s", normalized_sql)
+            return {"error": "Invalid BATCH INSERT statement format", "status": "error"}
+
+        table = match.group(1)
+        columns = [col.strip() for col in match.group(2).split(',')]
+        values_part = match.group(3)
+
+        # Parse all value groups
+        value_groups = []
+        current_group = ""
+        in_string = False
+        paren_level = 0
+
+        for char in values_part:
+            if char == "'" and not in_string:
+                in_string = True
+                current_group += char
+            elif char == "'" and in_string:
+                in_string = False
+                current_group += char
+            elif char == '(' and not in_string:
+                paren_level += 1
+                if paren_level == 1:  # Start of a new group
+                    current_group = ""
+                else:
+                    current_group += char
+            elif char == ')' and not in_string:
+                paren_level -= 1
+                if paren_level == 0:  # End of a group
+                    value_groups.append(current_group)
+                else:
+                    current_group += char
+            else:
+                if paren_level > 0:  # Only add if we're inside a group
+                    current_group += char
+
+        # Process each value group
+        processed_value_groups = []
+        for group in value_groups:
+            value_list = []
+            current_value = ""
+            in_string = False
+
+            for char in group + ",":  # Add a comma to handle the last value
+                if char == "'" and not in_string:
+                    in_string = True
+                    current_value += char
+                elif char == "'" and in_string:
+                    in_string = False
+                    current_value += char
+                elif char == ',' and not in_string:
+                    value_list.append(self._process_value_literal(current_value.strip()))
+                    current_value = ""
+                else:
+                    current_value += char
+
+            processed_value_groups.append(value_list)
+
+        # Debug logging to verify data
+        logging.debug(f"BATCH INSERT: {table}, columns: {columns}, values: {processed_value_groups}")
+
+        return {
+            "type": "BATCH_INSERT",
+            "table": table,
+            "columns": columns,
+            "values": processed_value_groups,
+            "batch_size": len(processed_value_groups)
+        }
+
     def _extract_select_elements(self, parsed, result):
         """Extract elements from a SELECT query"""
         # Initialize components
@@ -229,7 +333,7 @@ class SQLParser:
             # Get the columns part, ignoring the DISTINCT keyword if present
             is_distinct = select_match.group(1) is not None
             columns_part = select_match.group(2).strip()
-            
+
             # Handle DISTINCT operation specially if only one column
             if is_distinct and "," not in columns_part:
                 # Extract the simple column name
@@ -692,12 +796,12 @@ class SQLParser:
             if "(" in raw_sql and ")" in raw_sql:
                 # Extract content between first ( and last )
                 columns_str = raw_sql.split("(", 1)[1].rsplit(")", 1)[0].strip()
-                
+
                 # Split by commas, but respect nested parentheses
                 depth = 0
                 current = ""
                 in_string = False  # Initialize in_string variable here
-                
+
                 for char in columns_str + ",":  # Add trailing comma to process the last item
                     if char == "'" or char == '"':  # Toggle in_string when encountering quotes
                         in_string = not in_string
@@ -721,7 +825,7 @@ class SQLParser:
                         current = ""
                     else:
                         current += char
-                
+
                 logging.info(f"Extracted columns: {columns}, constraints: {constraints}")
 
             # Update result type

@@ -53,6 +53,8 @@ class CatalogManager:
 
         # Temporary tables are still in-memory
         self.temp_tables = {}
+        self.in_batch_mode = False
+        self.batch_operations = {}
 
         # Set current database
         self.current_database = self.preferences.get("current_database")
@@ -106,6 +108,175 @@ class CatalogManager:
                 if user.get("password") == hashed_password:
                     return user
         return None
+
+    def begin_batch_operation(self):
+        """Start a batch operation mode."""
+        self.in_batch_mode = True
+        self.batch_operations = {}
+        logging.info("Started batch operation mode")
+
+    def end_batch_operation(self, commit=True):
+        """End a batch operation mode."""
+        if not hasattr(self, 'in_batch_mode') or not self.in_batch_mode:
+            return
+
+        self.in_batch_mode = False
+
+        if commit:
+            logging.info("Committing batch operations")
+            for table_path, tree in self.batch_operations.items():
+                # Save the updated tree
+                tree.save_to_file(table_path)
+                logging.info(f"Saved batch tree for {table_path}")
+        else:
+            logging.info("Rolling back batch operations")
+
+        # Clear batch operations
+        self.batch_operations = {}
+
+    def insert_records_batch(self, table_name, records):
+        """Insert multiple records in a batch."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error"}
+
+        table_id = f"{db_name}.{table_name}"
+        if table_id not in self.tables:
+            return {"error": f"Table {table_name} does not exist.", "status": "error"}
+
+        # Load the table file
+        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+
+        # Check if we already have this tree in batch operations
+        if not hasattr(self, 'in_batch_mode'):
+            self.in_batch_mode = False
+
+        if not hasattr(self, 'batch_operations'):
+            self.batch_operations = {}
+
+        tree = None
+        if self.in_batch_mode and table_file in self.batch_operations:
+            tree = self.batch_operations[table_file]
+        else:
+            try:
+                if os.path.exists(table_file):
+                    tree = BPlusTreeFactory.load_from_file(table_file)
+                    if tree is None:
+                        tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
+                else:
+                    tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
+
+                # If in batch mode, store the tree reference
+                if self.in_batch_mode:
+                    self.batch_operations[table_file] = tree
+            except RuntimeError as e:
+                logging.error(f"Error loading B+ tree: {str(e)}")
+                return {"error": f"Error loading B+ tree: {str(e)}", "status": "error"}
+
+        # Get table schema to check constraints
+        table_schema = self.tables[table_id]
+
+        # Find primary key information
+        pk_column = None
+        is_identity = False
+        identity_seed = 1
+        identity_increment = 1
+
+        # Extract PK and identity info
+        columns_data = table_schema.get("columns", {})
+        if isinstance(columns_data, dict):
+            for col_name, col_def in columns_data.items():
+                if isinstance(col_def, dict):
+                    if col_def.get("primary_key", False):
+                        pk_column = col_name
+                    if col_def.get("identity", False):
+                        is_identity = True
+                        identity_seed = col_def.get("identity_seed", 1)
+                        identity_increment = col_def.get("identity_increment", 1)
+        elif isinstance(columns_data, list):
+            # Similar logic for list format...
+            pass
+
+        # Get all existing records for constraint checking
+        all_records = tree.range_query(float("-inf"), float("inf"))
+        max_identity_value = identity_seed - identity_increment
+
+        # Find max identity value if applicable
+        if is_identity and pk_column:
+            for _, existing_record in all_records:
+                if pk_column in existing_record:
+                    max_identity_value = max(max_identity_value, existing_record[pk_column])
+
+        # Process each record
+        records_inserted = 0
+        errors = []
+
+        for record in records:
+            try:
+                # Handle IDENTITY columns
+                if is_identity and pk_column:
+                    if pk_column in record:
+                        errors.append(f"Cannot insert explicit value for identity column '{pk_column}'")
+                        continue
+
+                    # Generate the next value
+                    max_identity_value += identity_increment
+                    record[pk_column] = max_identity_value
+
+                # Check primary key constraint
+                if pk_column and pk_column in record:
+                    pk_value = record[pk_column]
+                    pk_exists = False
+
+                    for _, existing_record in all_records:
+                        if pk_column in existing_record:
+                            existing_pk_value = existing_record[pk_column]
+
+                            # Ensure consistent type comparison
+                            if isinstance(pk_value, str) and not isinstance(existing_pk_value, str):
+                                existing_pk_value = str(existing_pk_value)
+                            elif isinstance(existing_pk_value, str) and not isinstance(pk_value, str):
+                                pk_value = str(pk_value)
+
+                            if existing_pk_value == pk_value:
+                                pk_exists = True
+                                errors.append(f"Primary key violation: {pk_column}={pk_value} already exists")
+                                break
+
+                    if pk_exists:
+                        continue
+
+                # Generate a unique record ID if needed
+                record_id = None
+                if pk_column and pk_column in record:
+                    record_id = record[pk_column]
+                else:
+                    record_id = int(datetime.datetime.now().timestamp() * 1000000) + records_inserted
+
+                # Insert into B+ tree
+                tree.insert(record_id, record)
+
+                # Add to checking records for future constraint validation in this batch
+                all_records.append((record_id, record))
+
+                records_inserted += 1
+
+            except Exception as e:
+                errors.append(f"Error inserting record: {str(e)}")
+
+        # Only save if not in batch mode (if in batch mode, it will be saved at the end)
+        if not self.in_batch_mode:
+            try:
+                tree.save_to_file(table_file)
+            except Exception as e:
+                logging.error(f"Error saving B+ tree: {str(e)}")
+                return {"error": f"Error saving B+ tree: {str(e)}", "status": "error"}
+
+        # Return result
+        if errors:
+            logging.warning(f"Batch insert completed with {len(errors)} errors: {errors[:5]}")
+
+        return records_inserted
 
     def create_database(self, db_name):
         """Create a new database."""
@@ -566,7 +737,7 @@ class CatalogManager:
                 try:
                     # Load the index
                     index = BPlusTreeFactory.load_from_file(index_file)
-                    
+
                     if index:
                         # Use the index for lookup
                         results = []
@@ -583,7 +754,7 @@ class CatalogManager:
                             order_column = order_by.get("column")
                             direction = order_by.get("direction", "ASC")
                             if order_column:
-                                results = sorted(results, 
+                                results = sorted(results,
                                             key=lambda r: self._get_sortable_value(r.get(order_column, "")),
                                             reverse=(direction.upper() == "DESC"))
 
@@ -638,14 +809,14 @@ class CatalogManager:
                 if order_column:
                     # Log the values to help debug sorting issues
                     logging.info(f"Sorting by column: {order_column}, direction: {direction}")
-                    
+
                     # Log some values for debugging
                     if results and order_column in results[0]:
                         sample_values = [self._get_sortable_value(r.get(order_column, "")) for r in results[:3]]
                         logging.info(f"Sample values for sorting: {sample_values}")
-                    
+
                     # Sort using the sortable value function and correct direction
-                    results = sorted(results, 
+                    results = sorted(results,
                                 key=lambda r: self._get_sortable_value(r.get(order_column, "")),
                                 reverse=(direction.upper() == "DESC"))
                     logging.info(f"Sorted results by {order_column} {direction}")
@@ -675,7 +846,7 @@ class CatalogManager:
         # If value is already a number, return it as is
         if isinstance(value, (int, float)):
             return value
-            
+
         # Try to convert string to number if possible
         if isinstance(value, str):
             try:
@@ -686,7 +857,7 @@ class CatalogManager:
             except (ValueError, TypeError):
                 # Keep as string for lexicographic comparison
                 return value
-                
+
         # If all else fails, return the value as is for default comparison
         return value
 
@@ -882,12 +1053,12 @@ class CatalogManager:
                             existing_pk_value = str(existing_pk_value)
                         elif isinstance(existing_pk_value, str) and not isinstance(pk_value, str):
                             pk_value = str(pk_value)
-                            
+
                         logging.debug(
                             "Comparing PK values: new=%s (%s) vs. existing=%s (%s)",
                             pk_value, type(pk_value), existing_pk_value, type(existing_pk_value)
                         )
-                            
+
                         if existing_pk_value == pk_value:
                             pk_exists = True
                             logging.warning(
@@ -897,7 +1068,7 @@ class CatalogManager:
                             return f"Primary key violation: {pk_column}={pk_value} already exists"
 
                 if not pk_exists:
-                    logging.debug("Primary key %s=%s is unique, proceeding with insert", 
+                    logging.debug("Primary key %s=%s is unique, proceeding with insert",
                                  pk_column, pk_value)
 
             # Generate a unique record ID (use primary key if available)
@@ -928,7 +1099,7 @@ class CatalogManager:
             # Update indexes if any
             self._update_indexes_after_insert(
                 db_name, table_name, record_id, record)
-                
+
             # Invalidate cache for this table if we have access to cache mechanisms
             self._invalidate_table_cache(table_name)
 
@@ -1373,7 +1544,7 @@ class CatalogManager:
                 self._update_indexes_after_insert(
                     db_name, actual_table_name, key, record
                 )
-                
+
             # Invalidate cache for this table
             self._invalidate_table_cache(actual_table_name)
 
@@ -1854,7 +2025,7 @@ class CatalogManager:
 
             # Save the updated tree
             tree.save_to_file(table_file)
-            
+
             # Invalidate cache for this table
             self._invalidate_table_cache(table_name)
 
@@ -2012,12 +2183,12 @@ class CatalogManager:
                 elif hasattr(self.query_cache, 'update_table_version'):
                     self.query_cache.update_table_version(table_name)
                     logging.info(f"Updated version for table: {table_name}")
-                    
+
             # If we're part of a server instance that has invalidation methods
             elif hasattr(self, '_server') and hasattr(self._server, 'invalidate_caches_for_table'):
                 self._server.invalidate_caches_for_table(table_name)
                 logging.info(f"Invalidated server caches for table: {table_name}")
-                
+
         except Exception as e:
             # Don't let cache invalidation errors affect the main operation
             logging.error(f"Error during cache invalidation for {table_name}: {str(e)}")

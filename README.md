@@ -35,6 +35,7 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [ ] Temporary tables
   - [x] Basic joins and subqueries
   - [x] Transaction support (begin, commit, rollback)
+  - [ ] Batch insertion
 
 - [x] **Indexing**
   - [x] Custom B+ Tree Implementation
@@ -55,10 +56,10 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Schema management
   - [x] Index management
 
-- [ ] **Aggregation Functions**
+- [x] **Aggregation Functions**
   - [x] AVG, MIN, MAX, SUM, COUNT
-  - [ ] TOP N queries
-  - [ ] DISTINCT operations
+  - [x] TOP N queries
+  - [x] DISTINCT operations
 
 - [x] **Security Features**
   - [x] User authentication
@@ -91,6 +92,7 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [ ] Temporary tables for intermediate results
   - [ ] Complex subquery support
   - [x] Multiple aggregation functions
+  - [x] Autocomplete
 
 ## 📱 REST API
 
@@ -355,6 +357,13 @@ query DROP INDEX name ON customers ✅
 -- Use the test database
 query USE test_db ✅
 
+query BATCH INSERT INTO products (name, price, stock) VALUES 
+('Laptop', 999.99, 10),
+('Phone', 499.99, 20),
+('Tablet', 299.99, 15),
+('Monitor', 249.99, 25),
+('Keyboard', 59.99, 50)
+
 query CREATE TABLE products (id INT IDENTITY(1,1) PRIMARY KEY, name VARCHAR(100) NOT NULL, price DECIMAL(10,2), stock INT DEFAULT 0) ✅
 
 -- ✅
@@ -559,7 +568,7 @@ query SELECT dept_id FROM employees INTERSECT SELECT id FROM departments ✅
 query SELECT id FROM departments EXCEPT SELECT dept_id FROM employees ✅
 
 -- AND operation
-query SELECT * FROM employees WHERE salary > 70000 AND dept_id = 1
+query SELECT * FROM employees WHERE salary > 70000 AND dept_id = 1 ✅
 
 -- OR operation
 query SELECT * FROM employees WHERE salary > 75000 OR dept_id = 3
@@ -624,7 +633,7 @@ query SELECT * FROM employees
 WHERE salary > (SELECT AVG(salary) FROM employees)
 
 ---
--- index tests
+-- index tests ✅
 
 -- Create a test database
 CREATE DATABASE index_test

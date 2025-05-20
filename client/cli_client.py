@@ -10,6 +10,8 @@ import json
 import getpass
 import cmd
 import textwrap
+import re
+import readline
 
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -174,6 +176,14 @@ class DBMSClient(cmd.Cmd):
     """)
     prompt = "hms-sql> "
 
+    SQL_KEYWORDS = [
+        "SELECT", "FROM", "WHERE", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "TABLE",
+        "DATABASE", "INDEX", "VIEW", "INTO", "VALUES", "SET", "AND", "OR", "NOT", "NULL",
+        "IS", "IN", "LIKE", "GROUP", "BY", "HAVING", "ORDER", "LIMIT", "JOIN", "INNER",
+        "LEFT", "RIGHT", "OUTER", "ON", "AS", "AVG", "COUNT", "MIN", "MAX", "SUM", "DISTINCT",
+        "UNION", "ALL", "CASE", "WHEN", "THEN", "ELSE", "END", "BATCH"
+    ]
+
     def __init__(self, host=SERVER_HOST, port=SERVER_PORT):
         super().__init__()
         self.host = host
@@ -181,6 +191,124 @@ class DBMSClient(cmd.Cmd):
         self.session_id = None
         self.role = None
         self.username = None
+        self.sock = None
+
+        # Set up readline for autocompletion
+        self.setup_autocompletion()
+
+        # Initialize table cache
+        self.tables_cache = []
+        self.columns_cache = {}
+    
+    def onecmd(self, line):
+        """Override onecmd to handle multi-line BATCH INSERT statements."""
+        # Check if this is a BATCH INSERT command
+        if line.upper().strip().startswith("query BATCH INSERT"):
+            # Split the 'query' part from the SQL
+            parts = line.split(' ', 1)
+            if len(parts) == 2:
+                # Call do_query with the SQL part
+                return self.do_query(parts[1])
+        
+        # For other commands, use the default implementation
+        return super().onecmd(line)
+
+    def setup_autocompletion(self):
+        """Set up readline for autocompletion"""
+        # Register our completer function
+        readline.set_completer(self.complete)
+
+        # Use tab for completion
+        readline.parse_and_bind("tab: complete")
+
+        # Set word delimiters - include common SQL operators
+        readline.set_completer_delims(' \t\n`~!@#$%^&*()-=+[{]}\\|;:\'",<>/?')
+
+    def complete(self, text, state):
+        """Complete the current text with SQL keywords and table names"""
+        # Get the line buffer and cursor position
+        line = readline.get_line_buffer()
+
+        # Lowercase text for case-insensitive matching
+        lower_text = text.lower()
+
+        # Create list of possible completions
+        completions = []
+
+        # Check if this is the beginning of a statement - suggest SQL keywords
+        if not line.strip() or line.strip() == text:
+            # Add keywords that match the text
+            completions = [kw for kw in self.SQL_KEYWORDS if kw.lower().startswith(lower_text)]
+
+        # Check for table name completions after FROM, INTO, UPDATE, JOIN, etc.
+        elif re.search(r'\b(from|into|update|join|on)\s+\w*$', line.lower()):
+            completions = [tbl for tbl in self.tables_cache if tbl.lower().startswith(lower_text)]
+
+        # Check for column name completions after SELECT, WHERE, GROUP BY, etc.
+        elif re.search(r'\bselect\s+\w*$', line.lower()) or \
+             re.search(r'\bwhere\s+\w*$', line.lower()) or \
+             re.search(r'\bgroup\s+by\s+\w*$', line.lower()) or \
+             re.search(r'\border\s+by\s+\w*$', line.lower()):
+
+            # Combine all cached columns
+            all_columns = set()
+            for cols in self.columns_cache.values():
+                all_columns.update(cols)
+
+            completions = [col for col in all_columns if col.lower().startswith(lower_text)]
+
+        # Check for keywords after certain points in a query
+        elif re.search(r'\bselect\b.*\bfrom\b.*$', line.lower()):
+            # After FROM, suggest WHERE, GROUP BY, ORDER BY, etc.
+            next_keywords = ["WHERE", "GROUP BY", "ORDER BY", "LIMIT", "HAVING"]
+            completions = [kw for kw in next_keywords if kw.lower().startswith(lower_text)]
+
+        # Default - complete with SQL keywords
+        else:
+            completions = [kw for kw in self.SQL_KEYWORDS if kw.lower().startswith(lower_text)]
+
+        # Return the state-th completion
+        if state < len(completions):
+            return completions[state]
+        return None
+
+    def refresh_tables_cache(self):
+        """Refresh the table names cache for autocompletion"""
+        if not self.session_id:
+            return
+
+        # Send SHOW TABLES query to server
+        request = {
+            "action": "query",
+            "session_id": self.session_id,
+            "query": "SHOW TABLES"
+        }
+
+        response = self.send_request(request)
+
+        if isinstance(response, dict) and "rows" in response:
+            # Extract table names from rows
+            self.tables_cache = [row[0] for row in response["rows"]]
+            print(f"Loaded {len(self.tables_cache)} tables for autocompletion")
+
+    def refresh_columns_cache(self, table_name):
+        """Refresh column names for a specific table"""
+        if not self.session_id:
+            return
+
+        # Send SHOW COLUMNS query to server
+        request = {
+            "action": "query",
+            "session_id": self.session_id,
+            "query": f"SHOW COLUMNS FROM {table_name}"
+        }
+
+        response = self.send_request(request)
+
+        if isinstance(response, dict) and "rows" in response:
+            # Extract column names from rows (assuming column name is first field)
+            self.columns_cache[table_name] = [row[0] for row in response["rows"]]
+            print(f"Loaded {len(self.columns_cache[table_name])} columns for table {table_name}")
 
     def select_server(self):
         """Discover and select an available server"""
@@ -306,33 +434,6 @@ class DBMSClient(cmd.Cmd):
         self.username = None
         self.prompt = "hms-sql> "
 
-    def do_query(self, sql_query):
-        """
-        Execute an SQL query.
-        Usage: query <SQL statement>
-        Example: query SELECT * FROM users
-        """
-        if not sql_query:
-            print("Error: SQL query cannot be empty.")
-            return
-
-        if not self.session_id:
-            print("Error: You are not logged in. Please login first.")
-            return
-
-        # Prepare request
-        request = {"action": "query",
-                   "session_id": self.session_id, "query": sql_query}
-
-        # Send request to server
-        response = self.send_request(request)
-
-        # Handle response
-        if isinstance(response, dict):
-            self.display_result(response)
-        else:
-            print(response)
-
     def do_visualize(self, arg):
         """
         Execute a visualization query.
@@ -427,8 +528,8 @@ class DBMSClient(cmd.Cmd):
         # Check if this is a SHOW ALL_TABLES result - prioritize showing the tree
         if isinstance(result, dict) and "rows" in result and "columns" in result:
             # Check if the query was SHOW ALL_TABLES
-            if (len(result["columns"]) >= 2 and 
-                "DATABASE_NAME" in result["columns"] and 
+            if (len(result["columns"]) >= 2 and
+                "DATABASE_NAME" in result["columns"] and
                 "TABLE_NAME" in result["columns"]):
                 self.display_tables_tree(result)
                 return
@@ -485,15 +586,14 @@ class DBMSClient(cmd.Cmd):
                         print(f"{key}: {value}")
             else:
                 print(result)
-            
+
     def do_query(self, sql_query):
         """
-        Execute an SQL query or run a script file.
+        Execute an SQL query.
         Usage: query <SQL statement>
-            query SCRIPT <filepath>
         Example: query SELECT * FROM users
-                query SCRIPT my_queries.sql
         """
+        # Check for empty query or no login
         if not sql_query:
             print("Error: SQL query cannot be empty.")
             return
@@ -501,55 +601,120 @@ class DBMSClient(cmd.Cmd):
         if not self.session_id:
             print("Error: You are not logged in. Please login first.")
             return
+
+        # Check if this is a BATCH INSERT query
+        if sql_query.upper().strip().startswith("BATCH INSERT"):
+            # Start collecting the batch insert statement
+            complete_query = sql_query
+
+            # Check if it's complete (has at least one complete value set)
+            open_parens = complete_query.count('(')
+            close_parens = complete_query.count(')')
+
+            # If we have unbalanced parentheses or no value sets yet, continue collecting
+            if open_parens > close_parens or 'VALUES' in complete_query.upper() and complete_query.count('),') == 0 and complete_query.rstrip()[-1] != ')':
+                print("... ", end="")
+                # Start multiline mode, collecting all parts of the batch insert
+                while True:
+                    try:
+                        line = input()
+                        # Break on empty line
+                        if not line.strip():
+                            break
+                        complete_query += " " + line
+                        # Check if we've reached a balanced state with at least one complete value
+                        current_open = complete_query.count('(')
+                        current_close = complete_query.count(')')
+                        # Exit if parentheses are balanced and we have at least one closing parenthesis
+                        if current_open == current_close and current_close > 1:
+                            break
+                    except EOFError:
+                        break
+
+            # Now send the complete query to the server
+            request = {
+                "action": "query",
+                "session_id": self.session_id,
+                "query": complete_query
+            }
+
+            # Log the query we're about to send for debugging
+            print(f"Sending complete BATCH INSERT: {complete_query}")
+
+            # Send request to server
+            response = self.send_request(request)
+
+            # Handle response
+            if isinstance(response, dict):
+                self.display_result(response)
+            else:
+                print(response)
+
+        else:
+            # Regular query execution
+            # Extract table names for columns cache
+            table_match = re.search(r'\bFROM\s+(\w+)', sql_query, re.IGNORECASE)
+            if table_match and table_match.group(1) not in self.columns_cache:
+                self.refresh_columns_cache(table_match.group(1))
             
-        # Check if this is a SCRIPT command
-        if sql_query.upper().startswith("SCRIPT "):
-            # Extract the filepath
-            filepath = sql_query[7:].strip()
-            
-            # Clean up filepath - remove quotes if present
-            if filepath.startswith('"') and filepath.endswith('"'):
-                filepath = filepath[1:-1]
-            elif filepath.startswith("'") and filepath.endswith("'"):
-                filepath = filepath[1:-1]
-            
-            # Expand relative paths
-            if not os.path.isabs(filepath):
-                filepath = os.path.abspath(os.path.join(os.getcwd(), filepath))
-            
-            try:
-                if not os.path.exists(filepath):
-                    print(f"Error: File not found: {filepath}")
-                    return
-                
-                print(f"Executing script from {filepath}...")
-                
-                with open(filepath, 'r') as file:
-                    lines = file.readlines()
-                
-                total_commands = 0
-                successful_commands = 0
-                failed_commands = 0
-                
-                for i, line in enumerate(lines, 1):
-                    # Skip empty lines and comments
-                    line = line.strip()
-                    if not line or line.startswith('--') or line.startswith('#'):
-                        continue
-                    
+            # Prepare request
+            request = {"action": "query",
+                    "session_id": self.session_id, "query": sql_query}
+
+            # Send request to server
+            response = self.send_request(request)
+
+            # Handle response
+            if isinstance(response, dict):
+                self.display_result(response)
+            else:
+                print(response)
+
+    def _execute_script_lines(self, lines):
+        """Execute lines from a script file, handling multi-line statements."""
+        total_commands = 0
+        successful_commands = 0
+        failed_commands = 0
+
+        current_command = ""
+        in_batch_insert = False
+        open_parens = 0
+        close_parens = 0
+
+        for i, line in enumerate(lines, 1):
+            # Skip empty lines and comments
+            line = line.strip()
+            if not line or line.startswith('--') or line.startswith('#'):
+                continue
+
+            # Check if we're starting a BATCH INSERT
+            if not current_command and line.upper().startswith("BATCH INSERT"):
+                current_command = line
+                in_batch_insert = True
+                open_parens = line.count('(')
+                close_parens = line.count(')')
+                continue
+
+            # If we're in a BATCH INSERT, collect lines until the statement is complete
+            if in_batch_insert:
+                current_command += " " + line
+                open_parens += line.count('(')
+                close_parens += line.count(')')
+
+                # Check if the BATCH INSERT is complete
+                if open_parens <= close_parens:
+                    # Execute the complete BATCH INSERT
                     total_commands += 1
-                    print(f"\nExecuting command {total_commands}: {line}")
-                    
-                    # Execute the query
+                    print(f"\nExecuting command {total_commands}: {current_command}")
+
                     request = {
                         "action": "query",
-                        "session_id": self.session_id, 
-                        "query": line
+                        "session_id": self.session_id,
+                        "query": current_command
                     }
-                    
+
                     response = self.send_request(request)
-                    
-                    # Display result
+
                     if isinstance(response, dict):
                         if response.get("status") == "error":
                             print(f"Error: {response.get('error', 'Unknown error')}")
@@ -563,29 +728,50 @@ class DBMSClient(cmd.Cmd):
                             failed_commands += 1
                         else:
                             successful_commands += 1
-                
-                print(f"\nScript execution complete.")
-                print(f"Total commands executed: {total_commands}")
-                print(f"Successful: {successful_commands}")
-                print(f"Failed: {failed_commands}")
-                
-            except RuntimeError as e:
-                print(f"Error executing script: {str(e)}")
-            
-        else:
-            # Regular query execution
-            # Prepare request
-            request = {"action": "query", 
-                    "session_id": self.session_id, "query": sql_query}
 
-            # Send request to server
+                    # Reset for the next command
+                    current_command = ""
+                    in_batch_insert = False
+                    open_parens = 0
+                    close_parens = 0
+
+                continue
+
+            # For non-BATCH INSERT commands, process each line as a separate command
+            total_commands += 1
+            print(f"\nExecuting command {total_commands}: {line}")
+
+            request = {
+                "action": "query",
+                "session_id": self.session_id,
+                "query": line
+            }
+
             response = self.send_request(request)
 
-            # Handle response
             if isinstance(response, dict):
-                self.display_result(response)
+                if response.get("status") == "error":
+                    print(f"Error: {response.get('error', 'Unknown error')}")
+                    failed_commands += 1
+                else:
+                    self.display_result(response)
+                    successful_commands += 1
             else:
                 print(response)
+                if "error" in str(response).lower():
+                    failed_commands += 1
+                else:
+                    successful_commands += 1
+
+        # Handle any incomplete BATCH INSERT at the end of the file
+        if current_command and in_batch_insert:
+            print(f"Warning: Incomplete BATCH INSERT statement at end of file")
+            failed_commands += 1
+
+        print(f"\nScript execution complete.")
+        print(f"Total commands executed: {total_commands}")
+        print(f"Successful: {successful_commands}")
+        print(f"Failed: {failed_commands}")
 
     def do_REPLICATE(self, arg):
         """
@@ -596,16 +782,16 @@ class DBMSClient(cmd.Cmd):
         if not arg:
             print("Error: Missing arguments. Use 'REPLICATE AS REPLICA OF host port' or 'REPLICATE STATUS'")
             return
-        
+
         args = arg.split()
-        
+
         if arg.upper().startswith("STATUS"):
             # Get replication status
             response = self._send_command({"command": "get_status", "action": "node"})
             if response and response.get("status") == "success":
                 role = response.get("role", "unknown")
                 print(f"Current node role: {role}")
-                
+
                 if role == "primary":
                     replicas = response.get("replicas", {})
                     print(f"Replicas ({len(replicas)}):")
@@ -622,25 +808,25 @@ class DBMSClient(cmd.Cmd):
                     print(f"Replication lag: {lag} operations")
             else:
                 print(f"Error: {response.get('error', 'Unknown error')}")
-        
+
         elif len(args) >= 5 and args[0].upper() == "AS" and args[1].upper() == "REPLICA" and args[2].upper() == "OF":
             # Register as replica
             primary_host = args[3]
             primary_port = args[4]
-            
+
             try:
                 primary_port = int(primary_port)
             except ValueError:
                 print(f"Error: Port must be a number")
                 return
-            
+
             response = self._send_command({
-                "command": "set_as_replica", 
+                "command": "set_as_replica",
                 "primary_host": primary_host,
                 "primary_port": primary_port,
                 "action": "node"
             })
-            
+
             if response and response.get("status") == "success":
                 print(response.get("message", "Successfully registered as replica"))
             else:
@@ -654,7 +840,7 @@ class DBMSClient(cmd.Cmd):
         Usage: PROMOTE
         """
         response = self._send_command({"command": "promote_to_primary", "action": "node"})
-        
+
         if response and response.get("status") == "success":
             print(response.get("message", "Successfully promoted to primary"))
         else:
@@ -665,18 +851,18 @@ class DBMSClient(cmd.Cmd):
         # Add session ID if available
         if self.session_id:
             command_data["session_id"] = self.session_id
-        
+
         try:
             data = json.dumps(command_data).encode()
             self.sock.sendall(len(data).to_bytes(4, byteorder="big"))
             self.sock.sendall(data)
-            
+
             # Receive response
             response_size_bytes = self.sock.recv(4)
             response_size = int.from_bytes(response_size_bytes, byteorder="big")
             response_data = self.sock.recv(response_size)
             response = json.loads(response_data.decode())
-            
+
             return response
         except ConnectionError:
             print("Error: Connection to server lost.")
@@ -687,21 +873,21 @@ class DBMSClient(cmd.Cmd):
         if not result.get("rows"):
             print("No tables found.")
             return
-        
+
         # Get the indices of the database and table name columns
         db_idx = result["columns"].index("DATABASE_NAME") if "DATABASE_NAME" in result["columns"] else 0
         table_idx = result["columns"].index("TABLE_NAME") if "TABLE_NAME" in result["columns"] else 1
-        
+
         # Organize tables by database
         databases = {}
         for row in result["rows"]:
             db_name = row[db_idx]
             table_name = row[table_idx]
-            
+
             if db_name not in databases:
                 databases[db_name] = []
             databases[db_name].append(table_name)
-        
+
         # Print the tree
         print("Database Schema:")
         print("└── System")
@@ -710,7 +896,7 @@ class DBMSClient(cmd.Cmd):
             for i, table in enumerate(sorted(tables)):
                 prefix = "│       └── " if i == len(tables) - 1 else "│       ├── "
                 print(f"{prefix}{table}")
-        
+
         print(f"\n{len(result['rows'])} table(s) in {len(databases)} database(s)")
 
     def handle_visualization_response(self, response):

@@ -71,6 +71,14 @@ class Planner:
             table_name = plan.get("table", "")
             query_steps.append(f"DROP INDEX: {index_name} ON {table_name}")
 
+        elif plan_type == "BATCH_INSERT":
+            table = plan.get("table", "")
+            records_count = len(plan.get("records", []))
+            batch_size = plan.get("batch_size", 0)
+            query_steps.append(f"BATCH INSERT INTO: {table}")
+            query_steps.append(f"RECORDS: {records_count}")
+            query_steps.append(f"BATCH SIZE: {batch_size}")
+
         elif plan_type == "CREATE_DATABASE":
             db_name = plan.get("database", "")
             query_steps.append(f"CREATE DATABASE: {db_name}")
@@ -114,6 +122,44 @@ class Planner:
 
         return optimized_plan
 
+    def plan_batch_insert(self, parsed_query):
+        """
+        Plan for BATCH INSERT queries.
+        """
+        logging.debug("Planning BATCH INSERT query: %s", parsed_query)
+
+        table_name = parsed_query["table"]
+        columns = parsed_query.get("columns", [])
+        values = parsed_query.get("values", [])
+        batch_size = parsed_query.get("batch_size", len(values))
+
+        # Make sure we have a reasonable batch size (default to 1000 if not specified)
+        optimal_batch_size = min(batch_size, 1000)
+
+        # Convert values to records
+        records = []
+        for value_row in values:
+            record = {}
+            for i, column in enumerate(columns):
+                if i < len(value_row):
+                    value = value_row[i]
+                    # Cleanup string values
+                    if isinstance(value, str) and value.startswith("'") and value.endswith("'"):
+                        value = value[1:-1]
+                    record[column] = value
+            records.append(record)
+
+        logging.info(f"Created plan for BATCH INSERT with {len(records)} records")
+
+        return {
+            "type": "BATCH_INSERT",
+            "table": table_name,
+            "columns": columns,
+            "values": values,
+            "records": records,
+            "batch_size": optimal_batch_size
+        }
+
     def plan_join_query(self, parsed_query):
         """Plan a JOIN query."""
         # Extract join info from the parsed query
@@ -148,13 +194,13 @@ class Planner:
         """
         # Generate a cache key for common queries
         query_type = parsed_query.get("type")
-        
+
         # Special handling for DISTINCT queries
         if query_type == "DISTINCT":
             logging.info("Planning DISTINCT query")
             table = parsed_query.get("tables", [""])[0] if parsed_query.get("tables") else ""
             column = parsed_query.get("column", "")
-            
+
             return {
                 "type": "DISTINCT",
                 "table": table,
@@ -241,7 +287,7 @@ class Planner:
             # Recursively plan both sides of the set operation
             left_plan = self.plan_query(parsed_query.get("left", {}))
             right_plan = self.plan_query(parsed_query.get("right", {}))
-            
+
             # Create a set operation plan
             plan = {
                 "type": parsed_query["type"],  # Preserve the set operation type
@@ -252,7 +298,8 @@ class Planner:
             return self.log_execution_plan(plan)
 
         try:
-            # Handle database operations directly
+            if parsed_query["type"] == "BATCH_INSERT":
+                plan = self.plan_batch_insert(parsed_query)
             if parsed_query["type"] == "CREATE_DATABASE":
                 return self.plan_create_database(parsed_query)
             elif parsed_query["type"] == "DROP_DATABASE":

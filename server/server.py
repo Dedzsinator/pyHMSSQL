@@ -38,7 +38,7 @@ from scaler import ReplicationManager, ReplicationMode, ReplicaRole  # noqa: E40
 
 def setup_logging():
     """
-    Configure logging with colored output for better visualization of plans.
+    Configure logging with output only to a log file, not to console.
 
     Returns:
         str: Path to the log file
@@ -71,16 +71,10 @@ def setup_logging():
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(formatter)
 
-    # Add console handler for better debugging
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    console_handler.setLevel(logging.INFO)
-
-    # Add handlers
+    # Add only the file handler, not the console handler
     root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
 
-    # Log startup message
+    # Log startup message (only goes to file)
     logging.info("==== DBMS Server Starting ====")
     logging.info("Logging to: %s", log_file)
 

@@ -54,6 +54,8 @@ class ConditionParser:
         - age > 30
         - name = 'John'
         - price <= 100
+        - age > 30 AND name = 'John'
+        - age > 30 OR price < 50
 
         Args:
             condition_str: SQL condition string (e.g., "age > 30")
@@ -64,7 +66,27 @@ class ConditionParser:
         if not condition_str:
             return []
 
-        # Basic parsing for simpler conditions (focus on getting this working first)
+        # Check for OR conditions first
+        if " OR " in condition_str:
+            parts = condition_str.split(" OR ")
+            # Return a special structure for OR conditions
+            return [{
+                "operator": "OR",
+                "operands": [cond for part in parts 
+                            for cond in ConditionParser.parse_condition_to_list(part.strip())]
+            }]
+
+        # Check for AND conditions
+        if " AND " in condition_str:
+            parts = condition_str.split(" AND ")
+            conditions = []
+            for part in parts:
+                # Parse each part recursively
+                part_conditions = ConditionParser.parse_condition_to_list(part.strip())
+                conditions.extend(part_conditions)
+            return conditions
+            
+        # Basic parsing for simpler conditions
         conditions = []
 
         # Check if this is a simple condition with a comparison operator
