@@ -357,12 +357,12 @@ query DROP INDEX name ON customers ✅
 -- Use the test database
 query USE test_db ✅
 
-query BATCH INSERT INTO products (name, price, stock) VALUES 
+query INSERT INTO products (name, price, stock) VALUES 
 ('Laptop', 999.99, 10),
 ('Phone', 499.99, 20),
 ('Tablet', 299.99, 15),
 ('Monitor', 249.99, 25),
-('Keyboard', 59.99, 50)
+('Keyboard', 59.99, 50);
 
 query CREATE TABLE products (id INT IDENTITY(1,1) PRIMARY KEY, name VARCHAR(100) NOT NULL, price DECIMAL(10,2), stock INT DEFAULT 0) ✅
 

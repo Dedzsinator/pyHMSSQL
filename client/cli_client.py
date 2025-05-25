@@ -199,16 +199,39 @@ class DBMSClient(cmd.Cmd):
         # Initialize table cache
         self.tables_cache = []
         self.columns_cache = {}
-    
+
     def onecmd(self, line):
-        """Override onecmd to handle multi-line BATCH INSERT statements."""
-        # Check if this is a BATCH INSERT command
-        if line.upper().strip().startswith("query BATCH INSERT"):
-            # Split the 'query' part from the SQL
-            parts = line.split(' ', 1)
-            if len(parts) == 2:
-                # Call do_query with the SQL part
-                return self.do_query(parts[1])
+        """Override onecmd to handle multi-line statements terminated by semicolon."""
+        # If the line contains 'query' and doesn't end with semicolon, it might be multi-line
+        if line.strip().startswith("query ") and not line.strip().endswith(';'):
+            # Extract the SQL part after 'query '
+            sql_part = line[6:].strip()  # Remove 'query ' prefix
+            
+            # Build complete query until semicolon
+            complete_sql = sql_part
+            
+            while not complete_sql.endswith(';'):
+                try:
+                    print("... ", end="", flush=True)
+                    additional_line = input()
+                    
+                    # If user just types semicolon, add it and break
+                    if additional_line.strip() == ';':
+                        complete_sql += ';'
+                        break
+                    
+                    # Add the line to the complete SQL
+                    complete_sql += " " + additional_line.strip()
+                    
+                except (EOFError, KeyboardInterrupt):
+                    print("\nCommand cancelled.")
+                    return False
+            
+            # Remove semicolon and call do_query - clean up any extra whitespace
+            if complete_sql.endswith(';'):
+                complete_sql = complete_sql[:-1].strip()
+            
+            return self.do_query(complete_sql)
         
         # For other commands, use the default implementation
         return super().onecmd(line)
@@ -602,73 +625,26 @@ class DBMSClient(cmd.Cmd):
             print("Error: You are not logged in. Please login first.")
             return
 
-        # Check if this is a BATCH INSERT query
-        if sql_query.upper().strip().startswith("BATCH INSERT"):
-            # Start collecting the batch insert statement
-            complete_query = sql_query
+        # Extract table names for columns cache (if it's a regular SELECT)
+        table_match = re.search(r'\bFROM\s+(\w+)', sql_query, re.IGNORECASE)
+        if table_match and table_match.group(1) not in self.columns_cache:
+            self.refresh_columns_cache(table_match.group(1))
+        
+        # Prepare request
+        request = {
+            "action": "query",
+            "session_id": self.session_id, 
+            "query": sql_query
+        }
 
-            # Check if it's complete (has at least one complete value set)
-            open_parens = complete_query.count('(')
-            close_parens = complete_query.count(')')
+        # Send request to server
+        response = self.send_request(request)
 
-            # If we have unbalanced parentheses or no value sets yet, continue collecting
-            if open_parens > close_parens or 'VALUES' in complete_query.upper() and complete_query.count('),') == 0 and complete_query.rstrip()[-1] != ')':
-                print("... ", end="")
-                # Start multiline mode, collecting all parts of the batch insert
-                while True:
-                    try:
-                        line = input()
-                        # Break on empty line
-                        if not line.strip():
-                            break
-                        complete_query += " " + line
-                        # Check if we've reached a balanced state with at least one complete value
-                        current_open = complete_query.count('(')
-                        current_close = complete_query.count(')')
-                        # Exit if parentheses are balanced and we have at least one closing parenthesis
-                        if current_open == current_close and current_close > 1:
-                            break
-                    except EOFError:
-                        break
-
-            # Now send the complete query to the server
-            request = {
-                "action": "query",
-                "session_id": self.session_id,
-                "query": complete_query
-            }
-
-            # Log the query we're about to send for debugging
-            print(f"Sending complete BATCH INSERT: {complete_query}")
-
-            # Send request to server
-            response = self.send_request(request)
-
-            # Handle response
-            if isinstance(response, dict):
-                self.display_result(response)
-            else:
-                print(response)
-
+        # Handle response
+        if isinstance(response, dict):
+            self.display_result(response)
         else:
-            # Regular query execution
-            # Extract table names for columns cache
-            table_match = re.search(r'\bFROM\s+(\w+)', sql_query, re.IGNORECASE)
-            if table_match and table_match.group(1) not in self.columns_cache:
-                self.refresh_columns_cache(table_match.group(1))
-            
-            # Prepare request
-            request = {"action": "query",
-                    "session_id": self.session_id, "query": sql_query}
-
-            # Send request to server
-            response = self.send_request(request)
-
-            # Handle response
-            if isinstance(response, dict):
-                self.display_result(response)
-            else:
-                print(response)
+            print(response)
 
     def _execute_script_lines(self, lines):
         """Execute lines from a script file, handling multi-line statements."""
