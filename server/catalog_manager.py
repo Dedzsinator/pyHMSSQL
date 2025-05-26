@@ -4,6 +4,8 @@ import re
 import traceback
 import shutil
 import logging
+import time
+import datetime
 from hashlib import sha256
 import datetime
 from bptree_wrapper import BPlusTreeFactory
@@ -135,148 +137,63 @@ class CatalogManager:
         self.batch_operations = {}
 
     def insert_records_batch(self, table_name, records):
-        """Insert multiple records in a batch."""
+        """Insert multiple records in a batch - hyperoptimized version."""
         db_name = self.get_current_database()
         if not db_name:
             return {"error": "No database selected", "status": "error"}
 
         table_id = f"{db_name}.{table_name}"
         if table_id not in self.tables:
-            return {"error": f"Table {table_name} does not exist.", "status": "error"}
+            return {"error": f"Table '{table_name}' not found", "status": "error"}
 
         # Load the table file
         table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
 
-        # Check if we already have this tree in batch operations
-        if not hasattr(self, 'in_batch_mode'):
-            self.in_batch_mode = False
+        try:
+            # Load existing B+ tree or create new one
+            if os.path.exists(table_file):
+                tree = BPlusTreeFactory.load_from_file(table_file)
+            else:
+                tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
 
-        if not hasattr(self, 'batch_operations'):
-            self.batch_operations = {}
+            # Get table schema for validation
+            table_schema = self.tables[table_id]
+            
+            # Insert each record
+            inserted_count = 0
+            current_time = int(time.time() * 1000000)  # Get base timestamp
+            
+            for i, record in enumerate(records):
+                try:
+                    # Generate a numeric key instead of string key
+                    # Use timestamp + index to ensure uniqueness
+                    record_key = float(current_time + i)
+                    
+                    # Validate record against schema if needed
+                    # (Add validation logic here if required)
+                    
+                    # Insert into B+ tree with numeric key
+                    tree.insert(record_key, record)
+                    inserted_count += 1
+                    
+                except Exception as e:
+                    logging.error(f"Error inserting record {i}: {str(e)}")
+                    continue
 
-        tree = None
-        if self.in_batch_mode and table_file in self.batch_operations:
-            tree = self.batch_operations[table_file]
-        else:
-            try:
-                if os.path.exists(table_file):
-                    tree = BPlusTreeFactory.load_from_file(table_file)
-                    if tree is None:
-                        tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
-                else:
-                    tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
-
-                # If in batch mode, store the tree reference
-                if self.in_batch_mode:
-                    self.batch_operations[table_file] = tree
-            except RuntimeError as e:
-                logging.error(f"Error loading B+ tree: {str(e)}")
-                return {"error": f"Error loading B+ tree: {str(e)}", "status": "error"}
-
-        # Get table schema to check constraints
-        table_schema = self.tables[table_id]
-
-        # Find primary key information
-        pk_column = None
-        is_identity = False
-        identity_seed = 1
-        identity_increment = 1
-
-        # Extract PK and identity info
-        columns_data = table_schema.get("columns", {})
-        if isinstance(columns_data, dict):
-            for col_name, col_def in columns_data.items():
-                if isinstance(col_def, dict):
-                    if col_def.get("primary_key", False):
-                        pk_column = col_name
-                    if col_def.get("identity", False):
-                        is_identity = True
-                        identity_seed = col_def.get("identity_seed", 1)
-                        identity_increment = col_def.get("identity_increment", 1)
-        elif isinstance(columns_data, list):
-            # Similar logic for list format...
-            pass
-
-        # Get all existing records for constraint checking
-        all_records = tree.range_query(float("-inf"), float("inf"))
-        max_identity_value = identity_seed - identity_increment
-
-        # Find max identity value if applicable
-        if is_identity and pk_column:
-            for _, existing_record in all_records:
-                if pk_column in existing_record:
-                    max_identity_value = max(max_identity_value, existing_record[pk_column])
-
-        # Process each record
-        records_inserted = 0
-        errors = []
-
-        for record in records:
-            try:
-                # Handle IDENTITY columns
-                if is_identity and pk_column:
-                    if pk_column in record:
-                        errors.append(f"Cannot insert explicit value for identity column '{pk_column}'")
-                        continue
-
-                    # Generate the next value
-                    max_identity_value += identity_increment
-                    record[pk_column] = max_identity_value
-
-                # Check primary key constraint
-                if pk_column and pk_column in record:
-                    pk_value = record[pk_column]
-                    pk_exists = False
-
-                    for _, existing_record in all_records:
-                        if pk_column in existing_record:
-                            existing_pk_value = existing_record[pk_column]
-
-                            # Ensure consistent type comparison
-                            if isinstance(pk_value, str) and not isinstance(existing_pk_value, str):
-                                existing_pk_value = str(existing_pk_value)
-                            elif isinstance(existing_pk_value, str) and not isinstance(pk_value, str):
-                                pk_value = str(pk_value)
-
-                            if existing_pk_value == pk_value:
-                                pk_exists = True
-                                errors.append(f"Primary key violation: {pk_column}={pk_value} already exists")
-                                break
-
-                    if pk_exists:
-                        continue
-
-                # Generate a unique record ID if needed
-                record_id = None
-                if pk_column and pk_column in record:
-                    record_id = record[pk_column]
-                else:
-                    record_id = int(datetime.datetime.now().timestamp() * 1000000) + records_inserted
-
-                # Insert into B+ tree
-                tree.insert(record_id, record)
-
-                # Add to checking records for future constraint validation in this batch
-                all_records.append((record_id, record))
-
-                records_inserted += 1
-
-            except Exception as e:
-                errors.append(f"Error inserting record: {str(e)}")
-
-        # Only save if not in batch mode (if in batch mode, it will be saved at the end)
-        if not self.in_batch_mode:
-            try:
-                tree.save_to_file(table_file)
-            except Exception as e:
-                logging.error(f"Error saving B+ tree: {str(e)}")
-                return {"error": f"Error saving B+ tree: {str(e)}", "status": "error"}
-
-        # Return result
-        if errors:
-            logging.warning(f"Batch insert completed with {len(errors)} errors: {errors[:5]}")
-
-        return records_inserted
+            # Save the updated tree back to file
+            tree.save_to_file(table_file)
+            
+            logging.info(f"Successfully inserted {inserted_count} records into {table_name}")
+            
+            return {
+                "status": "success",
+                "inserted_count": inserted_count,
+                "message": f"Inserted {inserted_count} records"
+            }
+            
+        except Exception as e:
+            logging.error(f"Batch insert failed: {str(e)}")
+            return {"error": f"Batch insert failed: {str(e)}", "status": "error"}
 
     def create_database(self, db_name):
         """Create a new database."""
@@ -865,74 +782,37 @@ class CatalogManager:
         """Insert a record into a table."""
         db_name = self.get_current_database()
         if not db_name:
-            return "No database selected."
+            return {"error": "No database selected", "status": "error"}
 
         table_id = f"{db_name}.{table_name}"
 
         # Check if table exists
         if table_id not in self.tables:
-            return f"Table {table_name} does not exist."
+            return {"error": f"Table '{table_name}' not found", "status": "error"}
 
         # Check if record is a list and validate column count
         if isinstance(record, list):
-            # Get table schema to extract column names
-            table_info = self.tables[table_id]
-            columns_data = table_info.get("columns", {})
-            column_names = []
-
-            # Extract column names
-            if isinstance(columns_data, dict):
-                column_names = list(columns_data.keys())
-            elif isinstance(columns_data, list):
-                for col in columns_data:
-                    if isinstance(col, dict) and "name" in col:
-                        column_names.append(col["name"])
-                    elif isinstance(col, str):
-                        col_name = col.split()[0] if " " in col else col
-                        column_names.append(col_name)
-
-            # Validate count
-            if len(record) != len(column_names):
-                error_msg = f"Column count mismatch: provided\
-                    {len(record)} values but table has {len(column_names)} columns"
-                logging.error(error_msg)
-                return {"error": error_msg, "status": "error"}
+            table_schema = self.tables[table_id]
+            columns_data = table_schema.get("columns", {})
+            expected_columns = len(columns_data) if isinstance(columns_data, dict) else len(columns_data)
+            if len(record) != expected_columns:
+                return {"error": f"Column count mismatch. Expected {expected_columns}, got {len(record)}", "status": "error"}
 
         # Check if record is already mapped and clean up flag if present
         already_mapped = record.pop("_already_mapped", False) if isinstance(record, dict) else False
 
         # Only map if not already mapped by executor
         if not already_mapped:
-            # Get table schema to extract column names
-            table_info = self.tables[table_id]
-            columns_data = table_info.get("columns", {})
-            column_names = []
-
-            # Extract column names from schema based on the format
-            if isinstance(columns_data, dict):
-                column_names = list(columns_data.keys())
-            elif isinstance(columns_data, list):
-                for col in columns_data:
-                    if isinstance(col, dict) and "name" in col:
-                        column_names.append(col["name"])
-                    elif isinstance(col, str):
-                        # Extract column name from string definition
-                        col_name = col.split()[0] if " " in col else col
-                        column_names.append(col_name)
-
-            # Check if we have a record as a list that needs to be mapped to column names
-            if hasattr(record, "__iter__") and not isinstance(record, dict) and column_names:
-                # Convert list values to a dictionary with column names
-                record_dict = {}
-                for i, val in enumerate(record):
-                    if i < len(column_names):
-                        # Remove quotes from string values if needed
-                        if isinstance(val, str) and ((val.startswith("'") and val.endswith("'")) or
-                                                (val.startswith('"') and val.endswith('"'))):
-                            val = val[1:-1]  # Remove quotes
-                        record_dict[column_names[i]] = val
-                record = record_dict
-                logging.info("Mapped values to columns: %s", record)
+            # Convert list to dictionary if needed
+            if isinstance(record, list):
+                table_schema = self.tables[table_id]
+                columns_data = table_schema.get("columns", {})
+                if isinstance(columns_data, dict):
+                    column_names = list(columns_data.keys())
+                else:
+                    column_names = [col.get("name", f"col_{i}") for i, col in enumerate(columns_data)]
+                
+                record = {column_names[i]: record[i] for i in range(len(record))}
 
         # Get table schema to check constraints
         table_schema = self.tables[table_id]
@@ -946,51 +826,23 @@ class CatalogManager:
 
         # Check the type and handle accordingly
         if isinstance(columns_data, dict):
-            # Dictionary format - check for primary key
-            for col_name, col_def in columns_data.items():
-                if isinstance(col_def, dict):
-                    if col_def.get("primary_key", False):
-                        pk_column = col_name
-                    if col_def.get("identity", False):
-                        is_identity = True
-                        identity_seed = col_def.get("identity_seed", 1)
-                        identity_increment = col_def.get(
-                            "identity_increment", 1
-                        )
-                        pk_column = (
-                            col_name  # IDENTITY columns are typically primary keys
-                        )
+            for col_name, col_info in columns_data.items():
+                if isinstance(col_info, dict) and col_info.get("primary_key"):
+                    pk_column = col_name
+                    is_identity = col_info.get("identity", False)
+                    if is_identity:
+                        identity_seed = col_info.get("identity_seed", 1)
+                        identity_increment = col_info.get("identity_increment", 1)
+                    break
         elif isinstance(columns_data, list):
-            # List format - check constraints for PRIMARY KEY
-            constraints = table_schema.get("constraints", [])
-            for constraint in constraints:
-                if isinstance(constraint, str):
-                    # Check for PRIMARY KEY constraint
-                    pk_match = re.search(
-                        r"PRIMARY\s+KEY\s*\(\s*(\w+)\s*\)", constraint, re.IGNORECASE
-                    )
-                    if pk_match:
-                        pk_column = pk_match.group(1)
-
-                    # Check for IDENTITY specification
-                    if "IDENTITY" in constraint.upper():
-                        identity_match = re.search(
-                            r"(\w+)\s+.*IDENTITY\s*(?:\((\d+),\s*(\d+)\))?",
-                            constraint,
-                            re.IGNORECASE,
-                        )
-                        if identity_match:
-                            id_col = identity_match.group(1)
-                            is_identity = True
-                            pk_column = (
-                                id_col  # IDENTITY columns are typically primary keys
-                            )
-
-                            # Get seed and increment if specified
-                            if identity_match.group(2) and identity_match.group(3):
-                                identity_seed = int(identity_match.group(2))
-                                identity_increment = int(
-                                    identity_match.group(3))
+            for col in columns_data:
+                if isinstance(col, dict) and col.get("primary_key"):
+                    pk_column = col.get("name")
+                    is_identity = col.get("identity", False)
+                    if is_identity:
+                        identity_seed = col.get("identity_seed", 1)
+                        identity_increment = col.get("identity_increment", 1)
+                    break
 
         logging.debug(
             "Table %s - PK: %s, Identity: %s",
@@ -1002,114 +854,56 @@ class CatalogManager:
             self.tables_dir, db_name, f"{table_name}.tbl")
 
         try:
-            # Load or create B+ tree
+            # **FIX: Load existing tree instead of creating new one**
+            tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
             if os.path.exists(table_file):
-                tree = BPlusTreeFactory.load_from_file(table_file)
-                if tree is None:
-                    # If loading failed, create a new tree
-                    tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
-            else:
-                tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
+                tree.load_from_file(table_file)
 
-            # Get all existing records to check constraints and get max identity value
-            all_records = tree.range_query(float("-inf"), float("inf"))
-            max_identity_value = identity_seed - identity_increment
-
-            # Handle IDENTITY column if applicable
+            # Handle IDENTITY columns
             if is_identity and pk_column:
-                # Check if the column was explicitly provided
-                if pk_column in record:
-                    return f"Cannot insert explicit value for identity column '{pk_column}'"
+                if pk_column not in record or record[pk_column] is None:
+                    # Get the next identity value
+                    next_id = identity_seed
+                    if tree.get_all_items():
+                        # Find the maximum existing ID
+                        max_id = 0
+                        for existing_key, existing_record in tree.get_all_items():
+                            if pk_column in existing_record:
+                                existing_id = existing_record[pk_column]
+                                if isinstance(existing_id, (int, float)) and existing_id > max_id:
+                                    max_id = int(existing_id)
+                        next_id = max_id + identity_increment
+                    
+                    record[pk_column] = next_id
 
-                # Find the current max value for the identity column
-                for _, existing_record in all_records:
-                    if pk_column in existing_record:
-                        max_identity_value = max(
-                            max_identity_value, existing_record[pk_column]
-                        )
+            # Check foreign key constraints
+            fk_violation = self._check_fk_constraints_for_insert(db_name, table_name, record)
+            if fk_violation:
+                return {"error": fk_violation, "status": "error"}
 
-                # Generate the next value
-                next_value = max_identity_value + identity_increment
-                record[pk_column] = next_value
-                logging.debug("Generated IDENTITY value: %s for %s",
-                    next_value, pk_column
-                )
-
-            # Check for primary key violation
+            # Determine the key for insertion
             if pk_column and pk_column in record:
-                pk_value = record[pk_column]
-                logging.debug(
-                    "Checking primary key constraint: %s=%s",
-                    pk_column, pk_value
-                )
-
-                # Check if this primary key already exists
-                pk_exists = False
-                for _, existing_record in all_records:
-                    if pk_column in existing_record:
-                        existing_pk_value = existing_record[pk_column]
-                        # Ensure consistent type comparison for primary keys
-                        if isinstance(pk_value, str) and not isinstance(existing_pk_value, str):
-                            existing_pk_value = str(existing_pk_value)
-                        elif isinstance(existing_pk_value, str) and not isinstance(pk_value, str):
-                            pk_value = str(pk_value)
-
-                        logging.debug(
-                            "Comparing PK values: new=%s (%s) vs. existing=%s (%s)",
-                            pk_value, type(pk_value), existing_pk_value, type(existing_pk_value)
-                        )
-
-                        if existing_pk_value == pk_value:
-                            pk_exists = True
-                            logging.warning(
-                                "Primary key violation: %s=%s already exists",
-                                pk_column, pk_value
-                            )
-                            return f"Primary key violation: {pk_column}={pk_value} already exists"
-
-                if not pk_exists:
-                    logging.debug("Primary key %s=%s is unique, proceeding with insert",
-                                 pk_column, pk_value)
-
-            # Generate a unique record ID (use primary key if available)
-            if pk_column and pk_column in record:
-                record_id = record[pk_column]
+                record_key = record[pk_column]
             else:
-                # Generate a unique ID if no primary key
-                record_id = int(datetime.datetime.now().timestamp() * 1000000)
+                # Use auto-incrementing key if no primary key
+                existing_keys = [key for key, _ in tree.get_all_items()]
+                record_key = max(existing_keys, default=0) + 1
 
-            if isinstance(record, dict):  # Make sure we have a dictionary to check
-                # Use the current record for FK constraint check, not a cached one
-                logging.info("Processing INSERT record: %s", record)
-                fk_violation = self._check_fk_constraints_for_insert(db_name, table_name, record)
-                if fk_violation:
-                    logging.error("FK constraint violation during insert into %s: %s",
-                                table_name, fk_violation)
-                    return {"error": fk_violation, "status": "error"}
-
-            logging.debug("Inserting record with ID %s: %s", record_id, record)
-            # Insert the record into the B+ tree
-            tree.insert(record_id, record)
+            # Insert the record
+            tree.insert(record_key, record)
 
             # Save the updated tree
             tree.save_to_file(table_file)
 
-            logging.info("Record inserted into %s with ID %s", table_name, record_id)
+            # Update indexes
+            self._update_indexes_after_insert(db_name, table_name, record_key, record)
 
-            # Update indexes if any
-            self._update_indexes_after_insert(
-                db_name, table_name, record_id, record)
-
-            # Invalidate cache for this table if we have access to cache mechanisms
-            self._invalidate_table_cache(table_name)
-
+            logging.info("Inserted record with key %s into %s", record_key, table_name)
             return True
 
-        except RuntimeError as e:
-            logging.error("Error inserting record: %s", str(e))
-
-            logging.error(traceback.format_exc())
-            return f"Error inserting record: {str(e)}"
+        except Exception as e:
+            logging.error("Error inserting record into %s: %s", table_name, str(e))
+            return {"error": f"Error inserting record: {str(e)}", "status": "error"}
 
     def _check_fk_constraints_for_delete(self, db_name, table_name, records_to_delete):
         """

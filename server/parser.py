@@ -25,6 +25,9 @@ class SQLParser:
 
         if not sql or not sql.strip():
             return {"error": "Empty query"}
+        
+        if sql.strip().upper().startswith("SCRIPT "):
+            return self._parse_script_statement(sql)
 
         # Parse transaction control statements first (they need special handling)
         transaction_result = self._parse_transaction_statement(sql)
@@ -110,6 +113,27 @@ class SQLParser:
             logging.error("Error extracting elements: %s", str(e))
             logging.error(traceback.format_exc())
             return {"error": f"Error extracting SQL elements: {str(e)}"}
+
+    def _parse_script_statement(self, sql):
+        """Parse a SCRIPT statement."""
+        # Extract filename from SCRIPT command
+        match = re.match(r"SCRIPT\s+(.+)", sql.strip(), re.IGNORECASE)
+        if not match:
+            return {"error": "Invalid SCRIPT statement format", "status": "error"}
+        
+        filename = match.group(1).strip()
+        
+        # Remove quotes if present
+        if filename.startswith('"') and filename.endswith('"'):
+            filename = filename[1:-1]
+        elif filename.startswith("'") and filename.endswith("'"):
+            filename = filename[1:-1]
+        
+        return {
+            "type": "SCRIPT",
+            "filename": filename,
+            "operation": "SCRIPT"
+        }
 
     def parse_visualize_command(self, query):
         """
@@ -484,46 +508,101 @@ class SQLParser:
 
         # Extract column names
         columns = []
-        if "(" in raw_sql and ")" in raw_sql:
-            # First set of parentheses should be column names
-            cols_match = re.search(
-                r"INSERT\s+INTO\s+\w+\s*\(([^)]+)\)", raw_sql, re.IGNORECASE
-            )
-            if cols_match:
-                cols_str = cols_match.group(1)
-                columns = [col.strip() for col in cols_str.split(",")]
+        columns_match = re.search(r"\(\s*([^)]+)\s*\)\s*VALUES", raw_sql, re.IGNORECASE)
+        if columns_match:
+            columns_str = columns_match.group(1)
+            columns = [col.strip() for col in columns_str.split(',')]
 
-        # Extract values
+        # Extract values - handle multiple rows
         values = []
-
-        # Look for VALUES clause with multiple rows
-        values_clause = re.search(r"VALUES\s*(.+)", raw_sql, re.IGNORECASE)
+        values_clause = re.search(r"VALUES\s*(.+)", raw_sql, re.IGNORECASE | re.DOTALL)
         if values_clause:
-            values_str = values_clause.group(1).strip()
+            values_part = values_clause.group(1).strip()
+            
+            # Parse multiple value groups
+            value_groups = []
+            current_group = ""
+            in_string = False
+            quote_char = None
+            paren_level = 0
 
-            # Split into individual rows by finding all patterns of (val1, val2, ...)
-            row_pattern = r"\(([^)]+)\)"
-            rows = re.findall(row_pattern, values_str)
-
-            for row in rows:
-                row_values = []
-                # Split by comma and process each value
-                for val in row.split(","):
-                    val = val.strip()
-                    # Keep quotes for strings
-                    if (val.startswith("'") and val.endswith("'")) or\
-                        (val.startswith('"') and val.endswith('"')):
-                        row_values.append(val)
-                    elif val.isdigit():
-                        # Integer
-                        row_values.append(int(val))
-                    elif re.match(r"^[0-9]+\.[0-9]+$", val):
-                        # Float
-                        row_values.append(float(val))
+            i = 0
+            while i < len(values_part):
+                char = values_part[i]
+                
+                if char in ('"', "'") and not in_string:
+                    in_string = True
+                    quote_char = char
+                    current_group += char
+                elif char == quote_char and in_string:
+                    if i + 1 < len(values_part) and values_part[i + 1] == quote_char:
+                        current_group += char + char
+                        i += 1
                     else:
-                        # Other
-                        row_values.append(val)
+                        in_string = False
+                        quote_char = None
+                        current_group += char
+                elif char == '(' and not in_string:
+                    paren_level += 1
+                    current_group += char
+                elif char == ')' and not in_string:
+                    paren_level -= 1
+                    current_group += char
+                    
+                    if paren_level == 0:
+                        value_groups.append(current_group.strip())
+                        current_group = ""
+                elif char == ',' and not in_string and paren_level == 0:
+                    if current_group.strip():
+                        value_groups.append(current_group.strip())
+                        current_group = ""
+                else:
+                    if not (char.isspace() and not current_group and not in_string):
+                        current_group += char
+                
+                i += 1
 
+            if current_group.strip():
+                value_groups.append(current_group.strip())
+
+            # Process each group into individual values
+            for group in value_groups:
+                group = group.strip()
+                if group.startswith('(') and group.endswith(')'):
+                    group = group[1:-1]
+                
+                row_values = []
+                current_value = ""
+                in_string = False
+                quote_char = None
+                
+                i = 0
+                while i < len(group):
+                    char = group[i]
+                    
+                    if char in ('"', "'") and not in_string:
+                        in_string = True
+                        quote_char = char
+                        current_value += char
+                    elif char == quote_char and in_string:
+                        if i + 1 < len(group) and group[i + 1] == quote_char:
+                            current_value += char + char
+                            i += 1
+                        else:
+                            in_string = False
+                            quote_char = None
+                            current_value += char
+                    elif char == ',' and not in_string:
+                        row_values.append(current_value.strip())
+                        current_value = ""
+                    else:
+                        current_value += char
+                    
+                    i += 1
+                
+                if current_value.strip():
+                    row_values.append(current_value.strip())
+                
                 values.append(row_values)
 
         # Update result with extracted components
@@ -815,7 +894,7 @@ class SQLParser:
 
         if "SHOW DATABASES" in raw_sql:
             object_type = "DATABASES"
-        elif "SHOW ALL_TABLES" in raw_sql:  # Add support for SHOW ALL_TABLES
+        elif "SHOW ALL_TABLES" in raw_sql or "SHOW ALL_TABLE" in raw_sql:  # Handle both forms
             object_type = "ALL_TABLES"
         elif "SHOW TABLES" in raw_sql:
             object_type = "TABLES"
@@ -958,7 +1037,7 @@ class SQLParser:
         match = re.match(r"INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(.+)",
                         query, re.IGNORECASE)
         if not match:
-            raise ValueError("Invalid INSERT statement format")
+            return {"error": f"Invalid INSERT syntax: {query}"}
 
         table = match.group(1)
         columns = [col.strip() for col in match.group(2).split(',')]
@@ -966,55 +1045,98 @@ class SQLParser:
 
         # Fix: Support multiple rows in VALUES clause
         value_groups = []
-        # Split by '),(' to get individual value groups
         current_group = ""
         in_string = False
+        quote_char = None
         paren_level = 0
 
-        for char in values_part:
-            if char == "'" and not in_string:
+        i = 0
+        while i < len(values_part):
+            char = values_part[i]
+            
+            if char in ('"', "'") and not in_string:
                 in_string = True
+                quote_char = char
                 current_group += char
-            elif char == "'" and in_string:
-                in_string = False
-                current_group += char
+            elif char == quote_char and in_string:
+                # Check if it's an escaped quote
+                if i + 1 < len(values_part) and values_part[i + 1] == quote_char:
+                    current_group += char + char
+                    i += 1  # Skip the next quote
+                else:
+                    in_string = False
+                    quote_char = None
+                    current_group += char
             elif char == '(' and not in_string:
                 paren_level += 1
-                if paren_level == 1:  # Start of a new group
-                    current_group = ""
-                else:
-                    current_group += char
+                current_group += char
             elif char == ')' and not in_string:
                 paren_level -= 1
-                if paren_level == 0:  # End of a group
-                    value_groups.append(current_group)
-                else:
-                    current_group += char
+                current_group += char
+                
+                # If we've closed all parentheses, we have a complete group
+                if paren_level == 0:
+                    value_groups.append(current_group.strip())
+                    current_group = ""
+            elif char == ',' and not in_string and paren_level == 0:
+                # This comma separates value groups, not values within a group
+                if current_group.strip():
+                    value_groups.append(current_group.strip())
+                    current_group = ""
             else:
-                if paren_level > 0:  # Only add if we're inside a group
+                if not (char.isspace() and not current_group and not in_string):
                     current_group += char
+            
+            i += 1
+
+        # Add the last group if there's any content
+        if current_group.strip():
+            value_groups.append(current_group.strip())
 
         # Process each value group
         processed_value_groups = []
         for group in value_groups:
-            value_list = []
+            # Remove outer parentheses
+            group = group.strip()
+            if group.startswith('(') and group.endswith(')'):
+                group = group[1:-1]
+            
+            # Split values within the group
+            values = []
             current_value = ""
             in_string = False
-
-            for char in group + ",":  # Add a comma to handle the last value
-                if char == "'" and not in_string:
+            quote_char = None
+            
+            i = 0
+            while i < len(group):
+                char = group[i]
+                
+                if char in ('"', "'") and not in_string:
                     in_string = True
+                    quote_char = char
                     current_value += char
-                elif char == "'" and in_string:
-                    in_string = False
-                    current_value += char
+                elif char == quote_char and in_string:
+                    # Check if it's an escaped quote
+                    if i + 1 < len(group) and group[i + 1] == quote_char:
+                        current_value += char + char
+                        i += 1  # Skip the next quote
+                    else:
+                        in_string = False
+                        quote_char = None
+                        current_value += char
                 elif char == ',' and not in_string:
-                    value_list.append(self._process_value_literal(current_value.strip()))
+                    values.append(self._process_value_literal(current_value.strip()))
                     current_value = ""
                 else:
                     current_value += char
-
-            processed_value_groups.append(value_list)
+                
+                i += 1
+            
+            # Add the last value
+            if current_value.strip():
+                values.append(self._process_value_literal(current_value.strip()))
+            
+            processed_value_groups.append(values)
 
         return {
             "type": "INSERT",
@@ -1028,20 +1150,22 @@ class SQLParser:
         if value is None:
             return None
 
-        # Preserve quotes for string literals
-        if isinstance(value, str):
-            if (value.startswith("'") and value.endswith("'")) or\
-                (value.startswith('"') and value.endswith('"')):
-                return value  # Keep quotes intact
-
-            # Try to convert to numeric types if possible
-            try:
-                if '.' in value:
-                    return float(value)
-                else:
-                    return int(value)
-            except ValueError:
-                # Not a number, return as is
-                return value
-
-        return value
+        value = value.strip()
+        
+        # Handle NULL
+        if value.upper() == 'NULL':
+            return None
+        
+        # Handle quoted strings - preserve the quotes for now
+        if (value.startswith("'") and value.endswith("'")) or \
+        (value.startswith('"') and value.endswith('"')):
+            return value
+        
+        # Try to convert to number
+        try:
+            if '.' in value:
+                return float(value)
+            else:
+                return int(value)
+        except ValueError:
+            return value

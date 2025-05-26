@@ -1,4 +1,4 @@
-query BATCH INSERT INTO products (name, price, stock) VALUES 
+INSERT INTO products (name, price, stock) VALUES 
 ('Laptop', 999.99, 10),
 ('Phone', 499.99, 20),
 ('Tablet', 299.99, 15),
@@ -9997,4 +9997,4 @@ query BATCH INSERT INTO products (name, price, stock) VALUES
 ('Keyboard', 59.99, 50),
 ('Laptop', 999.99, 10),
 ('Phone', 499.99, 20),
-('Tablet', 299.99, 15)
+('Tablet', 299.99, 15);

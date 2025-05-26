@@ -252,7 +252,9 @@ class Planner:
             return self.log_execution_plan(plan)
 
         try:
-            if parsed_query["type"] == "CREATE_DATABASE":
+            if parsed_query["type"] == "SCRIPT":
+                plan = self.plan_script(parsed_query)
+            elif parsed_query["type"] == "CREATE_DATABASE":
                 return self.plan_create_database(parsed_query)
             elif parsed_query["type"] == "DROP_DATABASE":
                 return self.plan_drop_database(parsed_query)
@@ -339,6 +341,14 @@ class Planner:
             plan["error"] = f"Unknown visualization object: {object_type}"
 
         return plan
+    
+    def plan_script(self, parsed_query):
+        """Plan for SCRIPT execution."""
+        logging.debug("Planning SCRIPT query: %s", parsed_query)
+        return {
+            "type": "SCRIPT",
+            "filename": parsed_query.get("filename")
+        }
 
     def plan_transaction_operation(self, parsed_query):
         """
@@ -764,7 +774,7 @@ class Planner:
 
     def plan_insert(self, parsed_query):
         """
-        Plan for INSERT queries.
+        Plan for INSERT queries with support for multiple rows.
         """
         logging.debug("Planning INSERT query: %s", parsed_query)
 
@@ -772,20 +782,15 @@ class Planner:
         columns = parsed_query.get("columns", [])
         values = parsed_query.get("values", [])
 
-        # Build a record from columns and values
-        record = {}
-        if columns and values and len(values) > 0:
-            for i, column in enumerate(columns):
-                if i < len(values[0]):
-                    value = values[0][i]
-                    record[column] = value
+        # Ensure values is a list of lists (for multiple rows)
+        if values and not isinstance(values[0], list):
+            values = [values]  # Single row, wrap in list
 
         return {
             "type": "INSERT",
             "table": table_name,
-            "record": record,
             "columns": columns,
-            "values": values,
+            "values": values,  # This will now contain all rows
         }
 
     def plan_drop_table(self, parsed_query):

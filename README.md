@@ -374,7 +374,7 @@ query INSERT INTO products (name, price, stock) VALUES ('Tablet', 299.99, 15)
 -- Create a simple table
 query CREATE TABLE customers (id INT PRIMARY KEY, name String, email VARCHAR(100), age INT) ✅
 
--- Create a table with constraints
+-- Create a tabqueryle with constraints
 query CREATE TABLE orders (id INT PRIMARY KEY,customer_id INT,order_date DATETIME,total DECIMAL(10,2),status VARCHAR(20),FOREIGN KEY (customer_id) REFERENCES customers(id)) ✅
 
 -- Create an index on the customers table
@@ -651,7 +651,7 @@ query INSERT INTO products VALUES (5, 'Bluetooth Speaker', 79.99, 'Electronics',
 
 -- Time this query - should do a full table scan
 query SELECT * FROM products WHERE category = 'Electronics';
-2
+
 -- Time this query - should do a full table scan
 query SELECT * FROM products WHERE id = 3;
 

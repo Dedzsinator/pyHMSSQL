@@ -35,358 +35,64 @@ class DMLExecutor:
         columns = plan.get("columns", [])
         values_list = plan.get("values", [])
         
-        # CRITICAL FIX: Always use the original values from the current plan
-        # rather than potentially cached values
-        values_list_to_use = values_list
-        
-        # Debug log to ensure we're using the correct values
-        logging.info(f"INSERT plan values: {values_list}")
-        
-        # If the values don't match the query string, this is likely a cached plan with stale values
-        if "query" in plan:
-            query = plan.get("query", "")
-            # Basic check - if the plan's query mentions different values than what's in values_list
-            if "VALUES" in query and str(values_list) not in query:
-                logging.warning("Potential cached plan with stale values detected, extracting fresh values")
-                # Use fresh values from the parsed query if available
-                if "fresh_values" in plan:
-                    values_list_to_use = plan.get("fresh_values")
-                    logging.info(f"Using fresh values for INSERT: {values_list_to_use}")
-        
         if not table_name:
             return {"error": "Table name not specified", "status": "error"}
             
         if not columns:
             return {"error": "No columns specified for INSERT", "status": "error"}
             
-        if not values_list_to_use:
+        if not values_list:
             return {"error": "No values specified for INSERT", "status": "error"}
 
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
             return {"error": "No database selected", "status": "error"}
 
-        logging.info(f"--- Starting FK constraint checks for INSERT into {table_name} ---")
+        logging.info(f"--- Starting batch INSERT into {table_name} with {len(values_list)} records ---")
 
-        # If no columns are specified, get them from the table schema
-        if not columns and values_list_to_use:
-            table_schema = self.catalog_manager.get_table_schema(table_name)
-            if table_schema:
-                columns = []
-                for col in table_schema:
-                    if isinstance(col, dict) and "name" in col:
-                        columns.append(col["name"])
-                    elif isinstance(col, str):
-                        # Extract column name from string definition
-                        col_name = col.split()[0] if " " in col else col
-                        columns.append(col_name)
-                logging.info(f"Using schema columns for INSERT: {columns}")
-
-        # Load the table schema to check for foreign key constraints
+        # Get table schema once for all records
         table_schema = self.catalog_manager.get_table_schema(table_name)
+        if not table_schema:
+            return {"error": f"Table '{table_name}' not found", "status": "error"}
 
-        # Debug - log the entire schema
-        logging.info(f"Table {table_name} schema: {table_schema}")
-
-        success_count = 0
-        for value_row in values_list_to_use:  # Use the properly selected values
+        # Pre-validate all records and prepare them for bulk insert
+        prepared_records = []
+        for i, value_row in enumerate(values_list):
             # Create the record mapping columns to values
             record = {}
+            
+            if len(value_row) != len(columns):
+                return {"error": f"Row {i+1}: Column count mismatch. Expected {len(columns)}, got {len(value_row)}", "status": "error"}
+            
+            for j, value in enumerate(value_row):
+                col_name = columns[j]
+                # Clean string values
+                if isinstance(value, str) and value.startswith("'") and value.endswith("'"):
+                    value = value[1:-1]
+                record[col_name] = value
+            
+            prepared_records.append(record)
 
-            if columns:
-                for i, value in enumerate(value_row):
-                    if i < len(columns):
-                        col_name = columns[i]
-                        # Clean string values
-                        if isinstance(value, str) and value.startswith("'") and value.endswith("'"):
-                            value = value[1:-1]
-                        record[col_name] = value
-
-            record["_already_mapped"] = True
-
-            logging.info(f"Processing INSERT record: {record}")
-            logging.info(f"--- Checking heuristic FK constraints ---")
-
-            # Get foreign key constraints from table schema
-            fk_constraints = []
-            # This set will track columns that have explicit FK constraints
-            explicitly_constrained_columns = set()
-
-            # Process table-level constraints - Enhanced to handle more formats
-            if isinstance(table_schema, dict):
-                # Check direct constraints array
-                if "constraints" in table_schema:
-                    constraints = table_schema.get("constraints", [])
-                    logging.info(f"Found {len(constraints)} table-level constraints")
-
-                    for constraint in constraints:
-                        if isinstance(constraint, str) and ("FOREIGN KEY" in constraint.upper() or "REFERENCES" in constraint.upper()):
-                            logging.info(f"Found table-level FK constraint: {constraint}")
-                            fk_constraints.append(constraint)
-
-                # Also check if constraints exist at table root level (not in a 'constraints' array)
-                for key, value in table_schema.items():
-                    if key == "constraints":
-                        continue  # Already processed above
-
-                    if isinstance(key, str) and key.startswith("FOREIGN KEY"):
-                        logging.info(f"Found root-level FK constraint key: {key}")
-                        fk_constraints.append(key)
-
-                    if isinstance(value, str) and "REFERENCES" in value.upper():
-                        logging.info(f"Found root-level FK constraint value: {value}")
-                        fk_constraints.append(value)
-
-            # Process column-level constraints
-            columns_to_check = table_schema
-            if isinstance(table_schema, dict) and "columns" in table_schema:
-                columns_to_check = table_schema["columns"]
-                logging.info(f"Checking column-level constraints in {len(columns_to_check)} columns")
-
-            for col in columns_to_check:
-                if isinstance(col, dict) and "constraints" in col:
-                    col_name = col.get("name", "unknown")
-                    col_constraints = col["constraints"]
-                    logging.info(f"Column {col_name} has {len(col_constraints)} constraints")
-                    for constraint in col_constraints:
-                        if isinstance(constraint, str) and "REFERENCES" in constraint.upper():
-                            logging.info(f"Found column-level FK constraint on {col_name}: {constraint}")
-                            fk_constraints.append(constraint)
-                elif isinstance(col, str) and "REFERENCES" in col.upper():
-                    logging.info(f"Found column-level FK constraint in string format: {col}")
-                    fk_constraints.append(col)
-
-            # Check table creation constraints that might not be in schema yet
-            # This helps catch constraints specified in CREATE TABLE but not yet stored
-            table_id = f"{db_name}.{table_name}"
-            if hasattr(self.catalog_manager, 'pending_fk_constraints') and table_id in self.catalog_manager.pending_fk_constraints:
-                pending_constraints = self.catalog_manager.pending_fk_constraints[table_id]
-                logging.info(f"Found {len(pending_constraints)} pending FK constraints for {table_id}")
-                fk_constraints.extend(pending_constraints)
-
-            logging.info(f"Total FK constraints found: {len(fk_constraints)}")
-
-            # First parse all constraints to find explicitly defined foreign keys
-            for constraint in fk_constraints:
-                logging.info(f"Pre-processing FK constraint: {constraint}")
-
-                # Pattern 1: FOREIGN KEY (col) REFERENCES table(col)
-                pattern1 = r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(?:(\w+)\.)?(\w+)\s*\(\s*(\w+)\s*\)"
-                match = re.search(pattern1, constraint, re.IGNORECASE)
-                if match:
-                    fk_column = match.group(1)
-                    explicitly_constrained_columns.add(fk_column)
-                    logging.info(f"Found explicit FK constraint for column: {fk_column}")
-                    continue
-
-                # Pattern 2: col_name REFERENCES table(col)
-                pattern2 = r"(\w+)\s+.*REFERENCES\s+(?:(\w+)\.)?(\w+)\s*\(\s*(\w+)\s*\)"
-                match = re.search(pattern2, constraint, re.IGNORECASE)
-                if match:
-                    fk_column = match.group(1)
-                    explicitly_constrained_columns.add(fk_column)
-                    logging.info(f"Found explicit FK constraint for column: {fk_column}")
-
-            # When we do heuristic checks, skip columns that have explicit constraints
-            fk_heuristic_applied = False
-            table_schema = self.catalog_manager.get_table_schema(table_name)
-            for col_name, value in record.items():
-                if col_name.endswith('_id') and value is not None:
-                    # Try to determine referenced table
-                    ref_table_base = col_name[:-3]  # Remove '_id' suffix
-
-                    # Try common naming patterns in this order
-                    possible_ref_tables = [
-                        f"{ref_table_base}s",      # dept_id -> departments
-                        ref_table_base,            # department_id -> department
-                        f"{ref_table_base}es",     # box_id -> boxes
-                        f"{ref_table_base}ies" if ref_table_base.endswith('y') else None,
-                        f"{ref_table_base}ment",
-                        f"{ref_table_base}ments"
-                    ]
-
-                    # Filter out None values
-                    possible_ref_tables = [t for t in possible_ref_tables if t]
-
-                    # Log which tables we're checking
-                    logging.info(f"Checking possible reference tables for {col_name}: {possible_ref_tables}")
-
-                    referenced_table = None  # Initialize the variable
-                    for ref_table_name in possible_ref_tables:
-                        if ref_table_name in self.catalog_manager.list_tables(db_name):
-                            logging.info(f"Found candidate reference table {ref_table_name} for {col_name}")
-
-                            # Check if the value exists in reference table
-                            ref_records = self.catalog_manager.query_with_condition(
-                                ref_table_name,
-                                [{"column": "id", "operator": "=", "value": value}],
-                                ["id"]
-                            )
-
-                            if not ref_records:
-                                error_msg = f"Foreign key constraint violation: Value {value} in {table_name}.{col_name} does not exist in {ref_table_name}.id"
-                                logging.error(error_msg)
-                                return {"error": error_msg, "status": "error"}
-                            else:
-                                logging.info(f"FK constraint satisfied: {col_name}={value} exists in {ref_table_name}")
-                                referenced_table = ref_table_name  # Set the referenced table name
-                                break
-
-                    # If we found a referenced table, check if the value exists in it
-                    if referenced_table:
-                        logging.info(f"Checking heuristic FK: {table_name}.{col_name} -> {referenced_table}.id = {value}")
-                        referenced_records = self.catalog_manager.query_with_condition(
-                            referenced_table,
-                            [{"column": "id", "operator": "=", "value": value}],
-                            ["id"]
-                        )
-
-                        logging.info(f"Referenced records found: {referenced_records}")
-
-                        if not referenced_records:
-                            error_msg = f"Foreign key constraint violation: Value {value} in {table_name}.{col_name} does not exist in {referenced_table}.id"
-                            logging.error(error_msg)
-                            return {"error": error_msg, "status": "error"}
-                        else:
-                            logging.info(f"Heuristic FK check passed: Found matching record in {referenced_table}")
-                    else:
-                        # No matching referenced table found for this potential FK
-                        warning_msg = f"No matching referenced table found for {col_name}, skipping heuristic check"
-                        logging.info(warning_msg)
-
-                        # If strict validation is enabled, block the insert
-                        if self.strict_heuristic_fk_validation:
-                            error_msg = f"Strict FK validation failed: Column {col_name} appears to be a foreign key, but no referenced table ('{col_name[:-3]}' or '{col_name[:-3]}s') was found"
-                            logging.error(error_msg)
-                            return {"error": error_msg, "status": "error"}
-
-            table_id = f"{db_name}.{table_name}"
-            if table_id in self.catalog_manager.tables:
-                table_info = self.catalog_manager.tables[table_id]
-                constraints = table_info.get("constraints", [])
-
-                for constraint in constraints:
-                    if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
-                        pattern = r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)"
-                        match = re.search(pattern, constraint, re.IGNORECASE)
-
-                        if match:
-                            fk_column = match.group(1)
-                            ref_table = match.group(2)
-                            ref_column = match.group(3)
-
-                            if fk_column in record and record[fk_column] is not None:
-                                fk_value = record[fk_column]
-
-                                # Check if referenced value exists
-                                ref_records = self.catalog_manager.query_with_condition(
-                                    ref_table,
-                                    [{"column": ref_column, "operator": "=", "value": fk_value}],
-                                    [ref_column]
-                                )
-
-                                if not ref_records:
-                                    error_msg = f"Foreign key constraint violation: Value {fk_value} in {table_name}.{fk_column} does not exist in {ref_table}.{ref_column}"
-                                    logging.error(error_msg)
-                                    return {"error": error_msg, "status": "error"}
-                                else:
-                                    logging.info(f"FK constraint satisfied: {fk_column}={fk_value} exists in {ref_table}.{ref_column}")
-
-            if not fk_heuristic_applied:
-                logging.info("No heuristic FK constraints were applied (no *_id columns found)")
-
-            logging.info(f"--- Checking schema-defined FK constraints ---")
-
-            # Check each foreign key constraint
-            for constraint in fk_constraints:
-                logging.info(f"Processing FK constraint for insert: {constraint}")
-
-                # Try different patterns to extract FK info
-                fk_match = None
-                fk_column = None
-                referenced_table = None
-                referenced_column = None
-
-                # Pattern 1: FOREIGN KEY (col) REFERENCES table(col)
-                pattern1 = r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(?:(\w+)\.)?(\w+)\s*\(\s*(\w+)\s*\)"
-                match = re.search(pattern1, constraint, re.IGNORECASE)
-                if match:
-                    fk_column = match.group(1)
-                    ref_db = match.group(2)  # This might be None if no db specified
-                    referenced_table = match.group(3)
-                    referenced_column = match.group(4)
-                    fk_match = True
-                    logging.info(f"Pattern 1 matched: {fk_column} -> {ref_db + '.' if ref_db else ''}{referenced_table}.{referenced_column}")
-
-                # Pattern 2: col_name REFERENCES table(col)
-                if not fk_match:
-                    col_parts = constraint.split()
-                    if len(col_parts) > 1 and "REFERENCES" in constraint.upper():
-                        fk_column = col_parts[0]
-                        pattern2 = r"REFERENCES\s+(?:(\w+)\.)?(\w+)\s*\(\s*(\w+)\s*\)"
-                        match = re.search(pattern2, constraint, re.IGNORECASE)
-                        if match:
-                            ref_db = match.group(1)  # This might be None if no db specified
-                            referenced_table = match.group(2)
-                            referenced_column = match.group(3)
-                            fk_match = True
-                            logging.info(f"Pattern 2 matched: {fk_column} -> {ref_db + '.' if ref_db else ''}{referenced_table}.{referenced_column}")
-
-                # Check if we have all the necessary information and the FK column is in our record
-                if fk_match and fk_column:
-                    logging.info(f"Checking if FK column {fk_column} exists in record...")
-                    if fk_column in record:
-                        fk_value = record[fk_column]
-                        logging.info(f"FK column {fk_column} found in record with value: {fk_value}")
-
-                        # Skip if the FK value is NULL (assuming NULLs are allowed)
-                        if fk_value is None:
-                            logging.info(f"Skipping FK check for NULL value in {fk_column}")
-                            continue
-
-                        # Check if the referenced value exists
-                        logging.info(f"Checking if {fk_value} exists in {referenced_table}.{referenced_column}")
-                        referenced_records = self.catalog_manager.query_with_condition(
-                            referenced_table,
-                            [{"column": referenced_column, "operator": "=", "value": fk_value}],
-                            [referenced_column]
-                        )
-
-                        logging.info(f"Referenced records found: {referenced_records}")
-
-                        if not referenced_records:
-                            error_msg = f"Foreign key constraint violation: Value {fk_value} in {table_name}.{fk_column} does not exist in {referenced_table}.{referenced_column}"
-                            logging.error(error_msg)
-                            return {"error": error_msg, "status": "error"}
-                        else:
-                            logging.info(f"FK constraint check passed: Found matching record in {referenced_table}")
-                    else:
-                        logging.info(f"FK column {fk_column} not found in record, skipping this constraint")
-                else:
-                    logging.warning(f"Could not extract FK information from constraint: {constraint}")
-
-            logging.info(f"--- All FK constraint checks passed for record: {record} ---")
-
-            # Always pass the mapped record
-            result = self.catalog_manager.insert_record(table_name, record)
-
-            if isinstance(result, dict) and "status" in result and result["status"] == "error":
-                # Return the error to the client
-                logging.error(f"Insert failed: {result.get('error')}")
+        # Use the catalog manager's optimized batch insert method
+        try:
+            result = self.catalog_manager.insert_records_batch(table_name, prepared_records)
+            
+            if result.get("status") == "error":
                 return result
-
-            if result is True:
-                success_count += 1
-            else:
-                return {"error": result, "status": "error"}
-
-        logging.info(f"--- FK constraint checking completed, {success_count} records inserted successfully ---")
-
-        return {
-            "status": "success",
-            "message": f"Inserted {success_count} record(s)",
-            "count": success_count
-        }
+            
+            inserted_count = result.get("inserted_count", 0)
+            
+            logging.info(f"--- Batch INSERT completed: {inserted_count} records inserted ---")
+            
+            return {
+                "status": "success",
+                "message": f"Inserted {inserted_count} record(s)",
+                "count": inserted_count
+            }
+            
+        except Exception as e:
+            logging.error(f"Batch insert failed: {str(e)}")
+            return {"error": f"Batch insert failed: {str(e)}", "status": "error"}
 
     def _parse_conditions(self, condition_str):
         """Parse condition string into a format that catalog_manager understands."""

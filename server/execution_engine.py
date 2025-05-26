@@ -5,6 +5,7 @@ Returns:
 """
 import logging
 import re
+import os
 import time
 import traceback
 from query_processor.join_executor import JoinExecutor
@@ -468,183 +469,61 @@ class ExecutionEngine:
 
     def execute(self, plan):
         """Execute the query plan by dispatching to appropriate module."""
-        # Safely get plan_type with a default value to avoid NoneType errors
-        plan_type = plan.get("type", "UNKNOWN") if isinstance(plan, dict) else "UNKNOWN"
-        transaction_id = plan.get("transaction_id") if isinstance(plan, dict) else None
-
-        # DISABLE CACHING: Add a flag to indicate that caching is disabled
-        if isinstance(plan, dict):
-            plan["no_cache"] = True
-
-        # If plan is None or empty, return error
-        if not plan or not isinstance(plan, dict):
-            logging.error("Invalid plan received: %s", plan)
-            return {"status": "error", "error": "Invalid execution plan"}
-
-        # Handle subqueries if present
-        if "parsed_condition" in plan and self._has_subquery(plan["parsed_condition"]):
-            self._resolve_subqueries(plan["parsed_condition"])
-
-        # Set operations are handled separately - PROPERLY CHECK FOR SET OPERATION TYPES
-        if plan_type in ["UNION", "INTERSECT", "EXCEPT"]:
-            return self.execute_set_operation(plan)
-
-        # Transaction operations
-        if plan_type == "BEGIN_TRANSACTION":
-            return self.transaction_manager.execute_transaction_operation("BEGIN_TRANSACTION")
-        elif plan_type == "COMMIT":
-            return self.transaction_manager.execute_transaction_operation("COMMIT", transaction_id)
-        elif plan_type == "ROLLBACK":
-            return self.transaction_manager.execute_transaction_operation("ROLLBACK", transaction_id)
-
+        plan_type = plan.get("type", "UNKNOWN")
+        
+        logging.info(f"Executing plan type: {plan_type}")
+        
         try:
             result = None
 
-            # Consolidated SQL query operations - each operation executed only ONCE
-            if plan_type == "SELECT":
-                # Ensure limit and order_by are properly extracted from plan
-                limit = plan.get("limit")
-                order_by = plan.get("order_by")
-
-                # Make a copy to ensure parameters aren't lost
-                execution_plan = plan.copy()
-
-                # Log what we're actually executing with
-                if limit is not None:
-                    logging.info(f"Executing SELECT with LIMIT: {limit}")
-                else:
-                    logging.info("Executing SELECT without LIMIT")
-
-                if order_by:
-                    logging.info(f"Executing SELECT with ORDER BY: {order_by}")
-                else:
-                    logging.info("Executing SELECT without ORDER BY")
-
-                # Execute with the complete plan
-                result = self.select_executor.execute_select(execution_plan)
-            elif plan_type == "DISTINCT":
-                result = self.execute_distinct(plan)
-            elif plan_type == "AGGREGATE":
-                result = self.aggregate_executor.execute_aggregate(plan)
-            elif plan_type == "JOIN":
-                result = self.join_executor.execute_join(plan)
-            # DML operations
-            elif plan_type == "BATCH_INSERT":
-                result = self.execute_batch_insert(plan)
+            if plan_type == "SCRIPT":
+                result = self.execute_script(plan)
+            elif plan_type == "SELECT":
+                result = self.select_executor.execute_select(plan)
             elif plan_type == "INSERT":
                 result = self.dml_executor.execute_insert(plan)
-
-                # Consolidated transaction handling for INSERT
-                if transaction_id:
-                    # Extract record information from the plan or result
-                    record = plan.get("record", {})
-                    if not record and plan.get("columns") and plan.get("values"):
-                        record = {
-                            col: val for col, val in zip(plan.get("columns", []),
-                                                    plan.get("values", [[]])[0] if plan.get("values") else [])
-                        }
-
-                    # Get record ID from various possible sources
-                    record_id = None
-                    if "id" in record:
-                        record_id = record["id"]
-                    elif plan.get("values") and plan.get("values")[0] and \
-                        len(plan.get("values")[0]) > 0:
-                        record_id = plan.get("values")[0][0]
-
-                    # Record the operation
-                    self.transaction_manager.record_operation(transaction_id, {
-                        "type": "INSERT",
-                        "table": plan.get("table"),
-                        "record": record,
-                        "record_id": record_id
-                    })
             elif plan_type == "UPDATE":
-                # Get existing record for rollback if in a transaction
-                existing_records = []  # Initialize to empty list
-                if transaction_id:
-                    table = plan.get("table")
-                    condition = plan.get("condition")
-                    if condition and table:
-                        # Parse condition and get record before update
-                        conditions = parse_simple_condition(condition)
-                        existing_records = self.catalog_manager.query_with_condition(table, conditions)
-
-                # Execute update
                 result = self.dml_executor.execute_update(plan)
-
-                # Record operation if successful and in a transaction
-                if transaction_id and result["status"] == "success" and existing_records and \
-                    len(existing_records) > 0:
-                    for record in existing_records:
-                        self.transaction_manager.record_operation(transaction_id, {
-                            "type": "UPDATE",
-                            "table": plan.get("table"),
-                            "record_id": record.get("id"),
-                            "old_values": record,
-                            "updates": plan.get("set", {})
-                        })
-
             elif plan_type == "DELETE":
-                # Get existing record for rollback if in a transaction
-                existing_records = []  # Initialize to empty list
-                if transaction_id:
-                    table = plan.get("table")
-                    condition = plan.get("condition")
-                    if condition and table:
-                        # Use helper function instead of duplicating parsing code
-                        conditions = parse_simple_condition(condition)
-                        existing_records = self.catalog_manager.query_with_condition(table, conditions)
-
-                # Execute delete
                 result = self.dml_executor.execute_delete(plan)
-
-                # Record operation if successful and in a transaction
-                if transaction_id and result["status"] == "success" and existing_records and \
-                    len(existing_records) > 0:
-                    for record in existing_records:
-                        self.transaction_manager.record_operation(transaction_id, {
-                            "type": "DELETE",
-                            "table": plan.get("table"),
-                            "record": record
-                        })
-
-            # DDL operations
-            elif plan_type in ["CREATE_TABLE", "DROP_TABLE"]:
-                result = self.schema_manager.execute_table_operation(plan)
-            elif plan_type in ["CREATE_DATABASE", "DROP_DATABASE", "USE_DATABASE"]:
-                result = self.schema_manager.execute_database_operation(plan)
+            elif plan_type == "CREATE_TABLE":
+                result = self.schema_manager.create_table(plan)
+            elif plan_type == "DROP_TABLE":
+                result = self.schema_manager.drop_table(plan)
+            elif plan_type == "CREATE_DATABASE":
+                result = self.schema_manager.create_database(plan)
+            elif plan_type == "DROP_DATABASE":
+                result = self.schema_manager.drop_database(plan)
+            elif plan_type == "USE_DATABASE":
+                result = self.schema_manager.use_database(plan)
+            elif plan_type == "SHOW":
+                result = self.schema_manager.execute_show(plan)  # Make sure this is called
+            elif plan_type == "SHOW_TABLES":
+                result = self.schema_manager.show_tables(plan)
+            elif plan_type == "SHOW_COLUMNS":
+                result = self.schema_manager.show_columns(plan)
             elif plan_type == "CREATE_INDEX":
                 result = self.execute_create_index(plan)
             elif plan_type == "DROP_INDEX":
                 result = self.execute_drop_index(plan)
-            elif plan_type in ["CREATE_VIEW", "DROP_VIEW"]:
-                result = self.view_manager.execute_view_operation(plan)
-
-            # Utility operations
-            elif plan_type == "SHOW":
-                result = self.schema_manager.execute_show_operation(plan)
-            elif plan_type == "SET":
-                result = self.execute_set_preference(plan)
+            elif plan_type == "DISTINCT":
+                result = self.execute_distinct(plan)
+            elif plan_type in ["UNION", "INTERSECT", "EXCEPT"]:
+                result = self.select_executor.execute_set_operation(plan)
             elif plan_type == "VISUALIZE":
-                result = self.execute_visualize_index(plan)
-            elif plan_type == "JOIN":
-                result = self.join_executor.execute_join(plan)
-
+                result = self.visualizer.execute_visualization(plan)
+            elif plan_type == "TRANSACTION":
+                result = self.transaction_manager.execute_transaction(plan)
             else:
-                result = {
-                    "error": f"Unsupported operation type: {plan_type}",
-                    "status": "error",
-                }
-
-            if isinstance(result, dict) and "type" not in result:
-                result["type"] = f"{plan_type.lower()}_result"
+                result = {"error": f"Unsupported operation type: {plan_type}", "status": "error"}
 
             return result
 
-        except RuntimeError as e:
-            logging.error("Error executing %s: %s", plan_type, str(e))
-            return {"status": "error", "error": f"Error executing {plan_type}: {str(e)}"}
+        except Exception as e:
+            logging.error(f"Error in execution engine: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {"error": f"Execution error: {str(e)}", "status": "error"}
 
     def execute_set_preference(self, plan):
         """Update user preferences."""
@@ -660,3 +539,94 @@ class ExecutionEngine:
             "message": f"Preference '{preference}' set to '{value}'.",
             "status": "success",
         }
+
+    def execute_script(self, plan):
+        """Execute a SQL script file."""
+        import os  # Add this import
+        
+        filename = plan.get("filename")
+        if not filename:
+            return {"error": "No filename specified for SCRIPT command", "status": "error"}
+        
+        try:
+            # First, try the filename as-is (relative to server directory)
+            script_paths_to_try = [
+                filename,
+                os.path.join("../client", filename),  # Try client directory
+                os.path.join("client", filename),     # Try client directory (alternative path)
+                os.path.abspath(filename)             # Try absolute path
+            ]
+            
+            script_content = None
+            used_path = None
+            
+            for path in script_paths_to_try:
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        script_content = f.read()
+                    used_path = path
+                    break
+            
+            if script_content is None:
+                return {"error": f"Script file '{filename}' not found in any of the expected locations", "status": "error"}
+            
+            logging.info(f"Executing script from: {used_path}")
+            
+            # Split into individual statements (split by semicolon)
+            statements = [stmt.strip() for stmt in script_content.split(';') if stmt.strip()]
+            
+            results = []
+            successful_count = 0
+            failed_count = 0
+            
+            for i, statement in enumerate(statements):
+                if statement:
+                    logging.info(f"Executing statement {i+1}: {statement[:100]}...")  # Log first 100 chars
+                    
+                    try:
+                        # Parse and execute each statement
+                        from parser import SQLParser
+                        parser = SQLParser()
+                        parsed_stmt = parser.parse_sql(statement)
+                        
+                        if "error" in parsed_stmt:
+                            results.append(f"Error in statement {i+1}: {parsed_stmt['error']}")
+                            failed_count += 1
+                            continue
+                        
+                        # Plan and execute the statement
+                        from planner import Planner
+                        planner = Planner(self.catalog_manager, self.index_manager)
+                        plan = planner.plan_query(parsed_stmt)
+                        
+                        if "error" in plan:
+                            results.append(f"Error planning statement {i+1}: {plan['error']}")
+                            failed_count += 1
+                            continue
+                        
+                        # Execute the planned statement
+                        result = self.execute(plan)
+                        if isinstance(result, dict) and result.get("status") == "error":
+                            results.append(f"Error executing statement {i+1}: {result.get('error', 'Unknown error')}")
+                            failed_count += 1
+                        else:
+                            results.append(f"Statement {i+1} executed successfully")
+                            successful_count += 1
+                            
+                    except Exception as e:
+                        results.append(f"Exception in statement {i+1}: {str(e)}")
+                        failed_count += 1
+                        logging.error(f"Error executing statement {i+1}: {str(e)}")
+            
+            return {
+                "message": f"Script '{filename}' executed from {used_path}",
+                "total_statements": len(statements),
+                "successful": successful_count,
+                "failed": failed_count,
+                "results": results,
+                "status": "success"
+            }
+            
+        except Exception as e:
+            logging.error(f"Error executing script: {str(e)}")
+            return {"error": f"Error executing script: {str(e)}", "status": "error"}

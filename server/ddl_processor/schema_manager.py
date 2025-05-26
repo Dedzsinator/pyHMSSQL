@@ -173,9 +173,12 @@ class SchemaManager:
 
         elif object_type.upper() == "TABLES":
             # List all tables in the current database
-            db_name, error = get_current_database_or_error(self.catalog_manager, include_type=False)
-            if error:
-                return error
+            db_name = self.catalog_manager.get_current_database()
+            if not db_name:
+                return {
+                    "error": "No database selected. Use 'USE database_name' first.",
+                    "status": "error"
+                }
 
             tables = self.catalog_manager.list_tables(db_name)
             return {
@@ -200,17 +203,19 @@ class SchemaManager:
         elif object_type.upper() == "INDEXES":
             # Show indexes
             table_name = plan.get("table")
-            db_name, error = get_current_database_or_error(self.catalog_manager, include_type=False)
-            if error:
-                return error
+            db_name = self.catalog_manager.get_current_database()
+            if not db_name:
+                return {
+                    "error": "No database selected. Use 'USE database_name' first.",
+                    "status": "error"
+                }
 
             if table_name:
                 # Show indexes for specific table
                 indexes = self.catalog_manager.get_indexes_for_table(table_name)
                 if not indexes:
                     return {
-                        "columns": ["Table", "Column",
-                        "Index Name (use this for DROP INDEX)", "Type"],
+                        "columns": ["Table", "Column", "Index Name (use this for DROP INDEX)", "Type"],
                         "rows": [],
                         "status": "success",
                         "message": f"No indexes found for table '{table_name}'",
@@ -219,14 +224,12 @@ class SchemaManager:
                 rows = []
                 for idx_name, idx_info in indexes.items():
                     column_name = idx_info.get("column", "")
-                    rows.append(
-                        [
-                            table_name,
-                            column_name,
-                            f"{idx_name}",  # Highlight the exact name to use with DROP INDEX
-                            idx_info.get("type", "BTREE"),
-                        ]
-                    )
+                    rows.append([
+                        table_name,
+                        column_name,
+                        f"{idx_name}",  # Highlight the exact name to use with DROP INDEX
+                        idx_info.get("type", "BTREE"),
+                    ])
 
                 return {
                     "columns": ["Table", "Column", "Index Name (use this for DROP INDEX)", "Type"],
@@ -256,6 +259,57 @@ class SchemaManager:
                     "rows": all_indexes,
                     "status": "success",
                 }
+
+        elif object_type.upper() == "COLUMNS":
+            # Show columns for a table
+            table_name = plan.get("table")
+            if not table_name:
+                return {
+                    "error": "Table name required for SHOW COLUMNS",
+                    "status": "error"
+                }
+
+            db_name = self.catalog_manager.get_current_database()
+            if not db_name:
+                return {
+                    "error": "No database selected. Use 'USE database_name' first.",
+                    "status": "error"
+                }
+
+            # Get table schema
+            table_schema = self.catalog_manager.get_table_schema(table_name)
+            if not table_schema:
+                return {
+                    "error": f"Table '{table_name}' not found",
+                    "status": "error"
+                }
+
+            rows = []
+            for col_info in table_schema:
+                if isinstance(col_info, dict):
+                    col_name = col_info.get('name', '')
+                    col_type = col_info.get('type', '')
+                    is_pk = col_info.get('primary_key', False)
+                    is_nullable = not col_info.get('not_null', False)
+                    
+                    rows.append([
+                        col_name,
+                        col_type,
+                        "YES" if is_nullable else "NO",
+                        "PRI" if is_pk else ""
+                    ])
+
+            return {
+                "columns": ["Column", "Type", "Null", "Key"],
+                "rows": rows,
+                "status": "success"
+            }
+
+        else:
+            return {
+                "error": f"Unsupported SHOW object type: {object_type}",
+                "status": "error"
+            }
 
     def execute_create_table(self, plan):
         """Execute CREATE TABLE operation."""
