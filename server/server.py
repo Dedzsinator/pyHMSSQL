@@ -177,8 +177,21 @@ class DBMSServer:
         """
         try:
             timestamp = datetime.datetime.now().isoformat()
-            log_entry = {"timestamp": timestamp,
-                        "username": username, "query": query}
+            
+            # FIX: Create proper dictionary structure
+            if isinstance(query, str):
+                log_entry = {
+                    "timestamp": timestamp,
+                    "username": username, 
+                    "query": query
+                }
+            else:
+                # Handle case where query might be a dict already
+                log_entry = {
+                    "timestamp": timestamp,
+                    "username": username, 
+                    "query": str(query)
+                }
 
             # Log to the audit log file
             logs_dir = os.path.join(
@@ -187,17 +200,17 @@ class DBMSServer:
             audit_log_file = os.path.join(logs_dir, "query_audit.log")
 
             with open(audit_log_file, "a", encoding="utf-8") as f:
-                f.write(f"{timestamp} | {username} | {query}\n")
+                f.write(f"{timestamp} | {username} | {log_entry['query']}\n")
 
             # Also log to the standard logger
-            logging.info("AUDIT: User %s executed: %s", username, query)
+            logging.info("AUDIT: User %s executed: %s", username, log_entry['query'])
 
             # Optionally store in a database for more advanced auditing
-            # Just log an error instead of trying to use self.audit_db which doesn't exist
             # self._store_audit_log(log_entry)
-        except RuntimeError as e:
+            
+        except Exception as e:
             # Don't let logging errors affect query execution
-            logging.error(f"Failed to log query audit: {str(e)}")
+            logging.error(f"Error logging query audit: {str(e)}")
 
     def _broadcast_presence(self):
         """Broadcast server presence on the network"""

@@ -2732,6 +2732,7 @@ static PyObject *__pyx_builtin_ValueError;
 static PyObject *__pyx_builtin_MemoryError;
 static PyObject *__pyx_builtin_range;
 static PyObject *__pyx_builtin_open;
+static PyObject *__pyx_builtin_RuntimeError;
 static PyObject *__pyx_builtin_TypeError;
 /* #### Code section: string_decls ### */
 static const char __pyx_k_[] = "[";
@@ -2853,6 +2854,7 @@ static const char __pyx_k_keys_values[] = "keys_values";
 static const char __pyx_k_range_query[] = "range_query";
 static const char __pyx_k_to_split_at[] = ") to split at ";
 static const char __pyx_k_value_store[] = "value_store";
+static const char __pyx_k_RuntimeError[] = "RuntimeError";
 static const char __pyx_k_current_leaf[] = "current_leaf";
 static const char __pyx_k_in_leaf_node[] = " in leaf node";
 static const char __pyx_k_initializing[] = "_initializing";
@@ -2921,7 +2923,7 @@ static const char __pyx_k_Root_is_NULL_in__find_leaf_for[] = "] Root is NULL in 
 static const char __pyx_k_Validation_error_Internal_node[] = "] Validation error: Internal node with NULL children array";
 static const char __pyx_k_A_1_Q_4vS_1_t_aq_1_1_m3a_U_q_2S[] = "\200A\360\016\000\r\034\2301\330\014\035\230Q\360\006\000\t\014\2104\210v\220S\230\001\330\014\023\2201\360\006\000\t\030\220t\320\033.\250a\250q\340\010\013\210=\230\003\2301\330\014\023\2201\360\006\000\t\017\210m\2303\230a\340\014\020\220\005\220U\230!\230<\240q\330\020\023\2202\220S\230\014\240A\330\024\025\340\020\026\220l\240%\240q\250\002\250!\360\006\000\021\024\2204\220r\230\030\240\022\2401\330\024\033\2301\360\006\000\021\024\2204\220s\230*\240B\240a\330\024 \240\014\250E\260\021\260\"\260A\330\024\027\220z\240\022\2401\330\030'\240t\250<\260t\2701\270A\330\030\033\230=\250\007\250q\330\034#\2407\250\"\250E\260\034\270Q\360\006\000\r\034\230<\240q\340\010\017\210q";
 static const char __pyx_k_A_5_aq_6_awa_5_IT1ZZiij_7_6_awa[] = "\200A\340\010\014\320\014\"\240!\340\014\033\2305\240\001\240\021\330\014\031\230\025\230a\230q\340\010\013\2106\220\035\230a\230w\240a\330\014\022\220&\230\001\230\022\2305\240\004\240I\250T\3201Z\320Zi\320ij\360\006\000\t\023\220$\320\026*\250!\2507\260!\340\010\013\2106\220\035\230a\230w\240a\330\014\022\220&\230\001\230\022\2305\240\004\320$H\310\003\3101\310A\340\010\017\210q";
-static const char __pyx_k_A_Qk_vU_1_s_6_Qj_T_E_aq_q_Q_q_A[] = "\200A\360\006\000\t\n\330\021\025\220Q\220k\240\031\250!\330\020\027\220v\230U\240!\2401\360\006\000\021\030\220s\230!\2306\240\024\240Q\240j\260\005\260T\270\021\270!\360\006\000\021\025\220E\230\031\240$\240a\240q\330\024\030\230\007\230q\240\005\240Q\340\020\027\220q\330\010\017\210}\230A\330\014\023\2206\230\021\230\"\320\034;\270=\310\003\3101\310A\330\014\023\2201";
+static const char __pyx_k_A_Qk_vU_1_s_6_Qj_T_E_aq_q_Q_q_q[] = "\200A\360\006\000\t\n\330\021\025\220Q\220k\240\031\250!\330\020\027\220v\230U\240!\2401\360\006\000\021\030\220s\230!\2306\240\024\240Q\240j\260\005\260T\270\021\270!\360\006\000\021\025\220E\230\031\240$\240a\240q\330\024\030\230\007\230q\240\005\240Q\340\020\027\220q\330\010\017\320\017\037\230q\330\014\023\2206\230\021\230\"\320\034;\270=\310\003\3101\310A\330\014\023\2201";
 static const char __pyx_k_BPlusTreeOptimized_save_to_file[] = "BPlusTreeOptimized.save_to_file";
 static const char __pyx_k_Error_Attempt_to_insert_into_NU[] = "] Error: Attempt to insert into NULL node";
 static const char __pyx_k_Error_Cannot_insert_separator_k[] = "] Error: Cannot insert separator key in parent";
@@ -2972,6 +2974,8 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
 static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_18_get_all_items(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
 static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_start_key, PyObject *__pyx_v_end_key); /* proto */
 static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_range_query(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, double __pyx_v_start_key, double __pyx_v_end_key); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_5order___get__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
+static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_5order_2__set__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
 static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_4name___get__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
 static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_4name_2__set__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
 static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_4name_4__del__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
@@ -3026,7 +3030,7 @@ typedef struct {
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_pop;
   PyObject *__pyx_tuple[5];
   PyObject *__pyx_codeobj_tab[13];
-  PyObject *__pyx_string_tab[206];
+  PyObject *__pyx_string_tab[207];
   PyObject *__pyx_int_33963030;
   PyObject *__pyx_int_215229444;
   PyObject *__pyx_int_254981756;
@@ -3118,158 +3122,159 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_kp_u_RANGE_QUERY_RESULT_found __pyx_string_tab[51]
 #define __pyx_kp_u_RANGE_QUERY_from __pyx_string_tab[52]
 #define __pyx_kp_u_Root_is_NULL_in__find_leaf_for __pyx_string_tab[53]
-#define __pyx_kp_u_SEARCH_key __pyx_string_tab[54]
-#define __pyx_kp_u_Saving_optimized_B_tree_to_file __pyx_string_tab[55]
-#define __pyx_n_u_TypeError __pyx_string_tab[56]
-#define __pyx_kp_u_UPDATE_key __pyx_string_tab[57]
-#define __pyx_kp_u_Validation_error_Internal_node __pyx_string_tab[58]
-#define __pyx_kp_u_Validation_error_Invalid_capaci __pyx_string_tab[59]
-#define __pyx_kp_u_Validation_error_NULL_keys_arra __pyx_string_tab[60]
-#define __pyx_kp_u_Validation_error_NULL_node __pyx_string_tab[61]
-#define __pyx_kp_u_Validation_error_Negative_num_k __pyx_string_tab[62]
-#define __pyx_kp_u_Validation_error_num_keys __pyx_string_tab[63]
-#define __pyx_n_u_ValueError __pyx_string_tab[64]
-#define __pyx_n_u_ValueHolder __pyx_string_tab[65]
-#define __pyx_n_u_ValueHolder___reduce_cython __pyx_string_tab[66]
-#define __pyx_n_u_ValueHolder___setstate_cython __pyx_string_tab[67]
-#define __pyx_kp_u_Warning_Not_enough_keys __pyx_string_tab[68]
-#define __pyx_kp_u_Warning_Not_enough_keys_to_spli __pyx_string_tab[69]
-#define __pyx_kp_u_Y_m_d_H_M_S __pyx_string_tab[70]
-#define __pyx_kp_u__2 __pyx_string_tab[71]
-#define __pyx_kp_u__3 __pyx_string_tab[72]
-#define __pyx_kp_u__4 __pyx_string_tab[73]
-#define __pyx_kp_u__5 __pyx_string_tab[74]
-#define __pyx_kp_u__6 __pyx_string_tab[75]
-#define __pyx_kp_u__7 __pyx_string_tab[76]
-#define __pyx_kp_u_after_split __pyx_string_tab[77]
-#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[78]
-#define __pyx_n_u_bptree_opt __pyx_string_tab[79]
-#define __pyx_n_u_bptree_optimized __pyx_string_tab[80]
-#define __pyx_kp_u_bptree_optimized_pyx __pyx_string_tab[81]
-#define __pyx_kp_u_capacity __pyx_string_tab[82]
-#define __pyx_n_u_cline_in_traceback __pyx_string_tab[83]
-#define __pyx_n_u_cls __pyx_string_tab[84]
-#define __pyx_n_u_current_leaf __pyx_string_tab[85]
-#define __pyx_n_u_data __pyx_string_tab[86]
-#define __pyx_n_u_datetime __pyx_string_tab[87]
-#define __pyx_n_u_debug __pyx_string_tab[88]
-#define __pyx_n_u_default __pyx_string_tab[89]
-#define __pyx_n_u_dict __pyx_string_tab[90]
-#define __pyx_n_u_dict_2 __pyx_string_tab[91]
-#define __pyx_kp_u_disable __pyx_string_tab[92]
-#define __pyx_n_u_dump __pyx_string_tab[93]
-#define __pyx_n_u_e __pyx_string_tab[94]
-#define __pyx_kp_u_enable __pyx_string_tab[95]
-#define __pyx_n_u_end __pyx_string_tab[96]
-#define __pyx_n_u_end_key __pyx_string_tab[97]
-#define __pyx_n_u_enter __pyx_string_tab[98]
-#define __pyx_kp_u_entries __pyx_string_tab[99]
-#define __pyx_n_u_epsilon __pyx_string_tab[100]
-#define __pyx_n_u_error __pyx_string_tab[101]
-#define __pyx_kp_u_exceeds_capacity __pyx_string_tab[102]
-#define __pyx_kp_u_exceeds_number_of_keys __pyx_string_tab[103]
-#define __pyx_n_u_exit __pyx_string_tab[104]
-#define __pyx_n_u_f __pyx_string_tab[105]
-#define __pyx_n_u_file __pyx_string_tab[106]
-#define __pyx_n_u_file_path __pyx_string_tab[107]
-#define __pyx_n_u_filename __pyx_string_tab[108]
-#define __pyx_kp_u_for_node_with __pyx_string_tab[109]
-#define __pyx_kp_u_for_split_operation __pyx_string_tab[110]
-#define __pyx_n_u_func __pyx_string_tab[111]
-#define __pyx_kp_u_gc __pyx_string_tab[112]
-#define __pyx_n_u_get __pyx_string_tab[113]
-#define __pyx_n_u_getLogger __pyx_string_tab[114]
-#define __pyx_n_u_get_all_items __pyx_string_tab[115]
-#define __pyx_n_u_getstate __pyx_string_tab[116]
-#define __pyx_n_u_i __pyx_string_tab[117]
-#define __pyx_kp_u_in_leaf_node __pyx_string_tab[118]
-#define __pyx_n_u_info __pyx_string_tab[119]
-#define __pyx_n_u_initializing __pyx_string_tab[120]
-#define __pyx_n_u_insert __pyx_string_tab[121]
-#define __pyx_n_u_isEnabledFor __pyx_string_tab[122]
-#define __pyx_kp_u_is_NULL __pyx_string_tab[123]
-#define __pyx_kp_u_is_NULL_in__find_leaf_for_key __pyx_string_tab[124]
-#define __pyx_kp_u_is_NULL_in_split_operation __pyx_string_tab[125]
-#define __pyx_n_u_is_coroutine __pyx_string_tab[126]
-#define __pyx_kp_u_isenabled __pyx_string_tab[127]
-#define __pyx_n_u_items __pyx_string_tab[128]
-#define __pyx_n_u_json __pyx_string_tab[129]
-#define __pyx_n_u_k __pyx_string_tab[130]
-#define __pyx_n_u_key __pyx_string_tab[131]
-#define __pyx_kp_u_keys __pyx_string_tab[132]
-#define __pyx_n_u_keys_values __pyx_string_tab[133]
-#define __pyx_n_u_load __pyx_string_tab[134]
-#define __pyx_n_u_load_from_file __pyx_string_tab[135]
-#define __pyx_n_u_logger __pyx_string_tab[136]
-#define __pyx_n_u_logging __pyx_string_tab[137]
-#define __pyx_n_u_main __pyx_string_tab[138]
-#define __pyx_n_u_max_keys __pyx_string_tab[139]
-#define __pyx_n_u_module __pyx_string_tab[140]
-#define __pyx_n_u_name __pyx_string_tab[141]
-#define __pyx_n_u_name_2 __pyx_string_tab[142]
-#define __pyx_n_u_new __pyx_string_tab[143]
-#define __pyx_n_u_new_root __pyx_string_tab[144]
-#define __pyx_n_u_next_value_id __pyx_string_tab[145]
-#define __pyx_kp_u_no_default___reduce___due_to_non __pyx_string_tab[146]
-#define __pyx_n_u_now __pyx_string_tab[147]
-#define __pyx_n_u_np __pyx_string_tab[148]
-#define __pyx_n_u_numpy __pyx_string_tab[149]
-#define __pyx_kp_u_old_value __pyx_string_tab[150]
-#define __pyx_n_u_open __pyx_string_tab[151]
-#define __pyx_n_u_operation_counter __pyx_string_tab[152]
-#define __pyx_n_u_order __pyx_string_tab[153]
-#define __pyx_n_u_pickle __pyx_string_tab[154]
-#define __pyx_n_u_pop __pyx_string_tab[155]
-#define __pyx_n_u_pyx_PickleError __pyx_string_tab[156]
-#define __pyx_n_u_pyx_checksum __pyx_string_tab[157]
-#define __pyx_n_u_pyx_result __pyx_string_tab[158]
-#define __pyx_n_u_pyx_state __pyx_string_tab[159]
-#define __pyx_n_u_pyx_type __pyx_string_tab[160]
-#define __pyx_n_u_pyx_unpickle_ValueHolder __pyx_string_tab[161]
-#define __pyx_n_u_pyx_vtable __pyx_string_tab[162]
-#define __pyx_n_u_qualname __pyx_string_tab[163]
-#define __pyx_n_u_range __pyx_string_tab[164]
-#define __pyx_n_u_range_query __pyx_string_tab[165]
-#define __pyx_n_u_rb __pyx_string_tab[166]
-#define __pyx_n_u_reduce __pyx_string_tab[167]
-#define __pyx_n_u_reduce_cython __pyx_string_tab[168]
-#define __pyx_n_u_reduce_ex __pyx_string_tab[169]
-#define __pyx_n_u_result __pyx_string_tab[170]
-#define __pyx_n_u_result_ptr __pyx_string_tab[171]
-#define __pyx_n_u_results __pyx_string_tab[172]
-#define __pyx_n_u_root __pyx_string_tab[173]
-#define __pyx_n_u_save_to_file __pyx_string_tab[174]
-#define __pyx_n_u_search __pyx_string_tab[175]
-#define __pyx_n_u_self __pyx_string_tab[176]
-#define __pyx_n_u_set_name __pyx_string_tab[177]
-#define __pyx_n_u_setstate __pyx_string_tab[178]
-#define __pyx_n_u_setstate_cython __pyx_string_tab[179]
-#define __pyx_n_u_simple_range_query __pyx_string_tab[180]
-#define __pyx_n_u_slots __pyx_string_tab[181]
-#define __pyx_n_u_spec __pyx_string_tab[182]
-#define __pyx_n_u_start __pyx_string_tab[183]
-#define __pyx_n_u_start_key __pyx_string_tab[184]
-#define __pyx_n_u_state __pyx_string_tab[185]
-#define __pyx_n_u_strftime __pyx_string_tab[186]
-#define __pyx_kp_u_stringsource __pyx_string_tab[187]
-#define __pyx_n_u_test __pyx_string_tab[188]
-#define __pyx_kp_u_to __pyx_string_tab[189]
-#define __pyx_kp_u_to_split_at __pyx_string_tab[190]
-#define __pyx_n_u_tree __pyx_string_tab[191]
-#define __pyx_n_u_tree_2 __pyx_string_tab[192]
-#define __pyx_n_u_update __pyx_string_tab[193]
-#define __pyx_n_u_use_setstate __pyx_string_tab[194]
-#define __pyx_kp_u_using_default_50 __pyx_string_tab[195]
-#define __pyx_kp_u_using_default_99 __pyx_string_tab[196]
-#define __pyx_n_u_value __pyx_string_tab[197]
-#define __pyx_kp_u_value_2 __pyx_string_tab[198]
-#define __pyx_n_u_value_holder __pyx_string_tab[199]
-#define __pyx_n_u_value_ptr __pyx_string_tab[200]
-#define __pyx_n_u_value_store __pyx_string_tab[201]
-#define __pyx_n_u_warning __pyx_string_tab[202]
-#define __pyx_kp_u_was_not_inserted_correctly __pyx_string_tab[203]
-#define __pyx_n_u_wb __pyx_string_tab[204]
-#define __pyx_kp_u_with_order __pyx_string_tab[205]
+#define __pyx_n_u_RuntimeError __pyx_string_tab[54]
+#define __pyx_kp_u_SEARCH_key __pyx_string_tab[55]
+#define __pyx_kp_u_Saving_optimized_B_tree_to_file __pyx_string_tab[56]
+#define __pyx_n_u_TypeError __pyx_string_tab[57]
+#define __pyx_kp_u_UPDATE_key __pyx_string_tab[58]
+#define __pyx_kp_u_Validation_error_Internal_node __pyx_string_tab[59]
+#define __pyx_kp_u_Validation_error_Invalid_capaci __pyx_string_tab[60]
+#define __pyx_kp_u_Validation_error_NULL_keys_arra __pyx_string_tab[61]
+#define __pyx_kp_u_Validation_error_NULL_node __pyx_string_tab[62]
+#define __pyx_kp_u_Validation_error_Negative_num_k __pyx_string_tab[63]
+#define __pyx_kp_u_Validation_error_num_keys __pyx_string_tab[64]
+#define __pyx_n_u_ValueError __pyx_string_tab[65]
+#define __pyx_n_u_ValueHolder __pyx_string_tab[66]
+#define __pyx_n_u_ValueHolder___reduce_cython __pyx_string_tab[67]
+#define __pyx_n_u_ValueHolder___setstate_cython __pyx_string_tab[68]
+#define __pyx_kp_u_Warning_Not_enough_keys __pyx_string_tab[69]
+#define __pyx_kp_u_Warning_Not_enough_keys_to_spli __pyx_string_tab[70]
+#define __pyx_kp_u_Y_m_d_H_M_S __pyx_string_tab[71]
+#define __pyx_kp_u__2 __pyx_string_tab[72]
+#define __pyx_kp_u__3 __pyx_string_tab[73]
+#define __pyx_kp_u__4 __pyx_string_tab[74]
+#define __pyx_kp_u__5 __pyx_string_tab[75]
+#define __pyx_kp_u__6 __pyx_string_tab[76]
+#define __pyx_kp_u__7 __pyx_string_tab[77]
+#define __pyx_kp_u_after_split __pyx_string_tab[78]
+#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[79]
+#define __pyx_n_u_bptree_opt __pyx_string_tab[80]
+#define __pyx_n_u_bptree_optimized __pyx_string_tab[81]
+#define __pyx_kp_u_bptree_optimized_pyx __pyx_string_tab[82]
+#define __pyx_kp_u_capacity __pyx_string_tab[83]
+#define __pyx_n_u_cline_in_traceback __pyx_string_tab[84]
+#define __pyx_n_u_cls __pyx_string_tab[85]
+#define __pyx_n_u_current_leaf __pyx_string_tab[86]
+#define __pyx_n_u_data __pyx_string_tab[87]
+#define __pyx_n_u_datetime __pyx_string_tab[88]
+#define __pyx_n_u_debug __pyx_string_tab[89]
+#define __pyx_n_u_default __pyx_string_tab[90]
+#define __pyx_n_u_dict __pyx_string_tab[91]
+#define __pyx_n_u_dict_2 __pyx_string_tab[92]
+#define __pyx_kp_u_disable __pyx_string_tab[93]
+#define __pyx_n_u_dump __pyx_string_tab[94]
+#define __pyx_n_u_e __pyx_string_tab[95]
+#define __pyx_kp_u_enable __pyx_string_tab[96]
+#define __pyx_n_u_end __pyx_string_tab[97]
+#define __pyx_n_u_end_key __pyx_string_tab[98]
+#define __pyx_n_u_enter __pyx_string_tab[99]
+#define __pyx_kp_u_entries __pyx_string_tab[100]
+#define __pyx_n_u_epsilon __pyx_string_tab[101]
+#define __pyx_n_u_error __pyx_string_tab[102]
+#define __pyx_kp_u_exceeds_capacity __pyx_string_tab[103]
+#define __pyx_kp_u_exceeds_number_of_keys __pyx_string_tab[104]
+#define __pyx_n_u_exit __pyx_string_tab[105]
+#define __pyx_n_u_f __pyx_string_tab[106]
+#define __pyx_n_u_file __pyx_string_tab[107]
+#define __pyx_n_u_file_path __pyx_string_tab[108]
+#define __pyx_n_u_filename __pyx_string_tab[109]
+#define __pyx_kp_u_for_node_with __pyx_string_tab[110]
+#define __pyx_kp_u_for_split_operation __pyx_string_tab[111]
+#define __pyx_n_u_func __pyx_string_tab[112]
+#define __pyx_kp_u_gc __pyx_string_tab[113]
+#define __pyx_n_u_get __pyx_string_tab[114]
+#define __pyx_n_u_getLogger __pyx_string_tab[115]
+#define __pyx_n_u_get_all_items __pyx_string_tab[116]
+#define __pyx_n_u_getstate __pyx_string_tab[117]
+#define __pyx_n_u_i __pyx_string_tab[118]
+#define __pyx_kp_u_in_leaf_node __pyx_string_tab[119]
+#define __pyx_n_u_info __pyx_string_tab[120]
+#define __pyx_n_u_initializing __pyx_string_tab[121]
+#define __pyx_n_u_insert __pyx_string_tab[122]
+#define __pyx_n_u_isEnabledFor __pyx_string_tab[123]
+#define __pyx_kp_u_is_NULL __pyx_string_tab[124]
+#define __pyx_kp_u_is_NULL_in__find_leaf_for_key __pyx_string_tab[125]
+#define __pyx_kp_u_is_NULL_in_split_operation __pyx_string_tab[126]
+#define __pyx_n_u_is_coroutine __pyx_string_tab[127]
+#define __pyx_kp_u_isenabled __pyx_string_tab[128]
+#define __pyx_n_u_items __pyx_string_tab[129]
+#define __pyx_n_u_json __pyx_string_tab[130]
+#define __pyx_n_u_k __pyx_string_tab[131]
+#define __pyx_n_u_key __pyx_string_tab[132]
+#define __pyx_kp_u_keys __pyx_string_tab[133]
+#define __pyx_n_u_keys_values __pyx_string_tab[134]
+#define __pyx_n_u_load __pyx_string_tab[135]
+#define __pyx_n_u_load_from_file __pyx_string_tab[136]
+#define __pyx_n_u_logger __pyx_string_tab[137]
+#define __pyx_n_u_logging __pyx_string_tab[138]
+#define __pyx_n_u_main __pyx_string_tab[139]
+#define __pyx_n_u_max_keys __pyx_string_tab[140]
+#define __pyx_n_u_module __pyx_string_tab[141]
+#define __pyx_n_u_name __pyx_string_tab[142]
+#define __pyx_n_u_name_2 __pyx_string_tab[143]
+#define __pyx_n_u_new __pyx_string_tab[144]
+#define __pyx_n_u_new_root __pyx_string_tab[145]
+#define __pyx_n_u_next_value_id __pyx_string_tab[146]
+#define __pyx_kp_u_no_default___reduce___due_to_non __pyx_string_tab[147]
+#define __pyx_n_u_now __pyx_string_tab[148]
+#define __pyx_n_u_np __pyx_string_tab[149]
+#define __pyx_n_u_numpy __pyx_string_tab[150]
+#define __pyx_kp_u_old_value __pyx_string_tab[151]
+#define __pyx_n_u_open __pyx_string_tab[152]
+#define __pyx_n_u_operation_counter __pyx_string_tab[153]
+#define __pyx_n_u_order __pyx_string_tab[154]
+#define __pyx_n_u_pickle __pyx_string_tab[155]
+#define __pyx_n_u_pop __pyx_string_tab[156]
+#define __pyx_n_u_pyx_PickleError __pyx_string_tab[157]
+#define __pyx_n_u_pyx_checksum __pyx_string_tab[158]
+#define __pyx_n_u_pyx_result __pyx_string_tab[159]
+#define __pyx_n_u_pyx_state __pyx_string_tab[160]
+#define __pyx_n_u_pyx_type __pyx_string_tab[161]
+#define __pyx_n_u_pyx_unpickle_ValueHolder __pyx_string_tab[162]
+#define __pyx_n_u_pyx_vtable __pyx_string_tab[163]
+#define __pyx_n_u_qualname __pyx_string_tab[164]
+#define __pyx_n_u_range __pyx_string_tab[165]
+#define __pyx_n_u_range_query __pyx_string_tab[166]
+#define __pyx_n_u_rb __pyx_string_tab[167]
+#define __pyx_n_u_reduce __pyx_string_tab[168]
+#define __pyx_n_u_reduce_cython __pyx_string_tab[169]
+#define __pyx_n_u_reduce_ex __pyx_string_tab[170]
+#define __pyx_n_u_result __pyx_string_tab[171]
+#define __pyx_n_u_result_ptr __pyx_string_tab[172]
+#define __pyx_n_u_results __pyx_string_tab[173]
+#define __pyx_n_u_root __pyx_string_tab[174]
+#define __pyx_n_u_save_to_file __pyx_string_tab[175]
+#define __pyx_n_u_search __pyx_string_tab[176]
+#define __pyx_n_u_self __pyx_string_tab[177]
+#define __pyx_n_u_set_name __pyx_string_tab[178]
+#define __pyx_n_u_setstate __pyx_string_tab[179]
+#define __pyx_n_u_setstate_cython __pyx_string_tab[180]
+#define __pyx_n_u_simple_range_query __pyx_string_tab[181]
+#define __pyx_n_u_slots __pyx_string_tab[182]
+#define __pyx_n_u_spec __pyx_string_tab[183]
+#define __pyx_n_u_start __pyx_string_tab[184]
+#define __pyx_n_u_start_key __pyx_string_tab[185]
+#define __pyx_n_u_state __pyx_string_tab[186]
+#define __pyx_n_u_strftime __pyx_string_tab[187]
+#define __pyx_kp_u_stringsource __pyx_string_tab[188]
+#define __pyx_n_u_test __pyx_string_tab[189]
+#define __pyx_kp_u_to __pyx_string_tab[190]
+#define __pyx_kp_u_to_split_at __pyx_string_tab[191]
+#define __pyx_n_u_tree __pyx_string_tab[192]
+#define __pyx_n_u_tree_2 __pyx_string_tab[193]
+#define __pyx_n_u_update __pyx_string_tab[194]
+#define __pyx_n_u_use_setstate __pyx_string_tab[195]
+#define __pyx_kp_u_using_default_50 __pyx_string_tab[196]
+#define __pyx_kp_u_using_default_99 __pyx_string_tab[197]
+#define __pyx_n_u_value __pyx_string_tab[198]
+#define __pyx_kp_u_value_2 __pyx_string_tab[199]
+#define __pyx_n_u_value_holder __pyx_string_tab[200]
+#define __pyx_n_u_value_ptr __pyx_string_tab[201]
+#define __pyx_n_u_value_store __pyx_string_tab[202]
+#define __pyx_n_u_warning __pyx_string_tab[203]
+#define __pyx_kp_u_was_not_inserted_correctly __pyx_string_tab[204]
+#define __pyx_n_u_wb __pyx_string_tab[205]
+#define __pyx_kp_u_with_order __pyx_string_tab[206]
 /* #### Code section: module_state_clear ### */
 #if CYTHON_USE_MODULE_STATE
 static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
@@ -3296,7 +3301,7 @@ static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_type_16bptree_optimized_BPlusTreeOptimized);
   for (int i=0; i<5; ++i) { Py_CLEAR(clear_module_state->__pyx_tuple[i]); }
   for (int i=0; i<13; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<206; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<207; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
   Py_CLEAR(clear_module_state->__pyx_int_33963030);
   Py_CLEAR(clear_module_state->__pyx_int_215229444);
   Py_CLEAR(clear_module_state->__pyx_int_254981756);
@@ -3326,7 +3331,7 @@ static CYTHON_SMALL_CODE int __pyx_m_traverse(PyObject *m, visitproc visit, void
   Py_VISIT(traverse_module_state->__pyx_type_16bptree_optimized_BPlusTreeOptimized);
   for (int i=0; i<5; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_tuple[i]); }
   for (int i=0; i<13; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<206; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<207; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_33963030);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_215229444);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_254981756);
@@ -12741,7 +12746,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
  *             logging.error(f"Error loading B+ tree from {file_path}: {str(e)}")
  *             return None
 */
-    __pyx_t_21 = __Pyx_PyErr_ExceptionMatches(((PyObject *)(((PyTypeObject*)PyExc_Exception))));
+    __pyx_t_21 = __Pyx_PyErr_ExceptionMatches(__pyx_builtin_RuntimeError);
     if (__pyx_t_21) {
       __Pyx_AddTraceback("bptree_optimized.BPlusTreeOptimized.load_from_file", __pyx_clineno, __pyx_lineno, __pyx_filename);
       if (__Pyx_GetException(&__pyx_t_13, &__pyx_t_9, &__pyx_t_4) < 0) __PYX_ERR(0, 689, __pyx_L5_except_error)
@@ -14579,8 +14584,91 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
   return __pyx_r;
 }
 
+/* "bptree_optimized.pyx":55
+ *     cdef:
+ *         BPNode* root
+ *         public int order             # <<<<<<<<<<<<<<
+ *         int max_keys
+ *         public str name
+*/
+
+/* Python wrapper */
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_5order_1__get__(PyObject *__pyx_v_self); /*proto*/
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_5order_1__get__(PyObject *__pyx_v_self) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__get__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_5order___get__(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_5order___get__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("__get__", 0);
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->order); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 55, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_r = __pyx_t_1;
+  __pyx_t_1 = 0;
+  goto __pyx_L0;
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("bptree_optimized.BPlusTreeOptimized.order.__get__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* Python wrapper */
+static int __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_5order_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value); /*proto*/
+static int __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_5order_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  int __pyx_r;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_5order_2__set__(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), ((PyObject *)__pyx_v_value));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_5order_2__set__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_value) {
+  int __pyx_r;
+  int __pyx_t_1;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 55, __pyx_L1_error)
+  __pyx_v_self->order = __pyx_t_1;
+
+  /* function exit code */
+  __pyx_r = 0;
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_AddTraceback("bptree_optimized.BPlusTreeOptimized.order.__set__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = -1;
+  __pyx_L0:;
+  return __pyx_r;
+}
+
 /* "bptree_optimized.pyx":57
- *         int order
+ *         public int order
  *         int max_keys
  *         public str name             # <<<<<<<<<<<<<<
  *         int operation_counter
@@ -15574,6 +15662,20 @@ static int __pyx_mp_ass_subscript_16bptree_optimized_BPlusTreeOptimized(PyObject
   }
 }
 
+static PyObject *__pyx_getprop_16bptree_optimized_18BPlusTreeOptimized_order(PyObject *o, CYTHON_UNUSED void *x) {
+  return __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_5order_1__get__(o);
+}
+
+static int __pyx_setprop_16bptree_optimized_18BPlusTreeOptimized_order(PyObject *o, PyObject *v, CYTHON_UNUSED void *x) {
+  if (v) {
+    return __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_5order_3__set__(o, v);
+  }
+  else {
+    PyErr_SetString(PyExc_NotImplementedError, "__del__");
+    return -1;
+  }
+}
+
 static PyObject *__pyx_getprop_16bptree_optimized_18BPlusTreeOptimized_name(PyObject *o, CYTHON_UNUSED void *x) {
   return __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_4name_1__get__(o);
 }
@@ -15602,6 +15704,7 @@ static PyMethodDef __pyx_methods_16bptree_optimized_BPlusTreeOptimized[] = {
 };
 
 static struct PyGetSetDef __pyx_getsets_16bptree_optimized_BPlusTreeOptimized[] = {
+  {"order", __pyx_getprop_16bptree_optimized_18BPlusTreeOptimized_order, __pyx_setprop_16bptree_optimized_18BPlusTreeOptimized_order, 0, 0},
   {"name", __pyx_getprop_16bptree_optimized_18BPlusTreeOptimized_name, __pyx_setprop_16bptree_optimized_18BPlusTreeOptimized_name, 0, 0},
   {0, 0, 0, 0, 0}
 };
@@ -16556,6 +16659,7 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_RANGE_QUERY_RESULT_found, sizeof(__pyx_k_RANGE_QUERY_RESULT_found), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_RANGE_QUERY_RESULT_found */
   {__pyx_k_RANGE_QUERY_from, sizeof(__pyx_k_RANGE_QUERY_from), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_RANGE_QUERY_from */
   {__pyx_k_Root_is_NULL_in__find_leaf_for, sizeof(__pyx_k_Root_is_NULL_in__find_leaf_for), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Root_is_NULL_in__find_leaf_for */
+  {__pyx_k_RuntimeError, sizeof(__pyx_k_RuntimeError), 0, 1, 1}, /* PyObject cname: __pyx_n_u_RuntimeError */
   {__pyx_k_SEARCH_key, sizeof(__pyx_k_SEARCH_key), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_SEARCH_key */
   {__pyx_k_Saving_optimized_B_tree_to_file, sizeof(__pyx_k_Saving_optimized_B_tree_to_file), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Saving_optimized_B_tree_to_file */
   {__pyx_k_TypeError, sizeof(__pyx_k_TypeError), 0, 1, 1}, /* PyObject cname: __pyx_n_u_TypeError */
@@ -16721,6 +16825,7 @@ static int __Pyx_InitCachedBuiltins(__pyx_mstatetype *__pyx_mstate) {
   __pyx_builtin_MemoryError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_MemoryError); if (!__pyx_builtin_MemoryError) __PYX_ERR(0, 117, __pyx_L1_error)
   __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_range); if (!__pyx_builtin_range) __PYX_ERR(0, 138, __pyx_L1_error)
   __pyx_builtin_open = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_open); if (!__pyx_builtin_open) __PYX_ERR(0, 671, __pyx_L1_error)
+  __pyx_builtin_RuntimeError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_RuntimeError); if (!__pyx_builtin_RuntimeError) __PYX_ERR(0, 689, __pyx_L1_error)
   __pyx_builtin_TypeError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_TypeError); if (!__pyx_builtin_TypeError) __PYX_ERR(1, 2, __pyx_L1_error)
   return 0;
   __pyx_L1_error:;
@@ -16865,9 +16970,9 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
     __pyx_mstate_global->__pyx_codeobj_tab[5] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_save_to_file, __pyx_k_A_vQb_a_D_T_4_a_IQ_q_a, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[5])) goto bad;
   }
   {
-    __Pyx_PyCode_New_function_description descr = {2, 0, 0, 8, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 674, 117};
+    __Pyx_PyCode_New_function_description descr = {2, 0, 0, 8, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 674, 118};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_cls, __pyx_mstate->__pyx_n_u_file_path, __pyx_mstate->__pyx_n_u_file, __pyx_mstate->__pyx_n_u_data, __pyx_mstate->__pyx_n_u_tree_2, __pyx_mstate->__pyx_n_u_key, __pyx_mstate->__pyx_n_u_value, __pyx_mstate->__pyx_n_u_e};
-    __pyx_mstate_global->__pyx_codeobj_tab[6] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_load_from_file, __pyx_k_A_Qk_vU_1_s_6_Qj_T_E_aq_q_Q_q_A, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[6])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[6] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_load_from_file, __pyx_k_A_Qk_vU_1_s_6_Qj_T_E_aq_q_Q_q_q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[6])) goto bad;
   }
   {
     __Pyx_PyCode_New_function_description descr = {1, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 693, 26};

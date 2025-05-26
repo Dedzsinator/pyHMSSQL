@@ -181,7 +181,7 @@ class DBMSClient(cmd.Cmd):
         "DATABASE", "INDEX", "VIEW", "INTO", "VALUES", "SET", "AND", "OR", "NOT", "NULL",
         "IS", "IN", "LIKE", "GROUP", "BY", "HAVING", "ORDER", "LIMIT", "JOIN", "INNER",
         "LEFT", "RIGHT", "OUTER", "ON", "AS", "AVG", "COUNT", "MIN", "MAX", "SUM", "DISTINCT",
-        "UNION", "ALL", "CASE", "WHEN", "THEN", "ELSE", "END", "BATCH"
+        "UNION", "ALL", "CASE", "WHEN", "THEN", "ELSE", "END", "SCRIPT"
     ]
 
     def __init__(self, host=SERVER_HOST, port=SERVER_PORT):

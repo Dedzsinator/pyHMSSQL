@@ -52,7 +52,7 @@ cdef class BPlusTreeOptimized:
     
     cdef:
         BPNode* root
-        int order
+        public int order
         int max_keys
         public str name
         int operation_counter

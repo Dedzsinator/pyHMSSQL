@@ -161,8 +161,100 @@ class ExecutionEngine:
                     "status": "error",
                 }
 
+    def execute_visualize_bptree(self, plan):
+        """Execute a VISUALIZE BPTREE command."""
+        index_name = plan.get("index_name")
+        table_name = plan.get("table")
+
+        # Get current database
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {
+                "error": "No database selected. Use 'USE database_name' first.",
+                "status": "error",
+            }
+
+        # Validate that table and index are specified
+        if not table_name or not index_name:
+            return {
+                "error": "Both table name and index name must be specified",
+                "status": "error"
+            }
+
+        try:
+            # Check if the index exists in the catalog
+            indexes = self.catalog_manager.get_indexes_for_table(table_name)
+            if index_name not in [idx.split('.')[-1] for idx in indexes.keys()]:
+                return {
+                    "error": f"Index '{index_name}' not found for table '{table_name}'",
+                    "status": "error"
+                }
+            
+            # Try to load the index file directly
+            index_file_path = f"data/indexes/{db_name}_{table_name}_{index_name}.idx"
+            
+            # Check if index file exists
+            if not os.path.exists(index_file_path):
+                return {
+                    "error": f"Index file not found: {index_file_path}",
+                    "status": "error"
+                }
+            
+            # Try to load the B+ tree from file
+            try:
+                from bptree_optimized import BPlusTreeOptimized
+                from bptree import BPlusTree
+                
+                # Try to load as optimized B+ tree first
+                try:
+                    index_obj = BPlusTreeOptimized.load_from_file(index_file_path)
+                    logging.info(f"Loaded optimized B+ tree from {index_file_path}")
+                except:
+                    # Fallback to regular B+ tree
+                    index_obj = BPlusTree.load_from_file(index_file_path)
+                    logging.info(f"Loaded regular B+ tree from {index_file_path}")
+                    
+            except Exception as load_error:
+                logging.error(f"Failed to load index file {index_file_path}: {str(load_error)}")
+                return {
+                    "error": f"Failed to load index file: {str(load_error)}",
+                    "status": "error"
+                }
+
+            # Generate visualization
+            output_name = f"{table_name}_{index_name}_bptree"
+            
+            # Check if it's an optimized B+ tree
+            if hasattr(index_obj, '__class__') and 'Optimized' in index_obj.__class__.__name__:
+                visualization_path = self._visualize_optimized_bptree(index_obj, output_name)
+            else:
+                visualization_path = self.visualizer.visualize_tree(index_obj, output_name)
+            
+            if visualization_path:
+                # Generate HTML content for web display
+                html_content = self._generate_html_visualization(visualization_path, index_obj)
+                
+                return {
+                    "message": f"B+ tree visualization generated successfully",
+                    "visualization": html_content,
+                    "visualization_path": visualization_path,
+                    "status": "success"
+                }
+            else:
+                return {
+                    "error": "Failed to generate visualization",
+                    "status": "error"
+                }
+                
+        except Exception as e:
+            logging.error(f"Error visualizing B+ tree: {str(e)}")
+            return {
+                "error": f"Error visualizing B+ tree: {str(e)}",
+                "status": "error"
+            }
+
     def execute_batch_insert(self, plan):
-        """Execute a batch insert operation."""
+        """Execute a batch insert operation with optimizations."""
         table_name = plan.get("table")
         records = plan.get("records", [])
 
@@ -174,54 +266,60 @@ class ExecutionEngine:
         if not db_name:
             return {"error": "No database selected", "status": "error"}
 
-        # Get optimal batch size (default to 1000)
-        batch_size = plan.get("batch_size", 1000)
+        # Get optimal batch size (increase default for better performance)
+        batch_size = plan.get("batch_size", 5000)  # Increased from 1000 to 5000
 
         logging.info(f"Starting batch insert of {len(records)} records into {table_name} with batch size {batch_size}")
 
         try:
-            # Start a batch operation in the catalog manager
-            self.catalog_manager.begin_batch_operation()
-
-            # Insert records in batches
-            total_inserted = 0
-            batch_number = 0
-
-            for i in range(0, len(records), batch_size):
-                batch_number += 1
-                current_batch = records[i:i+batch_size]
-                batch_start_time = time.time()
-
-                logging.info(f"Processing batch {batch_number} with {len(current_batch)} records")
-
-                # Insert the batch
-                result = self.catalog_manager.insert_records_batch(table_name, current_batch)
-
-                if isinstance(result, dict) and "error" in result:
-                    # Rollback on error
-                    self.catalog_manager.end_batch_operation(commit=False)
+            # For large datasets, use the optimized batch insert directly
+            if len(records) <= batch_size:
+                # Single batch - use the optimized method directly
+                result = self.catalog_manager.insert_records_batch(table_name, records)
+                
+                if result.get("status") == "success":
+                    inserted_count = result.get("inserted_count", 0)
+                    return {
+                        "status": "success",
+                        "message": f"Inserted {inserted_count} records into {table_name}",
+                        "count": inserted_count,
+                        "type": "batch_insert_result"
+                    }
+                else:
                     return result
+            else:
+                # Multiple batches for very large datasets
+                total_inserted = 0
+                batch_number = 0
 
-                total_inserted += result
-                batch_time = time.time() - batch_start_time
-                batch_rate = len(current_batch) / batch_time if batch_time > 0 else 0
+                for i in range(0, len(records), batch_size):
+                    batch_number += 1
+                    current_batch = records[i:i+batch_size]
+                    batch_start_time = time.time()
 
-                logging.info(f"Batch {batch_number} completed in {batch_time:.2f}s ({batch_rate:.0f} inserts/sec)")
+                    logging.info(f"Processing batch {batch_number} with {len(current_batch)} records")
 
-            # Commit all changes
-            self.catalog_manager.end_batch_operation(commit=True)
+                    # Insert the batch using the optimized method
+                    result = self.catalog_manager.insert_records_batch(table_name, current_batch)
 
-            # Return success message
-            return {
-                "status": "success",
-                "message": f"Inserted {total_inserted} records into {table_name}",
-                "count": total_inserted,
-                "type": "batch_insert_result"
-            }
+                    if isinstance(result, dict) and result.get("status") == "success":
+                        batch_inserted = result.get("inserted_count", 0)
+                        total_inserted += batch_inserted
+                        batch_time = time.time() - batch_start_time
+                        batch_rate = len(current_batch) / batch_time if batch_time > 0 else 0
+                        logging.info(f"Batch {batch_number} completed in {batch_time:.2f}s ({batch_rate:.0f} inserts/sec)")
+                    else:
+                        logging.error(f"Batch {batch_number} failed: {result}")
+                        return result
+
+                return {
+                    "status": "success",
+                    "message": f"Inserted {total_inserted} records into {table_name}",
+                    "count": total_inserted,
+                    "type": "batch_insert_result"
+                }
 
         except Exception as e:
-            # Rollback on any exception
-            self.catalog_manager.end_batch_operation(commit=False)
             logging.error(f"Error in batch insert: {str(e)}")
             logging.error(traceback.format_exc())
             return {"status": "error", "error": f"Error in batch insert: {str(e)}"}
@@ -469,61 +567,65 @@ class ExecutionEngine:
 
     def execute(self, plan):
         """Execute the query plan by dispatching to appropriate module."""
-        plan_type = plan.get("type", "UNKNOWN")
-        
-        logging.info(f"Executing plan type: {plan_type}")
-        
         try:
-            result = None
-
-            if plan_type == "SCRIPT":
-                result = self.execute_script(plan)
-            elif plan_type == "SELECT":
-                result = self.select_executor.execute_select(plan)
+            # CRITICAL FIX: Validate plan is a dictionary
+            if not isinstance(plan, dict):
+                logging.error(f"ExecutionEngine: Plan is not a dict: {type(plan)} - {plan}")
+                return {"error": "Plan must be a dictionary", "status": "error"}
+            
+            plan_type = plan.get("type", "UNKNOWN")
+            
+            logging.info(f"Executing plan type: {plan_type}")
+            
+            if plan_type == "SELECT":
+                return self.select_executor.execute_select(plan)
             elif plan_type == "INSERT":
-                result = self.dml_executor.execute_insert(plan)
+                return self.dml_executor.execute_insert(plan)
             elif plan_type == "UPDATE":
-                result = self.dml_executor.execute_update(plan)
+                return self.dml_executor.execute_update(plan)
             elif plan_type == "DELETE":
-                result = self.dml_executor.execute_delete(plan)
+                return self.dml_executor.execute_delete(plan)
             elif plan_type == "CREATE_TABLE":
-                result = self.schema_manager.execute_create_table(plan)
+                return self.schema_manager.execute_create_table(plan)
             elif plan_type == "DROP_TABLE":
-                result = self.schema_manager.drop_table(plan)
-            elif plan_type == "CREATE_DATABASE":
-                result = self.schema_manager.create_database(plan)
-            elif plan_type == "DROP_DATABASE":
-                result = self.schema_manager.drop_database(plan)
-            elif plan_type == "USE_DATABASE":
-                result = self.schema_manager.use_database(plan)
-            elif plan_type == "SHOW":
-                result = self.schema_manager.execute_show(plan)  # Make sure this is called
-            elif plan_type == "SHOW_TABLES":
-                result = self.schema_manager.show_tables(plan)
-            elif plan_type == "SHOW_COLUMNS":
-                result = self.schema_manager.show_columns(plan)
+                return self.schema_manager.execute_drop_table(plan)
             elif plan_type == "CREATE_INDEX":
-                result = self.execute_create_index(plan)
+                return self.schema_manager.execute_create_index(plan)
             elif plan_type == "DROP_INDEX":
-                result = self.execute_drop_index(plan)
-            elif plan_type == "DISTINCT":
-                result = self.execute_distinct(plan)
-            elif plan_type in ["UNION", "INTERSECT", "EXCEPT"]:
-                result = self.select_executor.execute_set_operation(plan)
+                return self.schema_manager.execute_drop_index(plan)
+            elif plan_type == "CREATE_DATABASE":
+                return self.schema_manager.execute_create_database(plan)
+            elif plan_type == "USE_DATABASE":
+                return self.schema_manager.execute_use_database(plan)
+            elif plan_type == "SHOW_TABLES":
+                return self.schema_manager.execute_show_tables(plan)
+            elif plan_type == "SHOW_DATABASES":
+                return self.schema_manager.execute_show_databases(plan)
+            elif plan_type == "SHOW_COLUMNS":
+                return self.schema_manager.execute_show_columns(plan)
             elif plan_type == "VISUALIZE":
-                result = self.visualizer.execute_visualization(plan)
-            elif plan_type == "TRANSACTION":
-                result = self.transaction_manager.execute_transaction(plan)
+                return self.visualizer.execute_visualization(plan)
+            elif plan_type == "JOIN":
+                return self.join_executor.execute_join(plan)
+            elif plan_type == "AGGREGATE":
+                return self.aggregate_executor.execute_aggregate(plan)
+            elif plan_type == "DISTINCT":
+                return self.execute_distinct(plan)
+            elif plan_type in ["UNION", "INTERSECT", "EXCEPT"]:
+                return self.execute_set_operation(plan)
+            elif plan_type == "BATCH_INSERT":
+                return self.execute_batch_insert(plan)
+            elif plan_type == "SCRIPT":
+                return self.execute_script(plan)
+            elif plan_type in ["BEGIN_TRANSACTION", "COMMIT_TRANSACTION", "ROLLBACK_TRANSACTION"]:
+                return self.transaction_manager.execute_transaction(plan)
             else:
-                result = {"error": f"Unsupported operation type: {plan_type}", "status": "error"}
-
-            return result
+                return {"error": f"Unknown plan type: {plan_type}", "status": "error"}
 
         except Exception as e:
             logging.error(f"Error in execution engine: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return {"error": f"Execution error: {str(e)}", "status": "error"}
+            logging.error(traceback.format_exc())
+            return {"error": f"Error in execution engine: {str(e)}", "status": "error"}
 
     def execute_set_preference(self, plan):
         """Update user preferences."""

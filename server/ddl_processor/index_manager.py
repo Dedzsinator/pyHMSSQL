@@ -11,6 +11,7 @@ class IndexManager:
         self.catalog_manager = catalog_manager
         self.indexes = {}  # In-memory cache of loaded indexes
         self.visualizer = None  # Will be initialized if visualization is needed
+        self.logger = logging.getLogger(__name__)  # Add this line
 
     def get_index(self, full_index_name):
         """Get an index by its full name (table.index)"""
@@ -41,6 +42,75 @@ class IndexManager:
             table_name, index_name, column, index_def.get(
                 "unique", False), db_name
         )
+    
+    def rebuild_index(self, index_id):
+        """Rebuild an index from scratch"""
+        try:
+            # Parse the index ID to get table and index name
+            parts = index_id.split('.')
+            if len(parts) != 2:
+                self.logger.error(f"Invalid index ID format: {index_id}")
+                return False
+                
+            table_name, index_name = parts
+            
+            # Get index definition from catalog - FIX THE LOOKUP
+            indexes = self.catalog_manager.get_indexes_for_table(table_name)
+            if not indexes:
+                self.logger.error(f"No indexes found for table {table_name}")
+                return False
+            
+            # Find the specific index - FIX THE SEARCH
+            index_def = None
+            
+            # Try direct lookup first
+            if index_name in indexes:
+                index_def = indexes[index_name]
+            else:
+                # Try fuzzy matching
+                for idx_key, idx_info in indexes.items():
+                    if idx_key == index_name or idx_key.endswith(f".{index_name}"):
+                        index_def = idx_info
+                        break
+            
+            if not index_def:
+                self.logger.error(f"Index definition not found for {index_name}. Available indexes: {list(indexes.keys())}")
+                return False
+            
+            # Get the column name - handle both single and multiple columns
+            columns = index_def.get("columns", [])
+            if not columns:
+                # Fallback to single column format
+                column = index_def.get("column")
+                if column:
+                    columns = [column]
+            
+            if not columns:
+                self.logger.error(f"No columns found for index {index_name}")
+                return False
+            
+            # Use first column for file naming (for backward compatibility)
+            main_column = columns[0]
+            is_unique = index_def.get("unique", False)
+            
+            # Remove old index from cache
+            full_index_name = f"{table_name}.{index_name}"
+            if full_index_name in self.indexes:
+                del self.indexes[full_index_name]
+            
+            # Rebuild the index
+            rebuilt_index = self.build_index(table_name, index_name, main_column, is_unique)
+            
+            if rebuilt_index:
+                self.logger.info(f"Successfully rebuilt index {index_id}")
+                return True
+            else:
+                self.logger.error(f"Failed to rebuild index {index_id}")
+                return False
+            
+        except Exception as e:
+            self.logger.error(f"Error rebuilding index {index_id}: {str(e)}")
+            return False
 
     def build_index(
         self, table_name, index_name, column, is_unique=False, db_name=None
@@ -64,7 +134,7 @@ class IndexManager:
                 self.indexes[f"{table_name}.{index_name}"] = index
                 return index
             except RuntimeError as e:
-                logging.error("Error loading index: %s", str(e))
+                self.logger.error("Error loading index: %s", str(e))
                 # Fall through to rebuilding
 
         # Build the index from table data
@@ -106,8 +176,8 @@ class IndexManager:
             return index
 
         except RuntimeError as e:
-            logging.error("Error building index: %s", str(e))
-            logging.error(traceback.format_exc())
+            self.logger.error("Error building index: %s", str(e))
+            self.logger.error(traceback.format_exc())
             return None
 
     def visualize_all_indexes(self):
@@ -130,6 +200,6 @@ class IndexManager:
                         index.visualize(self.visualizer, output_name=full_name)
                         count += 1
                     except RuntimeError as e:
-                        logging.error("Error visualizing index: %s", str(e))
+                        self.logger.error("Error visualizing index: %s", str(e))
 
         return count

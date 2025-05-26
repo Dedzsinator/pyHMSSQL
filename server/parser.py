@@ -506,104 +506,82 @@ class SQLParser:
             r"INSERT\s+INTO\s+(\w+)", raw_sql, re.IGNORECASE)
         table_name = table_match.group(1) if table_match else None
 
-        # Extract column names
+        # Extract column names (optional)
         columns = []
         columns_match = re.search(r"\(\s*([^)]+)\s*\)\s*VALUES", raw_sql, re.IGNORECASE)
         if columns_match:
+            # Parse column names
             columns_str = columns_match.group(1)
             columns = [col.strip() for col in columns_str.split(',')]
+        else:
+            # Check if it's INSERT INTO table VALUES format (no column specification)
+            if re.search(r"INSERT\s+INTO\s+\w+\s+VALUES", raw_sql, re.IGNORECASE):
+                # No columns specified - will need to infer from table schema
+                columns = None
 
         # Extract values - handle multiple rows
         values = []
         values_clause = re.search(r"VALUES\s*(.+)", raw_sql, re.IGNORECASE | re.DOTALL)
         if values_clause:
-            values_part = values_clause.group(1).strip()
+            values_str = values_clause.group(1).strip()
             
-            # Parse multiple value groups
-            value_groups = []
-            current_group = ""
-            in_string = False
-            quote_char = None
-            paren_level = 0
-
+            # Handle multiple value sets: VALUES (...), (...), (...)
+            # Split by ), ( pattern but be careful with nested parentheses
+            value_sets = []
+            current_set = ""
+            paren_count = 0
             i = 0
-            while i < len(values_part):
-                char = values_part[i]
+            
+            while i < len(values_str):
+                char = values_str[i]
+                current_set += char
                 
-                if char in ('"', "'") and not in_string:
-                    in_string = True
-                    quote_char = char
-                    current_group += char
-                elif char == quote_char and in_string:
-                    if i + 1 < len(values_part) and values_part[i + 1] == quote_char:
-                        current_group += char + char
-                        i += 1
-                    else:
-                        in_string = False
-                        quote_char = None
-                        current_group += char
-                elif char == '(' and not in_string:
-                    paren_level += 1
-                    current_group += char
-                elif char == ')' and not in_string:
-                    paren_level -= 1
-                    current_group += char
-                    
-                    if paren_level == 0:
-                        value_groups.append(current_group.strip())
-                        current_group = ""
-                elif char == ',' and not in_string and paren_level == 0:
-                    if current_group.strip():
-                        value_groups.append(current_group.strip())
-                        current_group = ""
-                else:
-                    if not (char.isspace() and not current_group and not in_string):
-                        current_group += char
-                
-                i += 1
-
-            if current_group.strip():
-                value_groups.append(current_group.strip())
-
-            # Process each group into individual values
-            for group in value_groups:
-                group = group.strip()
-                if group.startswith('(') and group.endswith(')'):
-                    group = group[1:-1]
-                
-                row_values = []
-                current_value = ""
-                in_string = False
-                quote_char = None
-                
-                i = 0
-                while i < len(group):
-                    char = group[i]
-                    
-                    if char in ('"', "'") and not in_string:
-                        in_string = True
-                        quote_char = char
-                        current_value += char
-                    elif char == quote_char and in_string:
-                        if i + 1 < len(group) and group[i + 1] == quote_char:
-                            current_value += char + char
+                if char == '(':
+                    paren_count += 1
+                elif char == ')':
+                    paren_count -= 1
+                    if paren_count == 0:
+                        # Found complete value set
+                        value_sets.append(current_set.strip())
+                        current_set = ""
+                        # Skip comma and whitespace
+                        while i + 1 < len(values_str) and values_str[i + 1] in ', \t\n':
                             i += 1
-                        else:
-                            in_string = False
+                i += 1
+            
+            # Process each value set
+            for value_set in value_sets:
+                if value_set.startswith('(') and value_set.endswith(')'):
+                    # Remove outer parentheses
+                    inner_values = value_set[1:-1]
+                    
+                    # Parse individual values
+                    row_values = []
+                    current_value = ""
+                    in_quotes = False
+                    quote_char = None
+                    
+                    for char in inner_values:
+                        if char in ('"', "'") and not in_quotes:
+                            in_quotes = True
+                            quote_char = char
+                            current_value += char
+                        elif char == quote_char and in_quotes:
+                            in_quotes = False
                             quote_char = None
                             current_value += char
-                    elif char == ',' and not in_string:
-                        row_values.append(current_value.strip())
-                        current_value = ""
-                    else:
-                        current_value += char
+                        elif char == ',' and not in_quotes:
+                            # End of value
+                            row_values.append(self._process_value_literal(current_value.strip()))
+                            current_value = ""
+                        else:
+                            current_value += char
                     
-                    i += 1
-                
-                if current_value.strip():
-                    row_values.append(current_value.strip())
-                
-                values.append(row_values)
+                    # Don't forget the last value
+                    if current_value.strip():
+                        row_values.append(self._process_value_literal(current_value.strip()))
+                    
+                    values.append(row_values)
 
         # Update result with extracted components
         result.update(
@@ -1164,26 +1142,28 @@ class SQLParser:
         }
 
     def _process_value_literal(self, value):
-        """Process a value literal, preserving quotes for strings."""
-        if value is None:
+        """Process a value literal and convert to appropriate type"""
+        if not value:
             return None
-
+        
         value = value.strip()
         
         # Handle NULL
         if value.upper() == 'NULL':
             return None
         
-        # Handle quoted strings - preserve the quotes for now
+        # Handle quoted strings
         if (value.startswith("'") and value.endswith("'")) or \
         (value.startswith('"') and value.endswith('"')):
-            return value
+            return value[1:-1]  # Remove quotes
         
         # Try to convert to number
         try:
-            if '.' in value:
-                return float(value)
-            else:
+            # Try integer first
+            if '.' not in value and 'e' not in value.lower():
                 return int(value)
+            else:
+                return float(value)
         except ValueError:
+            # Return as string if conversion fails
             return value

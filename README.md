@@ -662,12 +662,16 @@ USE index_test
 -- Create a test table with data
 query CREATE TABLE products (id INT,name VARCHAR(100),price DECIMAL(10,2),category VARCHAR(50),in_stock INT);
 
+query DROP INDEX idx_id ON products;
+query CREATE INDEX idx_id ON products (id);
+query VISUALIZE BPTREE idx_id ON products;
+
 -- Insert sample data
-query INSERT INTO products VALUES (1, 'Laptop XPS', 1299.99, 'Electronics', 10);
-query INSERT INTO products VALUES (2, 'Gaming Mouse', 59.99, 'Electronics', 25);
-query INSERT INTO products VALUES (3, 'Coffee Maker', 89.99, 'Appliances', 15);
-query INSERT INTO products VALUES (4, 'Desk Chair', 199.99, 'Furniture', 8);
-query INSERT INTO products VALUES (5, 'Bluetooth Speaker', 79.99, 'Electronics', 30);
+query INSERT INTO products VALUES ('Laptop XPS', 1299.99, 'Electronics', 10);
+query INSERT INTO products VALUES ('Gaming Mouse', 59.99, 'Electronics', 25);
+query INSERT INTO products VALUES ('Coffee Maker', 89.99, 'Appliances', 15);
+query INSERT INTO products VALUES ('Desk Chair', 199.99, 'Furniture', 8);
+query INSERT INTO products VALUES ('Bluetooth Speaker', 79.99, 'Electronics', 30);
 
 -- Time this query - should do a full table scan
 query SELECT * FROM products WHERE category = 'Electronics';

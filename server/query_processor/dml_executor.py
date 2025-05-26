@@ -30,69 +30,117 @@ class DMLExecutor:
         self.strict_heuristic_fk_validation = False  # Changed from True to False
 
     def execute_insert(self, plan):
-        """Execute an INSERT operation."""
-        table_name = plan.get("table")
-        columns = plan.get("columns", [])
-        values_list = plan.get("values", [])
-        
-        if not table_name:
-            return {"error": "Table name not specified", "status": "error"}
-            
-        if not columns:
-            return {"error": "No columns specified for INSERT", "status": "error"}
-            
-        if not values_list:
-            return {"error": "No values specified for INSERT", "status": "error"}
-
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {"error": "No database selected", "status": "error"}
-
-        logging.info(f"--- Starting batch INSERT into {table_name} with {len(values_list)} records ---")
-
-        # Get table schema once for all records
-        table_schema = self.catalog_manager.get_table_schema(table_name)
-        if not table_schema:
-            return {"error": f"Table '{table_name}' not found", "status": "error"}
-
-        # Pre-validate all records and prepare them for bulk insert
-        prepared_records = []
-        for i, value_row in enumerate(values_list):
-            # Create the record mapping columns to values
-            record = {}
-            
-            if len(value_row) != len(columns):
-                return {"error": f"Row {i+1}: Column count mismatch. Expected {len(columns)}, got {len(value_row)}", "status": "error"}
-            
-            for j, value in enumerate(value_row):
-                col_name = columns[j]
-                # Clean string values
-                if isinstance(value, str) and value.startswith("'") and value.endswith("'"):
-                    value = value[1:-1]
-                record[col_name] = value
-            
-            prepared_records.append(record)
-
-        # Use the catalog manager's optimized batch insert method
+        """Execute INSERT operations with batch optimization."""
         try:
-            result = self.catalog_manager.insert_records_batch(table_name, prepared_records)
+            # Validate plan structure first
+            if not isinstance(plan, dict):
+                logging.error(f"DMLExecutor: Plan is not a dict: {type(plan)} - {plan}")
+                return {"error": "Plan must be a dictionary", "status": "error"}
+
+            table_name = plan.get("table")
+            specified_columns = plan.get("columns")
+            values_list = plan.get("values", [])
+
+            if not table_name:
+                return {"error": "No table specified for INSERT", "status": "error"}
+
+            if not values_list:
+                return {"error": "No values provided for INSERT", "status": "error"}
+
+            # Get current database
+            db_name = self.catalog_manager.get_current_database()
+            if not db_name:
+                return {"error": "No database selected", "status": "error"}
+
+            # Get table schema to determine columns if not specified
+            table_id = f"{db_name}.{table_name}"
+            if table_id not in self.catalog_manager.tables:
+                return {"error": f"Table '{table_name}' does not exist", "status": "error"}
+
+            table_schema = self.catalog_manager.tables[table_id]
+            table_columns_dict = table_schema.get("columns", {})
             
-            if result.get("status") == "error":
-                return result
+            if not table_columns_dict:
+                return {"error": f"Table '{table_name}' has no columns defined", "status": "error"}
             
-            inserted_count = result.get("inserted_count", 0)
+            # Get ordered list of NON-IDENTITY columns from schema
+            all_table_columns = []
+            identity_columns = []
             
-            logging.info(f"--- Batch INSERT completed: {inserted_count} records inserted ---")
+            for col_name, col_info in table_columns_dict.items():
+                if not isinstance(col_info, dict):
+                    logging.warning(f"Column info for {col_name} is not a dict: {type(col_info)} - {col_info}")
+                    all_table_columns.append(col_name)
+                    continue
+                    
+                if col_info.get("identity"):
+                    identity_columns.append(col_name)
+                else:
+                    all_table_columns.append(col_name)
             
-            return {
-                "status": "success",
-                "message": f"Inserted {inserted_count} record(s)",
-                "count": inserted_count
-            }
-            
+            # If no columns specified, use non-identity columns in order
+            if specified_columns is None:
+                columns = all_table_columns
+                logging.info(f"No columns specified, using non-identity columns: {columns}")
+            else:
+                columns = specified_columns
+
+            # Validate that we have the right number of values
+            if values_list and len(values_list[0]) != len(columns):
+                return {
+                    "error": f"Number of values ({len(values_list[0])}) does not match number of columns ({len(columns)}). Available non-identity columns: {all_table_columns}",
+                    "status": "error"
+                }
+
+            # CRITICAL OPTIMIZATION: Use batch insert for multiple records
+            if len(values_list) > 1:
+                logging.info(f"Using batch insert for {len(values_list)} records")
+                
+                # Convert values to record dictionaries
+                records = []
+                for row_values in values_list:
+                    record = {}
+                    for i, column in enumerate(columns):
+                        if i < len(row_values):
+                            record[column] = row_values[i]
+                    records.append(record)
+                
+                # Use batch insert method
+                result = self.catalog_manager.insert_records_batch(table_name, records)
+                
+                if result.get("status") == "success":
+                    inserted_count = result.get("inserted_count", 0)
+                    return {
+                        "message": f"Inserted {inserted_count} record(s) into {table_name}",
+                        "status": "success",
+                        "count": inserted_count
+                    }
+                else:
+                    return result
+            else:
+                # Single record - use existing logic
+                row_values = values_list[0]
+                record = {}
+                for i, column in enumerate(columns):
+                    if i < len(row_values):
+                        record[column] = row_values[i]
+
+                # Insert the record
+                result = self.catalog_manager.insert_record(table_name, record)
+                
+                if isinstance(result, dict) and result.get("status") == "success":
+                    return {
+                        "message": f"Inserted 1 record into {table_name}",
+                        "status": "success",
+                        "count": 1
+                    }
+                else:
+                    return result if isinstance(result, dict) else {"error": str(result), "status": "error"}
+
         except Exception as e:
-            logging.error(f"Batch insert failed: {str(e)}")
-            return {"error": f"Batch insert failed: {str(e)}", "status": "error"}
+            logging.error(f"Error in execute_insert: {str(e)}")
+            logging.error(traceback.format_exc())
+            return {"error": f"Error in execute_insert: {str(e)}", "status": "error"}
 
     def _parse_conditions(self, condition_str):
         """Parse condition string into a list of conditions."""
