@@ -95,16 +95,29 @@ class DMLExecutor:
             return {"error": f"Batch insert failed: {str(e)}", "status": "error"}
 
     def _parse_conditions(self, condition_str):
-        """Parse condition string into a format that catalog_manager understands."""
+        """Parse condition string into a list of conditions."""
         if not condition_str:
             return []
-
-        # Try using the condition parser if it was set
-        if self.condition_parser:
-            return self.condition_parser.parse_condition_to_list(condition_str)
-
-        # Fall back to simple condition parsing
-        return parse_simple_condition(condition_str)
+        
+        # This is a simplified parser - you might want to use a more robust one
+        conditions = []
+        
+        # Basic parsing for simple conditions like "column = value"
+        if "=" in condition_str:
+            parts = condition_str.split("=")
+            if len(parts) == 2:
+                column = parts[0].strip()
+                value = parts[1].strip()
+                # Remove quotes if present
+                if value.startswith(("'", '"')) and value.endswith(("'", '"')):
+                    value = value[1:-1]
+                conditions.append({
+                    "column": column,
+                    "operator": "=",
+                    "value": value
+                })
+        
+        return conditions
 
     def execute_delete(self, plan):
         """Execute a DELETE statement."""

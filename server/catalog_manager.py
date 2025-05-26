@@ -291,68 +291,60 @@ class CatalogManager:
         return self.current_database
 
     def create_table(self, table_name, columns, constraints=None):
-        """Create a table in the catalog."""
+        """Create a table in the catalog with compound key support."""
         table_level_constraints = []
+        compound_pk_columns = []
+        
         if constraints is not None:
-            if isinstance(constraints, list):
-                table_level_constraints.extend(constraints)
-                logging.info("Added %s constraints to table %s", len(constraints), table_name)
-            else:
-                table_level_constraints.append(str(constraints))
-                logging.info("Added 1 constraint to table %s", table_name)
+            for constraint in constraints:
+                if isinstance(constraint, dict) and constraint.get("type") == "PRIMARY_KEY":
+                    compound_pk_columns = constraint.get("columns", [])
+                    table_level_constraints.append(constraint)
+                else:
+                    table_level_constraints.append(constraint)
 
         db_name = self.get_current_database()
         if not db_name:
-            return "No database selected."
+            return "No database selected"
 
         table_id = f"{db_name}.{table_name}"
 
         if table_id in self.tables:
-            return f"Table {table_name} already exists."
+            return f"Table {table_name} already exists"
 
         processed_columns = {}
 
+        # Process column definitions
         temp_columns_list_for_processing = []
-
         if isinstance(columns, list):
             for item in columns:
                 if isinstance(item, str):
                     item_stripped = item.strip()
                     item_upper = item_stripped.upper()
                     if item_upper.startswith("FOREIGN KEY") or \
-                       item_upper.startswith("PRIMARY KEY (") or \
-                       item_upper.startswith("UNIQUE (") or \
-                       item_upper.startswith("CONSTRAINT ") or \
-                       item_upper.startswith("CHECK ("):
+                    item_upper.startswith("UNIQUE (") or \
+                    item_upper.startswith("PRIMARY KEY (") or \
+                    item_upper.startswith("CHECK ("):
                         if item_stripped not in table_level_constraints:
                             table_level_constraints.append(item_stripped)
                     else:
                         temp_columns_list_for_processing.append(item_stripped)
                 elif isinstance(item, dict):
                     temp_columns_list_for_processing.append(item)
-                else:
-                    logging.warning("Unsupported item type in columns list for table '%s': %s",
-                        table_name, item
-                    )
         else:
-            logging.error("Columns parameter for create_table ('%s') was not a list: %s",
-                        table_name, columns
-                        )
-            return f"Invalid columns format for table {table_name}."
+            temp_columns_list_for_processing = [columns]
 
         for col_def_source in temp_columns_list_for_processing:
             col_name = None
             column_attributes = {}
-
+            
             if isinstance(col_def_source, dict):
                 col_name = col_def_source.get("name")
                 if not col_name:
                     logging.warning("Column definition dictionary missing name in table '%s': %s",
-                                    table_name, col_def_source
-                                    )
+                                table_name, col_def_source)
                     continue
-                column_attributes = {key: value for key, value in\
-                    col_def_source.items() if key != "name"}
+                column_attributes = {key: value for key, value in col_def_source.items() if key != "name"}
 
             elif isinstance(col_def_source, str):
                 parts = col_def_source.split()
@@ -371,47 +363,40 @@ class CatalogManager:
                 if "PRIMARY KEY" in col_def_upper_str and "PRIMARY KEY (" not in col_def_upper_str:
                     column_attributes["primary_key"] = True
 
-                if "UNIQUE" in col_def_upper_str and "UNIQUE (" not in\
-                    col_def_upper_str and not column_attributes.get("primary_key"):
+                if "UNIQUE" in col_def_upper_str and "UNIQUE (" not in col_def_upper_str and not column_attributes.get("primary_key"):
                     column_attributes["unique"] = True
 
                 if "IDENTITY" in col_def_upper_str:
                     column_attributes["identity"] = True
-                    identity_match = re.search(r"IDENTITY\s*\((\d+),\s*(\d+)\)",
-                                            col_def_source, re.IGNORECASE)
+                    identity_match = re.search(r"IDENTITY\s*\((\d+),\s*(\d+)\)", col_def_source, re.IGNORECASE)
                     if identity_match:
                         column_attributes["identity_seed"] = int(identity_match.group(1))
                         column_attributes["identity_increment"] = int(identity_match.group(2))
                     else:
                         column_attributes["identity_seed"] = 1
                         column_attributes["identity_increment"] = 1
-                    if not column_attributes.get("primary_key"):
-                        is_other_pk = any("PRIMARY KEY" in constr.upper()\
-                            for constr in table_level_constraints)
-                        if not is_other_pk:
-                            column_attributes["primary_key"] = True
+
+            # Check if this column is part of compound primary key
+            if col_name in compound_pk_columns:
+                column_attributes["primary_key"] = True
+                column_attributes["compound_pk"] = len(compound_pk_columns) > 1
+                column_attributes["pk_position"] = compound_pk_columns.index(col_name)
 
             if col_name:
                 if col_name in processed_columns:
-                    logging.warning("Duplicate column name '%s' in table '%s'. Overwriting.",
-                                    col_name, table_name)
+                    logging.warning("Duplicate column name '%s' in table '%s'. Overwriting.", col_name, table_name)
                 processed_columns[col_name] = column_attributes
-            else:
-                logging.warning("Could not determine column name from definition: %s in table '%s'",
-                                col_def_source, table_name)
 
         self.tables[table_id] = {
             "database": db_name,
             "name": table_name,
             "columns": processed_columns,
             "constraints": table_level_constraints,
+            "compound_primary_key": compound_pk_columns if len(compound_pk_columns) > 1 else None,
             "created_at": datetime.datetime.now().isoformat(),
         }
 
-        # Log constraints properly
-        logging.info("Storing table with %s constraints: %s",
-                        len(table_level_constraints), table_level_constraints)
-
+        # Create table structure
         if table_name not in self.databases[db_name]["tables"]:
             self.databases[db_name]["tables"].append(table_name)
 
@@ -419,16 +404,35 @@ class CatalogManager:
         os.makedirs(db_specific_tables_dir, exist_ok=True)
         table_file = os.path.join(db_specific_tables_dir, f"{table_name}.tbl")
 
-        # Create a new tree using the factory (will use optimized by default)
+        # Create a new tree using the factory
         tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
         tree.save_to_file(table_file)
 
         self._save_json(self.tables_file, self.tables)
         self._save_json(self.databases_file, self.databases)
 
-        logging.info("Table '%s' created in database '%s' with columns: %s and constraints: %s",
-                    table_name, db_name, list(processed_columns.keys()), table_level_constraints)
+        logging.info("Table '%s' created with compound PK: %s", table_name, compound_pk_columns)
         return True
+
+    def _generate_compound_key(self, record, pk_columns):
+        """Generate a compound key from multiple columns."""
+        if not pk_columns:
+            return str(time.time() * 1000000)
+        
+        if len(pk_columns) == 1:
+            # Single primary key
+            return str(record.get(pk_columns[0], ''))
+        
+        # Compound primary key
+        key_parts = []
+        for col in pk_columns:
+            if col in record:
+                key_parts.append(str(record[col]))
+            else:
+                raise ValueError(f"Primary key column '{col}' missing from record")
+        
+        # Create compound key with separator
+        return "|".join(key_parts)
 
     def get_preferences(self):
         """Get the current preferences."""
@@ -605,22 +609,22 @@ class CatalogManager:
         if not db_name:
             return []
 
-        # Case-insensitive table lookup
+        # Case-insensitive table lookup - PRESERVE ORIGINAL CASE
         actual_table_name = None
         db_tables = self.list_tables(db_name)
 
-        # Direct match first
+        # Direct match first (preserve case)
         if table_name in db_tables:
             actual_table_name = table_name
         else:
-            # Case-insensitive match
+            # Case-insensitive match but preserve the case from the database
             for db_table in db_tables:
                 if db_table.lower() == table_name.lower():
-                    actual_table_name = db_table
+                    actual_table_name = db_table  # Use the case from the database
                     break
 
         if not actual_table_name:
-            logging.warning("Table not found: %s", table_name)
+            logging.error("Table '%s' not found. Available tables: %s", table_name, db_tables)
             return []
 
         # Use the correct table name for the lookup
@@ -628,7 +632,7 @@ class CatalogManager:
 
         # Check if table exists
         if table_id not in self.tables:
-            logging.warning("Table not found in catalog: %s", table_id)
+            logging.error("Table ID '%s' not found in catalog", table_id)
             return []
 
         # Try to use index for simple equality conditions
@@ -636,126 +640,64 @@ class CatalogManager:
         condition_value = None
 
         if len(conditions) == 1 and conditions[0].get("operator") == "=":
-            column_name = conditions[0].get("column")
+            condition_column = conditions[0].get("column")
             condition_value = conditions[0].get("value")
-            # Check if we have an index for this column
-            indexes = self.get_indexes_for_table(actual_table_name)
-            for idx_name, idx_info in indexes.items():
-                if idx_info.get("column").lower() == column_name.lower():
-                    index_to_use = idx_info
+            
+            # Look for an index on this column
+            table_indexes = self.get_indexes_for_table(actual_table_name)
+            for idx_name, idx_info in table_indexes.items():
+                if idx_info.get("column") == condition_column:
+                    index_to_use = f"{db_name}_{actual_table_name}_{condition_column}.idx"
                     break
 
         if index_to_use and condition_value is not None:
-            index_file = os.path.join(
-                self.indexes_dir,
-                f"{db_name}_{actual_table_name}_{index_to_use.get('column')}.idx"
-            )
+            # Use index for lookup
+            index_file = os.path.join(self.indexes_dir, index_to_use)
             if os.path.exists(index_file):
                 try:
-                    # Load the index
-                    index = BPlusTreeFactory.load_from_file(index_file)
-
-                    if index:
-                        # Use the index for lookup
+                    index_tree = BPlusTreeFactory.load_from_file(index_file)
+                    record_ids = index_tree.search(condition_value)
+                    
+                    if record_ids:
+                        # Load the actual records
+                        table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
+                        table_tree = BPlusTreeFactory.load_from_file(table_file)
+                        
                         results = []
-                        record_id = index.get(condition_value)
-
-                        if record_id is not None:
-                            # Get actual record using the ID
-                            record = self.get_record_by_key(actual_table_name, record_id)
+                        if isinstance(record_ids, list):
+                            for record_id in record_ids:
+                                record = table_tree.search(record_id)
+                                if record:
+                                    results.append(record)
+                        else:
+                            record = table_tree.search(record_ids)
                             if record:
                                 results.append(record)
-
-                        # Apply order_by if specified
-                        if order_by and isinstance(order_by, dict):
-                            order_column = order_by.get("column")
-                            direction = order_by.get("direction", "ASC")
-                            if order_column:
-                                results = sorted(results,
-                                            key=lambda r: self._get_sortable_value(r.get(order_column, "")),
-                                            reverse=(direction.upper() == "DESC"))
-
-                        # Apply limit if specified
-                        if limit is not None and isinstance(limit, int):
-                            results = results[:limit]
-
-                        # Select specific columns if requested
-                        if columns != ["*"]:
-                            filtered_results = []
-                            for record in results:
-                                filtered_record = \
-                                    {col: record.get(col) for col in columns if col in record}
-                                filtered_results.append(filtered_record)
-                            return filtered_results
-
-                        return results
-                except RuntimeError as e:
+                        
+                        return self._apply_column_selection_and_sorting(results, columns, order_by, limit)
+                except Exception as e:
                     logging.error("Error using index: %s", str(e))
-            else:
-                logging.warning("Index file not found: %s", index_file)
 
         # Fallback to table scan - use B+ tree file instead of JSON
         table_file = os.path.join(self.tables_dir, db_name, f"{actual_table_name}.tbl")
         if not os.path.exists(table_file):
-            logging.warning("Table file not found: %s", table_file)
+            logging.error("Table file not found: %s", table_file)
             return []
 
         try:
-            # Load the B+ tree
-            tree = BPlusTreeFactory.load_from_file(table_file)
-            if tree is None:
-                logging.error("Failed to load B+ tree for table %s", actual_table_name)
-                return []
-
-            # Get all records from the tree
-            all_records = []
-            tree_records = tree.range_query(float('-inf'), float('inf'))
-            for _, record in tree_records:
-                all_records.append(record)
-
-            # Filter based on conditions
+            table_tree = BPlusTreeFactory.load_from_file(table_file)
+            all_records = table_tree.range_query(float("-inf"), float("inf"))
+            
+            # Filter records based on conditions
             results = []
-            for record in all_records:
+            for record_key, record in all_records:
                 if self._record_matches_conditions(record, conditions):
                     results.append(record)
-
-            # Apply order_by if specified
-            if order_by and isinstance(order_by, dict):
-                order_column = order_by.get("column")
-                direction = order_by.get("direction", "ASC")
-                if order_column:
-                    # Log the values to help debug sorting issues
-                    logging.info(f"Sorting by column: {order_column}, direction: {direction}")
-
-                    # Log some values for debugging
-                    if results and order_column in results[0]:
-                        sample_values = [self._get_sortable_value(r.get(order_column, "")) for r in results[:3]]
-                        logging.info(f"Sample values for sorting: {sample_values}")
-
-                    # Sort using the sortable value function and correct direction
-                    results = sorted(results,
-                                key=lambda r: self._get_sortable_value(r.get(order_column, "")),
-                                reverse=(direction.upper() == "DESC"))
-                    logging.info(f"Sorted results by {order_column} {direction}")
-
-            # Apply limit if specified
-            if limit is not None and isinstance(limit, int):
-                logging.info(f"Applying LIMIT {limit} to result set of {len(results)} rows")
-                results = results[:limit]
-                logging.info(f"After LIMIT: {len(results)} rows")
-
-            # Select specific columns if requested
-            if columns != ["*"]:
-                filtered_results = []
-                for record in results:
-                    filtered_record = {col: record.get(col) for col in columns if col in record}
-                    filtered_results.append(filtered_record)
-                return filtered_results
-
-            return results
+            
+            return self._apply_column_selection_and_sorting(results, columns, order_by, limit)
+            
         except Exception as e:
             logging.error("Error querying table %s: %s", actual_table_name, str(e))
-            logging.error(traceback.format_exc())
             return []
 
     def _get_sortable_value(self, value):
@@ -779,131 +721,56 @@ class CatalogManager:
         return value
 
     def insert_record(self, table_name, record):
-        """Insert a record into a table."""
+        """Insert a record with compound key support."""
         db_name = self.get_current_database()
         if not db_name:
-            return {"error": "No database selected", "status": "error"}
+            return "No database selected"
 
         table_id = f"{db_name}.{table_name}"
-
-        # Check if table exists
         if table_id not in self.tables:
-            return {"error": f"Table '{table_name}' not found", "status": "error"}
+            return f"Table '{table_name}' not found"
 
-        # Check if record is a list and validate column count
-        if isinstance(record, list):
-            table_schema = self.tables[table_id]
-            columns_data = table_schema.get("columns", {})
-            expected_columns = len(columns_data) if isinstance(columns_data, dict) else len(columns_data)
-            if len(record) != expected_columns:
-                return {"error": f"Column count mismatch. Expected {expected_columns}, got {len(record)}", "status": "error"}
-
-        # Check if record is already mapped and clean up flag if present
-        already_mapped = record.pop("_already_mapped", False) if isinstance(record, dict) else False
-
-        # Only map if not already mapped by executor
-        if not already_mapped:
-            # Convert list to dictionary if needed
-            if isinstance(record, list):
-                table_schema = self.tables[table_id]
-                columns_data = table_schema.get("columns", {})
-                if isinstance(columns_data, dict):
-                    column_names = list(columns_data.keys())
-                else:
-                    column_names = [col.get("name", f"col_{i}") for i, col in enumerate(columns_data)]
-                
-                record = {column_names[i]: record[i] for i in range(len(record))}
-
-        # Get table schema to check constraints
         table_schema = self.tables[table_id]
-        pk_column = None
-        is_identity = False
-        identity_seed = 1
-        identity_increment = 1
-
-        # Find primary key column and check if it's an IDENTITY column
-        columns_data = table_schema.get("columns", {})
-
-        # Check the type and handle accordingly
-        if isinstance(columns_data, dict):
-            for col_name, col_info in columns_data.items():
+        
+        # Get primary key columns (compound or single)
+        compound_pk = table_schema.get("compound_primary_key")
+        if compound_pk:
+            pk_columns = compound_pk
+        else:
+            # Find single primary key column
+            pk_columns = []
+            for col_name, col_info in table_schema.get("columns", {}).items():
                 if isinstance(col_info, dict) and col_info.get("primary_key"):
-                    pk_column = col_name
-                    is_identity = col_info.get("identity", False)
-                    if is_identity:
-                        identity_seed = col_info.get("identity_seed", 1)
-                        identity_increment = col_info.get("identity_increment", 1)
-                    break
-        elif isinstance(columns_data, list):
-            for col in columns_data:
-                if isinstance(col, dict) and col.get("primary_key"):
-                    pk_column = col.get("name")
-                    is_identity = col.get("identity", False)
-                    if is_identity:
-                        identity_seed = col.get("identity_seed", 1)
-                        identity_increment = col.get("identity_increment", 1)
-                    break
+                    pk_columns.append(col_name)
 
-        logging.debug(
-            "Table %s - PK: %s, Identity: %s",
-            table_name, pk_column, is_identity
-        )
-
-        # Load the table file
-        table_file = os.path.join(
-            self.tables_dir, db_name, f"{table_name}.tbl")
-
+        # Generate record key
         try:
-            # **FIX: Load existing tree instead of creating new one**
-            tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
-            if os.path.exists(table_file):
-                tree.load_from_file(table_file)
-
-            # Handle IDENTITY columns
-            if is_identity and pk_column:
-                if pk_column not in record or record[pk_column] is None:
-                    # Get the next identity value
-                    next_id = identity_seed
-                    if tree.get_all_items():
-                        # Find the maximum existing ID
-                        max_id = 0
-                        for existing_key, existing_record in tree.get_all_items():
-                            if pk_column in existing_record:
-                                existing_id = existing_record[pk_column]
-                                if isinstance(existing_id, (int, float)) and existing_id > max_id:
-                                    max_id = int(existing_id)
-                        next_id = max_id + identity_increment
-                    
-                    record[pk_column] = next_id
-
-            # Check foreign key constraints
-            fk_violation = self._check_fk_constraints_for_insert(db_name, table_name, record)
-            if fk_violation:
-                return {"error": fk_violation, "status": "error"}
-
-            # Determine the key for insertion
-            if pk_column and pk_column in record:
-                record_key = record[pk_column]
+            if pk_columns:
+                record_key = self._generate_compound_key(record, pk_columns)
             else:
-                # Use auto-incrementing key if no primary key
-                existing_keys = [key for key, _ in tree.get_all_items()]
-                record_key = max(existing_keys, default=0) + 1
+                record_key = str(time.time() * 1000000)
+        except ValueError as e:
+            return f"Error: {str(e)}"
 
-            # Insert the record
-            tree.insert(record_key, record)
+        # Load table file and insert
+        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+        
+        try:
+            if os.path.exists(table_file):
+                tree = BPlusTreeFactory.load_from_file(table_file)
+            else:
+                tree = BPlusTreeFactory.create(order=50, name=f"{db_name}_{table_name}")
 
-            # Save the updated tree
+            # Convert compound key to numeric for B+ tree
+            numeric_key = hash(record_key) % (2**31)
+            tree.insert(float(numeric_key), record)
             tree.save_to_file(table_file)
-
-            # Update indexes
-            self._update_indexes_after_insert(db_name, table_name, record_key, record)
-
-            logging.info("Inserted record with key %s into %s", record_key, table_name)
-            return True
-
+            
+            return f"Record inserted with compound key: {record_key}"
+            
         except Exception as e:
-            logging.error("Error inserting record into %s: %s", table_name, str(e))
-            return {"error": f"Error inserting record: {str(e)}", "status": "error"}
+            logging.error(f"Error inserting record: {str(e)}")
+            return f"Error inserting record: {str(e)}"
 
     def _check_fk_constraints_for_delete(self, db_name, table_name, records_to_delete):
         """
@@ -1450,8 +1317,9 @@ class CatalogManager:
         index_type="BTREE",
         is_unique=False,
         index_name=None,
+        columns=None,  # New parameter for compound indexes
     ):
-        """Create an index on a table column."""
+        """Create an index on a table column with compound key support."""
         db_name = self.get_current_database()
         if not db_name:
             return "No database selected."
@@ -1461,7 +1329,6 @@ class CatalogManager:
             index_name = f"idx_{column_name}"
 
         table_id = f"{db_name}.{table_name}"
-        # Use index_name instead of column_name
         index_id = f"{table_id}.{index_name}"
 
         # Check if table exists
@@ -1478,32 +1345,50 @@ class CatalogManager:
             "column": column_name,
             "type": index_type,
             "unique": is_unique,
-            "name": index_name,  # Store the index name
+            "name": index_name,
+            "columns": columns or [column_name],  # Store original columns list
             "created_at": datetime.datetime.now().isoformat(),
         }
 
         # Build the index
-        table_file = os.path.join(
-            self.tables_dir, db_name, f"{table_name}.tbl")
-        index_file = os.path.join(
-            self.indexes_dir, f"{db_name}_{table_name}_{column_name}.idx"
-        )
+        table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+        index_file = os.path.join(self.indexes_dir, f"{db_name}_{table_name}_{column_name}.idx")
 
         try:
             # Load table data
             if os.path.exists(table_file):
                 table_tree = BPlusTreeFactory.load_from_file(table_file)
-                all_records = table_tree.range_query(
-                    float("-inf"), float("inf"))
+                all_records = table_tree.range_query(float("-inf"), float("inf"))
 
                 # Create index tree
                 index_tree = BPlusTreeFactory.create(
                     order=50, name=f"{table_name}_{column_name}_index"
                 )
 
-                # Populate index
+                # Populate index with compound key support
                 for record_key, record in all_records:
-                    if column_name in record:
+                    if columns and len(columns) > 1:
+                        # Compound index - create hash-based numeric key
+                        compound_key_parts = []
+                        for col in columns:
+                            if col in record:
+                                compound_key_parts.append(str(record[col]))
+                            else:
+                                compound_key_parts.append("")
+                        compound_key_str = "|".join(compound_key_parts)
+                        
+                        # Convert compound key to numeric hash for B+ tree
+                        import hashlib
+                        hash_value = int(hashlib.md5(compound_key_str.encode()).hexdigest()[:8], 16)
+                        
+                        # Store both hash and original key for retrieval
+                        index_tree.insert(hash_value, {
+                            "record_key": record_key,
+                            "compound_key": compound_key_str,
+                            "values": {col: record.get(col) for col in columns}
+                        })
+                    elif column_name in record:
+                        # Single column index
                         index_tree.insert(record[column_name], record_key)
 
                 # Save index
@@ -1513,13 +1398,57 @@ class CatalogManager:
             self._save_json(self.indexes_file, self.indexes)
 
             logging.info("Index created on %s.%s", table_name, column_name)
-            return f"Index created on {table_name}.{column_name}"
+            return True
 
         except RuntimeError as e:
             logging.error("Error creating index: %s", str(e))
             if index_id in self.indexes:
                 del self.indexes[index_id]
             return f"Error creating index: {str(e)}"
+
+    def _apply_column_selection_and_sorting(self, records, columns, order_by, limit=None):
+        """Apply column selection and sorting to query results."""
+        if not records:
+            return []
+        
+        # Apply column selection
+        if columns and columns != ["*"]:
+            filtered_records = []
+            for record in records:
+                filtered_record = {}
+                for col in columns:
+                    if col in record:
+                        filtered_record[col] = record[col]
+                    else:
+                        # Handle case where column doesn't exist
+                        filtered_record[col] = None
+                filtered_records.append(filtered_record)
+            records = filtered_records
+        
+        # Apply sorting
+        if order_by:
+            column = order_by.get("column")
+            direction = order_by.get("direction", "ASC")
+            
+            if column:
+                try:
+                    reverse_order = direction.upper() == "DESC"
+                    records.sort(
+                        key=lambda x: self._get_sortable_value(x.get(column)),
+                        reverse=reverse_order
+                    )
+                except Exception as e:
+                    logging.warning(f"Error sorting by {column}: {str(e)}")
+        
+        # Apply limit if specified
+        if limit is not None:
+            try:
+                limit_int = int(limit)
+                records = records[:limit_int]
+            except (ValueError, TypeError):
+                logging.warning(f"Invalid limit value: {limit}")
+        
+        return records
 
     def drop_index(self, table_name, index_name):
         """Drop an index from a table."""

@@ -763,23 +763,42 @@ class SQLParser:
         # Extract table details
         elif create_type == "TABLE":
             # Extract table name
-            match = re.search(r"CREATE\s+TABLE\s+(\w+)",
-                            raw_sql, re.IGNORECASE)
+            match = re.search(r"CREATE\s+TABLE\s+(\w+)", raw_sql, re.IGNORECASE)
             if match:
                 table_name = match.group(1)
 
             # Extract column definitions
             if "(" in raw_sql and ")" in raw_sql:
-                # Extract content between first ( and last )
                 columns_str = raw_sql.split("(", 1)[1].rsplit(")", 1)[0].strip()
 
-                # Split by commas, but respect nested parentheses
+                # Parse compound primary key constraints
+                compound_pk_match = re.search(
+                    r'PRIMARY\s+KEY\s*\(\s*([^)]+)\s*\)', 
+                    columns_str, 
+                    re.IGNORECASE
+                )
+                
+                compound_pk_columns = []
+                if compound_pk_match:
+                    # Extract compound primary key columns
+                    pk_cols_str = compound_pk_match.group(1)
+                    compound_pk_columns = [col.strip() for col in pk_cols_str.split(',')]
+                    
+                    # Remove the PRIMARY KEY constraint from columns_str for processing
+                    columns_str = re.sub(
+                        r',?\s*PRIMARY\s+KEY\s*\([^)]+\)', 
+                        '', 
+                        columns_str, 
+                        flags=re.IGNORECASE
+                    ).strip()
+
+                # Process individual columns
                 depth = 0
                 current = ""
-                in_string = False  # Initialize in_string variable here
+                in_string = False
 
-                for char in columns_str + ",":  # Add trailing comma to process the last item
-                    if char == "'" or char == '"':  # Toggle in_string when encountering quotes
+                for char in columns_str + ",":
+                    if char == "'" or char == '"':
                         in_string = not in_string
                         current += char
                     elif char == "(" and not in_string:
@@ -791,16 +810,23 @@ class SQLParser:
                     elif char == "," and depth == 0 and not in_string:
                         item = current.strip()
                         if item:
-                            # Check if this is a column definition or constraint
                             item_upper = item.upper()
-                            if item_upper.startswith("FOREIGN KEY") or item_upper.startswith("PRIMARY KEY") or \
-                            item_upper.startswith("UNIQUE") or item_upper.startswith("CHECK"):
-                                constraints.append(item)  # This is a constraint
+                            if item_upper.startswith("FOREIGN KEY") or \
+                            item_upper.startswith("UNIQUE") or \
+                            item_upper.startswith("CHECK"):
+                                constraints.append(item)
                             else:
-                                columns.append(item)  # This is a column definition
+                                columns.append(item)
                         current = ""
                     else:
                         current += char
+
+                # Add compound primary key as a constraint if found
+                if compound_pk_columns:
+                    constraints.append({
+                        "type": "PRIMARY_KEY",
+                        "columns": compound_pk_columns
+                    })
 
                 logging.info(f"Extracted columns: {columns}, constraints: {constraints}")
 
@@ -977,7 +1003,7 @@ class SQLParser:
         )
 
     def parse_create_index(self, sql):
-        """Parse CREATE INDEX statement"""
+        """Parse CREATE INDEX statement with compound column support."""
         logging.debug("Parsing CREATE INDEX: %s", sql)
 
         # Check for UNIQUE index
@@ -987,48 +1013,40 @@ class SQLParser:
         index_pattern = r"CREATE\s+(UNIQUE\s+)?INDEX\s+(\w+)"
         index_match = re.search(index_pattern, sql, re.IGNORECASE)
         if not index_match:
-            return {"error": "Could not parse index name"}
+            raise ValueError("Invalid CREATE INDEX syntax")
         index_name = index_match.group(2)
 
         # Extract table name
         table_pattern = r"ON\s+(\w+)"
         table_match = re.search(table_pattern, sql, re.IGNORECASE)
         if not table_match:
-            return {"error": "Could not parse table name"}
+            raise ValueError("Table name not found in CREATE INDEX")
         table_name = table_match.group(1)
 
-        # Extract column name
-        # Try both with and without parentheses
-        column_pattern = r"ON\s+\w+\s*\((\w+)\)"
-        column_match = re.search(column_pattern, sql, re.IGNORECASE)
+        # Extract columns (support compound indexes)
+        # Pattern: ON table_name (col1, col2, col3)
+        columns_pattern = r"ON\s+\w+\s*\(([^)]+)\)"
+        columns_match = re.search(columns_pattern, sql, re.IGNORECASE)
 
-        if column_match:
-            column_name = column_match.group(1)
+        columns = []
+        if columns_match:
+            columns_str = columns_match.group(1)
+            columns = [col.strip() for col in columns_str.split(',')]
         else:
-            # Try without parentheses - just the last word
-            words = sql.split()
-            if "(" in words[-1]:
-                # Handle case where there's no space: ON table(column)
-                column_name = words[-1].strip("()")
-            else:
-                # Take the last word after table name
-                remaining = sql.split(f"ON {table_name}", 1)[1].strip()
-                if remaining.startswith("("):
-                    # Handle ON table (column)
-                    column_name = remaining.strip("() ")
-                else:
-                    # Just take the next word after table name
-                    parts = remaining.split()
-                    column_name = parts[0] if parts else None
+            # Single column without parentheses
+            column_pattern = r"ON\s+\w+\s+(\w+)"
+            column_match = re.search(column_pattern, sql, re.IGNORECASE)
+            if column_match:
+                columns = [column_match.group(1)]
 
-        if not column_name:
-            return {"error": "Could not parse column name"}
+        if not columns:
+            raise ValueError("Column name(s) not found in CREATE INDEX")
 
         return {
             "type": "CREATE_INDEX",
             "index_name": index_name,
             "table": table_name,
-            "column": column_name,
+            "columns": columns,  # This is the key change - using "columns" instead of "column"
             "unique": is_unique,
         }
 

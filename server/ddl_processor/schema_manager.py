@@ -315,7 +315,7 @@ class SchemaManager:
         """Execute CREATE TABLE operation."""
         table_name = plan.get("table")
         column_strings = plan.get("columns", [])
-        # Directly get constraints from the plan. This should contain table-level constraints like FOREIGN KEY.
+        # Get constraints from the plan (including compound PRIMARY KEY)
         table_level_constraints_from_plan = plan.get("constraints", [])
 
         logging.info(f"SchemaManager: Received plan for CREATE TABLE {table_name}. Table-level constraints from plan: {table_level_constraints_from_plan}")
@@ -340,45 +340,36 @@ class SchemaManager:
             }
 
         parsed_column_definitions = []
-        # Initialize the list for catalog manager with table-level constraints from the plan
-        final_constraints_for_catalog = list(table_level_constraints_from_plan) # Make a copy
+        final_constraints_for_catalog = list(table_level_constraints_from_plan)
 
-        if table_level_constraints_from_plan:
-            logging.info(f"SchemaManager: Initialized final_constraints_for_catalog with: {final_constraints_for_catalog}")
-        else:
-            logging.info(f"SchemaManager: No table-level constraints provided in the plan for {table_name}.")
-
-        # Process column strings to define columns and extract any column-level constraints
+        # Process column strings to define columns
         for col_str in column_strings:
-            # Basic parsing of column definition (name, type, attributes)
-            # This part needs to be robust to correctly parse column definitions
-            # e.g., "id INT PRIMARY KEY", "name VARCHAR(100) NOT NULL"
-            parts = col_str.split() # Simplistic split
+            # Basic parsing of column definition
+            parts = col_str.split()
             col_name = parts[0]
             col_type = parts[1] if len(parts) > 1 else "UNKNOWN"
             
-            col_def = {"name": col_name, "type": col_type} # Store basic definition
+            col_def = {"name": col_name, "type": col_type}
 
             # Extract attributes like PRIMARY KEY, NOT NULL, UNIQUE from col_str
-            # and add them to col_def
             if "PRIMARY KEY" in col_str.upper():
                 col_def["primary_key"] = True
-                # Optionally, decide if column-level PK should also be added to final_constraints_for_catalog
-                # e.g., final_constraints_for_catalog.append(f"PRIMARY KEY ({col_name})")
             if "NOT NULL" in col_str.upper():
                 col_def["not_null"] = True
-            if "UNIQUE" in col_str.upper() and not col_str.upper().startswith("UNIQUE"): # Column-level UNIQUE
-                 col_def["unique"] = True
-                # Optionally, final_constraints_for_catalog.append(f"UNIQUE ({col_name})")
+            if "UNIQUE" in col_str.upper() and not col_str.upper().startswith("UNIQUE"):
+                col_def["unique"] = True
+            if "IDENTITY" in col_str.upper():
+                col_def["identity"] = True
 
             parsed_column_definitions.append(col_def)
 
-        # The `pending_fk_constraints` logic might be redundant if this is handled correctly.
-        # For now, we rely on `final_constraints_for_catalog` being correctly populated.
-
         try:
-            # Pass the parsed column definitions and the consolidated list of constraints
-            result = self.catalog_manager.create_table(table_name, parsed_column_definitions, final_constraints_for_catalog)
+            # Pass the parsed column definitions and constraints
+            result = self.catalog_manager.create_table(
+                table_name, 
+                parsed_column_definitions, 
+                final_constraints_for_catalog
+            )
             
             if result is True:
                 return {
@@ -388,9 +379,8 @@ class SchemaManager:
                 }
             else:
                 return {"error": str(result), "status": "error", "type": "error"}
-        except RuntimeError as e:
+        except Exception as e:
             logging.error("Error creating table: %s", str(e))
-            # ...existing code...
             return {
                 "error": f"Error creating table: {str(e)}",
                 "status": "error",
@@ -461,59 +451,50 @@ class SchemaManager:
             }
 
     def execute_create_index(self, plan):
-        """Execute CREATE INDEX operation."""
-        # Get index_name from either field
-        index_name = plan.get("index_name") or plan.get("index")
-
-        # If index_name is still None, create a default name
-        if not index_name:
-            index_name = f"idx_{plan.get('table')}_{plan.get('column')}"
-
+        """Create an index with compound column support."""
+        index_name = plan.get("index_name")
         table_name = plan.get("table")
-        column = plan.get("column")
+        
+        # Handle both old format (single column) and new format (multiple columns)
+        columns = plan.get("columns", [])
+        if not columns:
+            # Fallback to old single column format
+            single_column = plan.get("column")
+            if single_column:
+                columns = [single_column]
+        
         is_unique = plan.get("unique", False)
 
-        # Log the parameters for debugging
-        logging.info("Creating index '%s' on %s.%s", index_name, table_name, column)
+        if not index_name or not table_name or not columns:
+            return {"error": "Missing required parameters for CREATE INDEX", "status": "error"}
 
-        # Get the current database
-        db_name, error = get_current_database_or_error(self.catalog_manager)
-        if error:
-            return error
+        # Create compound index key if multiple columns
+        if len(columns) > 1:
+            column_key = "_".join(columns)
+            index_display = f"({', '.join(columns)})"
+        else:
+            column_key = columns[0]
+            index_display = columns[0]
 
-        # Verify table exists
-        tables = self.catalog_manager.list_tables(db_name)
-        if table_name not in tables:
-            return {
-                "error": f"Table '{table_name}' does not exist in database '{db_name}'",
-                "status": "error",
-                "type": "error",
-            }
-
-        # Create the index - PASS INDEX_NAME TO CATALOG MANAGER
         try:
             result = self.catalog_manager.create_index(
-                table_name,
-                column,
-                "BTREE",
-                is_unique,
-                index_name,  # Add index_name here
+                table_name=table_name,
+                column_name=column_key,  # Use compound column key
+                index_name=index_name,
+                is_unique=is_unique,
+                columns=columns  # Pass original columns list
             )
-            if isinstance(result, str) and "already exists" in result:
-                return {"error": result, "status": "error", "type": "error"}
+            
+            if result is True:
+                return {
+                    "message": f"Index '{index_name}' created on {table_name}{index_display}",
+                    "status": "success"
+                }
+            else:
+                return {"error": str(result), "status": "error"}
 
-            return {
-                "message": f"Index '{index_name}' created on '{table_name}.{column}'",
-                "status": "success",
-                "type": "create_index_result",
-            }
-        except RuntimeError as e:
-            logging.error("Error creating index: %s", str(e))
-            return {
-                "error": f"Error creating index: {str(e)}",
-                "status": "error",
-                "type": "error",
-            }
+        except Exception as e:
+            return {"error": f"Failed to create index: {str(e)}", "status": "error"}
 
     def execute_drop_index(self, plan):
         """Drop an index on a table column"""

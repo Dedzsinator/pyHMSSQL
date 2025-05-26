@@ -395,14 +395,22 @@ class Planner:
 
         index_name = parsed_query.get("index_name")
         table_name = parsed_query.get("table")
-        column_name = parsed_query.get("column")
+        
+        # Handle both old format (single column) and new format (multiple columns)
+        columns = parsed_query.get("columns", [])
+        if not columns:
+            # Fallback to old single column format
+            single_column = parsed_query.get("column")
+            if single_column:
+                columns = [single_column]
+        
         is_unique = parsed_query.get("unique", False)
 
         return {
             "type": "CREATE_INDEX",
             "index_name": index_name,
             "table": table_name,
-            "column": column_name,
+            "columns": columns,  # Use the new columns format
             "unique": is_unique,
         }
 

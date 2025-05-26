@@ -66,7 +66,7 @@ class ExecutionEngine:
         # Get the database name after confirming it exists
         db_name = self.catalog_manager.get_current_database()
 
-        # Handle case sensitivity for table names
+        # Handle case sensitivity for table names - PRESERVE ORIGINAL CASE
         tables = self.catalog_manager.list_tables(db_name)
         case_corrected_table = None
 
@@ -74,10 +74,10 @@ class ExecutionEngine:
         if table_name in tables:
             case_corrected_table = table_name
         else:
-            # Try case-insensitive match
+            # Try case-insensitive match but preserve database case
             for db_table in tables:
                 if db_table.lower() == table_name.lower():
-                    case_corrected_table = db_table
+                    case_corrected_table = db_table  # Use database case, not uppercase
                     break
 
         # Verify the table exists
@@ -487,7 +487,7 @@ class ExecutionEngine:
             elif plan_type == "DELETE":
                 result = self.dml_executor.execute_delete(plan)
             elif plan_type == "CREATE_TABLE":
-                result = self.schema_manager.create_table(plan)
+                result = self.schema_manager.execute_create_table(plan)
             elif plan_type == "DROP_TABLE":
                 result = self.schema_manager.drop_table(plan)
             elif plan_type == "CREATE_DATABASE":

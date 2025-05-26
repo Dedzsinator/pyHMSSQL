@@ -352,6 +352,26 @@ SELECT * FROM orders WHERE customer_id = 1234;
 CACHE STATS
 ---
 
+-- Create table with compound primary key
+query CREATE TABLE order_items (
+    order_id INT,
+    product_id INT,
+    quantity INT,
+    price DECIMAL(10,2),
+    PRIMARY KEY (order_id, product_id)
+);
+
+-- Insert records
+query INSERT INTO order_items (order_id, product_id, quantity, price) 
+VALUES (1, 101, 2, 19.99), (1, 102, 1, 29.99), (2, 101, 3, 19.99);
+
+-- Create compound index
+query CREATE INDEX idx_order_product ON order_items (order_id, product_id);
+
+query CREATE UNIQUE INDEX idx_customer_email ON customers (company_id, email);
+
+query SELECT * FROM order_items WHERE order_id = 1 AND product_id = 101;
+
 query DROP INDEX name ON customers ✅
 
 -- Use the test database
