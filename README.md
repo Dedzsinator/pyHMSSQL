@@ -461,11 +461,11 @@ query DELETE FROM customers WHERE id = 4 ✅
 query DELETE FROM customers ✅
 
 -- Insert test data
-query INSERT INTO customers (id, name, email, age) VALUES (5, 'Gipsz Jakab', 'gipsz@example.com', 50)
-query INSERT INTO customers (id, name, email, age) VALUES (2, 'Jane Smith', 'jane@example.com', 25)
-query INSERT INTO customers (id, name, email, age) VALUES (3, 'Bob Johnson', 'bob@example.com', 45)
-query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'alice@example.com', 35)
-query INSERT INTO customers (id, name, email, age) VALUES (5, 'Test Test', 'test@example.com', 50)
+query INSERT INTO customers (id, name, email, age) VALUES (5, 'Gipsz Jakab', 'gipsz@example.com', 50);
+query INSERT INTO customers (id, name, email, age) VALUES (2, 'Jane Smith', 'jane@example.com', 25);
+query INSERT INTO customers (id, name, email, age) VALUES (3, 'Bob Johnson', 'bob@example.com', 45);
+query INSERT INTO customers (id, name, email, age) VALUES (4, 'Alice Brown', 'alice@example.com', 35);
+query INSERT INTO customers (id, name, email, age) VALUES (5, 'Test Test', 'test@example.com', 50);
 
 -- AVG function
 query SELECT AVG(age) FROM customers ✅
@@ -520,11 +520,11 @@ query INSERT INTO departments (id, name) VALUES (1, 'Engineering')
 query INSERT INTO departments (id, name) VALUES (2, 'Marketing')
 query INSERT INTO departments (id, name) VALUES (3, 'Finance')
 
-query INSERT INTO employees (id, name, dept_id, salary) VALUES (1, 'Alice', 1, 75000)
-query INSERT INTO employees (id, name, dept_id, salary) VALUES (2, 'Bob', 1, 70000)
-query INSERT INTO employees (id, name, dept_id, salary) VALUES (3, 'Charlie', 2, 65000)
-query INSERT INTO employees (id, name, dept_id, salary) VALUES (4, 'Dave', 2, 68000)
-query INSERT INTO employees (id, name, dept_id, salary) VALUES (5, 'Eve', 3, 78000)
+query INSERT INTO employees (id, name, dept_id, salary) VALUES (1, 'Alice', 1, 75000);
+query INSERT INTO employees (id, name, dept_id, salary) VALUES (2, 'Bob', 1, 70000);
+query INSERT INTO employees (id, name, dept_id, salary) VALUES (3, 'Charlie', 2, 65000);
+query INSERT INTO employees (id, name, dept_id, salary) VALUES (4, 'Dave', 2, 68000);
+query INSERT INTO employees (id, name, dept_id, salary) VALUES (5, 'Eve', 3, 78000);
 
 --- testing FK Constraints
 
@@ -646,11 +646,10 @@ query SHOW INDEXES FOR employees
 query SELECT e.name, d.name, e.salary FROM employees e JOIN departments d ON e.dept_id = d.id WHERE e.salary > 65000 ORDER BY e.salary DESC LIMIT 3
 
 -- Query with aggregation and grouping
-query SELECT dept_id, AVG(salary) as avg_salary, COUNT(*) as emp_count FROM employees GROUP BY dept_id
+query SELECT dept_id, AVG (salary) as avg_salary, COUNT(*) as emp_count FROM employees GROUP BY dept_id
 
 -- Nested subqueries
-query SELECT * FROM employees
-WHERE salary > (SELECT AVG(salary) FROM employees)
+query SELECT * FROM employees WHERE salary > (SELECT AVG(salary) FROM employees)
 
 ---
 -- index tests ✅
@@ -747,7 +746,7 @@ pyHMSSQL follows a modular architecture with clear separation of concerns:
 
 -Client Layer: Handles user interaction through CLI or GUI
 -Server Layer: Processes requests and manages database operations
--Storage Layer: Persists data and metadata using MongoDB
+-Storage Layer: Persists data and metadata using MongoDBMongoDB
 -Index Layer: Optimizes data retrieval using B+ trees
 
 For more details, see ARCHITECTURE.md.

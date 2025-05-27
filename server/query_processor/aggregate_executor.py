@@ -21,80 +21,128 @@ class AggregateExecutor:
     def __init__(self, catalog_manager):
         self.catalog_manager = catalog_manager
 
-    def _execute_count(self, result, actual_column, column):
+    def _execute_avg(self, records, actual_column, original_column):
+        """Execute AVG aggregate function with better error handling."""
+        if not actual_column:
+            raise ValueError(f"Column '{original_column}' not found")
+        
+        # Get numeric values from the column
+        values = []
+        for record in records:
+            if isinstance(record, dict) and actual_column in record:
+                value = record[actual_column]
+                if value is not None:
+                    try:
+                        # Convert to numeric
+                        if isinstance(value, str):
+                            value = float(value) if '.' in value else int(value)
+                        values.append(float(value))
+                    except (ValueError, TypeError):
+                        # Skip non-numeric values
+                        continue
+        
+        if not values:
+            return {
+                "columns": [f"AVG({original_column})"],
+                "rows": [[None]],
+                "status": "success"
+            }
+        
+        avg_value = sum(values) / len(values)
+        
+        return {
+            "columns": [f"AVG({original_column})"],
+            "rows": [[avg_value]],
+            "status": "success"
+        }
+
+    def _execute_count(self, records, actual_column, original_column):
         """Execute COUNT aggregate function."""
-        if column == "*":
-            return len(result)
+        if original_column == "*":
+            count = len(records)
         else:
             if not actual_column:
-                raise ValueError(f"Column '{column}' not found")
-            return sum(
-                1
-                for record in result
-                if actual_column in record and record[actual_column] is not None
-            )
+                raise ValueError(f"Column '{original_column}' not found")
+            
+            count = 0
+            for record in records:
+                if isinstance(record, dict) and actual_column in record and record[actual_column] is not None:
+                    count += 1
+        
+        return {
+            "columns": [f"COUNT({original_column})"],
+            "rows": [[count]],
+            "status": "success"
+        }
 
-    def _execute_sum(self, result, actual_column, column):
+    def _execute_sum(self, records, actual_column, original_column):
         """Execute SUM aggregate function."""
-        if column == "*":
-            raise ValueError("Cannot use SUM with *")
         if not actual_column:
-            raise ValueError(f"Column '{column}' not found")
-
+            raise ValueError(f"Column '{original_column}' not found")
+        
         total = 0
-        count = 0
-        for record in result:
-            if actual_column in record and record[actual_column] is not None:
-                try:
-                    total += float(record[actual_column])
-                    count += 1
-                except (ValueError, TypeError):
-                    pass  # Skip non-numeric values
-        return total if count > 0 else None
+        for record in records:
+            if isinstance(record, dict) and actual_column in record:
+                value = record[actual_column]
+                if value is not None:
+                    try:
+                        if isinstance(value, str):
+                            value = float(value) if '.' in value else int(value)
+                        total += float(value)
+                    except (ValueError, TypeError):
+                        continue
+        
+        return {
+            "columns": [f"SUM({original_column})"],
+            "rows": [[total]],
+            "status": "success"
+        }
 
-    def _execute_avg(self, result, actual_column, column):
-        """Execute AVG aggregate function."""
-        if column == "*":
-            raise ValueError("Cannot use AVG with *")
-        if not actual_column:
-            raise ValueError(f"Column '{column}' not found")
-
-        total = 0
-        count = 0
-        for record in result:
-            if actual_column in record and record[actual_column] is not None:
-                try:
-                    total += float(record[actual_column])
-                    count += 1
-                except (ValueError, TypeError):
-                    pass  # Skip non-numeric values
-        return (total / count) if count > 0 else None
-
-    def _execute_min(self, result, actual_column, column):
+    def _execute_min(self, records, actual_column, original_column):
         """Execute MIN aggregate function."""
-        if column == "*":
-            raise ValueError("Cannot use MIN with *")
         if not actual_column:
-            raise ValueError(f"Column '{column}' not found")
-
+            raise ValueError(f"Column '{original_column}' not found")
+        
         values = []
-        for record in result:
-            if actual_column in record and record[actual_column] is not None:
-                values.append(record[actual_column])
-        return min(values) if values else None
+        for record in records:
+            if isinstance(record, dict) and actual_column in record:
+                value = record[actual_column]
+                if value is not None:
+                    values.append(value)
+        
+        if not values:
+            min_value = None
+        else:
+            min_value = min(values)
+        
+        return {
+            "columns": [f"MIN({original_column})"],
+            "rows": [[min_value]],
+            "status": "success"
+        }
 
-    def _execute_max(self, result, actual_column, column):
+    def _execute_max(self, records, actual_column, original_column):
         """Execute MAX aggregate function."""
-        if column == "*":
-            raise ValueError("Cannot use MAX with *")
         if not actual_column:
-            raise ValueError(f"Column '{column}' not found")
-
+            raise ValueError(f"Column '{original_column}' not found")
+        
         values = []
-        for record in result:
-            if actual_column in record and record[actual_column] is not None:
-                values.append(record[actual_column])
-        return max(values) if values else None
+        for record in records:
+            if isinstance(record, dict) and actual_column in record:
+                value = record[actual_column]
+                if value is not None:
+                    values.append(value)
+        
+        if not values:
+            max_value = None
+        else:
+            max_value = max(values)
+        
+        return {
+            "columns": [f"MAX({original_column})"],
+            "rows": [[max_value]],
+            "status": "success"
+        }
 
     def _execute_rand(self, result, param_str):
         """Execute RAND aggregate function."""
@@ -188,146 +236,100 @@ class AggregateExecutor:
         return gcd_result
 
     def execute_aggregate(self, plan):
-        """Execute an aggregation function (COUNT, SUM, AVG, MIN, MAX, RAND, GCD)."""
-        logging.info("===== AGGREGATE FUNCTION CALLED =====")
-        logging.info("Plan: %s", plan)
-        logging.info("Function: %s", plan.get('function'))
-        logging.info("Column: %s", plan.get('column'))
-        logging.info("Table: %s",plan.get('table'))
-        logging.info("Condition: %s", plan.get('condition'))
-        logging.info("Top: %s", plan.get('top'))
-        logging.info("Limit: %s", plan.get('limit'))
-
-        function = plan.get("function", "").upper()
+        """Execute aggregate functions with improved table name handling."""
+        function = plan.get("function")
         column = plan.get("column")
         table_name = plan.get("table")
         condition = plan.get("condition")
-
-        # Handle TOP and LIMIT parameters
-        top_n = plan.get("top")
+        top = plan.get("top")
         limit = plan.get("limit")
-        if top_n is not None:
-            try:
-                top_n = int(top_n)
-                logging.info("TOP %s specified for aggregate", top_n)
-            except (ValueError, TypeError):
-                top_n = None
 
-        if limit is not None:
-            try:
-                limit = int(limit)
-                logging.info("LIMIT %s specified for aggregate", limit)
-            except (ValueError, TypeError):
-                limit = None
+        logging.info("===== AGGREGATE FUNCTION CALLED =====")
+        logging.info("Plan: %s", plan)
+        logging.info("Function: %s", function)
+        logging.info("Column: %s", column)
+        logging.info("Table: %s", table_name)
+        logging.info("Condition: %s", condition)
+        logging.info("Top: %s", top)
+        logging.info("Limit: %s", limit)
 
-        # Get raw data using catalog manager
+        # CRITICAL FIX: Handle case-insensitive table name lookup
+        db_name = self.catalog_manager.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error"}
+
+        # Get actual table name with correct case
+        tables = self.catalog_manager.list_tables(db_name)
+        actual_table_name = None
+        
+        # Try exact match first
+        if table_name in tables:
+            actual_table_name = table_name
+        else:
+            # Try case-insensitive match
+            for db_table in tables:
+                if db_table.lower() == table_name.lower():
+                    actual_table_name = db_table
+                    break
+        
+        if not actual_table_name:
+            logging.error("Table '%s' not found in database '%s'", table_name, db_name)
+            return {"error": f"Table '{table_name}' not found", "status": "error"}
+
+        # Use the corrected table name for querying
         try:
-            # Parse and apply conditions
-            conditions = (
-                ConditionParser.parse_condition_to_list(
-                    condition) if condition else []
-            )
             result = self.catalog_manager.query_with_condition(
-                table_name, conditions, ["*"]
+                actual_table_name, [], ["*"]
             )
-            logging.info(
-                "Queried %s records from %s",
-                len(result) if result else 0, table_name
-            )
+            logging.info("Queried %d records from %s", len(result), actual_table_name)
+        except Exception as e:
+            logging.error("Error querying table %s: %s", actual_table_name, str(e))
+            return {"error": f"Error querying table: {str(e)}", "status": "error"}
 
-            # Apply TOP/LIMIT to the raw data before aggregation if appropriate
-            # For most aggregates, we need to aggregate all data first, then limit the results
-            # But some functions like RAND may benefit from limiting data first
-            if function == "RAND" and top_n is not None and top_n > 0 and result:
-                result = result[:top_n]
-                logging.info("Applied TOP %s to raw data for RAND function", top_n)
-            elif function == "RAND" and limit is not None and limit > 0 and result:
-                result = result[:limit]
-                logging.info("Applied LIMIT %s to raw data for RAND function", limit)
-
-        except RuntimeError as e:
-            logging.error("Error querying data: %s", str(e))
+        if not result:
+            logging.warning("No records found in table %s", actual_table_name)
             return {
-                "error": f"Error querying data: {str(e)}",
-                "status": "error",
-                "type": "error",
+                "columns": [f"{function}({column})"],
+                "rows": [[0 if function == "COUNT" else None]],
+                "status": "success"
             }
 
-        try:
-            # Find the actual column name with original case
-            actual_column = None
-            if column != "*" and result and len(result) > 0:
-                for col in result[0]:
-                    if col.lower() == column.lower():
-                        actual_column = col
+        # Get the actual column name from the first record
+        actual_column = None
+        if result and isinstance(result[0], dict):
+            # Try exact match first
+            if column in result[0]:
+                actual_column = column
+            else:
+                # Try case-insensitive match
+                for record_col in result[0].keys():
+                    if record_col.lower() == column.lower():
+                        actual_column = record_col
                         break
 
-                if not actual_column and function not in ["COUNT"]:
-                    logging.warning(
-                        "Column '%s' not found in table %s, available columns: %s",
-                        column, table_name, list(result[0].keys())
-                    )
+        logging.info("Using actual column name: '%s' for function %s(%s)", actual_column, function, column)
 
-            logging.info(
-                "Using actual column name: '%s' for function %s(%s)",
-                actual_column, function, column
-            )
-
-            # Dispatch to appropriate function handler
-            if function == "COUNT":
-                aggregate_result = self._execute_count(
-                    result, actual_column, column)
+        # Execute the appropriate aggregate function
+        try:
+            if function == "AVG":
+                aggregate_result = self._execute_avg(result, actual_column, column)
+            elif function == "COUNT":
+                aggregate_result = self._execute_count(result, actual_column, column)
             elif function == "SUM":
-                aggregate_result = self._execute_sum(
-                    result, actual_column, column)
-            elif function == "AVG":
-                aggregate_result = self._execute_avg(
-                    result, actual_column, column)
+                aggregate_result = self._execute_sum(result, actual_column, column)
             elif function == "MIN":
-                aggregate_result = self._execute_min(
-                    result, actual_column, column)
+                aggregate_result = self._execute_min(result, actual_column, column)
             elif function == "MAX":
-                aggregate_result = self._execute_max(
-                    result, actual_column, column)
+                aggregate_result = self._execute_max(result, actual_column, column)
             elif function == "RAND":
-                aggregate_result = self._execute_rand(result, column)
+                aggregate_result = self._execute_rand(result, actual_column, column, top, limit)
             elif function == "GCD":
-                aggregate_result = self._execute_gcd(
-                    result, actual_column, column)
+                aggregate_result = self._execute_gcd(result, actual_column, column)
             else:
-                return {
-                    "error": f"Unsupported aggregation function: {function}",
-                    "status": "error",
-                    "type": "error",
-                }
+                return {"error": f"Unsupported aggregate function: {function}", "status": "error"}
 
-            # Format result column name and value
-            result_column = f"{function}({column})"
-            if aggregate_result is None:
-                display_value = "NULL"
-            elif isinstance(aggregate_result, float):
-                display_value = f"{aggregate_result:.2f}"
-            else:
-                display_value = str(aggregate_result)
+            return aggregate_result
 
-            logging.info("Aggregate result: %s(%s) = %s",
-                function, column, display_value
-            )
-
-            # Return in the standard result format
-            return {
-                "columns": [result_column],
-                "rows": [[display_value]],
-                "status": "success",
-                "type": "select_result",
-                "rowCount": 1,
-            }
-
-        except RuntimeError as e:
-            logging.error("Error executing aggregate: %s", str(e))
-            logging.error(traceback.format_exc())
-            return {
-                "error": f"Error executing aggregate {function}: {str(e)}",
-                "status": "error",
-                "type": "error",
-            }
+        except Exception as e:
+            logging.error("Error executing aggregate function: %s", str(e))
+            return {"error": f"Error executing aggregate: {str(e)}", "status": "error"}

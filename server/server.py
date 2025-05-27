@@ -178,25 +178,23 @@ class DBMSServer:
         try:
             timestamp = datetime.datetime.now().isoformat()
             
-            # FIX: Create proper dictionary structure
-            if isinstance(query, str):
-                log_entry = {
-                    "timestamp": timestamp,
-                    "username": username, 
-                    "query": query
-                }
+            # FIX: Create proper dictionary structure - ensure query is always a string
+            if isinstance(query, dict):
+                query_str = query.get('query', str(query))
             else:
-                # Handle case where query might be a dict already
-                log_entry = {
-                    "timestamp": timestamp,
-                    "username": username, 
-                    "query": str(query)
-                }
+                query_str = str(query)
+                
+            log_entry = {
+                "timestamp": timestamp,
+                "username": username, 
+                "query": query_str
+            }
 
             # Log to the audit log file
             logs_dir = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), "../logs"
             )
+            os.makedirs(logs_dir, exist_ok=True)
             audit_log_file = os.path.join(logs_dir, "query_audit.log")
 
             with open(audit_log_file, "a", encoding="utf-8") as f:

@@ -239,6 +239,7 @@ class SQLParser:
         join_type = None
         join_condition = None
         distinct = False
+        
 
         # Get original SQL to preserve case for column names
         original_sql = str(parsed)

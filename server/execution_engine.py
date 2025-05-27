@@ -564,6 +564,175 @@ class ExecutionEngine:
             return record_value in value if isinstance(value, list) else False
 
         return False
+    
+    def execute_aggregate_with_groupby(self, plan):
+        """Execute an aggregate query with GROUP BY clause."""
+        table_name = plan.get("table")
+        group_by_columns = plan.get("group_by", [])
+        aggregate_columns = plan.get("columns", [])
+        condition = plan.get("condition")
+
+        error = check_database_selected(self.catalog_manager)
+        if error:
+            return error
+
+        db_name = self.catalog_manager.get_current_database()
+
+        # Handle case sensitivity for table names
+        tables = self.catalog_manager.list_tables(db_name)
+        case_corrected_table = None
+
+        if table_name in tables:
+            case_corrected_table = table_name
+        else:
+            for db_table in tables:
+                if db_table.lower() == table_name.lower():
+                    case_corrected_table = db_table
+                    break
+
+        if not case_corrected_table:
+            return {"error": f"Table '{table_name}' does not exist", "status": "error"}
+
+        # Get all records from the table
+        try:
+            all_records = self.catalog_manager.query_with_condition(
+                case_corrected_table, [], ["*"]
+            )
+        except Exception as e:
+            return {"error": f"Error querying table: {str(e)}", "status": "error"}
+
+        if not all_records:
+            return {"columns": [], "rows": [], "status": "success"}
+
+        # Apply WHERE condition if present
+        if condition:
+            parsed_conditions = self.catalog_manager._parse_conditions(condition)
+            filtered_records = []
+            for record in all_records:
+                if self.catalog_manager._record_matches_conditions(record, parsed_conditions):
+                    filtered_records.append(record)
+            all_records = filtered_records
+
+        # Group records by the GROUP BY columns
+        groups = {}
+        for record in all_records:
+            # Create group key from GROUP BY columns
+            group_key_parts = []
+            for col in group_by_columns:
+                if col in record:
+                    group_key_parts.append(str(record[col]))
+                else:
+                    group_key_parts.append('NULL')
+            
+            group_key = '|'.join(group_key_parts)
+            
+            if group_key not in groups:
+                groups[group_key] = []
+            groups[group_key].append(record)
+
+        # Process aggregate functions for each group
+        result_columns = []
+        result_rows = []
+
+        # Build column names for result
+        for col in group_by_columns:
+            result_columns.append(col)
+        
+        for agg_col in aggregate_columns:
+            if agg_col not in group_by_columns:
+                # Parse aggregate function and alias
+                if ' as ' in agg_col.lower():
+                    _, alias = agg_col.lower().split(' as ', 1)
+                    result_columns.append(alias.strip())
+                else:
+                    result_columns.append(agg_col)
+
+        # Calculate aggregates for each group
+        for group_key, group_records in groups.items():
+            row = []
+            
+            # Add GROUP BY column values
+            group_values = group_key.split('|')
+            for i, col in enumerate(group_by_columns):
+                if i < len(group_values) and group_values[i] != 'NULL':
+                    # Try to convert back to original type
+                    val = group_values[i]
+                    try:
+                        if '.' in val:
+                            val = float(val)
+                        else:
+                            val = int(val)
+                    except ValueError:
+                        pass  # Keep as string
+                    row.append(val)
+                else:
+                    row.append(None)
+            
+            # Calculate aggregate values
+            for agg_col in aggregate_columns:
+                if agg_col in group_by_columns:
+                    continue  # Already added above
+                    
+                # Parse the aggregate function
+                agg_value = self._calculate_group_aggregate(agg_col, group_records)
+                row.append(agg_value)
+            
+            result_rows.append(row)
+
+        return {
+            "columns": result_columns,
+            "rows": result_rows,
+            "status": "success",
+            "type": "aggregate_result",
+            "rowCount": len(result_rows)
+        }
+
+    def _calculate_group_aggregate(self, agg_expression, records):
+        """Calculate aggregate value for a group of records."""
+        import re
+        
+        # Parse aggregate function: FUNC(column) [as alias]
+        agg_match = re.match(r'(\w+)\s*\(\s*([^)]+)\s*\)(?:\s+as\s+\w+)?', agg_expression.strip(), re.IGNORECASE)
+        if not agg_match:
+            return None
+        
+        func_name = agg_match.group(1).upper()
+        column_expr = agg_match.group(2).strip()
+        
+        # Handle special cases
+        if column_expr == '*':
+            if func_name == 'COUNT':
+                return len(records)
+            else:
+                return None
+        
+        # Get values from the specified column
+        values = []
+        for record in records:
+            if column_expr in record and record[column_expr] is not None:
+                try:
+                    val = float(record[column_expr])
+                    values.append(val)
+                except (ValueError, TypeError):
+                    if func_name == 'COUNT':
+                        values.append(1)  # Count non-null values
+        
+        if not values:
+            return 0 if func_name == 'COUNT' else None
+        
+        # Calculate aggregate
+        if func_name == 'COUNT':
+            return len(values)
+        elif func_name == 'SUM':
+            return sum(values)
+        elif func_name == 'AVG':
+            return sum(values) / len(values)
+        elif func_name == 'MIN':
+            return min(values)
+        elif func_name == 'MAX':
+            return max(values)
+        else:
+            return None
 
     def execute(self, plan):
         """Execute the query plan by dispatching to appropriate module."""
@@ -581,6 +750,9 @@ class ExecutionEngine:
                 return self.select_executor.execute_select(plan)
             elif plan_type == "INSERT":
                 return self.dml_executor.execute_insert(plan)
+            elif plan_type == "SHOW":
+                # FIX: Use schema_manager instead of catalog_manager for SHOW commands
+                return self.schema_manager.execute_show(plan)
             elif plan_type == "UPDATE":
                 return self.dml_executor.execute_update(plan)
             elif plan_type == "DELETE":
@@ -609,6 +781,8 @@ class ExecutionEngine:
                 return self.join_executor.execute_join(plan)
             elif plan_type == "AGGREGATE":
                 return self.aggregate_executor.execute_aggregate(plan)
+            elif plan_type == "AGGREGATE_GROUP":
+                return self.execute_aggregate_with_groupby(plan)
             elif plan_type == "DISTINCT":
                 return self.execute_distinct(plan)
             elif plan_type in ["UNION", "INTERSECT", "EXCEPT"]:

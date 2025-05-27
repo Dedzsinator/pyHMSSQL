@@ -474,34 +474,37 @@ class Planner:
         # Get the first column which should contain the aggregate function
         columns = parsed_query.get("columns", [])
         if not columns:
-            return self.plan_select(parsed_query)  # Fallback to regular select
+            raise ValueError("No columns found for aggregate query")
 
         col_str = str(columns[0])
 
-        # Check for common aggregate functions with simple string operations
+        # Check for common aggregate functions with improved regex
         for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD"]:
-            if col_str.upper().startswith(f"{func_name}("):
-                # Extract column name between parentheses
-                col_name = col_str[len(func_name) + 1:].rstrip(")")
-
-                # Find the table
+            # Improved regex to properly extract just the column name
+            pattern = rf"{func_name}\s*\(\s*([^)]+)\s*\)"
+            match = re.search(pattern, col_str, re.IGNORECASE)
+            if match:
+                column_part = match.group(1).strip()
+                
+                # Handle special case for COUNT(*)
+                if column_part == "*":
+                    column_part = "*"
+                
+                logging.error(f"Direct match! Creating AGGREGATE plan for {func_name}({column_part})")
+                
+                # Get table from parsed query
                 tables = parsed_query.get("tables", [])
                 table = tables[0] if tables else None
-
-                # Get condition
-                condition = parsed_query.get("condition")
-
-                logging.error(
-                    "Creating AGGREGATE plan: %s(%s) on %s", func_name, col_name, table
-                )
-
-                # Return the aggregate plan
+                
                 return {
                     "type": "AGGREGATE",
                     "function": func_name,
-                    "column": col_name,
+                    "column": column_part,  # Use just the column name, not the full expression
                     "table": table,
-                    "condition": condition,
+                    "condition": parsed_query.get("condition"),
+                    "top": parsed_query.get("top"),
+                    "limit": parsed_query.get("limit"),
+                    "no_cache": True,
                 }
 
         # If we get here, there's no valid aggregate function
@@ -519,6 +522,22 @@ class Planner:
 
         # Extract condition (WHERE clause)
         condition = parsed_query.get("condition")
+
+        group_by = parsed_query.get("group_by")
+    
+        # Check if this is a GROUP BY query with aggregates
+        if group_by:
+            return {
+                "type": "AGGREGATE_GROUP",
+                "table": table,
+                "columns": columns,
+                "group_by": group_by,
+                "condition": condition,
+                "order_by": order_by,
+                "limit": limit,
+                "tables": tables,
+                "operation": "AGGREGATE_GROUP"
+            }
 
         # Extract and fix ORDER BY clause
         order_by = parsed_query.get("order_by")
