@@ -2258,6 +2258,24 @@ static CYTHON_INLINE int __Pyx_PyList_Append(PyObject* list, PyObject* x) {
 #define __Pyx_PyList_Append(L,x) PyList_Append(L,x)
 #endif
 
+/* PyObjectGetMethod.proto */
+static int __Pyx_PyObject_GetMethod(PyObject *obj, PyObject *name, PyObject **method);
+
+/* PyObjectCallMethod1.proto */
+static PyObject* __Pyx_PyObject_CallMethod1(PyObject* obj, PyObject* method_name, PyObject* arg);
+
+/* append.proto */
+static CYTHON_INLINE int __Pyx_PyObject_Append(PyObject* L, PyObject* x);
+
+/* PyObjectSetAttrStr.proto */
+#if CYTHON_USE_TYPE_SLOTS
+#define __Pyx_PyObject_DelAttrStr(o,n) __Pyx_PyObject_SetAttrStr(o, n, NULL)
+static CYTHON_INLINE int __Pyx_PyObject_SetAttrStr(PyObject* obj, PyObject* attr_name, PyObject* value);
+#else
+#define __Pyx_PyObject_DelAttrStr(o,n)   PyObject_DelAttr(o,n)
+#define __Pyx_PyObject_SetAttrStr(o,n,v) PyObject_SetAttr(o,n,v)
+#endif
+
 /* PyObjectLookupSpecial.proto */
 #if CYTHON_USE_PYTYPE_LOOKUP && CYTHON_USE_TYPE_SLOTS
 #define __Pyx_PyObject_LookupSpecialNoError(obj, attr_name)  __Pyx__PyObject_LookupSpecial(obj, attr_name, 0)
@@ -2390,9 +2408,6 @@ static CYTHON_INLINE int __Pyx_fix_up_extension_type_from_spec(PyType_Spec *spec
 
 /* PyObjectCallNoArg.proto */
 static CYTHON_INLINE PyObject* __Pyx_PyObject_CallNoArg(PyObject *func);
-
-/* PyObjectGetMethod.proto */
-static int __Pyx_PyObject_GetMethod(PyObject *obj, PyObject *name, PyObject **method);
 
 /* PyObjectCallMethod0.proto */
 static PyObject* __Pyx_PyObject_CallMethod0(PyObject* obj, PyObject* method_name);
@@ -2792,6 +2807,7 @@ static const char __pyx_k_slots[] = "__slots__";
 static const char __pyx_k_start[] = "start";
 static const char __pyx_k_state[] = "state";
 static const char __pyx_k_value[] = "value";
+static const char __pyx_k_append[] = "append";
 static const char __pyx_k_dict_2[] = "_dict";
 static const char __pyx_k_enable[] = "enable";
 static const char __pyx_k_insert[] = "insert";
@@ -2845,6 +2861,7 @@ static const char __pyx_k_pyx_result[] = "__pyx_result";
 static const char __pyx_k_pyx_vtable[] = "__pyx_vtable__";
 static const char __pyx_k_result_ptr[] = "result_ptr";
 static const char __pyx_k_with_order[] = "' with order ";
+static const char __pyx_k_with_value[] = " with value ";
 static const char __pyx_k_MemoryError[] = "MemoryError";
 static const char __pyx_k_PickleError[] = "PickleError";
 static const char __pyx_k_ValueHolder[] = "ValueHolder";
@@ -2856,6 +2873,7 @@ static const char __pyx_k_to_split_at[] = ") to split at ";
 static const char __pyx_k_value_store[] = "value_store";
 static const char __pyx_k_RuntimeError[] = "RuntimeError";
 static const char __pyx_k_current_leaf[] = "current_leaf";
+static const char __pyx_k_existing_ptr[] = "existing_ptr";
 static const char __pyx_k_in_leaf_node[] = " in leaf node";
 static const char __pyx_k_initializing[] = "_initializing";
 static const char __pyx_k_isEnabledFor[] = "isEnabledFor";
@@ -2871,6 +2889,7 @@ static const char __pyx_k_next_value_id[] = "next_value_id";
 static const char __pyx_k_reduce_cython[] = "__reduce_cython__";
 static const char __pyx_k_Error_Position[] = "] Error: Position ";
 static const char __pyx_k_load_from_file[] = "load_from_file";
+static const char __pyx_k_existing_holder[] = "existing_holder";
 static const char __pyx_k_pyx_PickleError[] = "__pyx_PickleError";
 static const char __pyx_k_setstate_cython[] = "__setstate_cython__";
 static const char __pyx_k_Invalid_max_keys[] = "Invalid max_keys ";
@@ -2881,6 +2900,7 @@ static const char __pyx_k_using_default_50[] = ", using default 50";
 static const char __pyx_k_using_default_99[] = ", using default 99";
 static const char __pyx_k_Child_at_position[] = "] Child at position ";
 static const char __pyx_k_Invalid_key_index[] = "] Invalid key index ";
+static const char __pyx_k_insert_non_unique[] = "insert_non_unique";
 static const char __pyx_k_operation_counter[] = "operation_counter";
 static const char __pyx_k_BPlusTreeOptimized[] = "BPlusTreeOptimized";
 static const char __pyx_k_asyncio_coroutines[] = "asyncio.coroutines";
@@ -2888,6 +2908,7 @@ static const char __pyx_k_cline_in_traceback[] = "cline_in_traceback";
 static const char __pyx_k_simple_range_query[] = "_simple_range_query";
 static const char __pyx_k_Error_Invalid_index[] = "] Error: Invalid index ";
 static const char __pyx_k_for_split_operation[] = " for split operation";
+static const char __pyx_k_insert_single_value[] = "_insert_single_value";
 static const char __pyx_k_Error_Child_at_index[] = "] Error: Child at index ";
 static const char __pyx_k_Invalid_B_tree_order[] = "Invalid B+ tree order ";
 static const char __pyx_k_bptree_optimized_pyx[] = "bptree_optimized.pyx";
@@ -2904,6 +2925,7 @@ static const char __pyx_k_pyx_unpickle_ValueHolder[] = "__pyx_unpickle_ValueHold
 static const char __pyx_k_BPlusTreeOptimized_insert[] = "BPlusTreeOptimized.insert";
 static const char __pyx_k_BPlusTreeOptimized_search[] = "BPlusTreeOptimized.search";
 static const char __pyx_k_Error_loading_B_tree_from[] = "Error loading B+ tree from ";
+static const char __pyx_k_Successfully_inserted_key[] = "] Successfully inserted key ";
 static const char __pyx_k_Validation_error_num_keys[] = "] Validation error: num_keys ";
 static const char __pyx_k_T_G1F_a_vWA_q_t7_q_D_7_D_1[] = "\200\001\360\010\000\005\016\210T\220\021\330\004\014\210G\2201\220F\230,\240a\330\004\007\200v\210W\220A\330\010\022\220!\330\010\027\220q\340\010\027\220t\2307\240'\250\021\330\004\007\200q\330\010\017\320\017,\250D\260\001\260\027\270\013\3007\310!\340\010\017\320\017,\250D\260\001\260\027\270\013\3001";
 static const char __pyx_k_Validation_error_NULL_node[] = "] Validation error: NULL node";
@@ -2911,9 +2933,11 @@ static const char __pyx_k_is_NULL_in_split_operation[] = " is NULL in split oper
 static const char __pyx_k_was_not_inserted_correctly[] = " was not inserted correctly";
 static const char __pyx_k_Invalid_capacity_calculated[] = "] Invalid capacity calculated: ";
 static const char __pyx_k_ValueHolder___reduce_cython[] = "ValueHolder.__reduce_cython__";
+static const char __pyx_k_A_Qa_t_AT_1_d_aq_z_vWAQ_y_Qc[] = "\200A\340\010\030\230\005\230Q\230a\360\006\000\t\030\220t\320\033,\250A\250T\260\027\270\001\340\010\013\210=\230\003\2301\340\014\036\230d\240,\250a\250q\330\014\017\210z\230\021\230/\250\030\260\021\330\020\037\230v\240W\250A\250Q\360\006\000\021 \230y\250\001\250\037\270\010\300\001\360\006\000\r\021\320\020%\240Q\240c\250\021";
 static const char __pyx_k_Created_new_optimized_B_tree[] = "Created new optimized B+ tree '";
 static const char __pyx_k_ValueHolder___setstate_cython[] = "ValueHolder.__setstate_cython__";
 static const char __pyx_k_is_NULL_in__find_leaf_for_key[] = " is NULL in _find_leaf_for_key";
+static const char __pyx_k_was_not_inserted_correctly_in[] = " was not inserted correctly in _insert_single_value";
 static const char __pyx_k_BPlusTreeOptimized_range_query[] = "BPlusTreeOptimized.range_query";
 static const char __pyx_k_Encountered_NULL_child_pointer[] = "] Encountered NULL child pointer in _find_leftmost_leaf";
 static const char __pyx_k_Error_Invalid_position_or_NULL[] = "] Error: Invalid position or NULL child after split: ";
@@ -2938,20 +2962,26 @@ static const char __pyx_k_Failed_to_allocate_memory_for_B[] = "Failed to allocat
 static const char __pyx_k_Failed_to_properly_initialize_B[] = "Failed to properly initialize B+ tree: root is NULL";
 static const char __pyx_k_Highly_optimized_B_tree_impleme[] = "\nHighly optimized B+ tree implementation using Cython.\n";
 static const char __pyx_k_Node_has_NULL_children_array_in[] = "] Node has NULL children array in _find_leaf_for_key";
+static const char __pyx_k_Root_split_completed_in__insert[] = "] Root split completed in _insert_single_value";
 static const char __pyx_k_Saving_optimized_B_tree_to_file[] = "Saving optimized B+ tree to file: ";
 static const char __pyx_k_Validation_error_Invalid_capaci[] = "] Validation error: Invalid capacity ";
 static const char __pyx_k_Validation_error_NULL_keys_arra[] = "] Validation error: NULL keys array";
 static const char __pyx_k_Validation_error_Negative_num_k[] = "] Validation error: Negative num_keys ";
 static const char __pyx_k_Warning_Not_enough_keys_to_spli[] = "] Warning: Not enough keys to split internal node";
+static const char __pyx_k_A_A_L_k_a_4vS_S_D_q_A_M_t6_A_fAR[] = "\200A\340\010 \240\004\240A\360\006\000\t\r\210L\230\001\230\035\240k\260\021\260!\330\010\014\320\014\036\230a\360\006\000\t\014\2104\210v\220S\230\005\230S\240\004\240D\250\017\260q\270\004\270A\340\014\020\220\010\230\004\230M\250\021\250!\330\014\017\210t\2206\230\023\230A\330\020\026\220f\230A\230R\230u\240D\250\001\330\020\021\360\006\000\t\014\2104\210u\220J\230c\240\024\240U\250!\340\014\027\220t\230=\250\001\250\021\330\014\017\210y\230\003\2301\330\020\026\220f\230A\230R\230u\240D\250\001\330\020\021\360\006\000\r\025\220I\230Q\230e\2404\240q\330\014\024\220L\240\001\360\006\000\r\021\220\010\230\001\360\006\000\r\021\220\r\230Q\230j\250\001\340\014\017\210v\220]\240!\2407\250!\330\020\026\220f\230A\230R\230u\240D\250\001\360\006\000\t\r\320\014\035\230Q\230d\240'\250\025\250a\360\006\000\t\014\2106\220\035\230a\230w\240a\330\014\025\220T\230\027\240\001\240\021\330\014\017\210w\220c\230\021\330\020\026\220f\230A\230R\230u\240D\250\r\260Q\340\020\026\220f\230A\230R\230u\240D\320(K\320K\\\320\\]";
 static const char __pyx_k_A_Qa_6_awa_5_IT1UUV_6at7_c_1_t_t[] = "\200A\340\010\014\320\014\"\240!\330\010\030\230\005\230Q\230a\340\010\013\2106\220\035\230a\230w\240a\330\014\022\220&\230\001\230\022\2305\240\004\240I\250T\3201U\320UV\340\010!\240\024\320%6\260a\260t\2707\300!\330\010\013\210;\220c\230\021\330\014\023\2201\330\010\027\220t\230<\240t\2501\250A\330\010\017\210|\230:\320%7\260q";
 static const char __pyx_k_A_Qa_A_L_k_a_6_awa_5_IT1UUccd_4v[] = "\200A\360\006\000\t\031\230\005\230Q\230a\360\010\000\t\r\320\014\"\240!\330\010 \240\004\240A\330\010\014\210L\230\001\230\035\240k\260\021\260!\330\010\014\320\014\036\230a\360\006\000\t\014\2106\220\035\230a\230w\240a\330\014\022\220&\230\001\230\022\2305\240\004\240I\250T\3201U\320Uc\320cd\360\006\000\t\014\2104\210v\220S\230\005\230S\240\004\240D\250\017\260q\270\004\270A\340\014\020\220\010\230\004\230M\250\021\250!\360\006\000\t\014\2104\210u\220J\230c\240\024\240U\250!\340\014\027\220t\230=\250\001\250\021\330\014\017\210y\230\003\2301\330\020\026\220f\230A\230R\230u\240D\250\001\330\020\021\360\006\000\r\025\220I\230Q\230e\2404\240q\330\014\020\220\010\230\001\330\014\020\220\r\230Q\230j\250\001\360\006\000\t\r\320\014\035\230Q\230d\240'\250\023\250A\360\006\000\t\014\2106\220\035\230a\230w\240a\330\014\025\220T\230\027\240\001\240\021\330\014\017\210w\220c\230\021\330\020\026\220f\230A\230R\230u\240D\250\r\260Q";
 static const char __pyx_k_BPlusTreeOptimized___reduce_cyth[] = "BPlusTreeOptimized.__reduce_cython__";
 static const char __pyx_k_BPlusTreeOptimized___setstate_cy[] = "BPlusTreeOptimized.__setstate_cython__";
 static const char __pyx_k_BPlusTreeOptimized__get_all_item[] = "BPlusTreeOptimized._get_all_items";
+static const char __pyx_k_BPlusTreeOptimized__insert_singl[] = "BPlusTreeOptimized._insert_single_value";
 static const char __pyx_k_BPlusTreeOptimized__simple_range[] = "BPlusTreeOptimized._simple_range_query";
+static const char __pyx_k_BPlusTreeOptimized_insert_non_un[] = "BPlusTreeOptimized.insert_non_unique";
 static const char __pyx_k_BPlusTreeOptimized_load_from_fil[] = "BPlusTreeOptimized.load_from_file";
 static const char __pyx_k_Failed_to_allocate_memory_for_ch[] = "Failed to allocate memory for children pointers";
 static const char __pyx_k_Failed_to_allocate_memory_for_ke[] = "Failed to allocate memory for keys";
+static const char __pyx_k_Failed_to_create_new_root_node_2[] = "] Failed to create new root node in _insert_single_value";
+static const char __pyx_k_Failed_to_create_new_root_node_3[] = "] Failed to create new root node during split in _insert_single_value";
 static const char __pyx_k_Incompatible_checksums_0x_x_vs_0[] = "Incompatible checksums (0x%x vs (0xcd42404, 0xf32b67c, 0x2063c16) = (value))";
 static const char __pyx_k_no_default___reduce___due_to_non[] = "no default __reduce__ due to non-trivial __cinit__";
 static const char __pyx_k_Failed_to_properly_initialize_B_2[] = "Failed to properly initialize B+ tree: root capacity is ";
@@ -2966,21 +2996,23 @@ static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized___cinit__(struct __p
 static void __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_2__dealloc__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
 static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_4insert(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value); /* proto */
 static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_6search(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key); /* proto */
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_8__getitem__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key); /* proto */
-static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_10__setitem__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value); /* proto */
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12get(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_default); /* proto */
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_filename); /* proto */
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_file(PyTypeObject *__pyx_v_cls, PyObject *__pyx_v_file_path); /* proto */
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_18_get_all_items(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_start_key, PyObject *__pyx_v_end_key); /* proto */
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_range_query(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, double __pyx_v_start_key, double __pyx_v_end_key); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_8insert_non_unique(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_10_insert_single_value(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, double __pyx_v_key, PyObject *__pyx_v_value); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12__getitem__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key); /* proto */
+static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14__setitem__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16get(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_default); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_18save_to_file(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_filename); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20load_from_file(PyTypeObject *__pyx_v_cls, PyObject *__pyx_v_file_path); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_get_all_items(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_24range_query(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_start_key, PyObject *__pyx_v_end_key); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_26_simple_range_query(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, double __pyx_v_start_key, double __pyx_v_end_key); /* proto */
 static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_5order___get__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
 static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_5order_2__set__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
 static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_4name___get__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
 static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_4name_2__set__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
 static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_4name_4__del__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_24__reduce_cython__(CYTHON_UNUSED struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_26__setstate_cython__(CYTHON_UNUSED struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v___pyx_state); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_28__reduce_cython__(CYTHON_UNUSED struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_30__setstate_cython__(CYTHON_UNUSED struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v___pyx_state); /* proto */
 static PyObject *__pyx_pf_16bptree_optimized___pyx_unpickle_ValueHolder(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v___pyx_type, long __pyx_v___pyx_checksum, PyObject *__pyx_v___pyx_state); /* proto */
 static PyObject *__pyx_tp_new_16bptree_optimized_ValueHolder(PyTypeObject *t, PyObject *a, PyObject *k); /*proto*/
 static PyObject *__pyx_tp_new_16bptree_optimized_BPlusTreeOptimized(PyTypeObject *t, PyObject *a, PyObject *k); /*proto*/
@@ -3029,8 +3061,8 @@ typedef struct {
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_get;
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_pop;
   PyObject *__pyx_tuple[5];
-  PyObject *__pyx_codeobj_tab[13];
-  PyObject *__pyx_string_tab[207];
+  PyObject *__pyx_codeobj_tab[15];
+  PyObject *__pyx_string_tab[220];
   PyObject *__pyx_int_33963030;
   PyObject *__pyx_int_215229444;
   PyObject *__pyx_int_254981756;
@@ -3073,208 +3105,221 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_n_u_BPlusTreeOptimized___reduce_cyth __pyx_string_tab[2]
 #define __pyx_n_u_BPlusTreeOptimized___setstate_cy __pyx_string_tab[3]
 #define __pyx_n_u_BPlusTreeOptimized__get_all_item __pyx_string_tab[4]
-#define __pyx_n_u_BPlusTreeOptimized__simple_range __pyx_string_tab[5]
-#define __pyx_n_u_BPlusTreeOptimized_get __pyx_string_tab[6]
-#define __pyx_n_u_BPlusTreeOptimized_insert __pyx_string_tab[7]
-#define __pyx_n_u_BPlusTreeOptimized_load_from_fil __pyx_string_tab[8]
-#define __pyx_n_u_BPlusTreeOptimized_range_query __pyx_string_tab[9]
-#define __pyx_n_u_BPlusTreeOptimized_save_to_file __pyx_string_tab[10]
-#define __pyx_n_u_BPlusTreeOptimized_search __pyx_string_tab[11]
-#define __pyx_kp_u_Child_at_position __pyx_string_tab[12]
-#define __pyx_kp_u_Created_new_optimized_B_tree __pyx_string_tab[13]
-#define __pyx_n_u_DEBUG __pyx_string_tab[14]
-#define __pyx_kp_u_Encountered_NULL_child_pointer __pyx_string_tab[15]
-#define __pyx_kp_u_Error_Attempt_to_insert_into_NU __pyx_string_tab[16]
-#define __pyx_kp_u_Error_Cannot_insert_separator_k __pyx_string_tab[17]
-#define __pyx_kp_u_Error_Child_at_index __pyx_string_tab[18]
-#define __pyx_kp_u_Error_Child_at_position __pyx_string_tab[19]
-#define __pyx_kp_u_Error_Failed_to_create_new_node __pyx_string_tab[20]
-#define __pyx_kp_u_Error_Internal_node_has_NULL_ch __pyx_string_tab[21]
-#define __pyx_kp_u_Error_Invalid_index __pyx_string_tab[22]
-#define __pyx_kp_u_Error_Invalid_position __pyx_string_tab[23]
-#define __pyx_kp_u_Error_Invalid_position_for_inse __pyx_string_tab[24]
-#define __pyx_kp_u_Error_Invalid_position_or_NULL __pyx_string_tab[25]
-#define __pyx_kp_u_Error_Leaf_node_capacity_exceed __pyx_string_tab[26]
-#define __pyx_kp_u_Error_Node_has_invalid_capacity __pyx_string_tab[27]
-#define __pyx_kp_u_Error_Parent_has_NULL_children __pyx_string_tab[28]
-#define __pyx_kp_u_Error_Parent_node_full_during_s __pyx_string_tab[29]
-#define __pyx_kp_u_Error_Parent_node_is_NULL_in_sp __pyx_string_tab[30]
-#define __pyx_kp_u_Error_Position __pyx_string_tab[31]
-#define __pyx_kp_u_Error_loading_B_tree_from __pyx_string_tab[32]
-#define __pyx_kp_u_Failed_to_allocate_memory_for_B __pyx_string_tab[33]
-#define __pyx_kp_u_Failed_to_allocate_memory_for_ch __pyx_string_tab[34]
-#define __pyx_kp_u_Failed_to_allocate_memory_for_ke __pyx_string_tab[35]
-#define __pyx_kp_u_Failed_to_create_new_root_node __pyx_string_tab[36]
-#define __pyx_kp_u_Failed_to_properly_initialize_B __pyx_string_tab[37]
-#define __pyx_kp_u_Failed_to_properly_initialize_B_2 __pyx_string_tab[38]
-#define __pyx_kp_u_INSERT_key __pyx_string_tab[39]
-#define __pyx_kp_u_Incompatible_checksums_0x_x_vs_0 __pyx_string_tab[40]
-#define __pyx_kp_u_Invalid_B_tree_order __pyx_string_tab[41]
-#define __pyx_kp_u_Invalid_B_tree_order_2 __pyx_string_tab[42]
-#define __pyx_kp_u_Invalid_capacity_calculated __pyx_string_tab[43]
-#define __pyx_kp_u_Invalid_key_index __pyx_string_tab[44]
-#define __pyx_kp_u_Invalid_max_keys __pyx_string_tab[45]
-#define __pyx_kp_u_Key __pyx_string_tab[46]
-#define __pyx_n_u_MemoryError __pyx_string_tab[47]
-#define __pyx_kp_u_Node_has_NULL_children_array_in __pyx_string_tab[48]
-#define __pyx_kp_u_None __pyx_string_tab[49]
-#define __pyx_n_u_PickleError __pyx_string_tab[50]
-#define __pyx_kp_u_RANGE_QUERY_RESULT_found __pyx_string_tab[51]
-#define __pyx_kp_u_RANGE_QUERY_from __pyx_string_tab[52]
-#define __pyx_kp_u_Root_is_NULL_in__find_leaf_for __pyx_string_tab[53]
-#define __pyx_n_u_RuntimeError __pyx_string_tab[54]
-#define __pyx_kp_u_SEARCH_key __pyx_string_tab[55]
-#define __pyx_kp_u_Saving_optimized_B_tree_to_file __pyx_string_tab[56]
-#define __pyx_n_u_TypeError __pyx_string_tab[57]
-#define __pyx_kp_u_UPDATE_key __pyx_string_tab[58]
-#define __pyx_kp_u_Validation_error_Internal_node __pyx_string_tab[59]
-#define __pyx_kp_u_Validation_error_Invalid_capaci __pyx_string_tab[60]
-#define __pyx_kp_u_Validation_error_NULL_keys_arra __pyx_string_tab[61]
-#define __pyx_kp_u_Validation_error_NULL_node __pyx_string_tab[62]
-#define __pyx_kp_u_Validation_error_Negative_num_k __pyx_string_tab[63]
-#define __pyx_kp_u_Validation_error_num_keys __pyx_string_tab[64]
-#define __pyx_n_u_ValueError __pyx_string_tab[65]
-#define __pyx_n_u_ValueHolder __pyx_string_tab[66]
-#define __pyx_n_u_ValueHolder___reduce_cython __pyx_string_tab[67]
-#define __pyx_n_u_ValueHolder___setstate_cython __pyx_string_tab[68]
-#define __pyx_kp_u_Warning_Not_enough_keys __pyx_string_tab[69]
-#define __pyx_kp_u_Warning_Not_enough_keys_to_spli __pyx_string_tab[70]
-#define __pyx_kp_u_Y_m_d_H_M_S __pyx_string_tab[71]
-#define __pyx_kp_u__2 __pyx_string_tab[72]
-#define __pyx_kp_u__3 __pyx_string_tab[73]
-#define __pyx_kp_u__4 __pyx_string_tab[74]
-#define __pyx_kp_u__5 __pyx_string_tab[75]
-#define __pyx_kp_u__6 __pyx_string_tab[76]
-#define __pyx_kp_u__7 __pyx_string_tab[77]
-#define __pyx_kp_u_after_split __pyx_string_tab[78]
-#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[79]
-#define __pyx_n_u_bptree_opt __pyx_string_tab[80]
-#define __pyx_n_u_bptree_optimized __pyx_string_tab[81]
-#define __pyx_kp_u_bptree_optimized_pyx __pyx_string_tab[82]
-#define __pyx_kp_u_capacity __pyx_string_tab[83]
-#define __pyx_n_u_cline_in_traceback __pyx_string_tab[84]
-#define __pyx_n_u_cls __pyx_string_tab[85]
-#define __pyx_n_u_current_leaf __pyx_string_tab[86]
-#define __pyx_n_u_data __pyx_string_tab[87]
-#define __pyx_n_u_datetime __pyx_string_tab[88]
-#define __pyx_n_u_debug __pyx_string_tab[89]
-#define __pyx_n_u_default __pyx_string_tab[90]
-#define __pyx_n_u_dict __pyx_string_tab[91]
-#define __pyx_n_u_dict_2 __pyx_string_tab[92]
-#define __pyx_kp_u_disable __pyx_string_tab[93]
-#define __pyx_n_u_dump __pyx_string_tab[94]
-#define __pyx_n_u_e __pyx_string_tab[95]
-#define __pyx_kp_u_enable __pyx_string_tab[96]
-#define __pyx_n_u_end __pyx_string_tab[97]
-#define __pyx_n_u_end_key __pyx_string_tab[98]
-#define __pyx_n_u_enter __pyx_string_tab[99]
-#define __pyx_kp_u_entries __pyx_string_tab[100]
-#define __pyx_n_u_epsilon __pyx_string_tab[101]
-#define __pyx_n_u_error __pyx_string_tab[102]
-#define __pyx_kp_u_exceeds_capacity __pyx_string_tab[103]
-#define __pyx_kp_u_exceeds_number_of_keys __pyx_string_tab[104]
-#define __pyx_n_u_exit __pyx_string_tab[105]
-#define __pyx_n_u_f __pyx_string_tab[106]
-#define __pyx_n_u_file __pyx_string_tab[107]
-#define __pyx_n_u_file_path __pyx_string_tab[108]
-#define __pyx_n_u_filename __pyx_string_tab[109]
-#define __pyx_kp_u_for_node_with __pyx_string_tab[110]
-#define __pyx_kp_u_for_split_operation __pyx_string_tab[111]
-#define __pyx_n_u_func __pyx_string_tab[112]
-#define __pyx_kp_u_gc __pyx_string_tab[113]
-#define __pyx_n_u_get __pyx_string_tab[114]
-#define __pyx_n_u_getLogger __pyx_string_tab[115]
-#define __pyx_n_u_get_all_items __pyx_string_tab[116]
-#define __pyx_n_u_getstate __pyx_string_tab[117]
-#define __pyx_n_u_i __pyx_string_tab[118]
-#define __pyx_kp_u_in_leaf_node __pyx_string_tab[119]
-#define __pyx_n_u_info __pyx_string_tab[120]
-#define __pyx_n_u_initializing __pyx_string_tab[121]
-#define __pyx_n_u_insert __pyx_string_tab[122]
-#define __pyx_n_u_isEnabledFor __pyx_string_tab[123]
-#define __pyx_kp_u_is_NULL __pyx_string_tab[124]
-#define __pyx_kp_u_is_NULL_in__find_leaf_for_key __pyx_string_tab[125]
-#define __pyx_kp_u_is_NULL_in_split_operation __pyx_string_tab[126]
-#define __pyx_n_u_is_coroutine __pyx_string_tab[127]
-#define __pyx_kp_u_isenabled __pyx_string_tab[128]
-#define __pyx_n_u_items __pyx_string_tab[129]
-#define __pyx_n_u_json __pyx_string_tab[130]
-#define __pyx_n_u_k __pyx_string_tab[131]
-#define __pyx_n_u_key __pyx_string_tab[132]
-#define __pyx_kp_u_keys __pyx_string_tab[133]
-#define __pyx_n_u_keys_values __pyx_string_tab[134]
-#define __pyx_n_u_load __pyx_string_tab[135]
-#define __pyx_n_u_load_from_file __pyx_string_tab[136]
-#define __pyx_n_u_logger __pyx_string_tab[137]
-#define __pyx_n_u_logging __pyx_string_tab[138]
-#define __pyx_n_u_main __pyx_string_tab[139]
-#define __pyx_n_u_max_keys __pyx_string_tab[140]
-#define __pyx_n_u_module __pyx_string_tab[141]
-#define __pyx_n_u_name __pyx_string_tab[142]
-#define __pyx_n_u_name_2 __pyx_string_tab[143]
-#define __pyx_n_u_new __pyx_string_tab[144]
-#define __pyx_n_u_new_root __pyx_string_tab[145]
-#define __pyx_n_u_next_value_id __pyx_string_tab[146]
-#define __pyx_kp_u_no_default___reduce___due_to_non __pyx_string_tab[147]
-#define __pyx_n_u_now __pyx_string_tab[148]
-#define __pyx_n_u_np __pyx_string_tab[149]
-#define __pyx_n_u_numpy __pyx_string_tab[150]
-#define __pyx_kp_u_old_value __pyx_string_tab[151]
-#define __pyx_n_u_open __pyx_string_tab[152]
-#define __pyx_n_u_operation_counter __pyx_string_tab[153]
-#define __pyx_n_u_order __pyx_string_tab[154]
-#define __pyx_n_u_pickle __pyx_string_tab[155]
-#define __pyx_n_u_pop __pyx_string_tab[156]
-#define __pyx_n_u_pyx_PickleError __pyx_string_tab[157]
-#define __pyx_n_u_pyx_checksum __pyx_string_tab[158]
-#define __pyx_n_u_pyx_result __pyx_string_tab[159]
-#define __pyx_n_u_pyx_state __pyx_string_tab[160]
-#define __pyx_n_u_pyx_type __pyx_string_tab[161]
-#define __pyx_n_u_pyx_unpickle_ValueHolder __pyx_string_tab[162]
-#define __pyx_n_u_pyx_vtable __pyx_string_tab[163]
-#define __pyx_n_u_qualname __pyx_string_tab[164]
-#define __pyx_n_u_range __pyx_string_tab[165]
-#define __pyx_n_u_range_query __pyx_string_tab[166]
-#define __pyx_n_u_rb __pyx_string_tab[167]
-#define __pyx_n_u_reduce __pyx_string_tab[168]
-#define __pyx_n_u_reduce_cython __pyx_string_tab[169]
-#define __pyx_n_u_reduce_ex __pyx_string_tab[170]
-#define __pyx_n_u_result __pyx_string_tab[171]
-#define __pyx_n_u_result_ptr __pyx_string_tab[172]
-#define __pyx_n_u_results __pyx_string_tab[173]
-#define __pyx_n_u_root __pyx_string_tab[174]
-#define __pyx_n_u_save_to_file __pyx_string_tab[175]
-#define __pyx_n_u_search __pyx_string_tab[176]
-#define __pyx_n_u_self __pyx_string_tab[177]
-#define __pyx_n_u_set_name __pyx_string_tab[178]
-#define __pyx_n_u_setstate __pyx_string_tab[179]
-#define __pyx_n_u_setstate_cython __pyx_string_tab[180]
-#define __pyx_n_u_simple_range_query __pyx_string_tab[181]
-#define __pyx_n_u_slots __pyx_string_tab[182]
-#define __pyx_n_u_spec __pyx_string_tab[183]
-#define __pyx_n_u_start __pyx_string_tab[184]
-#define __pyx_n_u_start_key __pyx_string_tab[185]
-#define __pyx_n_u_state __pyx_string_tab[186]
-#define __pyx_n_u_strftime __pyx_string_tab[187]
-#define __pyx_kp_u_stringsource __pyx_string_tab[188]
-#define __pyx_n_u_test __pyx_string_tab[189]
-#define __pyx_kp_u_to __pyx_string_tab[190]
-#define __pyx_kp_u_to_split_at __pyx_string_tab[191]
-#define __pyx_n_u_tree __pyx_string_tab[192]
-#define __pyx_n_u_tree_2 __pyx_string_tab[193]
-#define __pyx_n_u_update __pyx_string_tab[194]
-#define __pyx_n_u_use_setstate __pyx_string_tab[195]
-#define __pyx_kp_u_using_default_50 __pyx_string_tab[196]
-#define __pyx_kp_u_using_default_99 __pyx_string_tab[197]
-#define __pyx_n_u_value __pyx_string_tab[198]
-#define __pyx_kp_u_value_2 __pyx_string_tab[199]
-#define __pyx_n_u_value_holder __pyx_string_tab[200]
-#define __pyx_n_u_value_ptr __pyx_string_tab[201]
-#define __pyx_n_u_value_store __pyx_string_tab[202]
-#define __pyx_n_u_warning __pyx_string_tab[203]
-#define __pyx_kp_u_was_not_inserted_correctly __pyx_string_tab[204]
-#define __pyx_n_u_wb __pyx_string_tab[205]
-#define __pyx_kp_u_with_order __pyx_string_tab[206]
+#define __pyx_n_u_BPlusTreeOptimized__insert_singl __pyx_string_tab[5]
+#define __pyx_n_u_BPlusTreeOptimized__simple_range __pyx_string_tab[6]
+#define __pyx_n_u_BPlusTreeOptimized_get __pyx_string_tab[7]
+#define __pyx_n_u_BPlusTreeOptimized_insert __pyx_string_tab[8]
+#define __pyx_n_u_BPlusTreeOptimized_insert_non_un __pyx_string_tab[9]
+#define __pyx_n_u_BPlusTreeOptimized_load_from_fil __pyx_string_tab[10]
+#define __pyx_n_u_BPlusTreeOptimized_range_query __pyx_string_tab[11]
+#define __pyx_n_u_BPlusTreeOptimized_save_to_file __pyx_string_tab[12]
+#define __pyx_n_u_BPlusTreeOptimized_search __pyx_string_tab[13]
+#define __pyx_kp_u_Child_at_position __pyx_string_tab[14]
+#define __pyx_kp_u_Created_new_optimized_B_tree __pyx_string_tab[15]
+#define __pyx_n_u_DEBUG __pyx_string_tab[16]
+#define __pyx_kp_u_Encountered_NULL_child_pointer __pyx_string_tab[17]
+#define __pyx_kp_u_Error_Attempt_to_insert_into_NU __pyx_string_tab[18]
+#define __pyx_kp_u_Error_Cannot_insert_separator_k __pyx_string_tab[19]
+#define __pyx_kp_u_Error_Child_at_index __pyx_string_tab[20]
+#define __pyx_kp_u_Error_Child_at_position __pyx_string_tab[21]
+#define __pyx_kp_u_Error_Failed_to_create_new_node __pyx_string_tab[22]
+#define __pyx_kp_u_Error_Internal_node_has_NULL_ch __pyx_string_tab[23]
+#define __pyx_kp_u_Error_Invalid_index __pyx_string_tab[24]
+#define __pyx_kp_u_Error_Invalid_position __pyx_string_tab[25]
+#define __pyx_kp_u_Error_Invalid_position_for_inse __pyx_string_tab[26]
+#define __pyx_kp_u_Error_Invalid_position_or_NULL __pyx_string_tab[27]
+#define __pyx_kp_u_Error_Leaf_node_capacity_exceed __pyx_string_tab[28]
+#define __pyx_kp_u_Error_Node_has_invalid_capacity __pyx_string_tab[29]
+#define __pyx_kp_u_Error_Parent_has_NULL_children __pyx_string_tab[30]
+#define __pyx_kp_u_Error_Parent_node_full_during_s __pyx_string_tab[31]
+#define __pyx_kp_u_Error_Parent_node_is_NULL_in_sp __pyx_string_tab[32]
+#define __pyx_kp_u_Error_Position __pyx_string_tab[33]
+#define __pyx_kp_u_Error_loading_B_tree_from __pyx_string_tab[34]
+#define __pyx_kp_u_Failed_to_allocate_memory_for_B __pyx_string_tab[35]
+#define __pyx_kp_u_Failed_to_allocate_memory_for_ch __pyx_string_tab[36]
+#define __pyx_kp_u_Failed_to_allocate_memory_for_ke __pyx_string_tab[37]
+#define __pyx_kp_u_Failed_to_create_new_root_node __pyx_string_tab[38]
+#define __pyx_kp_u_Failed_to_create_new_root_node_2 __pyx_string_tab[39]
+#define __pyx_kp_u_Failed_to_create_new_root_node_3 __pyx_string_tab[40]
+#define __pyx_kp_u_Failed_to_properly_initialize_B __pyx_string_tab[41]
+#define __pyx_kp_u_Failed_to_properly_initialize_B_2 __pyx_string_tab[42]
+#define __pyx_kp_u_INSERT_key __pyx_string_tab[43]
+#define __pyx_kp_u_Incompatible_checksums_0x_x_vs_0 __pyx_string_tab[44]
+#define __pyx_kp_u_Invalid_B_tree_order __pyx_string_tab[45]
+#define __pyx_kp_u_Invalid_B_tree_order_2 __pyx_string_tab[46]
+#define __pyx_kp_u_Invalid_capacity_calculated __pyx_string_tab[47]
+#define __pyx_kp_u_Invalid_key_index __pyx_string_tab[48]
+#define __pyx_kp_u_Invalid_max_keys __pyx_string_tab[49]
+#define __pyx_kp_u_Key __pyx_string_tab[50]
+#define __pyx_n_u_MemoryError __pyx_string_tab[51]
+#define __pyx_kp_u_Node_has_NULL_children_array_in __pyx_string_tab[52]
+#define __pyx_kp_u_None __pyx_string_tab[53]
+#define __pyx_n_u_PickleError __pyx_string_tab[54]
+#define __pyx_kp_u_RANGE_QUERY_RESULT_found __pyx_string_tab[55]
+#define __pyx_kp_u_RANGE_QUERY_from __pyx_string_tab[56]
+#define __pyx_kp_u_Root_is_NULL_in__find_leaf_for __pyx_string_tab[57]
+#define __pyx_kp_u_Root_split_completed_in__insert __pyx_string_tab[58]
+#define __pyx_n_u_RuntimeError __pyx_string_tab[59]
+#define __pyx_kp_u_SEARCH_key __pyx_string_tab[60]
+#define __pyx_kp_u_Saving_optimized_B_tree_to_file __pyx_string_tab[61]
+#define __pyx_kp_u_Successfully_inserted_key __pyx_string_tab[62]
+#define __pyx_n_u_TypeError __pyx_string_tab[63]
+#define __pyx_kp_u_UPDATE_key __pyx_string_tab[64]
+#define __pyx_kp_u_Validation_error_Internal_node __pyx_string_tab[65]
+#define __pyx_kp_u_Validation_error_Invalid_capaci __pyx_string_tab[66]
+#define __pyx_kp_u_Validation_error_NULL_keys_arra __pyx_string_tab[67]
+#define __pyx_kp_u_Validation_error_NULL_node __pyx_string_tab[68]
+#define __pyx_kp_u_Validation_error_Negative_num_k __pyx_string_tab[69]
+#define __pyx_kp_u_Validation_error_num_keys __pyx_string_tab[70]
+#define __pyx_n_u_ValueError __pyx_string_tab[71]
+#define __pyx_n_u_ValueHolder __pyx_string_tab[72]
+#define __pyx_n_u_ValueHolder___reduce_cython __pyx_string_tab[73]
+#define __pyx_n_u_ValueHolder___setstate_cython __pyx_string_tab[74]
+#define __pyx_kp_u_Warning_Not_enough_keys __pyx_string_tab[75]
+#define __pyx_kp_u_Warning_Not_enough_keys_to_spli __pyx_string_tab[76]
+#define __pyx_kp_u_Y_m_d_H_M_S __pyx_string_tab[77]
+#define __pyx_kp_u__2 __pyx_string_tab[78]
+#define __pyx_kp_u__3 __pyx_string_tab[79]
+#define __pyx_kp_u__4 __pyx_string_tab[80]
+#define __pyx_kp_u__5 __pyx_string_tab[81]
+#define __pyx_kp_u__6 __pyx_string_tab[82]
+#define __pyx_kp_u__7 __pyx_string_tab[83]
+#define __pyx_kp_u_after_split __pyx_string_tab[84]
+#define __pyx_n_u_append __pyx_string_tab[85]
+#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[86]
+#define __pyx_n_u_bptree_opt __pyx_string_tab[87]
+#define __pyx_n_u_bptree_optimized __pyx_string_tab[88]
+#define __pyx_kp_u_bptree_optimized_pyx __pyx_string_tab[89]
+#define __pyx_kp_u_capacity __pyx_string_tab[90]
+#define __pyx_n_u_cline_in_traceback __pyx_string_tab[91]
+#define __pyx_n_u_cls __pyx_string_tab[92]
+#define __pyx_n_u_current_leaf __pyx_string_tab[93]
+#define __pyx_n_u_data __pyx_string_tab[94]
+#define __pyx_n_u_datetime __pyx_string_tab[95]
+#define __pyx_n_u_debug __pyx_string_tab[96]
+#define __pyx_n_u_default __pyx_string_tab[97]
+#define __pyx_n_u_dict __pyx_string_tab[98]
+#define __pyx_n_u_dict_2 __pyx_string_tab[99]
+#define __pyx_kp_u_disable __pyx_string_tab[100]
+#define __pyx_n_u_dump __pyx_string_tab[101]
+#define __pyx_n_u_e __pyx_string_tab[102]
+#define __pyx_kp_u_enable __pyx_string_tab[103]
+#define __pyx_n_u_end __pyx_string_tab[104]
+#define __pyx_n_u_end_key __pyx_string_tab[105]
+#define __pyx_n_u_enter __pyx_string_tab[106]
+#define __pyx_kp_u_entries __pyx_string_tab[107]
+#define __pyx_n_u_epsilon __pyx_string_tab[108]
+#define __pyx_n_u_error __pyx_string_tab[109]
+#define __pyx_kp_u_exceeds_capacity __pyx_string_tab[110]
+#define __pyx_kp_u_exceeds_number_of_keys __pyx_string_tab[111]
+#define __pyx_n_u_existing_holder __pyx_string_tab[112]
+#define __pyx_n_u_existing_ptr __pyx_string_tab[113]
+#define __pyx_n_u_exit __pyx_string_tab[114]
+#define __pyx_n_u_f __pyx_string_tab[115]
+#define __pyx_n_u_file __pyx_string_tab[116]
+#define __pyx_n_u_file_path __pyx_string_tab[117]
+#define __pyx_n_u_filename __pyx_string_tab[118]
+#define __pyx_kp_u_for_node_with __pyx_string_tab[119]
+#define __pyx_kp_u_for_split_operation __pyx_string_tab[120]
+#define __pyx_n_u_func __pyx_string_tab[121]
+#define __pyx_kp_u_gc __pyx_string_tab[122]
+#define __pyx_n_u_get __pyx_string_tab[123]
+#define __pyx_n_u_getLogger __pyx_string_tab[124]
+#define __pyx_n_u_get_all_items __pyx_string_tab[125]
+#define __pyx_n_u_getstate __pyx_string_tab[126]
+#define __pyx_n_u_i __pyx_string_tab[127]
+#define __pyx_kp_u_in_leaf_node __pyx_string_tab[128]
+#define __pyx_n_u_info __pyx_string_tab[129]
+#define __pyx_n_u_initializing __pyx_string_tab[130]
+#define __pyx_n_u_insert __pyx_string_tab[131]
+#define __pyx_n_u_insert_non_unique __pyx_string_tab[132]
+#define __pyx_n_u_insert_single_value __pyx_string_tab[133]
+#define __pyx_n_u_isEnabledFor __pyx_string_tab[134]
+#define __pyx_kp_u_is_NULL __pyx_string_tab[135]
+#define __pyx_kp_u_is_NULL_in__find_leaf_for_key __pyx_string_tab[136]
+#define __pyx_kp_u_is_NULL_in_split_operation __pyx_string_tab[137]
+#define __pyx_n_u_is_coroutine __pyx_string_tab[138]
+#define __pyx_kp_u_isenabled __pyx_string_tab[139]
+#define __pyx_n_u_items __pyx_string_tab[140]
+#define __pyx_n_u_json __pyx_string_tab[141]
+#define __pyx_n_u_k __pyx_string_tab[142]
+#define __pyx_n_u_key __pyx_string_tab[143]
+#define __pyx_kp_u_keys __pyx_string_tab[144]
+#define __pyx_n_u_keys_values __pyx_string_tab[145]
+#define __pyx_n_u_load __pyx_string_tab[146]
+#define __pyx_n_u_load_from_file __pyx_string_tab[147]
+#define __pyx_n_u_logger __pyx_string_tab[148]
+#define __pyx_n_u_logging __pyx_string_tab[149]
+#define __pyx_n_u_main __pyx_string_tab[150]
+#define __pyx_n_u_max_keys __pyx_string_tab[151]
+#define __pyx_n_u_module __pyx_string_tab[152]
+#define __pyx_n_u_name __pyx_string_tab[153]
+#define __pyx_n_u_name_2 __pyx_string_tab[154]
+#define __pyx_n_u_new __pyx_string_tab[155]
+#define __pyx_n_u_new_root __pyx_string_tab[156]
+#define __pyx_n_u_next_value_id __pyx_string_tab[157]
+#define __pyx_kp_u_no_default___reduce___due_to_non __pyx_string_tab[158]
+#define __pyx_n_u_now __pyx_string_tab[159]
+#define __pyx_n_u_np __pyx_string_tab[160]
+#define __pyx_n_u_numpy __pyx_string_tab[161]
+#define __pyx_kp_u_old_value __pyx_string_tab[162]
+#define __pyx_n_u_open __pyx_string_tab[163]
+#define __pyx_n_u_operation_counter __pyx_string_tab[164]
+#define __pyx_n_u_order __pyx_string_tab[165]
+#define __pyx_n_u_pickle __pyx_string_tab[166]
+#define __pyx_n_u_pop __pyx_string_tab[167]
+#define __pyx_n_u_pyx_PickleError __pyx_string_tab[168]
+#define __pyx_n_u_pyx_checksum __pyx_string_tab[169]
+#define __pyx_n_u_pyx_result __pyx_string_tab[170]
+#define __pyx_n_u_pyx_state __pyx_string_tab[171]
+#define __pyx_n_u_pyx_type __pyx_string_tab[172]
+#define __pyx_n_u_pyx_unpickle_ValueHolder __pyx_string_tab[173]
+#define __pyx_n_u_pyx_vtable __pyx_string_tab[174]
+#define __pyx_n_u_qualname __pyx_string_tab[175]
+#define __pyx_n_u_range __pyx_string_tab[176]
+#define __pyx_n_u_range_query __pyx_string_tab[177]
+#define __pyx_n_u_rb __pyx_string_tab[178]
+#define __pyx_n_u_reduce __pyx_string_tab[179]
+#define __pyx_n_u_reduce_cython __pyx_string_tab[180]
+#define __pyx_n_u_reduce_ex __pyx_string_tab[181]
+#define __pyx_n_u_result __pyx_string_tab[182]
+#define __pyx_n_u_result_ptr __pyx_string_tab[183]
+#define __pyx_n_u_results __pyx_string_tab[184]
+#define __pyx_n_u_root __pyx_string_tab[185]
+#define __pyx_n_u_save_to_file __pyx_string_tab[186]
+#define __pyx_n_u_search __pyx_string_tab[187]
+#define __pyx_n_u_self __pyx_string_tab[188]
+#define __pyx_n_u_set_name __pyx_string_tab[189]
+#define __pyx_n_u_setstate __pyx_string_tab[190]
+#define __pyx_n_u_setstate_cython __pyx_string_tab[191]
+#define __pyx_n_u_simple_range_query __pyx_string_tab[192]
+#define __pyx_n_u_slots __pyx_string_tab[193]
+#define __pyx_n_u_spec __pyx_string_tab[194]
+#define __pyx_n_u_start __pyx_string_tab[195]
+#define __pyx_n_u_start_key __pyx_string_tab[196]
+#define __pyx_n_u_state __pyx_string_tab[197]
+#define __pyx_n_u_strftime __pyx_string_tab[198]
+#define __pyx_kp_u_stringsource __pyx_string_tab[199]
+#define __pyx_n_u_test __pyx_string_tab[200]
+#define __pyx_kp_u_to __pyx_string_tab[201]
+#define __pyx_kp_u_to_split_at __pyx_string_tab[202]
+#define __pyx_n_u_tree __pyx_string_tab[203]
+#define __pyx_n_u_tree_2 __pyx_string_tab[204]
+#define __pyx_n_u_update __pyx_string_tab[205]
+#define __pyx_n_u_use_setstate __pyx_string_tab[206]
+#define __pyx_kp_u_using_default_50 __pyx_string_tab[207]
+#define __pyx_kp_u_using_default_99 __pyx_string_tab[208]
+#define __pyx_n_u_value __pyx_string_tab[209]
+#define __pyx_kp_u_value_2 __pyx_string_tab[210]
+#define __pyx_n_u_value_holder __pyx_string_tab[211]
+#define __pyx_n_u_value_ptr __pyx_string_tab[212]
+#define __pyx_n_u_value_store __pyx_string_tab[213]
+#define __pyx_n_u_warning __pyx_string_tab[214]
+#define __pyx_kp_u_was_not_inserted_correctly __pyx_string_tab[215]
+#define __pyx_kp_u_was_not_inserted_correctly_in __pyx_string_tab[216]
+#define __pyx_n_u_wb __pyx_string_tab[217]
+#define __pyx_kp_u_with_order __pyx_string_tab[218]
+#define __pyx_kp_u_with_value __pyx_string_tab[219]
 /* #### Code section: module_state_clear ### */
 #if CYTHON_USE_MODULE_STATE
 static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
@@ -3300,8 +3345,8 @@ static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized);
   Py_CLEAR(clear_module_state->__pyx_type_16bptree_optimized_BPlusTreeOptimized);
   for (int i=0; i<5; ++i) { Py_CLEAR(clear_module_state->__pyx_tuple[i]); }
-  for (int i=0; i<13; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<207; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<15; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
+  for (int i=0; i<220; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
   Py_CLEAR(clear_module_state->__pyx_int_33963030);
   Py_CLEAR(clear_module_state->__pyx_int_215229444);
   Py_CLEAR(clear_module_state->__pyx_int_254981756);
@@ -3330,8 +3375,8 @@ static CYTHON_SMALL_CODE int __pyx_m_traverse(PyObject *m, visitproc visit, void
   Py_VISIT(traverse_module_state->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized);
   Py_VISIT(traverse_module_state->__pyx_type_16bptree_optimized_BPlusTreeOptimized);
   for (int i=0; i<5; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_tuple[i]); }
-  for (int i=0; i<13; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<207; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<15; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
+  for (int i=0; i<220; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_33963030);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_215229444);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_254981756);
@@ -10846,7 +10891,7 @@ static size_t __pyx_f_16bptree_optimized_18BPlusTreeOptimized__search_internal(s
  *             # Recursively search
  *             return self._search_internal(node.children[pos], key)             # <<<<<<<<<<<<<<
  * 
- *     cdef void _collect_range(self, BPNode* node, double start_key, double end_key, list result) except *:
+ *     def insert_non_unique(self, key, value):
 */
     __pyx_t_6 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_search_internal(__pyx_v_self, (__pyx_v_node->children[__pyx_v_pos]), __pyx_v_key); if (unlikely(__Pyx_ErrOccurredWithGIL())) __PYX_ERR(0, 587, __pyx_L1_error)
     __pyx_r = __pyx_t_6;
@@ -10873,6 +10918,1066 @@ static size_t __pyx_f_16bptree_optimized_18BPlusTreeOptimized__search_internal(s
 
 /* "bptree_optimized.pyx":589
  *             return self._search_internal(node.children[pos], key)
+ * 
+ *     def insert_non_unique(self, key, value):             # <<<<<<<<<<<<<<
+ *         """Insert allowing duplicate keys"""
+ *         cdef double k = float(key)
+*/
+
+/* Python wrapper */
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_9insert_non_unique(PyObject *__pyx_v_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+); /*proto*/
+PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_8insert_non_unique, "Insert allowing duplicate keys");
+static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_9insert_non_unique = {"insert_non_unique", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_9insert_non_unique, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_8insert_non_unique};
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_9insert_non_unique(PyObject *__pyx_v_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+) {
+  PyObject *__pyx_v_key = 0;
+  PyObject *__pyx_v_value = 0;
+  #if !CYTHON_METH_FASTCALL
+  CYTHON_UNUSED Py_ssize_t __pyx_nargs;
+  #endif
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject* values[2] = {0,0};
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("insert_non_unique (wrapper)", 0);
+  #if !CYTHON_METH_FASTCALL
+  #if CYTHON_ASSUME_SAFE_SIZE
+  __pyx_nargs = PyTuple_GET_SIZE(__pyx_args);
+  #else
+  __pyx_nargs = PyTuple_Size(__pyx_args); if (unlikely(__pyx_nargs < 0)) return NULL;
+  #endif
+  #endif
+  __pyx_kwvalues = __Pyx_KwValues_FASTCALL(__pyx_args, __pyx_nargs);
+  {
+    PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_key,&__pyx_mstate_global->__pyx_n_u_value,0};
+    const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 589, __pyx_L3_error)
+    if (__pyx_kwds_len > 0) {
+      switch (__pyx_nargs) {
+        case  2:
+        values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 589, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  1:
+        values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 589, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  0: break;
+        default: goto __pyx_L5_argtuple_error;
+      }
+      const Py_ssize_t kwd_pos_args = __pyx_nargs;
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "insert_non_unique", 0) < 0) __PYX_ERR(0, 589, __pyx_L3_error)
+      for (Py_ssize_t i = __pyx_nargs; i < 2; i++) {
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("insert_non_unique", 1, 2, 2, i); __PYX_ERR(0, 589, __pyx_L3_error) }
+      }
+    } else if (unlikely(__pyx_nargs != 2)) {
+      goto __pyx_L5_argtuple_error;
+    } else {
+      values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 589, __pyx_L3_error)
+      values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 589, __pyx_L3_error)
+    }
+    __pyx_v_key = values[0];
+    __pyx_v_value = values[1];
+  }
+  goto __pyx_L6_skip;
+  __pyx_L5_argtuple_error:;
+  __Pyx_RaiseArgtupleInvalid("insert_non_unique", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 589, __pyx_L3_error)
+  __pyx_L6_skip:;
+  goto __pyx_L4_argument_unpacking_done;
+  __pyx_L3_error:;
+  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
+    Py_XDECREF(values[__pyx_temp]);
+  }
+  __Pyx_AddTraceback("bptree_optimized.BPlusTreeOptimized.insert_non_unique", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_RefNannyFinishContext();
+  return NULL;
+  __pyx_L4_argument_unpacking_done:;
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_8insert_non_unique(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v_key, __pyx_v_value);
+
+  /* function exit code */
+  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
+    Py_XDECREF(values[__pyx_temp]);
+  }
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_8insert_non_unique(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value) {
+  double __pyx_v_k;
+  size_t __pyx_v_existing_ptr;
+  PyObject *__pyx_v_existing_holder = NULL;
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  double __pyx_t_1;
+  size_t __pyx_t_2;
+  int __pyx_t_3;
+  PyObject *__pyx_t_4 = NULL;
+  PyObject *__pyx_t_5 = NULL;
+  int __pyx_t_6;
+  PyObject *__pyx_t_7 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("insert_non_unique", 0);
+
+  /* "bptree_optimized.pyx":591
+ *     def insert_non_unique(self, key, value):
+ *         """Insert allowing duplicate keys"""
+ *         cdef double k = float(key)             # <<<<<<<<<<<<<<
+ * 
+ *         # Check if key already exists
+*/
+  __pyx_t_1 = __Pyx_PyObject_AsDouble(__pyx_v_key); if (unlikely(__pyx_t_1 == ((double)((double)-1)) && PyErr_Occurred())) __PYX_ERR(0, 591, __pyx_L1_error)
+  __pyx_v_k = __pyx_t_1;
+
+  /* "bptree_optimized.pyx":594
+ * 
+ *         # Check if key already exists
+ *         existing_ptr = self._search_internal(self.root, k)             # <<<<<<<<<<<<<<
+ * 
+ *         if existing_ptr != 0:
+*/
+  __pyx_t_2 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_search_internal(__pyx_v_self, __pyx_v_self->root, __pyx_v_k); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 594, __pyx_L1_error)
+  __pyx_v_existing_ptr = __pyx_t_2;
+
+  /* "bptree_optimized.pyx":596
+ *         existing_ptr = self._search_internal(self.root, k)
+ * 
+ *         if existing_ptr != 0:             # <<<<<<<<<<<<<<
+ *             # Key exists - append to existing values
+ *             existing_holder = self.value_store[existing_ptr]
+*/
+  __pyx_t_3 = (__pyx_v_existing_ptr != 0);
+  if (__pyx_t_3) {
+
+    /* "bptree_optimized.pyx":598
+ *         if existing_ptr != 0:
+ *             # Key exists - append to existing values
+ *             existing_holder = self.value_store[existing_ptr]             # <<<<<<<<<<<<<<
+ *             if isinstance(existing_holder.value, list):
+ *                 existing_holder.value.append(value)
+*/
+    if (unlikely(__pyx_v_self->value_store == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 598, __pyx_L1_error)
+    }
+    __pyx_t_4 = __Pyx_PyLong_FromSize_t(__pyx_v_existing_ptr); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 598, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_4);
+    __pyx_t_5 = __Pyx_PyDict_GetItem(__pyx_v_self->value_store, __pyx_t_4); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 598, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_5);
+    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+    __pyx_v_existing_holder = __pyx_t_5;
+    __pyx_t_5 = 0;
+
+    /* "bptree_optimized.pyx":599
+ *             # Key exists - append to existing values
+ *             existing_holder = self.value_store[existing_ptr]
+ *             if isinstance(existing_holder.value, list):             # <<<<<<<<<<<<<<
+ *                 existing_holder.value.append(value)
+ *             else:
+*/
+    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_existing_holder, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 599, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_5);
+    __pyx_t_3 = PyList_Check(__pyx_t_5); 
+    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    if (__pyx_t_3) {
+
+      /* "bptree_optimized.pyx":600
+ *             existing_holder = self.value_store[existing_ptr]
+ *             if isinstance(existing_holder.value, list):
+ *                 existing_holder.value.append(value)             # <<<<<<<<<<<<<<
+ *             else:
+ *                 # Convert single value to list
+*/
+      __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_existing_holder, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 600, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_5);
+      __pyx_t_6 = __Pyx_PyObject_Append(__pyx_t_5, __pyx_v_value); if (unlikely(__pyx_t_6 == ((int)-1))) __PYX_ERR(0, 600, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+
+      /* "bptree_optimized.pyx":599
+ *             # Key exists - append to existing values
+ *             existing_holder = self.value_store[existing_ptr]
+ *             if isinstance(existing_holder.value, list):             # <<<<<<<<<<<<<<
+ *                 existing_holder.value.append(value)
+ *             else:
+*/
+      goto __pyx_L4;
+    }
+
+    /* "bptree_optimized.pyx":603
+ *             else:
+ *                 # Convert single value to list
+ *                 existing_holder.value = [existing_holder.value, value]             # <<<<<<<<<<<<<<
+ *         else:
+ *             # New key - store as single value
+*/
+    /*else*/ {
+      __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_existing_holder, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 603, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_5);
+      __pyx_t_4 = PyList_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 603, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
+      __Pyx_GIVEREF(__pyx_t_5);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_4, 0, __pyx_t_5) != (0)) __PYX_ERR(0, 603, __pyx_L1_error);
+      __Pyx_INCREF(__pyx_v_value);
+      __Pyx_GIVEREF(__pyx_v_value);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_4, 1, __pyx_v_value) != (0)) __PYX_ERR(0, 603, __pyx_L1_error);
+      __pyx_t_5 = 0;
+      if (__Pyx_PyObject_SetAttrStr(__pyx_v_existing_holder, __pyx_mstate_global->__pyx_n_u_value, __pyx_t_4) < 0) __PYX_ERR(0, 603, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+    }
+    __pyx_L4:;
+
+    /* "bptree_optimized.pyx":596
+ *         existing_ptr = self._search_internal(self.root, k)
+ * 
+ *         if existing_ptr != 0:             # <<<<<<<<<<<<<<
+ *             # Key exists - append to existing values
+ *             existing_holder = self.value_store[existing_ptr]
+*/
+    goto __pyx_L3;
+  }
+
+  /* "bptree_optimized.pyx":606
+ *         else:
+ *             # New key - store as single value
+ *             self._insert_single_value(k, value)             # <<<<<<<<<<<<<<
+ * 
+ *     def _insert_single_value(self, double key, value):
+*/
+  /*else*/ {
+    __pyx_t_5 = ((PyObject *)__pyx_v_self);
+    __Pyx_INCREF(__pyx_t_5);
+    __pyx_t_7 = PyFloat_FromDouble(__pyx_v_k); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 606, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_t_2 = 0;
+    {
+      PyObject *__pyx_callargs[3] = {__pyx_t_5, __pyx_t_7, __pyx_v_value};
+      __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_insert_single_value, __pyx_callargs+__pyx_t_2, (3-__pyx_t_2) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 606, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
+    }
+    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+  }
+  __pyx_L3:;
+
+  /* "bptree_optimized.pyx":589
+ *             return self._search_internal(node.children[pos], key)
+ * 
+ *     def insert_non_unique(self, key, value):             # <<<<<<<<<<<<<<
+ *         """Insert allowing duplicate keys"""
+ *         cdef double k = float(key)
+*/
+
+  /* function exit code */
+  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_4);
+  __Pyx_XDECREF(__pyx_t_5);
+  __Pyx_XDECREF(__pyx_t_7);
+  __Pyx_AddTraceback("bptree_optimized.BPlusTreeOptimized.insert_non_unique", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_existing_holder);
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "bptree_optimized.pyx":608
+ *             self._insert_single_value(k, value)
+ * 
+ *     def _insert_single_value(self, double key, value):             # <<<<<<<<<<<<<<
+ *         """Insert a single value (helper method)"""
+ *         cdef size_t value_ptr = self.next_value_id
+*/
+
+/* Python wrapper */
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_11_insert_single_value(PyObject *__pyx_v_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+); /*proto*/
+PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_10_insert_single_value, "Insert a single value (helper method)");
+static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_11_insert_single_value = {"_insert_single_value", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_11_insert_single_value, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_10_insert_single_value};
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_11_insert_single_value(PyObject *__pyx_v_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+) {
+  double __pyx_v_key;
+  PyObject *__pyx_v_value = 0;
+  #if !CYTHON_METH_FASTCALL
+  CYTHON_UNUSED Py_ssize_t __pyx_nargs;
+  #endif
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject* values[2] = {0,0};
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("_insert_single_value (wrapper)", 0);
+  #if !CYTHON_METH_FASTCALL
+  #if CYTHON_ASSUME_SAFE_SIZE
+  __pyx_nargs = PyTuple_GET_SIZE(__pyx_args);
+  #else
+  __pyx_nargs = PyTuple_Size(__pyx_args); if (unlikely(__pyx_nargs < 0)) return NULL;
+  #endif
+  #endif
+  __pyx_kwvalues = __Pyx_KwValues_FASTCALL(__pyx_args, __pyx_nargs);
+  {
+    PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_key,&__pyx_mstate_global->__pyx_n_u_value,0};
+    const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 608, __pyx_L3_error)
+    if (__pyx_kwds_len > 0) {
+      switch (__pyx_nargs) {
+        case  2:
+        values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 608, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  1:
+        values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 608, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  0: break;
+        default: goto __pyx_L5_argtuple_error;
+      }
+      const Py_ssize_t kwd_pos_args = __pyx_nargs;
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_insert_single_value", 0) < 0) __PYX_ERR(0, 608, __pyx_L3_error)
+      for (Py_ssize_t i = __pyx_nargs; i < 2; i++) {
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_insert_single_value", 1, 2, 2, i); __PYX_ERR(0, 608, __pyx_L3_error) }
+      }
+    } else if (unlikely(__pyx_nargs != 2)) {
+      goto __pyx_L5_argtuple_error;
+    } else {
+      values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 608, __pyx_L3_error)
+      values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 608, __pyx_L3_error)
+    }
+    __pyx_v_key = __Pyx_PyFloat_AsDouble(values[0]); if (unlikely((__pyx_v_key == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 608, __pyx_L3_error)
+    __pyx_v_value = values[1];
+  }
+  goto __pyx_L6_skip;
+  __pyx_L5_argtuple_error:;
+  __Pyx_RaiseArgtupleInvalid("_insert_single_value", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 608, __pyx_L3_error)
+  __pyx_L6_skip:;
+  goto __pyx_L4_argument_unpacking_done;
+  __pyx_L3_error:;
+  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
+    Py_XDECREF(values[__pyx_temp]);
+  }
+  __Pyx_AddTraceback("bptree_optimized.BPlusTreeOptimized._insert_single_value", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_RefNannyFinishContext();
+  return NULL;
+  __pyx_L4_argument_unpacking_done:;
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_10_insert_single_value(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v_key, __pyx_v_value);
+
+  /* function exit code */
+  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
+    Py_XDECREF(values[__pyx_temp]);
+  }
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_10_insert_single_value(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, double __pyx_v_key, PyObject *__pyx_v_value) {
+  size_t __pyx_v_value_ptr;
+  __pyx_t_16bptree_optimized_BPNode *__pyx_v_new_root;
+  PyObject *__pyx_v_result = NULL;
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  size_t __pyx_t_1;
+  PyObject *__pyx_t_2 = NULL;
+  PyObject *__pyx_t_3 = NULL;
+  PyObject *__pyx_t_4 = NULL;
+  int __pyx_t_5;
+  int __pyx_t_6;
+  int __pyx_t_7;
+  __pyx_t_16bptree_optimized_BPNode *__pyx_t_8;
+  PyObject *__pyx_t_9 = NULL;
+  PyObject *__pyx_t_10[3];
+  PyObject *__pyx_t_11 = NULL;
+  PyObject *__pyx_t_12 = NULL;
+  PyObject *__pyx_t_13[5];
+  PyObject *__pyx_t_14[6];
+  PyObject *__pyx_t_15 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("_insert_single_value", 0);
+
+  /* "bptree_optimized.pyx":610
+ *     def _insert_single_value(self, double key, value):
+ *         """Insert a single value (helper method)"""
+ *         cdef size_t value_ptr = self.next_value_id             # <<<<<<<<<<<<<<
+ *         cdef BPNode* new_root
+ * 
+*/
+  __pyx_t_1 = __pyx_v_self->next_value_id;
+  __pyx_v_value_ptr = __pyx_t_1;
+
+  /* "bptree_optimized.pyx":613
+ *         cdef BPNode* new_root
+ * 
+ *         self.value_store[value_ptr] = ValueHolder(value)             # <<<<<<<<<<<<<<
+ *         self.next_value_id += 1
+ * 
+*/
+  __pyx_t_3 = NULL;
+  __Pyx_INCREF((PyObject *)__pyx_mstate_global->__pyx_ptype_16bptree_optimized_ValueHolder);
+  __pyx_t_4 = ((PyObject *)__pyx_mstate_global->__pyx_ptype_16bptree_optimized_ValueHolder); 
+  __pyx_t_1 = 1;
+  {
+    PyObject *__pyx_callargs[2] = {__pyx_t_3, __pyx_v_value};
+    __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+__pyx_t_1, (2-__pyx_t_1) | (__pyx_t_1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+    __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 613, __pyx_L1_error)
+    __Pyx_GOTREF((PyObject *)__pyx_t_2);
+  }
+  if (unlikely(__pyx_v_self->value_store == Py_None)) {
+    PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+    __PYX_ERR(0, 613, __pyx_L1_error)
+  }
+  __pyx_t_4 = __Pyx_PyLong_FromSize_t(__pyx_v_value_ptr); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 613, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  if (unlikely((PyDict_SetItem(__pyx_v_self->value_store, __pyx_t_4, ((PyObject *)__pyx_t_2)) < 0))) __PYX_ERR(0, 613, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+  __Pyx_DECREF((PyObject *)__pyx_t_2); __pyx_t_2 = 0;
+
+  /* "bptree_optimized.pyx":614
+ * 
+ *         self.value_store[value_ptr] = ValueHolder(value)
+ *         self.next_value_id += 1             # <<<<<<<<<<<<<<
+ * 
+ *         # Check if root is NULL or invalid
+*/
+  __pyx_v_self->next_value_id = (__pyx_v_self->next_value_id + 1);
+
+  /* "bptree_optimized.pyx":617
+ * 
+ *         # Check if root is NULL or invalid
+ *         if self.root == NULL or not self._validate_node(self.root):             # <<<<<<<<<<<<<<
+ *             # Root is invalid, create a new one
+ *             self.root = self._create_node(1)  # Create a new leaf root
+*/
+  __pyx_t_6 = (__pyx_v_self->root == NULL);
+  if (!__pyx_t_6) {
+  } else {
+    __pyx_t_5 = __pyx_t_6;
+    goto __pyx_L4_bool_binop_done;
+  }
+  __pyx_t_6 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_validate_node(__pyx_v_self, __pyx_v_self->root, NULL); if (unlikely(__pyx_t_6 == ((int)-1))) __PYX_ERR(0, 617, __pyx_L1_error)
+  __pyx_t_7 = (!__pyx_t_6);
+  __pyx_t_5 = __pyx_t_7;
+  __pyx_L4_bool_binop_done:;
+  if (__pyx_t_5) {
+
+    /* "bptree_optimized.pyx":619
+ *         if self.root == NULL or not self._validate_node(self.root):
+ *             # Root is invalid, create a new one
+ *             self.root = self._create_node(1)  # Create a new leaf root             # <<<<<<<<<<<<<<
+ *             if self.root == NULL:
+ *                 logger.error(f"[{self.name}] Failed to create new root node in _insert_single_value")
+*/
+    __pyx_t_8 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_create_node(__pyx_v_self, 1); if (unlikely(__pyx_t_8 == ((__pyx_t_16bptree_optimized_BPNode *)0) && PyErr_Occurred())) __PYX_ERR(0, 619, __pyx_L1_error)
+    __pyx_v_self->root = __pyx_t_8;
+
+    /* "bptree_optimized.pyx":620
+ *             # Root is invalid, create a new one
+ *             self.root = self._create_node(1)  # Create a new leaf root
+ *             if self.root == NULL:             # <<<<<<<<<<<<<<
+ *                 logger.error(f"[{self.name}] Failed to create new root node in _insert_single_value")
+ *                 return
+*/
+    __pyx_t_5 = (__pyx_v_self->root == NULL);
+    if (__pyx_t_5) {
+
+      /* "bptree_optimized.pyx":621
+ *             self.root = self._create_node(1)  # Create a new leaf root
+ *             if self.root == NULL:
+ *                 logger.error(f"[{self.name}] Failed to create new root node in _insert_single_value")             # <<<<<<<<<<<<<<
+ *                 return
+ * 
+*/
+      __pyx_t_4 = NULL;
+      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 621, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 621, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_9);
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __pyx_t_3 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 621, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_10[0] = __pyx_mstate_global->__pyx_kp_u_;
+      __pyx_t_10[1] = __pyx_t_3;
+      __pyx_t_10[2] = __pyx_mstate_global->__pyx_kp_u_Failed_to_create_new_root_node_2;
+      __pyx_t_11 = __Pyx_PyUnicode_Join(__pyx_t_10, 3, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_3) + 56, 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_3));
+      if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 621, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __pyx_t_1 = 1;
+      #if CYTHON_UNPACK_METHODS
+      if (unlikely(PyMethod_Check(__pyx_t_9))) {
+        __pyx_t_4 = PyMethod_GET_SELF(__pyx_t_9);
+        assert(__pyx_t_4);
+        PyObject* __pyx__function = PyMethod_GET_FUNCTION(__pyx_t_9);
+        __Pyx_INCREF(__pyx_t_4);
+        __Pyx_INCREF(__pyx__function);
+        __Pyx_DECREF_SET(__pyx_t_9, __pyx__function);
+        __pyx_t_1 = 0;
+      }
+      #endif
+      {
+        PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_t_11};
+        __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_9, __pyx_callargs+__pyx_t_1, (2-__pyx_t_1) | (__pyx_t_1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+        __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+        __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+        __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 621, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_2);
+      }
+      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+
+      /* "bptree_optimized.pyx":622
+ *             if self.root == NULL:
+ *                 logger.error(f"[{self.name}] Failed to create new root node in _insert_single_value")
+ *                 return             # <<<<<<<<<<<<<<
+ * 
+ *         # Handle root split if necessary
+*/
+      __Pyx_XDECREF(__pyx_r);
+      __pyx_r = Py_None; __Pyx_INCREF(Py_None);
+      goto __pyx_L0;
+
+      /* "bptree_optimized.pyx":620
+ *             # Root is invalid, create a new one
+ *             self.root = self._create_node(1)  # Create a new leaf root
+ *             if self.root == NULL:             # <<<<<<<<<<<<<<
+ *                 logger.error(f"[{self.name}] Failed to create new root node in _insert_single_value")
+ *                 return
+*/
+    }
+
+    /* "bptree_optimized.pyx":617
+ * 
+ *         # Check if root is NULL or invalid
+ *         if self.root == NULL or not self._validate_node(self.root):             # <<<<<<<<<<<<<<
+ *             # Root is invalid, create a new one
+ *             self.root = self._create_node(1)  # Create a new leaf root
+*/
+  }
+
+  /* "bptree_optimized.pyx":625
+ * 
+ *         # Handle root split if necessary
+ *         if self.root.num_keys >= self.root.capacity:             # <<<<<<<<<<<<<<
+ *             # Root is full, need to split it
+ *             new_root = self._create_node(0)  # Create new internal root
+*/
+  __pyx_t_5 = (__pyx_v_self->root->num_keys >= __pyx_v_self->root->capacity);
+  if (__pyx_t_5) {
+
+    /* "bptree_optimized.pyx":627
+ *         if self.root.num_keys >= self.root.capacity:
+ *             # Root is full, need to split it
+ *             new_root = self._create_node(0)  # Create new internal root             # <<<<<<<<<<<<<<
+ *             if new_root == NULL:
+ *                 logger.error(f"[{self.name}] Failed to create new root node during split in _insert_single_value")
+*/
+    __pyx_t_8 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_create_node(__pyx_v_self, 0); if (unlikely(__pyx_t_8 == ((__pyx_t_16bptree_optimized_BPNode *)0) && PyErr_Occurred())) __PYX_ERR(0, 627, __pyx_L1_error)
+    __pyx_v_new_root = __pyx_t_8;
+
+    /* "bptree_optimized.pyx":628
+ *             # Root is full, need to split it
+ *             new_root = self._create_node(0)  # Create new internal root
+ *             if new_root == NULL:             # <<<<<<<<<<<<<<
+ *                 logger.error(f"[{self.name}] Failed to create new root node during split in _insert_single_value")
+ *                 return
+*/
+    __pyx_t_5 = (__pyx_v_new_root == NULL);
+    if (__pyx_t_5) {
+
+      /* "bptree_optimized.pyx":629
+ *             new_root = self._create_node(0)  # Create new internal root
+ *             if new_root == NULL:
+ *                 logger.error(f"[{self.name}] Failed to create new root node during split in _insert_single_value")             # <<<<<<<<<<<<<<
+ *                 return
+ * 
+*/
+      __pyx_t_9 = NULL;
+      __Pyx_GetModuleGlobalName(__pyx_t_11, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 629, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_11, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 629, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+      __pyx_t_11 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 629, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __pyx_t_10[0] = __pyx_mstate_global->__pyx_kp_u_;
+      __pyx_t_10[1] = __pyx_t_11;
+      __pyx_t_10[2] = __pyx_mstate_global->__pyx_kp_u_Failed_to_create_new_root_node_3;
+      __pyx_t_3 = __Pyx_PyUnicode_Join(__pyx_t_10, 3, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_11) + 69, 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_11));
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 629, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+      __pyx_t_1 = 1;
+      #if CYTHON_UNPACK_METHODS
+      if (unlikely(PyMethod_Check(__pyx_t_4))) {
+        __pyx_t_9 = PyMethod_GET_SELF(__pyx_t_4);
+        assert(__pyx_t_9);
+        PyObject* __pyx__function = PyMethod_GET_FUNCTION(__pyx_t_4);
+        __Pyx_INCREF(__pyx_t_9);
+        __Pyx_INCREF(__pyx__function);
+        __Pyx_DECREF_SET(__pyx_t_4, __pyx__function);
+        __pyx_t_1 = 0;
+      }
+      #endif
+      {
+        PyObject *__pyx_callargs[2] = {__pyx_t_9, __pyx_t_3};
+        __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+__pyx_t_1, (2-__pyx_t_1) | (__pyx_t_1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+        __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
+        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 629, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_2);
+      }
+      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+
+      /* "bptree_optimized.pyx":630
+ *             if new_root == NULL:
+ *                 logger.error(f"[{self.name}] Failed to create new root node during split in _insert_single_value")
+ *                 return             # <<<<<<<<<<<<<<
+ * 
+ *             # Make old root the first child of new root
+*/
+      __Pyx_XDECREF(__pyx_r);
+      __pyx_r = Py_None; __Pyx_INCREF(Py_None);
+      goto __pyx_L0;
+
+      /* "bptree_optimized.pyx":628
+ *             # Root is full, need to split it
+ *             new_root = self._create_node(0)  # Create new internal root
+ *             if new_root == NULL:             # <<<<<<<<<<<<<<
+ *                 logger.error(f"[{self.name}] Failed to create new root node during split in _insert_single_value")
+ *                 return
+*/
+    }
+
+    /* "bptree_optimized.pyx":633
+ * 
+ *             # Make old root the first child of new root
+ *             new_root.children[0] = self.root             # <<<<<<<<<<<<<<
+ *             new_root.num_keys = 0  # Start with no keys in new root
+ * 
+*/
+    __pyx_t_8 = __pyx_v_self->root;
+    (__pyx_v_new_root->children[0]) = __pyx_t_8;
+
+    /* "bptree_optimized.pyx":634
+ *             # Make old root the first child of new root
+ *             new_root.children[0] = self.root
+ *             new_root.num_keys = 0  # Start with no keys in new root             # <<<<<<<<<<<<<<
+ * 
+ *             # Update root pointer
+*/
+    __pyx_v_new_root->num_keys = 0;
+
+    /* "bptree_optimized.pyx":637
+ * 
+ *             # Update root pointer
+ *             self.root = new_root             # <<<<<<<<<<<<<<
+ * 
+ *             # Split the old root (now first child of new root)
+*/
+    __pyx_v_self->root = __pyx_v_new_root;
+
+    /* "bptree_optimized.pyx":640
+ * 
+ *             # Split the old root (now first child of new root)
+ *             self._split_child(new_root, 0)             # <<<<<<<<<<<<<<
+ * 
+ *             if logger.isEnabledFor(logging.DEBUG):
+*/
+    ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_split_child(__pyx_v_self, __pyx_v_new_root, 0); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 640, __pyx_L1_error)
+
+    /* "bptree_optimized.pyx":642
+ *             self._split_child(new_root, 0)
+ * 
+ *             if logger.isEnabledFor(logging.DEBUG):             # <<<<<<<<<<<<<<
+ *                 logger.debug(f"[{self.name}] Root split completed in _insert_single_value")
+ * 
+*/
+    __pyx_t_4 = NULL;
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 642, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_isEnabledFor); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 642, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_9);
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_logging); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 642, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_DEBUG); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 642, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_11);
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __pyx_t_1 = 1;
+    #if CYTHON_UNPACK_METHODS
+    if (unlikely(PyMethod_Check(__pyx_t_9))) {
+      __pyx_t_4 = PyMethod_GET_SELF(__pyx_t_9);
+      assert(__pyx_t_4);
+      PyObject* __pyx__function = PyMethod_GET_FUNCTION(__pyx_t_9);
+      __Pyx_INCREF(__pyx_t_4);
+      __Pyx_INCREF(__pyx__function);
+      __Pyx_DECREF_SET(__pyx_t_9, __pyx__function);
+      __pyx_t_1 = 0;
+    }
+    #endif
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_t_11};
+      __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_9, __pyx_callargs+__pyx_t_1, (2-__pyx_t_1) | (__pyx_t_1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 642, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_2);
+    }
+    __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 642, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    if (__pyx_t_5) {
+
+      /* "bptree_optimized.pyx":643
+ * 
+ *             if logger.isEnabledFor(logging.DEBUG):
+ *                 logger.debug(f"[{self.name}] Root split completed in _insert_single_value")             # <<<<<<<<<<<<<<
+ * 
+ *         # Insert into the (possibly new) non-full root
+*/
+      __pyx_t_9 = NULL;
+      __Pyx_GetModuleGlobalName(__pyx_t_11, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 643, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_11, __pyx_mstate_global->__pyx_n_u_debug); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 643, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+      __pyx_t_11 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 643, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __pyx_t_10[0] = __pyx_mstate_global->__pyx_kp_u_;
+      __pyx_t_10[1] = __pyx_t_11;
+      __pyx_t_10[2] = __pyx_mstate_global->__pyx_kp_u_Root_split_completed_in__insert;
+      __pyx_t_3 = __Pyx_PyUnicode_Join(__pyx_t_10, 3, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_11) + 46, 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_11));
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 643, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+      __pyx_t_1 = 1;
+      #if CYTHON_UNPACK_METHODS
+      if (unlikely(PyMethod_Check(__pyx_t_4))) {
+        __pyx_t_9 = PyMethod_GET_SELF(__pyx_t_4);
+        assert(__pyx_t_9);
+        PyObject* __pyx__function = PyMethod_GET_FUNCTION(__pyx_t_4);
+        __Pyx_INCREF(__pyx_t_9);
+        __Pyx_INCREF(__pyx__function);
+        __Pyx_DECREF_SET(__pyx_t_4, __pyx__function);
+        __pyx_t_1 = 0;
+      }
+      #endif
+      {
+        PyObject *__pyx_callargs[2] = {__pyx_t_9, __pyx_t_3};
+        __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+__pyx_t_1, (2-__pyx_t_1) | (__pyx_t_1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+        __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
+        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 643, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_2);
+      }
+      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+
+      /* "bptree_optimized.pyx":642
+ *             self._split_child(new_root, 0)
+ * 
+ *             if logger.isEnabledFor(logging.DEBUG):             # <<<<<<<<<<<<<<
+ *                 logger.debug(f"[{self.name}] Root split completed in _insert_single_value")
+ * 
+*/
+    }
+
+    /* "bptree_optimized.pyx":625
+ * 
+ *         # Handle root split if necessary
+ *         if self.root.num_keys >= self.root.capacity:             # <<<<<<<<<<<<<<
+ *             # Root is full, need to split it
+ *             new_root = self._create_node(0)  # Create new internal root
+*/
+  }
+
+  /* "bptree_optimized.pyx":646
+ * 
+ *         # Insert into the (possibly new) non-full root
+ *         self._insert_non_full(self.root, key, value_ptr)             # <<<<<<<<<<<<<<
+ * 
+ *         # Verify insertion for debugging
+*/
+  ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_insert_non_full(__pyx_v_self, __pyx_v_self->root, __pyx_v_key, __pyx_v_value_ptr); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 646, __pyx_L1_error)
+
+  /* "bptree_optimized.pyx":649
+ * 
+ *         # Verify insertion for debugging
+ *         if logger.isEnabledFor(logging.DEBUG):             # <<<<<<<<<<<<<<
+ *             result = self.search(key)
+ *             if result != value:
+*/
+  __pyx_t_4 = NULL;
+  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 649, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_isEnabledFor); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 649, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_9);
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_logging); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 649, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_DEBUG); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 649, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_11);
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __pyx_t_1 = 1;
+  #if CYTHON_UNPACK_METHODS
+  if (unlikely(PyMethod_Check(__pyx_t_9))) {
+    __pyx_t_4 = PyMethod_GET_SELF(__pyx_t_9);
+    assert(__pyx_t_4);
+    PyObject* __pyx__function = PyMethod_GET_FUNCTION(__pyx_t_9);
+    __Pyx_INCREF(__pyx_t_4);
+    __Pyx_INCREF(__pyx__function);
+    __Pyx_DECREF_SET(__pyx_t_9, __pyx__function);
+    __pyx_t_1 = 0;
+  }
+  #endif
+  {
+    PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_t_11};
+    __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_9, __pyx_callargs+__pyx_t_1, (2-__pyx_t_1) | (__pyx_t_1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+    __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+    __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+    __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 649, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+  }
+  __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 649, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  if (__pyx_t_5) {
+
+    /* "bptree_optimized.pyx":650
+ *         # Verify insertion for debugging
+ *         if logger.isEnabledFor(logging.DEBUG):
+ *             result = self.search(key)             # <<<<<<<<<<<<<<
+ *             if result != value:
+ *                 logger.error(f"[{self.name}] Key {key} was not inserted correctly in _insert_single_value")
+*/
+    __pyx_t_9 = ((PyObject *)__pyx_v_self);
+    __Pyx_INCREF(__pyx_t_9);
+    __pyx_t_11 = PyFloat_FromDouble(__pyx_v_key); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 650, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_11);
+    __pyx_t_1 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_9, __pyx_t_11};
+      __pyx_t_2 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_search, __pyx_callargs+__pyx_t_1, (2-__pyx_t_1) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 650, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_2);
+    }
+    __pyx_v_result = __pyx_t_2;
+    __pyx_t_2 = 0;
+
+    /* "bptree_optimized.pyx":651
+ *         if logger.isEnabledFor(logging.DEBUG):
+ *             result = self.search(key)
+ *             if result != value:             # <<<<<<<<<<<<<<
+ *                 logger.error(f"[{self.name}] Key {key} was not inserted correctly in _insert_single_value")
+ *             else:
+*/
+    __pyx_t_2 = PyObject_RichCompare(__pyx_v_result, __pyx_v_value, Py_NE); __Pyx_XGOTREF(__pyx_t_2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 651, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_5 < 0))) __PYX_ERR(0, 651, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    if (__pyx_t_5) {
+
+      /* "bptree_optimized.pyx":652
+ *             result = self.search(key)
+ *             if result != value:
+ *                 logger.error(f"[{self.name}] Key {key} was not inserted correctly in _insert_single_value")             # <<<<<<<<<<<<<<
+ *             else:
+ *                 logger.debug(f"[{self.name}] Successfully inserted key {key} with value {value}")
+*/
+      __pyx_t_11 = NULL;
+      __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 652, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_9);
+      __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 652, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
+      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      __pyx_t_9 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 652, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_9);
+      __pyx_t_3 = PyFloat_FromDouble(__pyx_v_key); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 652, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_12 = __Pyx_PyObject_FormatSimple(__pyx_t_3, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 652, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_12);
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __pyx_t_13[0] = __pyx_mstate_global->__pyx_kp_u_;
+      __pyx_t_13[1] = __pyx_t_9;
+      __pyx_t_13[2] = __pyx_mstate_global->__pyx_kp_u_Key;
+      __pyx_t_13[3] = __pyx_t_12;
+      __pyx_t_13[4] = __pyx_mstate_global->__pyx_kp_u_was_not_inserted_correctly_in;
+      __pyx_t_3 = __Pyx_PyUnicode_Join(__pyx_t_13, 5, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_9) + 6 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_12) + 51, 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_9) | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_12));
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 652, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
+      __pyx_t_1 = 1;
+      #if CYTHON_UNPACK_METHODS
+      if (unlikely(PyMethod_Check(__pyx_t_4))) {
+        __pyx_t_11 = PyMethod_GET_SELF(__pyx_t_4);
+        assert(__pyx_t_11);
+        PyObject* __pyx__function = PyMethod_GET_FUNCTION(__pyx_t_4);
+        __Pyx_INCREF(__pyx_t_11);
+        __Pyx_INCREF(__pyx__function);
+        __Pyx_DECREF_SET(__pyx_t_4, __pyx__function);
+        __pyx_t_1 = 0;
+      }
+      #endif
+      {
+        PyObject *__pyx_callargs[2] = {__pyx_t_11, __pyx_t_3};
+        __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+__pyx_t_1, (2-__pyx_t_1) | (__pyx_t_1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+        __Pyx_XDECREF(__pyx_t_11); __pyx_t_11 = 0;
+        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 652, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_2);
+      }
+      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+
+      /* "bptree_optimized.pyx":651
+ *         if logger.isEnabledFor(logging.DEBUG):
+ *             result = self.search(key)
+ *             if result != value:             # <<<<<<<<<<<<<<
+ *                 logger.error(f"[{self.name}] Key {key} was not inserted correctly in _insert_single_value")
+ *             else:
+*/
+      goto __pyx_L11;
+    }
+
+    /* "bptree_optimized.pyx":654
+ *                 logger.error(f"[{self.name}] Key {key} was not inserted correctly in _insert_single_value")
+ *             else:
+ *                 logger.debug(f"[{self.name}] Successfully inserted key {key} with value {value}")             # <<<<<<<<<<<<<<
+ * 
+ *     cdef void _collect_range(self, BPNode* node, double start_key, double end_key, list result) except *:
+*/
+    /*else*/ {
+      __pyx_t_4 = NULL;
+      __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 654, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_debug); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 654, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __pyx_t_3 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 654, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_12 = PyFloat_FromDouble(__pyx_v_key); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 654, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_12);
+      __pyx_t_9 = __Pyx_PyObject_FormatSimple(__pyx_t_12, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 654, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_9);
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
+      __pyx_t_12 = __Pyx_PyObject_FormatSimple(__pyx_v_value, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 654, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_12);
+      __pyx_t_14[0] = __pyx_mstate_global->__pyx_kp_u_;
+      __pyx_t_14[1] = __pyx_t_3;
+      __pyx_t_14[2] = __pyx_mstate_global->__pyx_kp_u_Successfully_inserted_key;
+      __pyx_t_14[3] = __pyx_t_9;
+      __pyx_t_14[4] = __pyx_mstate_global->__pyx_kp_u_with_value;
+      __pyx_t_14[5] = __pyx_t_12;
+      __pyx_t_15 = __Pyx_PyUnicode_Join(__pyx_t_14, 6, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_3) + 28 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_9) + 12 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_12), 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_3) | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_9) | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_12));
+      if (unlikely(!__pyx_t_15)) __PYX_ERR(0, 654, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_15);
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
+      __pyx_t_1 = 1;
+      #if CYTHON_UNPACK_METHODS
+      if (unlikely(PyMethod_Check(__pyx_t_11))) {
+        __pyx_t_4 = PyMethod_GET_SELF(__pyx_t_11);
+        assert(__pyx_t_4);
+        PyObject* __pyx__function = PyMethod_GET_FUNCTION(__pyx_t_11);
+        __Pyx_INCREF(__pyx_t_4);
+        __Pyx_INCREF(__pyx__function);
+        __Pyx_DECREF_SET(__pyx_t_11, __pyx__function);
+        __pyx_t_1 = 0;
+      }
+      #endif
+      {
+        PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_t_15};
+        __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_11, __pyx_callargs+__pyx_t_1, (2-__pyx_t_1) | (__pyx_t_1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+        __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+        __Pyx_DECREF(__pyx_t_15); __pyx_t_15 = 0;
+        __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 654, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_2);
+      }
+      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    }
+    __pyx_L11:;
+
+    /* "bptree_optimized.pyx":649
+ * 
+ *         # Verify insertion for debugging
+ *         if logger.isEnabledFor(logging.DEBUG):             # <<<<<<<<<<<<<<
+ *             result = self.search(key)
+ *             if result != value:
+*/
+  }
+
+  /* "bptree_optimized.pyx":608
+ *             self._insert_single_value(k, value)
+ * 
+ *     def _insert_single_value(self, double key, value):             # <<<<<<<<<<<<<<
+ *         """Insert a single value (helper method)"""
+ *         cdef size_t value_ptr = self.next_value_id
+*/
+
+  /* function exit code */
+  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_2);
+  __Pyx_XDECREF(__pyx_t_3);
+  __Pyx_XDECREF(__pyx_t_4);
+  __Pyx_XDECREF(__pyx_t_9);
+  __Pyx_XDECREF(__pyx_t_11);
+  __Pyx_XDECREF(__pyx_t_12);
+  __Pyx_XDECREF(__pyx_t_15);
+  __Pyx_AddTraceback("bptree_optimized.BPlusTreeOptimized._insert_single_value", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_result);
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "bptree_optimized.pyx":656
+ *                 logger.debug(f"[{self.name}] Successfully inserted key {key} with value {value}")
  * 
  *     cdef void _collect_range(self, BPNode* node, double start_key, double end_key, list result) except *:             # <<<<<<<<<<<<<<
  *         """Safer implementation to collect keys in range - with more error handling"""
@@ -10907,7 +12012,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_collect_range", 0);
 
-  /* "bptree_optimized.pyx":598
+  /* "bptree_optimized.pyx":665
  *             size_t val_ptr
  * 
  *         if node == NULL:             # <<<<<<<<<<<<<<
@@ -10917,7 +12022,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
   __pyx_t_1 = (__pyx_v_node == NULL);
   if (__pyx_t_1) {
 
-    /* "bptree_optimized.pyx":599
+    /* "bptree_optimized.pyx":666
  * 
  *         if node == NULL:
  *             return             # <<<<<<<<<<<<<<
@@ -10926,7 +12031,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
 */
     goto __pyx_L0;
 
-    /* "bptree_optimized.pyx":598
+    /* "bptree_optimized.pyx":665
  *             size_t val_ptr
  * 
  *         if node == NULL:             # <<<<<<<<<<<<<<
@@ -10935,17 +12040,17 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
 */
   }
 
-  /* "bptree_optimized.pyx":602
+  /* "bptree_optimized.pyx":669
  * 
  *         # Simplified approach: find the leftmost leaf first
  *         leaf_node = self._find_leftmost_leaf(node)             # <<<<<<<<<<<<<<
  * 
  *         # Then traverse the linked list of leaves
 */
-  __pyx_t_2 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_find_leftmost_leaf(__pyx_v_self, __pyx_v_node); if (unlikely(__pyx_t_2 == ((__pyx_t_16bptree_optimized_BPNode *)0) && PyErr_Occurred())) __PYX_ERR(0, 602, __pyx_L1_error)
+  __pyx_t_2 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_find_leftmost_leaf(__pyx_v_self, __pyx_v_node); if (unlikely(__pyx_t_2 == ((__pyx_t_16bptree_optimized_BPNode *)0) && PyErr_Occurred())) __PYX_ERR(0, 669, __pyx_L1_error)
   __pyx_v_leaf_node = __pyx_t_2;
 
-  /* "bptree_optimized.pyx":605
+  /* "bptree_optimized.pyx":672
  * 
  *         # Then traverse the linked list of leaves
  *         while leaf_node != NULL:             # <<<<<<<<<<<<<<
@@ -10956,7 +12061,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
     __pyx_t_1 = (__pyx_v_leaf_node != NULL);
     if (!__pyx_t_1) break;
 
-    /* "bptree_optimized.pyx":607
+    /* "bptree_optimized.pyx":674
  *         while leaf_node != NULL:
  *             # Check each key in the leaf
  *             for i in range(leaf_node.num_keys):             # <<<<<<<<<<<<<<
@@ -10968,7 +12073,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
     for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
       __pyx_v_i = __pyx_t_5;
 
-      /* "bptree_optimized.pyx":608
+      /* "bptree_optimized.pyx":675
  *             # Check each key in the leaf
  *             for i in range(leaf_node.num_keys):
  *                 if i < 0 or i >= leaf_node.capacity:             # <<<<<<<<<<<<<<
@@ -10986,7 +12091,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
       __pyx_L9_bool_binop_done:;
       if (__pyx_t_1) {
 
-        /* "bptree_optimized.pyx":609
+        /* "bptree_optimized.pyx":676
  *             for i in range(leaf_node.num_keys):
  *                 if i < 0 or i >= leaf_node.capacity:
  *                     logger.error(f"[{self.name}] Invalid key index {i} in leaf node")             # <<<<<<<<<<<<<<
@@ -10994,14 +12099,14 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
  * 
 */
         __pyx_t_8 = NULL;
-        __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 609, __pyx_L1_error)
+        __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 676, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_9);
-        __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 609, __pyx_L1_error)
+        __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 676, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_10);
         __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-        __pyx_t_9 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 609, __pyx_L1_error)
+        __pyx_t_9 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 676, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_9);
-        __pyx_t_11 = __Pyx_PyUnicode_From_int(__pyx_v_i, 0, ' ', 'd'); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 609, __pyx_L1_error)
+        __pyx_t_11 = __Pyx_PyUnicode_From_int(__pyx_v_i, 0, ' ', 'd'); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 676, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_11);
         __pyx_t_12[0] = __pyx_mstate_global->__pyx_kp_u_;
         __pyx_t_12[1] = __pyx_t_9;
@@ -11009,7 +12114,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
         __pyx_t_12[3] = __pyx_t_11;
         __pyx_t_12[4] = __pyx_mstate_global->__pyx_kp_u_in_leaf_node;
         __pyx_t_13 = __Pyx_PyUnicode_Join(__pyx_t_12, 5, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_9) + 20 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_11) + 13, 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_9));
-        if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 609, __pyx_L1_error)
+        if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 676, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_13);
         __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
         __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
@@ -11031,12 +12136,12 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
           __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
           __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
           __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 609, __pyx_L1_error)
+          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 676, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_7);
         }
         __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-        /* "bptree_optimized.pyx":610
+        /* "bptree_optimized.pyx":677
  *                 if i < 0 or i >= leaf_node.capacity:
  *                     logger.error(f"[{self.name}] Invalid key index {i} in leaf node")
  *                     continue             # <<<<<<<<<<<<<<
@@ -11045,7 +12150,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
 */
         goto __pyx_L6_continue;
 
-        /* "bptree_optimized.pyx":608
+        /* "bptree_optimized.pyx":675
  *             # Check each key in the leaf
  *             for i in range(leaf_node.num_keys):
  *                 if i < 0 or i >= leaf_node.capacity:             # <<<<<<<<<<<<<<
@@ -11054,7 +12159,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
 */
       }
 
-      /* "bptree_optimized.pyx":613
+      /* "bptree_optimized.pyx":680
  * 
  *                 # Get key safely
  *                 leaf_key = leaf_node.keys[i].key             # <<<<<<<<<<<<<<
@@ -11064,7 +12169,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
       __pyx_t_15 = (__pyx_v_leaf_node->keys[__pyx_v_i]).key;
       __pyx_v_leaf_key = __pyx_t_15;
 
-      /* "bptree_optimized.pyx":616
+      /* "bptree_optimized.pyx":683
  * 
  *                 # If key > end_key, we're done
  *                 if leaf_key > end_key:             # <<<<<<<<<<<<<<
@@ -11074,7 +12179,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
       __pyx_t_1 = (__pyx_v_leaf_key > __pyx_v_end_key);
       if (__pyx_t_1) {
 
-        /* "bptree_optimized.pyx":617
+        /* "bptree_optimized.pyx":684
  *                 # If key > end_key, we're done
  *                 if leaf_key > end_key:
  *                     return             # <<<<<<<<<<<<<<
@@ -11083,7 +12188,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
 */
         goto __pyx_L0;
 
-        /* "bptree_optimized.pyx":616
+        /* "bptree_optimized.pyx":683
  * 
  *                 # If key > end_key, we're done
  *                 if leaf_key > end_key:             # <<<<<<<<<<<<<<
@@ -11092,7 +12197,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
 */
       }
 
-      /* "bptree_optimized.pyx":620
+      /* "bptree_optimized.pyx":687
  * 
  *                 # If key is in range, add to results
  *                 if leaf_key >= start_key:             # <<<<<<<<<<<<<<
@@ -11102,7 +12207,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
       __pyx_t_1 = (__pyx_v_leaf_key >= __pyx_v_start_key);
       if (__pyx_t_1) {
 
-        /* "bptree_optimized.pyx":621
+        /* "bptree_optimized.pyx":688
  *                 # If key is in range, add to results
  *                 if leaf_key >= start_key:
  *                     val_ptr = leaf_node.keys[i].value_ptr             # <<<<<<<<<<<<<<
@@ -11112,7 +12217,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
         __pyx_t_14 = (__pyx_v_leaf_node->keys[__pyx_v_i]).value_ptr;
         __pyx_v_val_ptr = __pyx_t_14;
 
-        /* "bptree_optimized.pyx":622
+        /* "bptree_optimized.pyx":689
  *                 if leaf_key >= start_key:
  *                     val_ptr = leaf_node.keys[i].value_ptr
  *                     if val_ptr > 0:             # <<<<<<<<<<<<<<
@@ -11122,7 +12227,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
         __pyx_t_1 = (__pyx_v_val_ptr > 0);
         if (__pyx_t_1) {
 
-          /* "bptree_optimized.pyx":624
+          /* "bptree_optimized.pyx":691
  *                     if val_ptr > 0:
  *                         # Fetch the value - this needs GIL but we're already in Python context
  *                         value = self.value_store.get(val_ptr)             # <<<<<<<<<<<<<<
@@ -11131,17 +12236,17 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
 */
           if (unlikely(__pyx_v_self->value_store == Py_None)) {
             PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "get");
-            __PYX_ERR(0, 624, __pyx_L1_error)
+            __PYX_ERR(0, 691, __pyx_L1_error)
           }
-          __pyx_t_7 = __Pyx_PyLong_FromSize_t(__pyx_v_val_ptr); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 624, __pyx_L1_error)
+          __pyx_t_7 = __Pyx_PyLong_FromSize_t(__pyx_v_val_ptr); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 691, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_7);
-          __pyx_t_10 = __Pyx_PyDict_GetItemDefault(__pyx_v_self->value_store, __pyx_t_7, Py_None); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 624, __pyx_L1_error)
+          __pyx_t_10 = __Pyx_PyDict_GetItemDefault(__pyx_v_self->value_store, __pyx_t_7, Py_None); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 691, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_10);
           __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
           __Pyx_XDECREF_SET(__pyx_v_value, __pyx_t_10);
           __pyx_t_10 = 0;
 
-          /* "bptree_optimized.pyx":625
+          /* "bptree_optimized.pyx":692
  *                         # Fetch the value - this needs GIL but we're already in Python context
  *                         value = self.value_store.get(val_ptr)
  *                         if value is not None:             # <<<<<<<<<<<<<<
@@ -11151,7 +12256,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
           __pyx_t_1 = (__pyx_v_value != Py_None);
           if (__pyx_t_1) {
 
-            /* "bptree_optimized.pyx":626
+            /* "bptree_optimized.pyx":693
  *                         value = self.value_store.get(val_ptr)
  *                         if value is not None:
  *                             result.append((leaf_key, value))             # <<<<<<<<<<<<<<
@@ -11160,22 +12265,22 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
 */
             if (unlikely(__pyx_v_result == Py_None)) {
               PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "append");
-              __PYX_ERR(0, 626, __pyx_L1_error)
+              __PYX_ERR(0, 693, __pyx_L1_error)
             }
-            __pyx_t_10 = PyFloat_FromDouble(__pyx_v_leaf_key); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 626, __pyx_L1_error)
+            __pyx_t_10 = PyFloat_FromDouble(__pyx_v_leaf_key); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 693, __pyx_L1_error)
             __Pyx_GOTREF(__pyx_t_10);
-            __pyx_t_7 = PyTuple_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 626, __pyx_L1_error)
+            __pyx_t_7 = PyTuple_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 693, __pyx_L1_error)
             __Pyx_GOTREF(__pyx_t_7);
             __Pyx_GIVEREF(__pyx_t_10);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_7, 0, __pyx_t_10) != (0)) __PYX_ERR(0, 626, __pyx_L1_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_7, 0, __pyx_t_10) != (0)) __PYX_ERR(0, 693, __pyx_L1_error);
             __Pyx_INCREF(__pyx_v_value);
             __Pyx_GIVEREF(__pyx_v_value);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_7, 1, __pyx_v_value) != (0)) __PYX_ERR(0, 626, __pyx_L1_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_7, 1, __pyx_v_value) != (0)) __PYX_ERR(0, 693, __pyx_L1_error);
             __pyx_t_10 = 0;
-            __pyx_t_16 = __Pyx_PyList_Append(__pyx_v_result, __pyx_t_7); if (unlikely(__pyx_t_16 == ((int)-1))) __PYX_ERR(0, 626, __pyx_L1_error)
+            __pyx_t_16 = __Pyx_PyList_Append(__pyx_v_result, __pyx_t_7); if (unlikely(__pyx_t_16 == ((int)-1))) __PYX_ERR(0, 693, __pyx_L1_error)
             __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-            /* "bptree_optimized.pyx":625
+            /* "bptree_optimized.pyx":692
  *                         # Fetch the value - this needs GIL but we're already in Python context
  *                         value = self.value_store.get(val_ptr)
  *                         if value is not None:             # <<<<<<<<<<<<<<
@@ -11184,7 +12289,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
 */
           }
 
-          /* "bptree_optimized.pyx":622
+          /* "bptree_optimized.pyx":689
  *                 if leaf_key >= start_key:
  *                     val_ptr = leaf_node.keys[i].value_ptr
  *                     if val_ptr > 0:             # <<<<<<<<<<<<<<
@@ -11193,7 +12298,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
 */
         }
 
-        /* "bptree_optimized.pyx":620
+        /* "bptree_optimized.pyx":687
  * 
  *                 # If key is in range, add to results
  *                 if leaf_key >= start_key:             # <<<<<<<<<<<<<<
@@ -11204,7 +12309,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
       __pyx_L6_continue:;
     }
 
-    /* "bptree_optimized.pyx":629
+    /* "bptree_optimized.pyx":696
  * 
  *             # Move to the next leaf
  *             leaf_node = leaf_node.next             # <<<<<<<<<<<<<<
@@ -11215,8 +12320,8 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
     __pyx_v_leaf_node = __pyx_t_2;
   }
 
-  /* "bptree_optimized.pyx":589
- *             return self._search_internal(node.children[pos], key)
+  /* "bptree_optimized.pyx":656
+ *                 logger.debug(f"[{self.name}] Successfully inserted key {key} with value {value}")
  * 
  *     cdef void _collect_range(self, BPNode* node, double start_key, double end_key, list result) except *:             # <<<<<<<<<<<<<<
  *         """Safer implementation to collect keys in range - with more error handling"""
@@ -11238,7 +12343,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_range(struc
   __Pyx_RefNannyFinishContext();
 }
 
-/* "bptree_optimized.pyx":631
+/* "bptree_optimized.pyx":698
  *             leaf_node = leaf_node.next
  * 
  *     cdef BPNode* _find_leftmost_leaf(self, BPNode* node) except? NULL:             # <<<<<<<<<<<<<<
@@ -11264,7 +12369,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_find_leftmost_leaf", 0);
 
-  /* "bptree_optimized.pyx":633
+  /* "bptree_optimized.pyx":700
  *     cdef BPNode* _find_leftmost_leaf(self, BPNode* node) except? NULL:
  *         """Helper method to find the leftmost leaf node from a given node"""
  *         cdef BPNode* current = node             # <<<<<<<<<<<<<<
@@ -11273,7 +12378,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
 */
   __pyx_v_current = __pyx_v_node;
 
-  /* "bptree_optimized.pyx":635
+  /* "bptree_optimized.pyx":702
  *         cdef BPNode* current = node
  * 
  *         if current == NULL:             # <<<<<<<<<<<<<<
@@ -11283,7 +12388,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
   __pyx_t_1 = (__pyx_v_current == NULL);
   if (__pyx_t_1) {
 
-    /* "bptree_optimized.pyx":636
+    /* "bptree_optimized.pyx":703
  * 
  *         if current == NULL:
  *             return NULL             # <<<<<<<<<<<<<<
@@ -11293,7 +12398,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
     __pyx_r = NULL;
     goto __pyx_L0;
 
-    /* "bptree_optimized.pyx":635
+    /* "bptree_optimized.pyx":702
  *         cdef BPNode* current = node
  * 
  *         if current == NULL:             # <<<<<<<<<<<<<<
@@ -11302,7 +12407,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
 */
   }
 
-  /* "bptree_optimized.pyx":639
+  /* "bptree_optimized.pyx":706
  * 
  *         # Traverse to leftmost leaf
  *         while not current.is_leaf:             # <<<<<<<<<<<<<<
@@ -11313,7 +12418,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
     __pyx_t_1 = (!__pyx_v_current->is_leaf);
     if (!__pyx_t_1) break;
 
-    /* "bptree_optimized.pyx":640
+    /* "bptree_optimized.pyx":707
  *         # Traverse to leftmost leaf
  *         while not current.is_leaf:
  *             if current.children == NULL or current.children[0] == NULL:             # <<<<<<<<<<<<<<
@@ -11331,7 +12436,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
     __pyx_L7_bool_binop_done:;
     if (__pyx_t_1) {
 
-      /* "bptree_optimized.pyx":641
+      /* "bptree_optimized.pyx":708
  *         while not current.is_leaf:
  *             if current.children == NULL or current.children[0] == NULL:
  *                 logger.error(f"[{self.name}] Encountered NULL child pointer in _find_leftmost_leaf")             # <<<<<<<<<<<<<<
@@ -11339,18 +12444,18 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
  *             current = current.children[0]
 */
       __pyx_t_4 = NULL;
-      __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 641, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 708, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
-      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 641, __pyx_L1_error)
+      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 708, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-      __pyx_t_5 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 641, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 708, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
       __pyx_t_7[0] = __pyx_mstate_global->__pyx_kp_u_;
       __pyx_t_7[1] = __pyx_t_5;
       __pyx_t_7[2] = __pyx_mstate_global->__pyx_kp_u_Encountered_NULL_child_pointer;
       __pyx_t_8 = __Pyx_PyUnicode_Join(__pyx_t_7, 3, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_5) + 55, 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_5));
-      if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 641, __pyx_L1_error)
+      if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 708, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_8);
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
       __pyx_t_9 = 1;
@@ -11371,12 +12476,12 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
         __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
         __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
         __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 641, __pyx_L1_error)
+        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 708, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_3);
       }
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-      /* "bptree_optimized.pyx":642
+      /* "bptree_optimized.pyx":709
  *             if current.children == NULL or current.children[0] == NULL:
  *                 logger.error(f"[{self.name}] Encountered NULL child pointer in _find_leftmost_leaf")
  *                 return NULL             # <<<<<<<<<<<<<<
@@ -11386,7 +12491,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
       __pyx_r = NULL;
       goto __pyx_L0;
 
-      /* "bptree_optimized.pyx":640
+      /* "bptree_optimized.pyx":707
  *         # Traverse to leftmost leaf
  *         while not current.is_leaf:
  *             if current.children == NULL or current.children[0] == NULL:             # <<<<<<<<<<<<<<
@@ -11395,7 +12500,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
 */
     }
 
-    /* "bptree_optimized.pyx":643
+    /* "bptree_optimized.pyx":710
  *                 logger.error(f"[{self.name}] Encountered NULL child pointer in _find_leftmost_leaf")
  *                 return NULL
  *             current = current.children[0]             # <<<<<<<<<<<<<<
@@ -11405,7 +12510,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
     __pyx_v_current = (__pyx_v_current->children[0]);
   }
 
-  /* "bptree_optimized.pyx":645
+  /* "bptree_optimized.pyx":712
  *             current = current.children[0]
  * 
  *         return current             # <<<<<<<<<<<<<<
@@ -11415,7 +12520,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
   __pyx_r = __pyx_v_current;
   goto __pyx_L0;
 
-  /* "bptree_optimized.pyx":631
+  /* "bptree_optimized.pyx":698
  *             leaf_node = leaf_node.next
  * 
  *     cdef BPNode* _find_leftmost_leaf(self, BPNode* node) except? NULL:             # <<<<<<<<<<<<<<
@@ -11437,7 +12542,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
   return __pyx_r;
 }
 
-/* "bptree_optimized.pyx":647
+/* "bptree_optimized.pyx":714
  *         return current
  * 
  *     def __getitem__(self, key):             # <<<<<<<<<<<<<<
@@ -11446,25 +12551,25 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_9__getitem__(PyObject *__pyx_v_self, PyObject *__pyx_v_key); /*proto*/
-PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_8__getitem__, "Get item by key, equivalent to search");
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_13__getitem__(PyObject *__pyx_v_self, PyObject *__pyx_v_key); /*proto*/
+PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_12__getitem__, "Get item by key, equivalent to search");
 #if CYTHON_UPDATE_DESCRIPTOR_DOC
-struct wrapperbase __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_8__getitem__;
+struct wrapperbase __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_12__getitem__;
 #endif
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_9__getitem__(PyObject *__pyx_v_self, PyObject *__pyx_v_key) {
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_13__getitem__(PyObject *__pyx_v_self, PyObject *__pyx_v_key) {
   CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__getitem__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
-  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_8__getitem__(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), ((PyObject *)__pyx_v_key));
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12__getitem__(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), ((PyObject *)__pyx_v_key));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_8__getitem__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key) {
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12__getitem__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -11475,7 +12580,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_8__getitem__(s
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__getitem__", 0);
 
-  /* "bptree_optimized.pyx":649
+  /* "bptree_optimized.pyx":716
  *     def __getitem__(self, key):
  *         """Get item by key, equivalent to search"""
  *         return self.search(key)             # <<<<<<<<<<<<<<
@@ -11490,14 +12595,14 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_8__getitem__(s
     PyObject *__pyx_callargs[2] = {__pyx_t_2, __pyx_v_key};
     __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_search, __pyx_callargs+__pyx_t_3, (2-__pyx_t_3) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 649, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 716, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "bptree_optimized.pyx":647
+  /* "bptree_optimized.pyx":714
  *         return current
  * 
  *     def __getitem__(self, key):             # <<<<<<<<<<<<<<
@@ -11517,7 +12622,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_8__getitem__(s
   return __pyx_r;
 }
 
-/* "bptree_optimized.pyx":651
+/* "bptree_optimized.pyx":718
  *         return self.search(key)
  * 
  *     def __setitem__(self, key, value):             # <<<<<<<<<<<<<<
@@ -11526,25 +12631,25 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_8__getitem__(s
 */
 
 /* Python wrapper */
-static int __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_11__setitem__(PyObject *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value); /*proto*/
-PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_10__setitem__, "Set item by key, equivalent to insert");
+static int __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_15__setitem__(PyObject *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value); /*proto*/
+PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_14__setitem__, "Set item by key, equivalent to insert");
 #if CYTHON_UPDATE_DESCRIPTOR_DOC
-struct wrapperbase __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_10__setitem__;
+struct wrapperbase __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_14__setitem__;
 #endif
-static int __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_11__setitem__(PyObject *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value) {
+static int __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_15__setitem__(PyObject *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value) {
   CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
   int __pyx_r;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__setitem__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
-  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_10__setitem__(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), ((PyObject *)__pyx_v_key), ((PyObject *)__pyx_v_value));
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14__setitem__(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), ((PyObject *)__pyx_v_key), ((PyObject *)__pyx_v_value));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_10__setitem__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value) {
+static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14__setitem__(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_value) {
   int __pyx_r;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -11555,7 +12660,7 @@ static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_10__setitem__(struct
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__setitem__", 0);
 
-  /* "bptree_optimized.pyx":653
+  /* "bptree_optimized.pyx":720
  *     def __setitem__(self, key, value):
  *         """Set item by key, equivalent to insert"""
  *         self.insert(key, value)             # <<<<<<<<<<<<<<
@@ -11569,12 +12674,12 @@ static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_10__setitem__(struct
     PyObject *__pyx_callargs[3] = {__pyx_t_2, __pyx_v_key, __pyx_v_value};
     __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_insert, __pyx_callargs+__pyx_t_3, (3-__pyx_t_3) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 653, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 720, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "bptree_optimized.pyx":651
+  /* "bptree_optimized.pyx":718
  *         return self.search(key)
  * 
  *     def __setitem__(self, key, value):             # <<<<<<<<<<<<<<
@@ -11595,7 +12700,7 @@ static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_10__setitem__(struct
   return __pyx_r;
 }
 
-/* "bptree_optimized.pyx":655
+/* "bptree_optimized.pyx":722
  *         self.insert(key, value)
  * 
  *     def get(self, key, default=None):             # <<<<<<<<<<<<<<
@@ -11604,16 +12709,16 @@ static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_10__setitem__(struct
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_13get(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_17get(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_12get, "Get value for key or return default if not found");
-static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_13get = {"get", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_13get, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_12get};
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_13get(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_16get, "Get value for key or return default if not found");
+static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_17get = {"get", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_17get, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_16get};
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_17get(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -11644,35 +12749,35 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_key,&__pyx_mstate_global->__pyx_n_u_default,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 655, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 722, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 655, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 722, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 655, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 722, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "get", 0) < 0) __PYX_ERR(0, 655, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "get", 0) < 0) __PYX_ERR(0, 722, __pyx_L3_error)
       if (!values[1]) values[1] = __Pyx_NewRef(((PyObject *)Py_None));
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("get", 0, 1, 2, i); __PYX_ERR(0, 655, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("get", 0, 1, 2, i); __PYX_ERR(0, 722, __pyx_L3_error) }
       }
     } else {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 655, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 722, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 655, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 722, __pyx_L3_error)
         break;
         default: goto __pyx_L5_argtuple_error;
       }
@@ -11683,7 +12788,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("get", 0, 1, 2, __pyx_nargs); __PYX_ERR(0, 655, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("get", 0, 1, 2, __pyx_nargs); __PYX_ERR(0, 722, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -11694,7 +12799,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12get(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v_key, __pyx_v_default);
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16get(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v_key, __pyx_v_default);
 
   /* function exit code */
   for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
@@ -11704,7 +12809,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12get(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_default) {
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16get(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_key, PyObject *__pyx_v_default) {
   PyObject *__pyx_v_result = NULL;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
@@ -11717,7 +12822,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12get(struct _
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("get", 0);
 
-  /* "bptree_optimized.pyx":657
+  /* "bptree_optimized.pyx":724
  *     def get(self, key, default=None):
  *         """Get value for key or return default if not found"""
  *         result = self.search(key)             # <<<<<<<<<<<<<<
@@ -11731,13 +12836,13 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12get(struct _
     PyObject *__pyx_callargs[2] = {__pyx_t_2, __pyx_v_key};
     __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_search, __pyx_callargs+__pyx_t_3, (2-__pyx_t_3) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 657, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 724, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __pyx_v_result = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "bptree_optimized.pyx":658
+  /* "bptree_optimized.pyx":725
  *         """Get value for key or return default if not found"""
  *         result = self.search(key)
  *         return result if result is not None else default             # <<<<<<<<<<<<<<
@@ -11757,7 +12862,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12get(struct _
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "bptree_optimized.pyx":655
+  /* "bptree_optimized.pyx":722
  *         self.insert(key, value)
  * 
  *     def get(self, key, default=None):             # <<<<<<<<<<<<<<
@@ -11778,7 +12883,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12get(struct _
   return __pyx_r;
 }
 
-/* "bptree_optimized.pyx":660
+/* "bptree_optimized.pyx":727
  *         return result if result is not None else default
  * 
  *     def save_to_file(self, filename):             # <<<<<<<<<<<<<<
@@ -11787,16 +12892,16 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_12get(struct _
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_15save_to_file(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_19save_to_file(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_14save_to_file, "Save the tree to a file using pickle");
-static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_15save_to_file = {"save_to_file", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_15save_to_file, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_14save_to_file};
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_15save_to_file(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_18save_to_file, "Save the tree to a file using pickle");
+static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_19save_to_file = {"save_to_file", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_19save_to_file, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_18save_to_file};
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_19save_to_file(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -11826,32 +12931,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_filename,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 660, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 727, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 660, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 727, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "save_to_file", 0) < 0) __PYX_ERR(0, 660, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "save_to_file", 0) < 0) __PYX_ERR(0, 727, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("save_to_file", 1, 1, 1, i); __PYX_ERR(0, 660, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("save_to_file", 1, 1, 1, i); __PYX_ERR(0, 727, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 660, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 727, __pyx_L3_error)
     }
     __pyx_v_filename = values[0];
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("save_to_file", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 660, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("save_to_file", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 727, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -11862,7 +12967,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v_filename);
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_18save_to_file(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v_filename);
 
   /* function exit code */
   for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
@@ -11872,7 +12977,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_filename) {
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_18save_to_file(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_filename) {
   PyObject *__pyx_v_data = NULL;
   PyObject *__pyx_v_f = NULL;
   PyObject *__pyx_r = NULL;
@@ -11895,7 +13000,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("save_to_file", 0);
 
-  /* "bptree_optimized.pyx":662
+  /* "bptree_optimized.pyx":729
  *     def save_to_file(self, filename):
  *         """Save the tree to a file using pickle"""
  *         logging.debug(f"Saving optimized B+ tree to file: {filename}")             # <<<<<<<<<<<<<<
@@ -11903,14 +13008,14 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
  *         # For saving, just collect all key-value pairs and metadata
 */
   __pyx_t_2 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_logging); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 662, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_logging); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 729, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_debug); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 662, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_debug); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 729, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_3 = __Pyx_PyObject_FormatSimple(__pyx_v_filename, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 662, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_FormatSimple(__pyx_v_filename, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 729, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_5 = __Pyx_PyUnicode_Concat(__pyx_mstate_global->__pyx_kp_u_Saving_optimized_B_tree_to_file, __pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 662, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyUnicode_Concat(__pyx_mstate_global->__pyx_kp_u_Saving_optimized_B_tree_to_file, __pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 729, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_6 = 1;
@@ -11931,35 +13036,35 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 662, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 729, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "bptree_optimized.pyx":666
+  /* "bptree_optimized.pyx":733
  *         # For saving, just collect all key-value pairs and metadata
  *         data = {
  *             'name': self.name,             # <<<<<<<<<<<<<<
  *             'order': self.order,
  *             'keys_values': self._get_all_items()  # This is simpler than trying to save the tree structure
 */
-  __pyx_t_1 = __Pyx_PyDict_NewPresized(3); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 666, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyDict_NewPresized(3); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 733, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_name, __pyx_v_self->name) < 0) __PYX_ERR(0, 666, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_name, __pyx_v_self->name) < 0) __PYX_ERR(0, 733, __pyx_L1_error)
 
-  /* "bptree_optimized.pyx":667
+  /* "bptree_optimized.pyx":734
  *         data = {
  *             'name': self.name,
  *             'order': self.order,             # <<<<<<<<<<<<<<
  *             'keys_values': self._get_all_items()  # This is simpler than trying to save the tree structure
  *         }
 */
-  __pyx_t_4 = __Pyx_PyLong_From_int(__pyx_v_self->order); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 667, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyLong_From_int(__pyx_v_self->order); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 734, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  if (PyDict_SetItem(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_order, __pyx_t_4) < 0) __PYX_ERR(0, 666, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_order, __pyx_t_4) < 0) __PYX_ERR(0, 733, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "bptree_optimized.pyx":668
+  /* "bptree_optimized.pyx":735
  *             'name': self.name,
  *             'order': self.order,
  *             'keys_values': self._get_all_items()  # This is simpler than trying to save the tree structure             # <<<<<<<<<<<<<<
@@ -11973,15 +13078,15 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
     PyObject *__pyx_callargs[2] = {__pyx_t_5, NULL};
     __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_get_all_items, __pyx_callargs+__pyx_t_6, (1-__pyx_t_6) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 668, __pyx_L1_error)
+    if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 735, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
   }
-  if (PyDict_SetItem(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_keys_values, __pyx_t_4) < 0) __PYX_ERR(0, 666, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_keys_values, __pyx_t_4) < 0) __PYX_ERR(0, 733, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_v_data = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "bptree_optimized.pyx":671
+  /* "bptree_optimized.pyx":738
  *         }
  * 
  *         with open(filename, 'wb') as f:             # <<<<<<<<<<<<<<
@@ -11998,13 +13103,13 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
       __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_5, __pyx_callargs+__pyx_t_6, (3-__pyx_t_6) | (__pyx_t_6*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 671, __pyx_L1_error)
+      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 738, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
     }
-    __pyx_t_7 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_exit); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 671, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_exit); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 738, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
     __pyx_t_4 = NULL;
-    __pyx_t_2 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_enter); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 671, __pyx_L3_error)
+    __pyx_t_2 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_enter); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 738, __pyx_L3_error)
     __Pyx_GOTREF(__pyx_t_2);
     __pyx_t_6 = 1;
     #if CYTHON_UNPACK_METHODS
@@ -12023,7 +13128,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
       __pyx_t_5 = __Pyx_PyObject_FastCall(__pyx_t_2, __pyx_callargs+__pyx_t_6, (1-__pyx_t_6) | (__pyx_t_6*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-      if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 671, __pyx_L3_error)
+      if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 738, __pyx_L3_error)
       __Pyx_GOTREF(__pyx_t_5);
     }
     __pyx_t_2 = __pyx_t_5;
@@ -12041,7 +13146,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
           __pyx_v_f = __pyx_t_2;
           __pyx_t_2 = 0;
 
-          /* "bptree_optimized.pyx":672
+          /* "bptree_optimized.pyx":739
  * 
  *         with open(filename, 'wb') as f:
  *             pickle.dump(data, f)             # <<<<<<<<<<<<<<
@@ -12049,9 +13154,9 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
  *     @classmethod
 */
           __pyx_t_1 = NULL;
-          __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_pickle); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 672, __pyx_L7_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_pickle); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 739, __pyx_L7_error)
           __Pyx_GOTREF(__pyx_t_5);
-          __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_dump); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 672, __pyx_L7_error)
+          __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_dump); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 739, __pyx_L7_error)
           __Pyx_GOTREF(__pyx_t_4);
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
           __pyx_t_6 = 1;
@@ -12071,12 +13176,12 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
             __pyx_t_2 = __Pyx_PyObject_FastCall(__pyx_t_4, __pyx_callargs+__pyx_t_6, (3-__pyx_t_6) | (__pyx_t_6*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
             __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
             __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-            if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 672, __pyx_L7_error)
+            if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 739, __pyx_L7_error)
             __Pyx_GOTREF(__pyx_t_2);
           }
           __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-          /* "bptree_optimized.pyx":671
+          /* "bptree_optimized.pyx":738
  *         }
  * 
  *         with open(filename, 'wb') as f:             # <<<<<<<<<<<<<<
@@ -12096,20 +13201,20 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
         __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
         /*except:*/ {
           __Pyx_AddTraceback("bptree_optimized.BPlusTreeOptimized.save_to_file", __pyx_clineno, __pyx_lineno, __pyx_filename);
-          if (__Pyx_GetException(&__pyx_t_2, &__pyx_t_4, &__pyx_t_1) < 0) __PYX_ERR(0, 671, __pyx_L9_except_error)
+          if (__Pyx_GetException(&__pyx_t_2, &__pyx_t_4, &__pyx_t_1) < 0) __PYX_ERR(0, 738, __pyx_L9_except_error)
           __Pyx_XGOTREF(__pyx_t_2);
           __Pyx_XGOTREF(__pyx_t_4);
           __Pyx_XGOTREF(__pyx_t_1);
-          __pyx_t_5 = PyTuple_Pack(3, __pyx_t_2, __pyx_t_4, __pyx_t_1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 671, __pyx_L9_except_error)
+          __pyx_t_5 = PyTuple_Pack(3, __pyx_t_2, __pyx_t_4, __pyx_t_1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 738, __pyx_L9_except_error)
           __Pyx_GOTREF(__pyx_t_5);
           __pyx_t_11 = __Pyx_PyObject_Call(__pyx_t_7, __pyx_t_5, NULL);
           __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-          if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 671, __pyx_L9_except_error)
+          if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 738, __pyx_L9_except_error)
           __Pyx_GOTREF(__pyx_t_11);
           __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_11);
           __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-          if (__pyx_t_12 < 0) __PYX_ERR(0, 671, __pyx_L9_except_error)
+          if (__pyx_t_12 < 0) __PYX_ERR(0, 738, __pyx_L9_except_error)
           __pyx_t_13 = (!__pyx_t_12);
           if (unlikely(__pyx_t_13)) {
             __Pyx_GIVEREF(__pyx_t_2);
@@ -12117,7 +13222,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
             __Pyx_XGIVEREF(__pyx_t_1);
             __Pyx_ErrRestoreWithState(__pyx_t_2, __pyx_t_4, __pyx_t_1);
             __pyx_t_2 = 0;  __pyx_t_4 = 0;  __pyx_t_1 = 0; 
-            __PYX_ERR(0, 671, __pyx_L9_except_error)
+            __PYX_ERR(0, 738, __pyx_L9_except_error)
           }
           __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
           __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
@@ -12143,7 +13248,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
         if (__pyx_t_7) {
           __pyx_t_10 = __Pyx_PyObject_Call(__pyx_t_7, __pyx_mstate_global->__pyx_tuple[0], NULL);
           __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-          if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 671, __pyx_L1_error)
+          if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 738, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_10);
           __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
         }
@@ -12158,7 +13263,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
     __pyx_L16:;
   }
 
-  /* "bptree_optimized.pyx":660
+  /* "bptree_optimized.pyx":727
  *         return result if result is not None else default
  * 
  *     def save_to_file(self, filename):             # <<<<<<<<<<<<<<
@@ -12185,7 +13290,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
   return __pyx_r;
 }
 
-/* "bptree_optimized.pyx":674
+/* "bptree_optimized.pyx":741
  *             pickle.dump(data, f)
  * 
  *     @classmethod             # <<<<<<<<<<<<<<
@@ -12194,16 +13299,16 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_14save_to_file
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_17load_from_file(PyObject *__pyx_v_cls, 
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_21load_from_file(PyObject *__pyx_v_cls, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_16load_from_file, "Load a B+ tree from a file");
-static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_17load_from_file = {"load_from_file", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_17load_from_file, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_16load_from_file};
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_17load_from_file(PyObject *__pyx_v_cls, 
+PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_20load_from_file, "Load a B+ tree from a file");
+static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_21load_from_file = {"load_from_file", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_21load_from_file, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_20load_from_file};
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_21load_from_file(PyObject *__pyx_v_cls, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -12233,32 +13338,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_file_path,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 674, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 741, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 674, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 741, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "load_from_file", 0) < 0) __PYX_ERR(0, 674, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "load_from_file", 0) < 0) __PYX_ERR(0, 741, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("load_from_file", 1, 1, 1, i); __PYX_ERR(0, 674, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("load_from_file", 1, 1, 1, i); __PYX_ERR(0, 741, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 674, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 741, __pyx_L3_error)
     }
     __pyx_v_file_path = values[0];
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("load_from_file", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 674, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("load_from_file", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 741, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -12269,7 +13374,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_file(((PyTypeObject*)__pyx_v_cls), __pyx_v_file_path);
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20load_from_file(((PyTypeObject*)__pyx_v_cls), __pyx_v_file_path);
 
   /* function exit code */
   for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
@@ -12279,7 +13384,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_file(PyTypeObject *__pyx_v_cls, PyObject *__pyx_v_file_path) {
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20load_from_file(PyTypeObject *__pyx_v_cls, PyObject *__pyx_v_file_path) {
   PyObject *__pyx_v_file = NULL;
   PyObject *__pyx_v_data = NULL;
   PyObject *__pyx_v_tree = NULL;
@@ -12321,7 +13426,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("load_from_file", 0);
 
-  /* "bptree_optimized.pyx":677
+  /* "bptree_optimized.pyx":744
  *     def load_from_file(cls, file_path):
  *         """Load a B+ tree from a file"""
  *         try:             # <<<<<<<<<<<<<<
@@ -12337,7 +13442,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
     __Pyx_XGOTREF(__pyx_t_3);
     /*try:*/ {
 
-      /* "bptree_optimized.pyx":678
+      /* "bptree_optimized.pyx":745
  *         """Load a B+ tree from a file"""
  *         try:
  *             with open(file_path, 'rb') as file:             # <<<<<<<<<<<<<<
@@ -12354,13 +13459,13 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
           __pyx_t_4 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+__pyx_t_7, (3-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
           __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-          if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 678, __pyx_L3_error)
+          if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 745, __pyx_L3_error)
           __Pyx_GOTREF(__pyx_t_4);
         }
-        __pyx_t_8 = __Pyx_PyObject_LookupSpecial(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_exit); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 678, __pyx_L3_error)
+        __pyx_t_8 = __Pyx_PyObject_LookupSpecial(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_exit); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 745, __pyx_L3_error)
         __Pyx_GOTREF(__pyx_t_8);
         __pyx_t_5 = NULL;
-        __pyx_t_9 = __Pyx_PyObject_LookupSpecial(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_enter); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 678, __pyx_L9_error)
+        __pyx_t_9 = __Pyx_PyObject_LookupSpecial(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_enter); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 745, __pyx_L9_error)
         __Pyx_GOTREF(__pyx_t_9);
         __pyx_t_7 = 1;
         #if CYTHON_UNPACK_METHODS
@@ -12379,7 +13484,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
           __pyx_t_6 = __Pyx_PyObject_FastCall(__pyx_t_9, __pyx_callargs+__pyx_t_7, (1-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
           __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-          if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 678, __pyx_L9_error)
+          if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 745, __pyx_L9_error)
           __Pyx_GOTREF(__pyx_t_6);
         }
         __pyx_t_9 = __pyx_t_6;
@@ -12397,7 +13502,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
               __pyx_v_file = __pyx_t_9;
               __pyx_t_9 = 0;
 
-              /* "bptree_optimized.pyx":679
+              /* "bptree_optimized.pyx":746
  *         try:
  *             with open(file_path, 'rb') as file:
  *                 data = pickle.load(file)             # <<<<<<<<<<<<<<
@@ -12405,9 +13510,9 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
  *                 # Create a new tree
 */
               __pyx_t_4 = NULL;
-              __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_pickle); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 679, __pyx_L13_error)
+              __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_pickle); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 746, __pyx_L13_error)
               __Pyx_GOTREF(__pyx_t_6);
-              __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_load); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 679, __pyx_L13_error)
+              __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_load); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 746, __pyx_L13_error)
               __Pyx_GOTREF(__pyx_t_5);
               __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
               __pyx_t_7 = 1;
@@ -12427,13 +13532,13 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                 __pyx_t_9 = __Pyx_PyObject_FastCall(__pyx_t_5, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
                 __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
                 __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-                if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 679, __pyx_L13_error)
+                if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 746, __pyx_L13_error)
                 __Pyx_GOTREF(__pyx_t_9);
               }
               __pyx_v_data = __pyx_t_9;
               __pyx_t_9 = 0;
 
-              /* "bptree_optimized.pyx":682
+              /* "bptree_optimized.pyx":749
  * 
  *                 # Create a new tree
  *                 tree = cls(order=data['order'], name=data['name'])             # <<<<<<<<<<<<<<
@@ -12443,46 +13548,46 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
               __pyx_t_5 = NULL;
               __Pyx_INCREF((PyObject *)__pyx_v_cls);
               __pyx_t_4 = ((PyObject *)__pyx_v_cls); 
-              __pyx_t_6 = __Pyx_PyObject_Dict_GetItem(__pyx_v_data, __pyx_mstate_global->__pyx_n_u_order); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 682, __pyx_L13_error)
+              __pyx_t_6 = __Pyx_PyObject_Dict_GetItem(__pyx_v_data, __pyx_mstate_global->__pyx_n_u_order); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 749, __pyx_L13_error)
               __Pyx_GOTREF(__pyx_t_6);
-              __pyx_t_13 = __Pyx_PyObject_Dict_GetItem(__pyx_v_data, __pyx_mstate_global->__pyx_n_u_name); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 682, __pyx_L13_error)
+              __pyx_t_13 = __Pyx_PyObject_Dict_GetItem(__pyx_v_data, __pyx_mstate_global->__pyx_n_u_name); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 749, __pyx_L13_error)
               __Pyx_GOTREF(__pyx_t_13);
               __pyx_t_7 = 1;
               {
                 PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 2 : 0)] = {__pyx_t_5, NULL};
-                __pyx_t_14 = __Pyx_MakeVectorcallBuilderKwds(2); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 682, __pyx_L13_error)
+                __pyx_t_14 = __Pyx_MakeVectorcallBuilderKwds(2); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 749, __pyx_L13_error)
                 __Pyx_GOTREF(__pyx_t_14);
-                if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_order, __pyx_t_6, __pyx_t_14, __pyx_callargs+1, 0) < 0) __PYX_ERR(0, 682, __pyx_L13_error)
-                if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_name, __pyx_t_13, __pyx_t_14, __pyx_callargs+1, 1) < 0) __PYX_ERR(0, 682, __pyx_L13_error)
+                if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_order, __pyx_t_6, __pyx_t_14, __pyx_callargs+1, 0) < 0) __PYX_ERR(0, 749, __pyx_L13_error)
+                if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_name, __pyx_t_13, __pyx_t_14, __pyx_callargs+1, 1) < 0) __PYX_ERR(0, 749, __pyx_L13_error)
                 __pyx_t_9 = __Pyx_Object_Vectorcall_CallFromBuilder(__pyx_t_4, __pyx_callargs+__pyx_t_7, (1-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_14);
                 __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
                 __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
                 __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
                 __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
                 __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-                if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 682, __pyx_L13_error)
+                if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 749, __pyx_L13_error)
                 __Pyx_GOTREF(__pyx_t_9);
               }
               __pyx_v_tree = __pyx_t_9;
               __pyx_t_9 = 0;
 
-              /* "bptree_optimized.pyx":685
+              /* "bptree_optimized.pyx":752
  * 
  *                 # Insert all key-value pairs
  *                 for key, value in data['keys_values']:             # <<<<<<<<<<<<<<
  *                     tree.insert(key, value)
  * 
 */
-              __pyx_t_9 = __Pyx_PyObject_Dict_GetItem(__pyx_v_data, __pyx_mstate_global->__pyx_n_u_keys_values); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 685, __pyx_L13_error)
+              __pyx_t_9 = __Pyx_PyObject_Dict_GetItem(__pyx_v_data, __pyx_mstate_global->__pyx_n_u_keys_values); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 752, __pyx_L13_error)
               __Pyx_GOTREF(__pyx_t_9);
               if (likely(PyList_CheckExact(__pyx_t_9)) || PyTuple_CheckExact(__pyx_t_9)) {
                 __pyx_t_4 = __pyx_t_9; __Pyx_INCREF(__pyx_t_4);
                 __pyx_t_15 = 0;
                 __pyx_t_16 = NULL;
               } else {
-                __pyx_t_15 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_t_9); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 685, __pyx_L13_error)
+                __pyx_t_15 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_t_9); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 752, __pyx_L13_error)
                 __Pyx_GOTREF(__pyx_t_4);
-                __pyx_t_16 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_16)) __PYX_ERR(0, 685, __pyx_L13_error)
+                __pyx_t_16 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_16)) __PYX_ERR(0, 752, __pyx_L13_error)
               }
               __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
               for (;;) {
@@ -12491,7 +13596,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                     {
                       Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_4);
                       #if !CYTHON_ASSUME_SAFE_SIZE
-                      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 685, __pyx_L13_error)
+                      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 752, __pyx_L13_error)
                       #endif
                       if (__pyx_t_15 >= __pyx_temp) break;
                     }
@@ -12501,7 +13606,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                     {
                       Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_4);
                       #if !CYTHON_ASSUME_SAFE_SIZE
-                      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 685, __pyx_L13_error)
+                      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 752, __pyx_L13_error)
                       #endif
                       if (__pyx_t_15 >= __pyx_temp) break;
                     }
@@ -12512,13 +13617,13 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                     #endif
                     ++__pyx_t_15;
                   }
-                  if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 685, __pyx_L13_error)
+                  if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 752, __pyx_L13_error)
                 } else {
                   __pyx_t_9 = __pyx_t_16(__pyx_t_4);
                   if (unlikely(!__pyx_t_9)) {
                     PyObject* exc_type = PyErr_Occurred();
                     if (exc_type) {
-                      if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 685, __pyx_L13_error)
+                      if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 752, __pyx_L13_error)
                       PyErr_Clear();
                     }
                     break;
@@ -12531,7 +13636,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                   if (unlikely(size != 2)) {
                     if (size > 2) __Pyx_RaiseTooManyValuesError(2);
                     else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-                    __PYX_ERR(0, 685, __pyx_L13_error)
+                    __PYX_ERR(0, 752, __pyx_L13_error)
                   }
                   #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
                   if (likely(PyTuple_CheckExact(sequence))) {
@@ -12541,22 +13646,22 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                     __Pyx_INCREF(__pyx_t_13);
                   } else {
                     __pyx_t_14 = __Pyx_PyList_GetItemRef(sequence, 0);
-                    if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 685, __pyx_L13_error)
+                    if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 752, __pyx_L13_error)
                     __Pyx_XGOTREF(__pyx_t_14);
                     __pyx_t_13 = __Pyx_PyList_GetItemRef(sequence, 1);
-                    if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 685, __pyx_L13_error)
+                    if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 752, __pyx_L13_error)
                     __Pyx_XGOTREF(__pyx_t_13);
                   }
                   #else
-                  __pyx_t_14 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 685, __pyx_L13_error)
+                  __pyx_t_14 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 752, __pyx_L13_error)
                   __Pyx_GOTREF(__pyx_t_14);
-                  __pyx_t_13 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 685, __pyx_L13_error)
+                  __pyx_t_13 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 752, __pyx_L13_error)
                   __Pyx_GOTREF(__pyx_t_13);
                   #endif
                   __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
                 } else {
                   Py_ssize_t index = -1;
-                  __pyx_t_6 = PyObject_GetIter(__pyx_t_9); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 685, __pyx_L13_error)
+                  __pyx_t_6 = PyObject_GetIter(__pyx_t_9); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 752, __pyx_L13_error)
                   __Pyx_GOTREF(__pyx_t_6);
                   __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
                   __pyx_t_17 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_6);
@@ -12564,7 +13669,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                   __Pyx_GOTREF(__pyx_t_14);
                   index = 1; __pyx_t_13 = __pyx_t_17(__pyx_t_6); if (unlikely(!__pyx_t_13)) goto __pyx_L21_unpacking_failed;
                   __Pyx_GOTREF(__pyx_t_13);
-                  if (__Pyx_IternextUnpackEndCheck(__pyx_t_17(__pyx_t_6), 2) < 0) __PYX_ERR(0, 685, __pyx_L13_error)
+                  if (__Pyx_IternextUnpackEndCheck(__pyx_t_17(__pyx_t_6), 2) < 0) __PYX_ERR(0, 752, __pyx_L13_error)
                   __pyx_t_17 = NULL;
                   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
                   goto __pyx_L22_unpacking_done;
@@ -12572,7 +13677,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
                   __pyx_t_17 = NULL;
                   if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-                  __PYX_ERR(0, 685, __pyx_L13_error)
+                  __PYX_ERR(0, 752, __pyx_L13_error)
                   __pyx_L22_unpacking_done:;
                 }
                 __Pyx_XDECREF_SET(__pyx_v_key, __pyx_t_14);
@@ -12580,7 +13685,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                 __Pyx_XDECREF_SET(__pyx_v_value, __pyx_t_13);
                 __pyx_t_13 = 0;
 
-                /* "bptree_optimized.pyx":686
+                /* "bptree_optimized.pyx":753
  *                 # Insert all key-value pairs
  *                 for key, value in data['keys_values']:
  *                     tree.insert(key, value)             # <<<<<<<<<<<<<<
@@ -12594,12 +13699,12 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                   PyObject *__pyx_callargs[3] = {__pyx_t_13, __pyx_v_key, __pyx_v_value};
                   __pyx_t_9 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_insert, __pyx_callargs+__pyx_t_7, (3-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
                   __Pyx_XDECREF(__pyx_t_13); __pyx_t_13 = 0;
-                  if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 686, __pyx_L13_error)
+                  if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 753, __pyx_L13_error)
                   __Pyx_GOTREF(__pyx_t_9);
                 }
                 __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
 
-                /* "bptree_optimized.pyx":685
+                /* "bptree_optimized.pyx":752
  * 
  *                 # Insert all key-value pairs
  *                 for key, value in data['keys_values']:             # <<<<<<<<<<<<<<
@@ -12609,7 +13714,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
               }
               __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-              /* "bptree_optimized.pyx":688
+              /* "bptree_optimized.pyx":755
  *                     tree.insert(key, value)
  * 
  *                 return tree             # <<<<<<<<<<<<<<
@@ -12621,7 +13726,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
               __pyx_r = __pyx_v_tree;
               goto __pyx_L17_try_return;
 
-              /* "bptree_optimized.pyx":678
+              /* "bptree_optimized.pyx":745
  *         """Load a B+ tree from a file"""
  *         try:
  *             with open(file_path, 'rb') as file:             # <<<<<<<<<<<<<<
@@ -12638,20 +13743,20 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
             __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
             /*except:*/ {
               __Pyx_AddTraceback("bptree_optimized.BPlusTreeOptimized.load_from_file", __pyx_clineno, __pyx_lineno, __pyx_filename);
-              if (__Pyx_GetException(&__pyx_t_4, &__pyx_t_9, &__pyx_t_13) < 0) __PYX_ERR(0, 678, __pyx_L15_except_error)
+              if (__Pyx_GetException(&__pyx_t_4, &__pyx_t_9, &__pyx_t_13) < 0) __PYX_ERR(0, 745, __pyx_L15_except_error)
               __Pyx_XGOTREF(__pyx_t_4);
               __Pyx_XGOTREF(__pyx_t_9);
               __Pyx_XGOTREF(__pyx_t_13);
-              __pyx_t_14 = PyTuple_Pack(3, __pyx_t_4, __pyx_t_9, __pyx_t_13); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 678, __pyx_L15_except_error)
+              __pyx_t_14 = PyTuple_Pack(3, __pyx_t_4, __pyx_t_9, __pyx_t_13); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 745, __pyx_L15_except_error)
               __Pyx_GOTREF(__pyx_t_14);
               __pyx_t_18 = __Pyx_PyObject_Call(__pyx_t_8, __pyx_t_14, NULL);
               __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
               __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
-              if (unlikely(!__pyx_t_18)) __PYX_ERR(0, 678, __pyx_L15_except_error)
+              if (unlikely(!__pyx_t_18)) __PYX_ERR(0, 745, __pyx_L15_except_error)
               __Pyx_GOTREF(__pyx_t_18);
               __pyx_t_19 = __Pyx_PyObject_IsTrue(__pyx_t_18);
               __Pyx_DECREF(__pyx_t_18); __pyx_t_18 = 0;
-              if (__pyx_t_19 < 0) __PYX_ERR(0, 678, __pyx_L15_except_error)
+              if (__pyx_t_19 < 0) __PYX_ERR(0, 745, __pyx_L15_except_error)
               __pyx_t_20 = (!__pyx_t_19);
               if (unlikely(__pyx_t_20)) {
                 __Pyx_GIVEREF(__pyx_t_4);
@@ -12659,7 +13764,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
                 __Pyx_XGIVEREF(__pyx_t_13);
                 __Pyx_ErrRestoreWithState(__pyx_t_4, __pyx_t_9, __pyx_t_13);
                 __pyx_t_4 = 0;  __pyx_t_9 = 0;  __pyx_t_13 = 0; 
-                __PYX_ERR(0, 678, __pyx_L15_except_error)
+                __PYX_ERR(0, 745, __pyx_L15_except_error)
               }
               __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
               __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
@@ -12690,7 +13795,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
             if (__pyx_t_8) {
               __pyx_t_12 = __Pyx_PyObject_Call(__pyx_t_8, __pyx_mstate_global->__pyx_tuple[0], NULL);
               __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-              if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 678, __pyx_L3_error)
+              if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 745, __pyx_L3_error)
               __Pyx_GOTREF(__pyx_t_12);
               __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
             }
@@ -12702,7 +13807,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
             if (__pyx_t_8) {
               __pyx_t_11 = __Pyx_PyObject_Call(__pyx_t_8, __pyx_mstate_global->__pyx_tuple[0], NULL);
               __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-              if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 678, __pyx_L3_error)
+              if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 745, __pyx_L3_error)
               __Pyx_GOTREF(__pyx_t_11);
               __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
             }
@@ -12719,7 +13824,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
         __pyx_L27:;
       }
 
-      /* "bptree_optimized.pyx":677
+      /* "bptree_optimized.pyx":744
  *     def load_from_file(cls, file_path):
  *         """Load a B+ tree from a file"""
  *         try:             # <<<<<<<<<<<<<<
@@ -12739,7 +13844,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
     __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
 
-    /* "bptree_optimized.pyx":689
+    /* "bptree_optimized.pyx":756
  * 
  *                 return tree
  *         except RuntimeError as e:             # <<<<<<<<<<<<<<
@@ -12749,7 +13854,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
     __pyx_t_21 = __Pyx_PyErr_ExceptionMatches(__pyx_builtin_RuntimeError);
     if (__pyx_t_21) {
       __Pyx_AddTraceback("bptree_optimized.BPlusTreeOptimized.load_from_file", __pyx_clineno, __pyx_lineno, __pyx_filename);
-      if (__Pyx_GetException(&__pyx_t_13, &__pyx_t_9, &__pyx_t_4) < 0) __PYX_ERR(0, 689, __pyx_L5_except_error)
+      if (__Pyx_GetException(&__pyx_t_13, &__pyx_t_9, &__pyx_t_4) < 0) __PYX_ERR(0, 756, __pyx_L5_except_error)
       __Pyx_XGOTREF(__pyx_t_13);
       __Pyx_XGOTREF(__pyx_t_9);
       __Pyx_XGOTREF(__pyx_t_4);
@@ -12757,7 +13862,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
       __pyx_v_e = __pyx_t_9;
       /*try:*/ {
 
-        /* "bptree_optimized.pyx":690
+        /* "bptree_optimized.pyx":757
  *                 return tree
  *         except RuntimeError as e:
  *             logging.error(f"Error loading B+ tree from {file_path}: {str(e)}")             # <<<<<<<<<<<<<<
@@ -12765,21 +13870,21 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
  * 
 */
         __pyx_t_6 = NULL;
-        __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_logging); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 690, __pyx_L33_error)
+        __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_logging); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 757, __pyx_L33_error)
         __Pyx_GOTREF(__pyx_t_5);
-        __pyx_t_22 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_22)) __PYX_ERR(0, 690, __pyx_L33_error)
+        __pyx_t_22 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_22)) __PYX_ERR(0, 757, __pyx_L33_error)
         __Pyx_GOTREF(__pyx_t_22);
         __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-        __pyx_t_5 = __Pyx_PyObject_FormatSimple(__pyx_v_file_path, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 690, __pyx_L33_error)
+        __pyx_t_5 = __Pyx_PyObject_FormatSimple(__pyx_v_file_path, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 757, __pyx_L33_error)
         __Pyx_GOTREF(__pyx_t_5);
-        __pyx_t_23 = __Pyx_PyObject_Unicode(__pyx_v_e); if (unlikely(!__pyx_t_23)) __PYX_ERR(0, 690, __pyx_L33_error)
+        __pyx_t_23 = __Pyx_PyObject_Unicode(__pyx_v_e); if (unlikely(!__pyx_t_23)) __PYX_ERR(0, 757, __pyx_L33_error)
         __Pyx_GOTREF(__pyx_t_23);
         __pyx_t_24[0] = __pyx_mstate_global->__pyx_kp_u_Error_loading_B_tree_from;
         __pyx_t_24[1] = __pyx_t_5;
         __pyx_t_24[2] = __pyx_mstate_global->__pyx_kp_u__5;
         __pyx_t_24[3] = __pyx_t_23;
         __pyx_t_25 = __Pyx_PyUnicode_Join(__pyx_t_24, 4, 27 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_5) + 2 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_23), 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_5) | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_23));
-        if (unlikely(!__pyx_t_25)) __PYX_ERR(0, 690, __pyx_L33_error)
+        if (unlikely(!__pyx_t_25)) __PYX_ERR(0, 757, __pyx_L33_error)
         __Pyx_GOTREF(__pyx_t_25);
         __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
         __Pyx_DECREF(__pyx_t_23); __pyx_t_23 = 0;
@@ -12801,12 +13906,12 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
           __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
           __Pyx_DECREF(__pyx_t_25); __pyx_t_25 = 0;
           __Pyx_DECREF(__pyx_t_22); __pyx_t_22 = 0;
-          if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 690, __pyx_L33_error)
+          if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 757, __pyx_L33_error)
           __Pyx_GOTREF(__pyx_t_14);
         }
         __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
 
-        /* "bptree_optimized.pyx":691
+        /* "bptree_optimized.pyx":758
  *         except RuntimeError as e:
  *             logging.error(f"Error loading B+ tree from {file_path}: {str(e)}")
  *             return None             # <<<<<<<<<<<<<<
@@ -12821,7 +13926,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
         goto __pyx_L32_return;
       }
 
-      /* "bptree_optimized.pyx":689
+      /* "bptree_optimized.pyx":756
  * 
  *                 return tree
  *         except RuntimeError as e:             # <<<<<<<<<<<<<<
@@ -12876,7 +13981,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
     }
     goto __pyx_L5_except_error;
 
-    /* "bptree_optimized.pyx":677
+    /* "bptree_optimized.pyx":744
  *     def load_from_file(cls, file_path):
  *         """Load a B+ tree from a file"""
  *         try:             # <<<<<<<<<<<<<<
@@ -12904,7 +14009,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
     __pyx_L8_try_end:;
   }
 
-  /* "bptree_optimized.pyx":674
+  /* "bptree_optimized.pyx":741
  *             pickle.dump(data, f)
  * 
  *     @classmethod             # <<<<<<<<<<<<<<
@@ -12939,7 +14044,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
   return __pyx_r;
 }
 
-/* "bptree_optimized.pyx":693
+/* "bptree_optimized.pyx":760
  *             return None
  * 
  *     def _get_all_items(self):             # <<<<<<<<<<<<<<
@@ -12948,16 +14053,16 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_16load_from_fi
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_19_get_all_items(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_23_get_all_items(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_18_get_all_items, "Get all key-value pairs in the tree");
-static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_19_get_all_items = {"_get_all_items", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_19_get_all_items, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_18_get_all_items};
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_19_get_all_items(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_22_get_all_items, "Get all key-value pairs in the tree");
+static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_23_get_all_items = {"_get_all_items", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_23_get_all_items, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_22_get_all_items};
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_23_get_all_items(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -12983,14 +14088,14 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   const Py_ssize_t __pyx_kwds_len = unlikely(__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
   if (unlikely(__pyx_kwds_len < 0)) return NULL;
   if (unlikely(__pyx_kwds_len > 0)) {__Pyx_RejectKeywords("_get_all_items", __pyx_kwds); return NULL;}
-  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_18_get_all_items(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self));
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_get_all_items(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_18_get_all_items(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self) {
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_get_all_items(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self) {
   PyObject *__pyx_v_items = NULL;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
@@ -13000,28 +14105,28 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_18_get_all_ite
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_get_all_items", 0);
 
-  /* "bptree_optimized.pyx":695
+  /* "bptree_optimized.pyx":762
  *     def _get_all_items(self):
  *         """Get all key-value pairs in the tree"""
  *         items = []             # <<<<<<<<<<<<<<
  *         self._collect_all_items(self.root, items)
  *         return items
 */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 695, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 762, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_items = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "bptree_optimized.pyx":696
+  /* "bptree_optimized.pyx":763
  *         """Get all key-value pairs in the tree"""
  *         items = []
  *         self._collect_all_items(self.root, items)             # <<<<<<<<<<<<<<
  *         return items
  * 
 */
-  ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_collect_all_items(__pyx_v_self, __pyx_v_self->root, __pyx_v_items); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 696, __pyx_L1_error)
+  ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_collect_all_items(__pyx_v_self, __pyx_v_self->root, __pyx_v_items); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 763, __pyx_L1_error)
 
-  /* "bptree_optimized.pyx":697
+  /* "bptree_optimized.pyx":764
  *         items = []
  *         self._collect_all_items(self.root, items)
  *         return items             # <<<<<<<<<<<<<<
@@ -13033,7 +14138,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_18_get_all_ite
   __pyx_r = __pyx_v_items;
   goto __pyx_L0;
 
-  /* "bptree_optimized.pyx":693
+  /* "bptree_optimized.pyx":760
  *             return None
  * 
  *     def _get_all_items(self):             # <<<<<<<<<<<<<<
@@ -13053,7 +14158,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_18_get_all_ite
   return __pyx_r;
 }
 
-/* "bptree_optimized.pyx":699
+/* "bptree_optimized.pyx":766
  *         return items
  * 
  *     cdef void _collect_all_items(self, BPNode* node, list items) except *:             # <<<<<<<<<<<<<<
@@ -13080,7 +14185,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_collect_all_items", 0);
 
-  /* "bptree_optimized.pyx":706
+  /* "bptree_optimized.pyx":773
  *             object value  # Python object for the value
  * 
  *         if node == NULL:             # <<<<<<<<<<<<<<
@@ -13090,7 +14195,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
   __pyx_t_1 = (__pyx_v_node == NULL);
   if (__pyx_t_1) {
 
-    /* "bptree_optimized.pyx":707
+    /* "bptree_optimized.pyx":774
  * 
  *         if node == NULL:
  *             return             # <<<<<<<<<<<<<<
@@ -13099,7 +14204,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
 */
     goto __pyx_L0;
 
-    /* "bptree_optimized.pyx":706
+    /* "bptree_optimized.pyx":773
  *             object value  # Python object for the value
  * 
  *         if node == NULL:             # <<<<<<<<<<<<<<
@@ -13108,7 +14213,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
 */
   }
 
-  /* "bptree_optimized.pyx":709
+  /* "bptree_optimized.pyx":776
  *             return
  * 
  *         if node.is_leaf:             # <<<<<<<<<<<<<<
@@ -13117,7 +14222,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
 */
   if (__pyx_v_node->is_leaf) {
 
-    /* "bptree_optimized.pyx":711
+    /* "bptree_optimized.pyx":778
  *         if node.is_leaf:
  *             # Collect items from leaf
  *             for i in range(node.num_keys):             # <<<<<<<<<<<<<<
@@ -13129,7 +14234,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
     for (__pyx_t_4 = 0; __pyx_t_4 < __pyx_t_3; __pyx_t_4+=1) {
       __pyx_v_i = __pyx_t_4;
 
-      /* "bptree_optimized.pyx":712
+      /* "bptree_optimized.pyx":779
  *             # Collect items from leaf
  *             for i in range(node.num_keys):
  *                 kv = node.keys[i]             # <<<<<<<<<<<<<<
@@ -13138,7 +14243,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
 */
       __pyx_v_kv = (__pyx_v_node->keys[__pyx_v_i]);
 
-      /* "bptree_optimized.pyx":713
+      /* "bptree_optimized.pyx":780
  *             for i in range(node.num_keys):
  *                 kv = node.keys[i]
  *                 value_holder = self.value_store.get(kv.value_ptr)             # <<<<<<<<<<<<<<
@@ -13147,17 +14252,17 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
 */
       if (unlikely(__pyx_v_self->value_store == Py_None)) {
         PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "get");
-        __PYX_ERR(0, 713, __pyx_L1_error)
+        __PYX_ERR(0, 780, __pyx_L1_error)
       }
-      __pyx_t_5 = __Pyx_PyLong_FromSize_t(__pyx_v_kv.value_ptr); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 713, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyLong_FromSize_t(__pyx_v_kv.value_ptr); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 780, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
-      __pyx_t_6 = __Pyx_PyDict_GetItemDefault(__pyx_v_self->value_store, __pyx_t_5, Py_None); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 713, __pyx_L1_error)
+      __pyx_t_6 = __Pyx_PyDict_GetItemDefault(__pyx_v_self->value_store, __pyx_t_5, Py_None); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 780, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
       __Pyx_XDECREF_SET(__pyx_v_value_holder, __pyx_t_6);
       __pyx_t_6 = 0;
 
-      /* "bptree_optimized.pyx":714
+      /* "bptree_optimized.pyx":781
  *                 kv = node.keys[i]
  *                 value_holder = self.value_store.get(kv.value_ptr)
  *                 if value_holder is not None:             # <<<<<<<<<<<<<<
@@ -13167,7 +14272,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
       __pyx_t_1 = (__pyx_v_value_holder != Py_None);
       if (__pyx_t_1) {
 
-        /* "bptree_optimized.pyx":715
+        /* "bptree_optimized.pyx":782
  *                 value_holder = self.value_store.get(kv.value_ptr)
  *                 if value_holder is not None:
  *                     items.append((kv.key, value_holder.value))             # <<<<<<<<<<<<<<
@@ -13176,24 +14281,24 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
 */
         if (unlikely(__pyx_v_items == Py_None)) {
           PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "append");
-          __PYX_ERR(0, 715, __pyx_L1_error)
+          __PYX_ERR(0, 782, __pyx_L1_error)
         }
-        __pyx_t_6 = PyFloat_FromDouble(__pyx_v_kv.key); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 715, __pyx_L1_error)
+        __pyx_t_6 = PyFloat_FromDouble(__pyx_v_kv.key); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 782, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_6);
-        __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_value_holder, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 715, __pyx_L1_error)
+        __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_value_holder, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 782, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_5);
-        __pyx_t_7 = PyTuple_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 715, __pyx_L1_error)
+        __pyx_t_7 = PyTuple_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 782, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_7);
         __Pyx_GIVEREF(__pyx_t_6);
-        if (__Pyx_PyTuple_SET_ITEM(__pyx_t_7, 0, __pyx_t_6) != (0)) __PYX_ERR(0, 715, __pyx_L1_error);
+        if (__Pyx_PyTuple_SET_ITEM(__pyx_t_7, 0, __pyx_t_6) != (0)) __PYX_ERR(0, 782, __pyx_L1_error);
         __Pyx_GIVEREF(__pyx_t_5);
-        if (__Pyx_PyTuple_SET_ITEM(__pyx_t_7, 1, __pyx_t_5) != (0)) __PYX_ERR(0, 715, __pyx_L1_error);
+        if (__Pyx_PyTuple_SET_ITEM(__pyx_t_7, 1, __pyx_t_5) != (0)) __PYX_ERR(0, 782, __pyx_L1_error);
         __pyx_t_6 = 0;
         __pyx_t_5 = 0;
-        __pyx_t_8 = __Pyx_PyList_Append(__pyx_v_items, __pyx_t_7); if (unlikely(__pyx_t_8 == ((int)-1))) __PYX_ERR(0, 715, __pyx_L1_error)
+        __pyx_t_8 = __Pyx_PyList_Append(__pyx_v_items, __pyx_t_7); if (unlikely(__pyx_t_8 == ((int)-1))) __PYX_ERR(0, 782, __pyx_L1_error)
         __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-        /* "bptree_optimized.pyx":714
+        /* "bptree_optimized.pyx":781
  *                 kv = node.keys[i]
  *                 value_holder = self.value_store.get(kv.value_ptr)
  *                 if value_holder is not None:             # <<<<<<<<<<<<<<
@@ -13203,7 +14308,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
       }
     }
 
-    /* "bptree_optimized.pyx":709
+    /* "bptree_optimized.pyx":776
  *             return
  * 
  *         if node.is_leaf:             # <<<<<<<<<<<<<<
@@ -13213,7 +14318,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
     goto __pyx_L4;
   }
 
-  /* "bptree_optimized.pyx":719
+  /* "bptree_optimized.pyx":786
  *         else:
  *             # Visit children in order (for sorted output)
  *             for i in range(node.num_keys):             # <<<<<<<<<<<<<<
@@ -13226,7 +14331,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
     for (__pyx_t_4 = 0; __pyx_t_4 < __pyx_t_3; __pyx_t_4+=1) {
       __pyx_v_i = __pyx_t_4;
 
-      /* "bptree_optimized.pyx":721
+      /* "bptree_optimized.pyx":788
  *             for i in range(node.num_keys):
  *                 # Visit child i
  *                 if node.children[i] != NULL:             # <<<<<<<<<<<<<<
@@ -13236,16 +14341,16 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
       __pyx_t_1 = ((__pyx_v_node->children[__pyx_v_i]) != NULL);
       if (__pyx_t_1) {
 
-        /* "bptree_optimized.pyx":722
+        /* "bptree_optimized.pyx":789
  *                 # Visit child i
  *                 if node.children[i] != NULL:
  *                     self._collect_all_items(node.children[i], items)             # <<<<<<<<<<<<<<
  * 
  *             # Visit last child
 */
-        ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_collect_all_items(__pyx_v_self, (__pyx_v_node->children[__pyx_v_i]), __pyx_v_items); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 722, __pyx_L1_error)
+        ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_collect_all_items(__pyx_v_self, (__pyx_v_node->children[__pyx_v_i]), __pyx_v_items); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 789, __pyx_L1_error)
 
-        /* "bptree_optimized.pyx":721
+        /* "bptree_optimized.pyx":788
  *             for i in range(node.num_keys):
  *                 # Visit child i
  *                 if node.children[i] != NULL:             # <<<<<<<<<<<<<<
@@ -13255,7 +14360,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
       }
     }
 
-    /* "bptree_optimized.pyx":725
+    /* "bptree_optimized.pyx":792
  * 
  *             # Visit last child
  *             if node.num_keys >= 0 and node.children[node.num_keys] != NULL:             # <<<<<<<<<<<<<<
@@ -13273,16 +14378,16 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
     __pyx_L12_bool_binop_done:;
     if (__pyx_t_1) {
 
-      /* "bptree_optimized.pyx":726
+      /* "bptree_optimized.pyx":793
  *             # Visit last child
  *             if node.num_keys >= 0 and node.children[node.num_keys] != NULL:
  *                 self._collect_all_items(node.children[node.num_keys], items)             # <<<<<<<<<<<<<<
  * 
  *     def range_query(self, start_key, end_key):
 */
-      ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_collect_all_items(__pyx_v_self, (__pyx_v_node->children[__pyx_v_node->num_keys]), __pyx_v_items); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 726, __pyx_L1_error)
+      ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_collect_all_items(__pyx_v_self, (__pyx_v_node->children[__pyx_v_node->num_keys]), __pyx_v_items); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 793, __pyx_L1_error)
 
-      /* "bptree_optimized.pyx":725
+      /* "bptree_optimized.pyx":792
  * 
  *             # Visit last child
  *             if node.num_keys >= 0 and node.children[node.num_keys] != NULL:             # <<<<<<<<<<<<<<
@@ -13293,7 +14398,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
   }
   __pyx_L4:;
 
-  /* "bptree_optimized.pyx":699
+  /* "bptree_optimized.pyx":766
  *         return items
  * 
  *     cdef void _collect_all_items(self, BPNode* node, list items) except *:             # <<<<<<<<<<<<<<
@@ -13313,7 +14418,7 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
   __Pyx_RefNannyFinishContext();
 }
 
-/* "bptree_optimized.pyx":728
+/* "bptree_optimized.pyx":795
  *                 self._collect_all_items(node.children[node.num_keys], items)
  * 
  *     def range_query(self, start_key, end_key):             # <<<<<<<<<<<<<<
@@ -13322,16 +14427,16 @@ static void __pyx_f_16bptree_optimized_18BPlusTreeOptimized__collect_all_items(s
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_21range_query(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_25range_query(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_20range_query, "Get all values with keys between start_key and end_key");
-static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_21range_query = {"range_query", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_21range_query, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_20range_query};
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_21range_query(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_24range_query, "Get all values with keys between start_key and end_key");
+static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_25range_query = {"range_query", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_25range_query, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_24range_query};
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_25range_query(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -13362,39 +14467,39 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_start_key,&__pyx_mstate_global->__pyx_n_u_end_key,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 728, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 795, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 728, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 795, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 728, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 795, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "range_query", 0) < 0) __PYX_ERR(0, 728, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "range_query", 0) < 0) __PYX_ERR(0, 795, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 2; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("range_query", 1, 2, 2, i); __PYX_ERR(0, 728, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("range_query", 1, 2, 2, i); __PYX_ERR(0, 795, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 2)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 728, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 795, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 728, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 795, __pyx_L3_error)
     }
     __pyx_v_start_key = values[0];
     __pyx_v_end_key = values[1];
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("range_query", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 728, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("range_query", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 795, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -13405,7 +14510,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v_start_key, __pyx_v_end_key);
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_24range_query(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v_start_key, __pyx_v_end_key);
 
   /* function exit code */
   for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
@@ -13415,7 +14520,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_start_key, PyObject *__pyx_v_end_key) {
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_24range_query(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, PyObject *__pyx_v_start_key, PyObject *__pyx_v_end_key) {
   double __pyx_v_start;
   double __pyx_v_end;
   PyObject *__pyx_v_results = NULL;
@@ -13440,7 +14545,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("range_query", 0);
 
-  /* "bptree_optimized.pyx":730
+  /* "bptree_optimized.pyx":797
  *     def range_query(self, start_key, end_key):
  *         """Get all values with keys between start_key and end_key"""
  *         self.operation_counter += 1             # <<<<<<<<<<<<<<
@@ -13449,27 +14554,27 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
 */
   __pyx_v_self->operation_counter = (__pyx_v_self->operation_counter + 1);
 
-  /* "bptree_optimized.pyx":732
+  /* "bptree_optimized.pyx":799
  *         self.operation_counter += 1
  *         cdef:
  *             double start = float(start_key)             # <<<<<<<<<<<<<<
  *             double end = float(end_key)
  * 
 */
-  __pyx_t_1 = __Pyx_PyObject_AsDouble(__pyx_v_start_key); if (unlikely(__pyx_t_1 == ((double)((double)-1)) && PyErr_Occurred())) __PYX_ERR(0, 732, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_AsDouble(__pyx_v_start_key); if (unlikely(__pyx_t_1 == ((double)((double)-1)) && PyErr_Occurred())) __PYX_ERR(0, 799, __pyx_L1_error)
   __pyx_v_start = __pyx_t_1;
 
-  /* "bptree_optimized.pyx":733
+  /* "bptree_optimized.pyx":800
  *         cdef:
  *             double start = float(start_key)
  *             double end = float(end_key)             # <<<<<<<<<<<<<<
  * 
  *         if logger.isEnabledFor(logging.DEBUG):
 */
-  __pyx_t_1 = __Pyx_PyObject_AsDouble(__pyx_v_end_key); if (unlikely(__pyx_t_1 == ((double)((double)-1)) && PyErr_Occurred())) __PYX_ERR(0, 733, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_AsDouble(__pyx_v_end_key); if (unlikely(__pyx_t_1 == ((double)((double)-1)) && PyErr_Occurred())) __PYX_ERR(0, 800, __pyx_L1_error)
   __pyx_v_end = __pyx_t_1;
 
-  /* "bptree_optimized.pyx":735
+  /* "bptree_optimized.pyx":802
  *             double end = float(end_key)
  * 
  *         if logger.isEnabledFor(logging.DEBUG):             # <<<<<<<<<<<<<<
@@ -13477,14 +14582,14 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
  * 
 */
   __pyx_t_3 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 735, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 802, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_isEnabledFor); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 735, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_isEnabledFor); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 802, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_logging); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 735, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_logging); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 802, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_DEBUG); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 735, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_DEBUG); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 802, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_7 = 1;
@@ -13505,14 +14610,14 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
     __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 735, __pyx_L1_error)
+    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 802, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
   }
-  __pyx_t_8 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_8 < 0))) __PYX_ERR(0, 735, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_8 < 0))) __PYX_ERR(0, 802, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   if (__pyx_t_8) {
 
-    /* "bptree_optimized.pyx":736
+    /* "bptree_optimized.pyx":803
  * 
  *         if logger.isEnabledFor(logging.DEBUG):
  *             logger.debug(f"[{self.name}][{self.operation_counter}] RANGE QUERY - from {start_key} to {end_key}")             # <<<<<<<<<<<<<<
@@ -13520,18 +14625,18 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
  *         # Use the optimized range query implementation
 */
     __pyx_t_5 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 736, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 803, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_debug); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 736, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_debug); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 803, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_6 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 736, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 803, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_4 = __Pyx_PyUnicode_From_int(__pyx_v_self->operation_counter, 0, ' ', 'd'); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 736, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyUnicode_From_int(__pyx_v_self->operation_counter, 0, ' ', 'd'); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 803, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_9 = __Pyx_PyObject_FormatSimple(__pyx_v_start_key, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 736, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_PyObject_FormatSimple(__pyx_v_start_key, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 803, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_9);
-    __pyx_t_10 = __Pyx_PyObject_FormatSimple(__pyx_v_end_key, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 736, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyObject_FormatSimple(__pyx_v_end_key, __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 803, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
     __pyx_t_11[0] = __pyx_mstate_global->__pyx_kp_u_;
     __pyx_t_11[1] = __pyx_t_6;
@@ -13542,7 +14647,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
     __pyx_t_11[6] = __pyx_mstate_global->__pyx_kp_u_to;
     __pyx_t_11[7] = __pyx_t_10;
     __pyx_t_12 = __Pyx_PyUnicode_Join(__pyx_t_11, 8, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_6) + 2 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_4) + 21 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_9) + 4 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_10), 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_6) | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_9) | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_10));
-    if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 736, __pyx_L1_error)
+    if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 803, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_12);
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
@@ -13566,12 +14671,12 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
       __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
       __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 736, __pyx_L1_error)
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 803, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
     }
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "bptree_optimized.pyx":735
+    /* "bptree_optimized.pyx":802
  *             double end = float(end_key)
  * 
  *         if logger.isEnabledFor(logging.DEBUG):             # <<<<<<<<<<<<<<
@@ -13580,7 +14685,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
 */
   }
 
-  /* "bptree_optimized.pyx":739
+  /* "bptree_optimized.pyx":806
  * 
  *         # Use the optimized range query implementation
  *         results = self._simple_range_query(start, end)             # <<<<<<<<<<<<<<
@@ -13589,9 +14694,9 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
 */
   __pyx_t_3 = ((PyObject *)__pyx_v_self);
   __Pyx_INCREF(__pyx_t_3);
-  __pyx_t_12 = PyFloat_FromDouble(__pyx_v_start); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 739, __pyx_L1_error)
+  __pyx_t_12 = PyFloat_FromDouble(__pyx_v_start); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 806, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
-  __pyx_t_5 = PyFloat_FromDouble(__pyx_v_end); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 739, __pyx_L1_error)
+  __pyx_t_5 = PyFloat_FromDouble(__pyx_v_end); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 806, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __pyx_t_7 = 0;
   {
@@ -13600,13 +14705,13 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
     __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
     __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 739, __pyx_L1_error)
+    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 806, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
   }
   __pyx_v_results = __pyx_t_2;
   __pyx_t_2 = 0;
 
-  /* "bptree_optimized.pyx":741
+  /* "bptree_optimized.pyx":808
  *         results = self._simple_range_query(start, end)
  * 
  *         if logger.isEnabledFor(logging.DEBUG):             # <<<<<<<<<<<<<<
@@ -13614,14 +14719,14 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
  * 
 */
   __pyx_t_5 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 741, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 808, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_isEnabledFor); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 741, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_isEnabledFor); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 808, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_logging); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 741, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_logging); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 808, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
-  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_DEBUG); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 741, __pyx_L1_error)
+  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_DEBUG); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 808, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
   __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
   __pyx_t_7 = 1;
@@ -13642,14 +14747,14 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
     __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 741, __pyx_L1_error)
+    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 808, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
   }
-  __pyx_t_8 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_8 < 0))) __PYX_ERR(0, 741, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_8 < 0))) __PYX_ERR(0, 808, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   if (__pyx_t_8) {
 
-    /* "bptree_optimized.pyx":742
+    /* "bptree_optimized.pyx":809
  * 
  *         if logger.isEnabledFor(logging.DEBUG):
  *             logger.debug(f"[{self.name}] RANGE QUERY RESULT - found {len(results)} entries")             # <<<<<<<<<<<<<<
@@ -13657,15 +14762,15 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
  *         return results
 */
     __pyx_t_3 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 742, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 809, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
-    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_debug); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 742, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_debug); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 809, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-    __pyx_t_10 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 742, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 809, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
-    __pyx_t_13 = PyObject_Length(__pyx_v_results); if (unlikely(__pyx_t_13 == ((Py_ssize_t)-1))) __PYX_ERR(0, 742, __pyx_L1_error)
-    __pyx_t_12 = __Pyx_PyUnicode_From_Py_ssize_t(__pyx_t_13, 0, ' ', 'd'); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 742, __pyx_L1_error)
+    __pyx_t_13 = PyObject_Length(__pyx_v_results); if (unlikely(__pyx_t_13 == ((Py_ssize_t)-1))) __PYX_ERR(0, 809, __pyx_L1_error)
+    __pyx_t_12 = __Pyx_PyUnicode_From_Py_ssize_t(__pyx_t_13, 0, ' ', 'd'); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 809, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_12);
     __pyx_t_14[0] = __pyx_mstate_global->__pyx_kp_u_;
     __pyx_t_14[1] = __pyx_t_10;
@@ -13673,7 +14778,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
     __pyx_t_14[3] = __pyx_t_12;
     __pyx_t_14[4] = __pyx_mstate_global->__pyx_kp_u_entries;
     __pyx_t_9 = __Pyx_PyUnicode_Join(__pyx_t_14, 5, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_10) + 29 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_12) + 8, 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_10));
-    if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 742, __pyx_L1_error)
+    if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 809, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_9);
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
@@ -13695,12 +14800,12 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
       __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
       __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 742, __pyx_L1_error)
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 809, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
     }
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "bptree_optimized.pyx":741
+    /* "bptree_optimized.pyx":808
  *         results = self._simple_range_query(start, end)
  * 
  *         if logger.isEnabledFor(logging.DEBUG):             # <<<<<<<<<<<<<<
@@ -13709,7 +14814,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
 */
   }
 
-  /* "bptree_optimized.pyx":744
+  /* "bptree_optimized.pyx":811
  *             logger.debug(f"[{self.name}] RANGE QUERY RESULT - found {len(results)} entries")
  * 
  *         return results             # <<<<<<<<<<<<<<
@@ -13721,7 +14826,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
   __pyx_r = __pyx_v_results;
   goto __pyx_L0;
 
-  /* "bptree_optimized.pyx":728
+  /* "bptree_optimized.pyx":795
  *                 self._collect_all_items(node.children[node.num_keys], items)
  * 
  *     def range_query(self, start_key, end_key):             # <<<<<<<<<<<<<<
@@ -13748,7 +14853,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
   return __pyx_r;
 }
 
-/* "bptree_optimized.pyx":746
+/* "bptree_optimized.pyx":813
  *         return results
  * 
  *     def _simple_range_query(self, double start_key, double end_key):             # <<<<<<<<<<<<<<
@@ -13757,16 +14862,16 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_20range_query(
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_23_simple_range_query(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_27_simple_range_query(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_22_simple_range_query, "Optimized range query implementation");
-static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_23_simple_range_query = {"_simple_range_query", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_23_simple_range_query, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_22_simple_range_query};
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_23_simple_range_query(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_16bptree_optimized_18BPlusTreeOptimized_26_simple_range_query, "Optimized range query implementation");
+static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_27_simple_range_query = {"_simple_range_query", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_27_simple_range_query, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_26_simple_range_query};
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_27_simple_range_query(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -13797,39 +14902,39 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_start_key,&__pyx_mstate_global->__pyx_n_u_end_key,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 746, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 813, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 746, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 813, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 746, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 813, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_simple_range_query", 0) < 0) __PYX_ERR(0, 746, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_simple_range_query", 0) < 0) __PYX_ERR(0, 813, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 2; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_simple_range_query", 1, 2, 2, i); __PYX_ERR(0, 746, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_simple_range_query", 1, 2, 2, i); __PYX_ERR(0, 813, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 2)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 746, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 813, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 746, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 813, __pyx_L3_error)
     }
-    __pyx_v_start_key = __Pyx_PyFloat_AsDouble(values[0]); if (unlikely((__pyx_v_start_key == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 746, __pyx_L3_error)
-    __pyx_v_end_key = __Pyx_PyFloat_AsDouble(values[1]); if (unlikely((__pyx_v_end_key == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 746, __pyx_L3_error)
+    __pyx_v_start_key = __Pyx_PyFloat_AsDouble(values[0]); if (unlikely((__pyx_v_start_key == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 813, __pyx_L3_error)
+    __pyx_v_end_key = __Pyx_PyFloat_AsDouble(values[1]); if (unlikely((__pyx_v_end_key == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 813, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("_simple_range_query", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 746, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("_simple_range_query", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 813, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -13840,7 +14945,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_range_query(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v_start_key, __pyx_v_end_key);
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_26_simple_range_query(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v_start_key, __pyx_v_end_key);
 
   /* function exit code */
   for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
@@ -13850,7 +14955,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_range_query(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, double __pyx_v_start_key, double __pyx_v_end_key) {
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_26_simple_range_query(struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, double __pyx_v_start_key, double __pyx_v_end_key) {
   __pyx_t_16bptree_optimized_BPNode *__pyx_v_current_leaf;
   int __pyx_v_i;
   double __pyx_v_key;
@@ -13876,19 +14981,19 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_simple_range_query", 0);
 
-  /* "bptree_optimized.pyx":753
+  /* "bptree_optimized.pyx":820
  *             double key
  *             size_t value_ptr
  *             list results = []             # <<<<<<<<<<<<<<
  *             double epsilon = 1e-9
  * 
 */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 753, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 820, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_results = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "bptree_optimized.pyx":754
+  /* "bptree_optimized.pyx":821
  *             size_t value_ptr
  *             list results = []
  *             double epsilon = 1e-9             # <<<<<<<<<<<<<<
@@ -13897,7 +15002,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
 */
   __pyx_v_epsilon = 1e-9;
 
-  /* "bptree_optimized.pyx":757
+  /* "bptree_optimized.pyx":824
  * 
  *         # Handle empty tree
  *         if self.root == NULL:             # <<<<<<<<<<<<<<
@@ -13907,7 +15012,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
   __pyx_t_2 = (__pyx_v_self->root == NULL);
   if (__pyx_t_2) {
 
-    /* "bptree_optimized.pyx":758
+    /* "bptree_optimized.pyx":825
  *         # Handle empty tree
  *         if self.root == NULL:
  *             return results             # <<<<<<<<<<<<<<
@@ -13919,7 +15024,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
     __pyx_r = __pyx_v_results;
     goto __pyx_L0;
 
-    /* "bptree_optimized.pyx":757
+    /* "bptree_optimized.pyx":824
  * 
  *         # Handle empty tree
  *         if self.root == NULL:             # <<<<<<<<<<<<<<
@@ -13928,17 +15033,17 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
 */
   }
 
-  /* "bptree_optimized.pyx":761
+  /* "bptree_optimized.pyx":828
  * 
  *         # Find leaf that would contain start_key
  *         current_leaf = self._find_leaf_for_key(start_key)             # <<<<<<<<<<<<<<
  * 
  *         if current_leaf == NULL:
 */
-  __pyx_t_3 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_find_leaf_for_key(__pyx_v_self, __pyx_v_start_key); if (unlikely(__pyx_t_3 == ((__pyx_t_16bptree_optimized_BPNode *)0) && PyErr_Occurred())) __PYX_ERR(0, 761, __pyx_L1_error)
+  __pyx_t_3 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_find_leaf_for_key(__pyx_v_self, __pyx_v_start_key); if (unlikely(__pyx_t_3 == ((__pyx_t_16bptree_optimized_BPNode *)0) && PyErr_Occurred())) __PYX_ERR(0, 828, __pyx_L1_error)
   __pyx_v_current_leaf = __pyx_t_3;
 
-  /* "bptree_optimized.pyx":763
+  /* "bptree_optimized.pyx":830
  *         current_leaf = self._find_leaf_for_key(start_key)
  * 
  *         if current_leaf == NULL:             # <<<<<<<<<<<<<<
@@ -13948,7 +15053,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
   __pyx_t_2 = (__pyx_v_current_leaf == NULL);
   if (__pyx_t_2) {
 
-    /* "bptree_optimized.pyx":764
+    /* "bptree_optimized.pyx":831
  * 
  *         if current_leaf == NULL:
  *             return results             # <<<<<<<<<<<<<<
@@ -13960,7 +15065,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
     __pyx_r = __pyx_v_results;
     goto __pyx_L0;
 
-    /* "bptree_optimized.pyx":763
+    /* "bptree_optimized.pyx":830
  *         current_leaf = self._find_leaf_for_key(start_key)
  * 
  *         if current_leaf == NULL:             # <<<<<<<<<<<<<<
@@ -13969,7 +15074,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
 */
   }
 
-  /* "bptree_optimized.pyx":767
+  /* "bptree_optimized.pyx":834
  * 
  *         # Loop through leaves via next pointers
  *         while current_leaf != NULL:             # <<<<<<<<<<<<<<
@@ -13980,7 +15085,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
     __pyx_t_2 = (__pyx_v_current_leaf != NULL);
     if (!__pyx_t_2) break;
 
-    /* "bptree_optimized.pyx":769
+    /* "bptree_optimized.pyx":836
  *         while current_leaf != NULL:
  *             # Process keys in this leaf
  *             for i in range(current_leaf.num_keys):             # <<<<<<<<<<<<<<
@@ -13992,7 +15097,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
     for (__pyx_t_6 = 0; __pyx_t_6 < __pyx_t_5; __pyx_t_6+=1) {
       __pyx_v_i = __pyx_t_6;
 
-      /* "bptree_optimized.pyx":770
+      /* "bptree_optimized.pyx":837
  *             # Process keys in this leaf
  *             for i in range(current_leaf.num_keys):
  *                 if i >= current_leaf.capacity:             # <<<<<<<<<<<<<<
@@ -14002,7 +15107,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
       __pyx_t_2 = (__pyx_v_i >= __pyx_v_current_leaf->capacity);
       if (__pyx_t_2) {
 
-        /* "bptree_optimized.pyx":771
+        /* "bptree_optimized.pyx":838
  *             for i in range(current_leaf.num_keys):
  *                 if i >= current_leaf.capacity:
  *                     continue             # <<<<<<<<<<<<<<
@@ -14011,7 +15116,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
 */
         goto __pyx_L7_continue;
 
-        /* "bptree_optimized.pyx":770
+        /* "bptree_optimized.pyx":837
  *             # Process keys in this leaf
  *             for i in range(current_leaf.num_keys):
  *                 if i >= current_leaf.capacity:             # <<<<<<<<<<<<<<
@@ -14020,7 +15125,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
 */
       }
 
-      /* "bptree_optimized.pyx":773
+      /* "bptree_optimized.pyx":840
  *                     continue
  * 
  *                 key = current_leaf.keys[i].key             # <<<<<<<<<<<<<<
@@ -14030,7 +15135,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
       __pyx_t_7 = (__pyx_v_current_leaf->keys[__pyx_v_i]).key;
       __pyx_v_key = __pyx_t_7;
 
-      /* "bptree_optimized.pyx":776
+      /* "bptree_optimized.pyx":843
  * 
  *                 # If we've passed end_key, we're done
  *                 if key > end_key + epsilon:             # <<<<<<<<<<<<<<
@@ -14040,7 +15145,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
       __pyx_t_2 = (__pyx_v_key > (__pyx_v_end_key + __pyx_v_epsilon));
       if (__pyx_t_2) {
 
-        /* "bptree_optimized.pyx":777
+        /* "bptree_optimized.pyx":844
  *                 # If we've passed end_key, we're done
  *                 if key > end_key + epsilon:
  *                     return results             # <<<<<<<<<<<<<<
@@ -14052,7 +15157,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
         __pyx_r = __pyx_v_results;
         goto __pyx_L0;
 
-        /* "bptree_optimized.pyx":776
+        /* "bptree_optimized.pyx":843
  * 
  *                 # If we've passed end_key, we're done
  *                 if key > end_key + epsilon:             # <<<<<<<<<<<<<<
@@ -14061,7 +15166,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
 */
       }
 
-      /* "bptree_optimized.pyx":780
+      /* "bptree_optimized.pyx":847
  * 
  *                 # If key is in range, add to results
  *                 if key >= start_key - epsilon:             # <<<<<<<<<<<<<<
@@ -14071,7 +15176,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
       __pyx_t_2 = (__pyx_v_key >= (__pyx_v_start_key - __pyx_v_epsilon));
       if (__pyx_t_2) {
 
-        /* "bptree_optimized.pyx":781
+        /* "bptree_optimized.pyx":848
  *                 # If key is in range, add to results
  *                 if key >= start_key - epsilon:
  *                     value_ptr = current_leaf.keys[i].value_ptr             # <<<<<<<<<<<<<<
@@ -14081,7 +15186,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
         __pyx_t_8 = (__pyx_v_current_leaf->keys[__pyx_v_i]).value_ptr;
         __pyx_v_value_ptr = __pyx_t_8;
 
-        /* "bptree_optimized.pyx":782
+        /* "bptree_optimized.pyx":849
  *                 if key >= start_key - epsilon:
  *                     value_ptr = current_leaf.keys[i].value_ptr
  *                     if value_ptr > 0:             # <<<<<<<<<<<<<<
@@ -14091,7 +15196,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
         __pyx_t_2 = (__pyx_v_value_ptr > 0);
         if (__pyx_t_2) {
 
-          /* "bptree_optimized.pyx":783
+          /* "bptree_optimized.pyx":850
  *                     value_ptr = current_leaf.keys[i].value_ptr
  *                     if value_ptr > 0:
  *                         value_holder = self.value_store.get(value_ptr)             # <<<<<<<<<<<<<<
@@ -14100,17 +15205,17 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
 */
           if (unlikely(__pyx_v_self->value_store == Py_None)) {
             PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "get");
-            __PYX_ERR(0, 783, __pyx_L1_error)
+            __PYX_ERR(0, 850, __pyx_L1_error)
           }
-          __pyx_t_1 = __Pyx_PyLong_FromSize_t(__pyx_v_value_ptr); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 783, __pyx_L1_error)
+          __pyx_t_1 = __Pyx_PyLong_FromSize_t(__pyx_v_value_ptr); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 850, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_1);
-          __pyx_t_9 = __Pyx_PyDict_GetItemDefault(__pyx_v_self->value_store, __pyx_t_1, Py_None); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 783, __pyx_L1_error)
+          __pyx_t_9 = __Pyx_PyDict_GetItemDefault(__pyx_v_self->value_store, __pyx_t_1, Py_None); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 850, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_9);
           __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
           __Pyx_XDECREF_SET(__pyx_v_value_holder, __pyx_t_9);
           __pyx_t_9 = 0;
 
-          /* "bptree_optimized.pyx":784
+          /* "bptree_optimized.pyx":851
  *                     if value_ptr > 0:
  *                         value_holder = self.value_store.get(value_ptr)
  *                         if value_holder is not None:             # <<<<<<<<<<<<<<
@@ -14120,29 +15225,29 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
           __pyx_t_2 = (__pyx_v_value_holder != Py_None);
           if (__pyx_t_2) {
 
-            /* "bptree_optimized.pyx":785
+            /* "bptree_optimized.pyx":852
  *                         value_holder = self.value_store.get(value_ptr)
  *                         if value_holder is not None:
  *                             results.append((key, value_holder.value))             # <<<<<<<<<<<<<<
  * 
  *             # Move to next leaf
 */
-            __pyx_t_9 = PyFloat_FromDouble(__pyx_v_key); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 785, __pyx_L1_error)
+            __pyx_t_9 = PyFloat_FromDouble(__pyx_v_key); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 852, __pyx_L1_error)
             __Pyx_GOTREF(__pyx_t_9);
-            __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_value_holder, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 785, __pyx_L1_error)
+            __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_value_holder, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 852, __pyx_L1_error)
             __Pyx_GOTREF(__pyx_t_1);
-            __pyx_t_10 = PyTuple_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 785, __pyx_L1_error)
+            __pyx_t_10 = PyTuple_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 852, __pyx_L1_error)
             __Pyx_GOTREF(__pyx_t_10);
             __Pyx_GIVEREF(__pyx_t_9);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 0, __pyx_t_9) != (0)) __PYX_ERR(0, 785, __pyx_L1_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 0, __pyx_t_9) != (0)) __PYX_ERR(0, 852, __pyx_L1_error);
             __Pyx_GIVEREF(__pyx_t_1);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_t_1) != (0)) __PYX_ERR(0, 785, __pyx_L1_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_t_1) != (0)) __PYX_ERR(0, 852, __pyx_L1_error);
             __pyx_t_9 = 0;
             __pyx_t_1 = 0;
-            __pyx_t_11 = __Pyx_PyList_Append(__pyx_v_results, __pyx_t_10); if (unlikely(__pyx_t_11 == ((int)-1))) __PYX_ERR(0, 785, __pyx_L1_error)
+            __pyx_t_11 = __Pyx_PyList_Append(__pyx_v_results, __pyx_t_10); if (unlikely(__pyx_t_11 == ((int)-1))) __PYX_ERR(0, 852, __pyx_L1_error)
             __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
 
-            /* "bptree_optimized.pyx":784
+            /* "bptree_optimized.pyx":851
  *                     if value_ptr > 0:
  *                         value_holder = self.value_store.get(value_ptr)
  *                         if value_holder is not None:             # <<<<<<<<<<<<<<
@@ -14151,7 +15256,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
 */
           }
 
-          /* "bptree_optimized.pyx":782
+          /* "bptree_optimized.pyx":849
  *                 if key >= start_key - epsilon:
  *                     value_ptr = current_leaf.keys[i].value_ptr
  *                     if value_ptr > 0:             # <<<<<<<<<<<<<<
@@ -14160,7 +15265,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
 */
         }
 
-        /* "bptree_optimized.pyx":780
+        /* "bptree_optimized.pyx":847
  * 
  *                 # If key is in range, add to results
  *                 if key >= start_key - epsilon:             # <<<<<<<<<<<<<<
@@ -14171,7 +15276,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
       __pyx_L7_continue:;
     }
 
-    /* "bptree_optimized.pyx":788
+    /* "bptree_optimized.pyx":855
  * 
  *             # Move to next leaf
  *             current_leaf = current_leaf.next             # <<<<<<<<<<<<<<
@@ -14182,7 +15287,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
     __pyx_v_current_leaf = __pyx_t_3;
   }
 
-  /* "bptree_optimized.pyx":790
+  /* "bptree_optimized.pyx":857
  *             current_leaf = current_leaf.next
  * 
  *         return results             # <<<<<<<<<<<<<<
@@ -14194,7 +15299,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
   __pyx_r = __pyx_v_results;
   goto __pyx_L0;
 
-  /* "bptree_optimized.pyx":746
+  /* "bptree_optimized.pyx":813
  *         return results
  * 
  *     def _simple_range_query(self, double start_key, double end_key):             # <<<<<<<<<<<<<<
@@ -14217,7 +15322,7 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_22_simple_rang
   return __pyx_r;
 }
 
-/* "bptree_optimized.pyx":792
+/* "bptree_optimized.pyx":859
  *         return results
  * 
  *     cdef BPNode* _find_leaf_for_key(self, double key) except? NULL:             # <<<<<<<<<<<<<<
@@ -14248,7 +15353,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_find_leaf_for_key", 0);
 
-  /* "bptree_optimized.pyx":799
+  /* "bptree_optimized.pyx":866
  * 
  *         # Check for NULL root
  *         if self.root == NULL:             # <<<<<<<<<<<<<<
@@ -14258,7 +15363,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
   __pyx_t_1 = (__pyx_v_self->root == NULL);
   if (__pyx_t_1) {
 
-    /* "bptree_optimized.pyx":800
+    /* "bptree_optimized.pyx":867
  *         # Check for NULL root
  *         if self.root == NULL:
  *             logger.error(f"[{self.name}] Root is NULL in _find_leaf_for_key")             # <<<<<<<<<<<<<<
@@ -14266,18 +15371,18 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
  * 
 */
     __pyx_t_3 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 800, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 867, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 800, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 867, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_4 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 800, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 867, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_6[0] = __pyx_mstate_global->__pyx_kp_u_;
     __pyx_t_6[1] = __pyx_t_4;
     __pyx_t_6[2] = __pyx_mstate_global->__pyx_kp_u_Root_is_NULL_in__find_leaf_for;
     __pyx_t_7 = __Pyx_PyUnicode_Join(__pyx_t_6, 3, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_4) + 36, 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_4));
-    if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 800, __pyx_L1_error)
+    if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 867, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_t_8 = 1;
@@ -14298,12 +15403,12 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
       __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 800, __pyx_L1_error)
+      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 867, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
     }
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "bptree_optimized.pyx":801
+    /* "bptree_optimized.pyx":868
  *         if self.root == NULL:
  *             logger.error(f"[{self.name}] Root is NULL in _find_leaf_for_key")
  *             return NULL             # <<<<<<<<<<<<<<
@@ -14313,7 +15418,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
     __pyx_r = NULL;
     goto __pyx_L0;
 
-    /* "bptree_optimized.pyx":799
+    /* "bptree_optimized.pyx":866
  * 
  *         # Check for NULL root
  *         if self.root == NULL:             # <<<<<<<<<<<<<<
@@ -14322,7 +15427,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
 */
   }
 
-  /* "bptree_optimized.pyx":803
+  /* "bptree_optimized.pyx":870
  *             return NULL
  * 
  *         node = self.root             # <<<<<<<<<<<<<<
@@ -14332,7 +15437,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
   __pyx_t_9 = __pyx_v_self->root;
   __pyx_v_node = __pyx_t_9;
 
-  /* "bptree_optimized.pyx":806
+  /* "bptree_optimized.pyx":873
  * 
  *         # Traverse down to leaf
  *         while node != NULL and not node.is_leaf:             # <<<<<<<<<<<<<<
@@ -14351,17 +15456,17 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
     __pyx_L6_bool_binop_done:;
     if (!__pyx_t_1) break;
 
-    /* "bptree_optimized.pyx":808
+    /* "bptree_optimized.pyx":875
  *         while node != NULL and not node.is_leaf:
  *             # Find child index using binary search
  *             pos = self._binary_search(node, key)             # <<<<<<<<<<<<<<
  * 
  *             # Handle edge cases
 */
-    __pyx_t_11 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_binary_search(__pyx_v_self, __pyx_v_node, __pyx_v_key); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 808, __pyx_L1_error)
+    __pyx_t_11 = ((struct __pyx_vtabstruct_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self->__pyx_vtab)->_binary_search(__pyx_v_self, __pyx_v_node, __pyx_v_key); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 875, __pyx_L1_error)
     __pyx_v_pos = __pyx_t_11;
 
-    /* "bptree_optimized.pyx":811
+    /* "bptree_optimized.pyx":878
  * 
  *             # Handle edge cases
  *             if pos >= node.num_keys:             # <<<<<<<<<<<<<<
@@ -14371,7 +15476,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
     __pyx_t_1 = (__pyx_v_pos >= __pyx_v_node->num_keys);
     if (__pyx_t_1) {
 
-      /* "bptree_optimized.pyx":812
+      /* "bptree_optimized.pyx":879
  *             # Handle edge cases
  *             if pos >= node.num_keys:
  *                 pos = node.num_keys             # <<<<<<<<<<<<<<
@@ -14381,7 +15486,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
       __pyx_t_11 = __pyx_v_node->num_keys;
       __pyx_v_pos = __pyx_t_11;
 
-      /* "bptree_optimized.pyx":811
+      /* "bptree_optimized.pyx":878
  * 
  *             # Handle edge cases
  *             if pos >= node.num_keys:             # <<<<<<<<<<<<<<
@@ -14390,7 +15495,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
 */
     }
 
-    /* "bptree_optimized.pyx":815
+    /* "bptree_optimized.pyx":882
  * 
  *             # Safety check
  *             if node.children == NULL:             # <<<<<<<<<<<<<<
@@ -14400,7 +15505,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
     __pyx_t_1 = (__pyx_v_node->children == NULL);
     if (__pyx_t_1) {
 
-      /* "bptree_optimized.pyx":816
+      /* "bptree_optimized.pyx":883
  *             # Safety check
  *             if node.children == NULL:
  *                 logger.error(f"[{self.name}] Node has NULL children array in _find_leaf_for_key")             # <<<<<<<<<<<<<<
@@ -14408,18 +15513,18 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
  * 
 */
       __pyx_t_5 = NULL;
-      __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 816, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 883, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_7);
-      __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 816, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 883, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-      __pyx_t_7 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 816, __pyx_L1_error)
+      __pyx_t_7 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 883, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_7);
       __pyx_t_6[0] = __pyx_mstate_global->__pyx_kp_u_;
       __pyx_t_6[1] = __pyx_t_7;
       __pyx_t_6[2] = __pyx_mstate_global->__pyx_kp_u_Node_has_NULL_children_array_in;
       __pyx_t_4 = __Pyx_PyUnicode_Join(__pyx_t_6, 3, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_7) + 52, 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_7));
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 816, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 883, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
       __pyx_t_8 = 1;
@@ -14440,12 +15545,12 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
         __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
         __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
         __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 816, __pyx_L1_error)
+        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 883, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_2);
       }
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-      /* "bptree_optimized.pyx":817
+      /* "bptree_optimized.pyx":884
  *             if node.children == NULL:
  *                 logger.error(f"[{self.name}] Node has NULL children array in _find_leaf_for_key")
  *                 return NULL             # <<<<<<<<<<<<<<
@@ -14455,7 +15560,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
       __pyx_r = NULL;
       goto __pyx_L0;
 
-      /* "bptree_optimized.pyx":815
+      /* "bptree_optimized.pyx":882
  * 
  *             # Safety check
  *             if node.children == NULL:             # <<<<<<<<<<<<<<
@@ -14464,7 +15569,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
 */
     }
 
-    /* "bptree_optimized.pyx":819
+    /* "bptree_optimized.pyx":886
  *                 return NULL
  * 
  *             if node.children[pos] == NULL:             # <<<<<<<<<<<<<<
@@ -14474,7 +15579,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
     __pyx_t_1 = ((__pyx_v_node->children[__pyx_v_pos]) == NULL);
     if (__pyx_t_1) {
 
-      /* "bptree_optimized.pyx":820
+      /* "bptree_optimized.pyx":887
  * 
  *             if node.children[pos] == NULL:
  *                 logger.error(f"[{self.name}] Child at position {pos} is NULL in _find_leaf_for_key")             # <<<<<<<<<<<<<<
@@ -14482,14 +15587,14 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
  * 
 */
       __pyx_t_3 = NULL;
-      __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 820, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_logger); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 887, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 820, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_error); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 887, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      __pyx_t_4 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 820, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_PyUnicode_Unicode(__pyx_v_self->name); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 887, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_7 = __Pyx_PyUnicode_From_int(__pyx_v_pos, 0, ' ', 'd'); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 820, __pyx_L1_error)
+      __pyx_t_7 = __Pyx_PyUnicode_From_int(__pyx_v_pos, 0, ' ', 'd'); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 887, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_7);
       __pyx_t_12[0] = __pyx_mstate_global->__pyx_kp_u_;
       __pyx_t_12[1] = __pyx_t_4;
@@ -14497,7 +15602,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
       __pyx_t_12[3] = __pyx_t_7;
       __pyx_t_12[4] = __pyx_mstate_global->__pyx_kp_u_is_NULL_in__find_leaf_for_key;
       __pyx_t_13 = __Pyx_PyUnicode_Join(__pyx_t_12, 5, 1 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_4) + 20 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_7) + 30, 127 | __Pyx_PyUnicode_MAX_CHAR_VALUE(__pyx_t_4));
-      if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 820, __pyx_L1_error)
+      if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 887, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_13);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
@@ -14519,12 +15624,12 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
         __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
         __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
         __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 820, __pyx_L1_error)
+        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 887, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_2);
       }
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-      /* "bptree_optimized.pyx":821
+      /* "bptree_optimized.pyx":888
  *             if node.children[pos] == NULL:
  *                 logger.error(f"[{self.name}] Child at position {pos} is NULL in _find_leaf_for_key")
  *                 return NULL             # <<<<<<<<<<<<<<
@@ -14534,7 +15639,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
       __pyx_r = NULL;
       goto __pyx_L0;
 
-      /* "bptree_optimized.pyx":819
+      /* "bptree_optimized.pyx":886
  *                 return NULL
  * 
  *             if node.children[pos] == NULL:             # <<<<<<<<<<<<<<
@@ -14543,7 +15648,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
 */
     }
 
-    /* "bptree_optimized.pyx":824
+    /* "bptree_optimized.pyx":891
  * 
  *             # Move to child
  *             node = node.children[pos]             # <<<<<<<<<<<<<<
@@ -14553,7 +15658,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
     __pyx_v_node = (__pyx_v_node->children[__pyx_v_pos]);
   }
 
-  /* "bptree_optimized.pyx":826
+  /* "bptree_optimized.pyx":893
  *             node = node.children[pos]
  * 
  *         return node             # <<<<<<<<<<<<<<
@@ -14561,7 +15666,7 @@ static __pyx_t_16bptree_optimized_BPNode *__pyx_f_16bptree_optimized_18BPlusTree
   __pyx_r = __pyx_v_node;
   goto __pyx_L0;
 
-  /* "bptree_optimized.pyx":792
+  /* "bptree_optimized.pyx":859
  *         return results
  * 
  *     cdef BPNode* _find_leaf_for_key(self, double key) except? NULL:             # <<<<<<<<<<<<<<
@@ -14788,15 +15893,15 @@ static int __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_4name_4__del__(struc
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_25__reduce_cython__(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_29__reduce_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_25__reduce_cython__ = {"__reduce_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_25__reduce_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_25__reduce_cython__(PyObject *__pyx_v_self, 
+static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_29__reduce_cython__ = {"__reduce_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_29__reduce_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_29__reduce_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -14822,14 +15927,14 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   const Py_ssize_t __pyx_kwds_len = unlikely(__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
   if (unlikely(__pyx_kwds_len < 0)) return NULL;
   if (unlikely(__pyx_kwds_len > 0)) {__Pyx_RejectKeywords("__reduce_cython__", __pyx_kwds); return NULL;}
-  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_24__reduce_cython__(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self));
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_28__reduce_cython__(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_24__reduce_cython__(CYTHON_UNUSED struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self) {
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_28__reduce_cython__(CYTHON_UNUSED struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   int __pyx_lineno = 0;
@@ -14869,15 +15974,15 @@ static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_24__reduce_cyt
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_27__setstate_cython__(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_31__setstate_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_27__setstate_cython__ = {"__setstate_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_27__setstate_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_27__setstate_cython__(PyObject *__pyx_v_self, 
+static PyMethodDef __pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_31__setstate_cython__ = {"__setstate_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_31__setstate_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_31__setstate_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -14943,7 +16048,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_26__setstate_cython__(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v___pyx_state);
+  __pyx_r = __pyx_pf_16bptree_optimized_18BPlusTreeOptimized_30__setstate_cython__(((struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *)__pyx_v_self), __pyx_v___pyx_state);
 
   /* function exit code */
   for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
@@ -14953,7 +16058,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_26__setstate_cython__(CYTHON_UNUSED struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v___pyx_state) {
+static PyObject *__pyx_pf_16bptree_optimized_18BPlusTreeOptimized_30__setstate_cython__(CYTHON_UNUSED struct __pyx_obj_16bptree_optimized_BPlusTreeOptimized *__pyx_v_self, CYTHON_UNUSED PyObject *__pyx_v___pyx_state) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   int __pyx_lineno = 0;
@@ -15650,7 +16755,7 @@ static PyObject *__pyx_sq_item_16bptree_optimized_BPlusTreeOptimized(PyObject *o
 
 static int __pyx_mp_ass_subscript_16bptree_optimized_BPlusTreeOptimized(PyObject *o, PyObject *i, PyObject *v) {
   if (v) {
-    return __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_11__setitem__(o, i, v);
+    return __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_15__setitem__(o, i, v);
   }
   else {
     __Pyx_TypeName o_type_name;
@@ -15692,14 +16797,16 @@ static int __pyx_setprop_16bptree_optimized_18BPlusTreeOptimized_name(PyObject *
 static PyMethodDef __pyx_methods_16bptree_optimized_BPlusTreeOptimized[] = {
   {"insert", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_5insert, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_4insert},
   {"search", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_7search, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_6search},
-  {"get", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_13get, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_12get},
-  {"save_to_file", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_15save_to_file, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_14save_to_file},
-  {"load_from_file", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_17load_from_file, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_16load_from_file},
-  {"_get_all_items", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_19_get_all_items, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_18_get_all_items},
-  {"range_query", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_21range_query, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_20range_query},
-  {"_simple_range_query", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_23_simple_range_query, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_22_simple_range_query},
-  {"__reduce_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_25__reduce_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
-  {"__setstate_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_27__setstate_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
+  {"insert_non_unique", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_9insert_non_unique, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_8insert_non_unique},
+  {"_insert_single_value", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_11_insert_single_value, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_10_insert_single_value},
+  {"get", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_17get, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_16get},
+  {"save_to_file", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_19save_to_file, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_18save_to_file},
+  {"load_from_file", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_21load_from_file, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_20load_from_file},
+  {"_get_all_items", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_23_get_all_items, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_22_get_all_items},
+  {"range_query", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_25range_query, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_24range_query},
+  {"_simple_range_query", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_27_simple_range_query, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_26_simple_range_query},
+  {"__reduce_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_29__reduce_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
+  {"__setstate_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_31__setstate_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
   {0, 0, 0, 0}
 };
 
@@ -15712,7 +16819,7 @@ static struct PyGetSetDef __pyx_getsets_16bptree_optimized_BPlusTreeOptimized[] 
 static PyType_Slot __pyx_type_16bptree_optimized_BPlusTreeOptimized_slots[] = {
   {Py_tp_dealloc, (void *)__pyx_tp_dealloc_16bptree_optimized_BPlusTreeOptimized},
   {Py_sq_item, (void *)__pyx_sq_item_16bptree_optimized_BPlusTreeOptimized},
-  {Py_mp_subscript, (void *)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_9__getitem__},
+  {Py_mp_subscript, (void *)__pyx_pw_16bptree_optimized_18BPlusTreeOptimized_13__getitem__},
   {Py_mp_ass_subscript, (void *)__pyx_mp_ass_subscript_16bptree_optimized_BPlusTreeOptimized},
   {Py_tp_doc, (void *)PyDoc_STR("\n    Optimized B+ tree implementation using Cython.\n    Optimized for numeric keys (doubles) and arbitrary value pointers.\n    ")},
   {Py_tp_traverse, (void *)__pyx_tp_traverse_16bptree_optimized_BPlusTreeOptimized},
@@ -15746,7 +16853,7 @@ static PySequenceMethods __pyx_tp_as_sequence_BPlusTreeOptimized = {
 
 static PyMappingMethods __pyx_tp_as_mapping_BPlusTreeOptimized = {
   0, /*mp_length*/
-  __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_9__getitem__, /*mp_subscript*/
+  __pyx_pw_16bptree_optimized_18BPlusTreeOptimized_13__getitem__, /*mp_subscript*/
   __pyx_mp_ass_subscript_16bptree_optimized_BPlusTreeOptimized, /*mp_ass_subscript*/
 };
 
@@ -15932,9 +17039,9 @@ static int __Pyx_modinit_type_init_code(__pyx_mstatetype *__pyx_mstate) {
   {
     PyObject *wrapper = PyObject_GetAttrString((PyObject *)__pyx_mstate->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, "__getitem__"); if (unlikely(!wrapper)) __PYX_ERR(0, 43, __pyx_L1_error)
     if (__Pyx_IS_TYPE(wrapper, &PyWrapperDescr_Type)) {
-      __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_8__getitem__ = *((PyWrapperDescrObject *)wrapper)->d_base;
-      __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_8__getitem__.doc = __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_8__getitem__;
-      ((PyWrapperDescrObject *)wrapper)->d_base = &__pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_8__getitem__;
+      __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_12__getitem__ = *((PyWrapperDescrObject *)wrapper)->d_base;
+      __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_12__getitem__.doc = __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_12__getitem__;
+      ((PyWrapperDescrObject *)wrapper)->d_base = &__pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_12__getitem__;
     }
   }
   #endif
@@ -15942,9 +17049,9 @@ static int __Pyx_modinit_type_init_code(__pyx_mstatetype *__pyx_mstate) {
   {
     PyObject *wrapper = PyObject_GetAttrString((PyObject *)__pyx_mstate->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, "__setitem__"); if (unlikely(!wrapper)) __PYX_ERR(0, 43, __pyx_L1_error)
     if (__Pyx_IS_TYPE(wrapper, &PyWrapperDescr_Type)) {
-      __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_10__setitem__ = *((PyWrapperDescrObject *)wrapper)->d_base;
-      __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_10__setitem__.doc = __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_10__setitem__;
-      ((PyWrapperDescrObject *)wrapper)->d_base = &__pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_10__setitem__;
+      __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_14__setitem__ = *((PyWrapperDescrObject *)wrapper)->d_base;
+      __pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_14__setitem__.doc = __pyx_doc_16bptree_optimized_18BPlusTreeOptimized_14__setitem__;
+      ((PyWrapperDescrObject *)wrapper)->d_base = &__pyx_wrapperbase_16bptree_optimized_18BPlusTreeOptimized_14__setitem__;
     }
   }
   #endif
@@ -16423,84 +17530,108 @@ __Pyx_RefNannySetupContext("PyInit_bptree_optimized", 0);
   if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_search, __pyx_t_3) < 0) __PYX_ERR(0, 525, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "bptree_optimized.pyx":655
+  /* "bptree_optimized.pyx":589
+ *             return self._search_internal(node.children[pos], key)
+ * 
+ *     def insert_non_unique(self, key, value):             # <<<<<<<<<<<<<<
+ *         """Insert allowing duplicate keys"""
+ *         cdef double k = float(key)
+*/
+  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_9insert_non_unique, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized_insert_non_un, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[4])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 589, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_insert_non_unique, __pyx_t_3) < 0) __PYX_ERR(0, 589, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+
+  /* "bptree_optimized.pyx":608
+ *             self._insert_single_value(k, value)
+ * 
+ *     def _insert_single_value(self, double key, value):             # <<<<<<<<<<<<<<
+ *         """Insert a single value (helper method)"""
+ *         cdef size_t value_ptr = self.next_value_id
+*/
+  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_11_insert_single_value, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized__insert_singl, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[5])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 608, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_insert_single_value, __pyx_t_3) < 0) __PYX_ERR(0, 608, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+
+  /* "bptree_optimized.pyx":722
  *         self.insert(key, value)
  * 
  *     def get(self, key, default=None):             # <<<<<<<<<<<<<<
  *         """Get value for key or return default if not found"""
  *         result = self.search(key)
 */
-  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_13get, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized_get, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[4])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 655, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_17get, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized_get, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[6])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 722, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_CyFunction_SetDefaultsTuple(__pyx_t_3, __pyx_mstate_global->__pyx_tuple[4]);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_get, __pyx_t_3) < 0) __PYX_ERR(0, 655, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_get, __pyx_t_3) < 0) __PYX_ERR(0, 722, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "bptree_optimized.pyx":660
+  /* "bptree_optimized.pyx":727
  *         return result if result is not None else default
  * 
  *     def save_to_file(self, filename):             # <<<<<<<<<<<<<<
  *         """Save the tree to a file using pickle"""
  *         logging.debug(f"Saving optimized B+ tree to file: {filename}")
 */
-  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_15save_to_file, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized_save_to_file, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[5])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 660, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_19save_to_file, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized_save_to_file, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[7])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 727, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_save_to_file, __pyx_t_3) < 0) __PYX_ERR(0, 660, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_save_to_file, __pyx_t_3) < 0) __PYX_ERR(0, 727, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "bptree_optimized.pyx":674
+  /* "bptree_optimized.pyx":741
  *             pickle.dump(data, f)
  * 
  *     @classmethod             # <<<<<<<<<<<<<<
  *     def load_from_file(cls, file_path):
  *         """Load a B+ tree from a file"""
 */
-  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_17load_from_file, __Pyx_CYFUNCTION_CLASSMETHOD | __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized_load_from_fil, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[6])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 674, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_21load_from_file, __Pyx_CYFUNCTION_CLASSMETHOD | __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized_load_from_fil, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[8])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 741, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_load_from_file, __pyx_t_3) < 0) __PYX_ERR(0, 674, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_load_from_file, __pyx_t_3) < 0) __PYX_ERR(0, 741, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __Pyx_GetNameInClass(__pyx_t_3, (PyObject*)__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_load_from_file); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 674, __pyx_L1_error)
+  __Pyx_GetNameInClass(__pyx_t_3, (PyObject*)__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_load_from_file); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 741, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_5 = __Pyx_Method_ClassMethod(__pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 674, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_Method_ClassMethod(__pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 741, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_load_from_file, __pyx_t_5) < 0) __PYX_ERR(0, 674, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_load_from_file, __pyx_t_5) < 0) __PYX_ERR(0, 741, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
-  /* "bptree_optimized.pyx":693
+  /* "bptree_optimized.pyx":760
  *             return None
  * 
  *     def _get_all_items(self):             # <<<<<<<<<<<<<<
  *         """Get all key-value pairs in the tree"""
  *         items = []
 */
-  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_19_get_all_items, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized__get_all_item, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[7])); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 693, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_23_get_all_items, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized__get_all_item, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[9])); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 760, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_get_all_items, __pyx_t_5) < 0) __PYX_ERR(0, 693, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_get_all_items, __pyx_t_5) < 0) __PYX_ERR(0, 760, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
-  /* "bptree_optimized.pyx":728
+  /* "bptree_optimized.pyx":795
  *                 self._collect_all_items(node.children[node.num_keys], items)
  * 
  *     def range_query(self, start_key, end_key):             # <<<<<<<<<<<<<<
  *         """Get all values with keys between start_key and end_key"""
  *         self.operation_counter += 1
 */
-  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_21range_query, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized_range_query, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[8])); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 728, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_25range_query, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized_range_query, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[10])); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 795, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_range_query, __pyx_t_5) < 0) __PYX_ERR(0, 728, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_range_query, __pyx_t_5) < 0) __PYX_ERR(0, 795, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
-  /* "bptree_optimized.pyx":746
+  /* "bptree_optimized.pyx":813
  *         return results
  * 
  *     def _simple_range_query(self, double start_key, double end_key):             # <<<<<<<<<<<<<<
  *         """Optimized range query implementation"""
  *         cdef:
 */
-  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_23_simple_range_query, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized__simple_range, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[9])); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 746, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_27_simple_range_query, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized__simple_range, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[11])); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 813, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_simple_range_query, __pyx_t_5) < 0) __PYX_ERR(0, 746, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_16bptree_optimized_BPlusTreeOptimized, __pyx_mstate_global->__pyx_n_u_simple_range_query, __pyx_t_5) < 0) __PYX_ERR(0, 813, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
   /* "(tree fragment)":1
@@ -16508,7 +17639,7 @@ __Pyx_RefNannySetupContext("PyInit_bptree_optimized", 0);
  *     raise TypeError, "no default __reduce__ due to non-trivial __cinit__"
  * def __setstate_cython__(self, __pyx_state):
 */
-  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_25__reduce_cython__, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized___reduce_cyth, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[10])); if (unlikely(!__pyx_t_5)) __PYX_ERR(1, 1, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_29__reduce_cython__, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized___reduce_cyth, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[12])); if (unlikely(!__pyx_t_5)) __PYX_ERR(1, 1, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_reduce_cython, __pyx_t_5) < 0) __PYX_ERR(1, 1, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
@@ -16519,7 +17650,7 @@ __Pyx_RefNannySetupContext("PyInit_bptree_optimized", 0);
  * def __setstate_cython__(self, __pyx_state):             # <<<<<<<<<<<<<<
  *     raise TypeError, "no default __reduce__ due to non-trivial __cinit__"
 */
-  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_27__setstate_cython__, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized___setstate_cy, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[11])); if (unlikely(!__pyx_t_5)) __PYX_ERR(1, 3, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_18BPlusTreeOptimized_31__setstate_cython__, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_BPlusTreeOptimized___setstate_cy, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[13])); if (unlikely(!__pyx_t_5)) __PYX_ERR(1, 3, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_setstate_cython, __pyx_t_5) < 0) __PYX_ERR(1, 3, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
@@ -16529,7 +17660,7 @@ __Pyx_RefNannySetupContext("PyInit_bptree_optimized", 0);
  *     cdef object __pyx_PickleError
  *     cdef object __pyx_result
 */
-  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_1__pyx_unpickle_ValueHolder, 0, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_ValueHolder, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[12])); if (unlikely(!__pyx_t_5)) __PYX_ERR(1, 1, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_CyFunction_New(&__pyx_mdef_16bptree_optimized_1__pyx_unpickle_ValueHolder, 0, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_ValueHolder, NULL, __pyx_mstate_global->__pyx_n_u_bptree_optimized, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[14])); if (unlikely(!__pyx_t_5)) __PYX_ERR(1, 1, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_ValueHolder, __pyx_t_5) < 0) __PYX_ERR(1, 1, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
@@ -16610,9 +17741,11 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_BPlusTreeOptimized___reduce_cyth, sizeof(__pyx_k_BPlusTreeOptimized___reduce_cyth), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized___reduce_cyth */
   {__pyx_k_BPlusTreeOptimized___setstate_cy, sizeof(__pyx_k_BPlusTreeOptimized___setstate_cy), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized___setstate_cy */
   {__pyx_k_BPlusTreeOptimized__get_all_item, sizeof(__pyx_k_BPlusTreeOptimized__get_all_item), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized__get_all_item */
+  {__pyx_k_BPlusTreeOptimized__insert_singl, sizeof(__pyx_k_BPlusTreeOptimized__insert_singl), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized__insert_singl */
   {__pyx_k_BPlusTreeOptimized__simple_range, sizeof(__pyx_k_BPlusTreeOptimized__simple_range), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized__simple_range */
   {__pyx_k_BPlusTreeOptimized_get, sizeof(__pyx_k_BPlusTreeOptimized_get), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized_get */
   {__pyx_k_BPlusTreeOptimized_insert, sizeof(__pyx_k_BPlusTreeOptimized_insert), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized_insert */
+  {__pyx_k_BPlusTreeOptimized_insert_non_un, sizeof(__pyx_k_BPlusTreeOptimized_insert_non_un), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized_insert_non_un */
   {__pyx_k_BPlusTreeOptimized_load_from_fil, sizeof(__pyx_k_BPlusTreeOptimized_load_from_fil), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized_load_from_fil */
   {__pyx_k_BPlusTreeOptimized_range_query, sizeof(__pyx_k_BPlusTreeOptimized_range_query), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized_range_query */
   {__pyx_k_BPlusTreeOptimized_save_to_file, sizeof(__pyx_k_BPlusTreeOptimized_save_to_file), 0, 1, 1}, /* PyObject cname: __pyx_n_u_BPlusTreeOptimized_save_to_file */
@@ -16642,6 +17775,8 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_Failed_to_allocate_memory_for_ch, sizeof(__pyx_k_Failed_to_allocate_memory_for_ch), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Failed_to_allocate_memory_for_ch */
   {__pyx_k_Failed_to_allocate_memory_for_ke, sizeof(__pyx_k_Failed_to_allocate_memory_for_ke), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Failed_to_allocate_memory_for_ke */
   {__pyx_k_Failed_to_create_new_root_node, sizeof(__pyx_k_Failed_to_create_new_root_node), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Failed_to_create_new_root_node */
+  {__pyx_k_Failed_to_create_new_root_node_2, sizeof(__pyx_k_Failed_to_create_new_root_node_2), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Failed_to_create_new_root_node_2 */
+  {__pyx_k_Failed_to_create_new_root_node_3, sizeof(__pyx_k_Failed_to_create_new_root_node_3), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Failed_to_create_new_root_node_3 */
   {__pyx_k_Failed_to_properly_initialize_B, sizeof(__pyx_k_Failed_to_properly_initialize_B), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Failed_to_properly_initialize_B */
   {__pyx_k_Failed_to_properly_initialize_B_2, sizeof(__pyx_k_Failed_to_properly_initialize_B_2), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Failed_to_properly_initialize_B_2 */
   {__pyx_k_INSERT_key, sizeof(__pyx_k_INSERT_key), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_INSERT_key */
@@ -16659,9 +17794,11 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_RANGE_QUERY_RESULT_found, sizeof(__pyx_k_RANGE_QUERY_RESULT_found), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_RANGE_QUERY_RESULT_found */
   {__pyx_k_RANGE_QUERY_from, sizeof(__pyx_k_RANGE_QUERY_from), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_RANGE_QUERY_from */
   {__pyx_k_Root_is_NULL_in__find_leaf_for, sizeof(__pyx_k_Root_is_NULL_in__find_leaf_for), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Root_is_NULL_in__find_leaf_for */
+  {__pyx_k_Root_split_completed_in__insert, sizeof(__pyx_k_Root_split_completed_in__insert), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Root_split_completed_in__insert */
   {__pyx_k_RuntimeError, sizeof(__pyx_k_RuntimeError), 0, 1, 1}, /* PyObject cname: __pyx_n_u_RuntimeError */
   {__pyx_k_SEARCH_key, sizeof(__pyx_k_SEARCH_key), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_SEARCH_key */
   {__pyx_k_Saving_optimized_B_tree_to_file, sizeof(__pyx_k_Saving_optimized_B_tree_to_file), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Saving_optimized_B_tree_to_file */
+  {__pyx_k_Successfully_inserted_key, sizeof(__pyx_k_Successfully_inserted_key), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Successfully_inserted_key */
   {__pyx_k_TypeError, sizeof(__pyx_k_TypeError), 0, 1, 1}, /* PyObject cname: __pyx_n_u_TypeError */
   {__pyx_k_UPDATE_key, sizeof(__pyx_k_UPDATE_key), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_UPDATE_key */
   {__pyx_k_Validation_error_Internal_node, sizeof(__pyx_k_Validation_error_Internal_node), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Validation_error_Internal_node */
@@ -16684,6 +17821,7 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k__6, sizeof(__pyx_k__6), 0, 1, 0}, /* PyObject cname: __pyx_kp_u__6 */
   {__pyx_k__7, sizeof(__pyx_k__7), 0, 1, 0}, /* PyObject cname: __pyx_kp_u__7 */
   {__pyx_k_after_split, sizeof(__pyx_k_after_split), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_after_split */
+  {__pyx_k_append, sizeof(__pyx_k_append), 0, 1, 1}, /* PyObject cname: __pyx_n_u_append */
   {__pyx_k_asyncio_coroutines, sizeof(__pyx_k_asyncio_coroutines), 0, 1, 1}, /* PyObject cname: __pyx_n_u_asyncio_coroutines */
   {__pyx_k_bptree_opt, sizeof(__pyx_k_bptree_opt), 0, 1, 1}, /* PyObject cname: __pyx_n_u_bptree_opt */
   {__pyx_k_bptree_optimized, sizeof(__pyx_k_bptree_optimized), 0, 1, 1}, /* PyObject cname: __pyx_n_u_bptree_optimized */
@@ -16710,6 +17848,8 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_error, sizeof(__pyx_k_error), 0, 1, 1}, /* PyObject cname: __pyx_n_u_error */
   {__pyx_k_exceeds_capacity, sizeof(__pyx_k_exceeds_capacity), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_exceeds_capacity */
   {__pyx_k_exceeds_number_of_keys, sizeof(__pyx_k_exceeds_number_of_keys), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_exceeds_number_of_keys */
+  {__pyx_k_existing_holder, sizeof(__pyx_k_existing_holder), 0, 1, 1}, /* PyObject cname: __pyx_n_u_existing_holder */
+  {__pyx_k_existing_ptr, sizeof(__pyx_k_existing_ptr), 0, 1, 1}, /* PyObject cname: __pyx_n_u_existing_ptr */
   {__pyx_k_exit, sizeof(__pyx_k_exit), 0, 1, 1}, /* PyObject cname: __pyx_n_u_exit */
   {__pyx_k_f, sizeof(__pyx_k_f), 0, 1, 1}, /* PyObject cname: __pyx_n_u_f */
   {__pyx_k_file, sizeof(__pyx_k_file), 0, 1, 1}, /* PyObject cname: __pyx_n_u_file */
@@ -16728,6 +17868,8 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_info, sizeof(__pyx_k_info), 0, 1, 1}, /* PyObject cname: __pyx_n_u_info */
   {__pyx_k_initializing, sizeof(__pyx_k_initializing), 0, 1, 1}, /* PyObject cname: __pyx_n_u_initializing */
   {__pyx_k_insert, sizeof(__pyx_k_insert), 0, 1, 1}, /* PyObject cname: __pyx_n_u_insert */
+  {__pyx_k_insert_non_unique, sizeof(__pyx_k_insert_non_unique), 0, 1, 1}, /* PyObject cname: __pyx_n_u_insert_non_unique */
+  {__pyx_k_insert_single_value, sizeof(__pyx_k_insert_single_value), 0, 1, 1}, /* PyObject cname: __pyx_n_u_insert_single_value */
   {__pyx_k_isEnabledFor, sizeof(__pyx_k_isEnabledFor), 0, 1, 1}, /* PyObject cname: __pyx_n_u_isEnabledFor */
   {__pyx_k_is_NULL, sizeof(__pyx_k_is_NULL), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_is_NULL */
   {__pyx_k_is_NULL_in__find_leaf_for_key, sizeof(__pyx_k_is_NULL_in__find_leaf_for_key), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_is_NULL_in__find_leaf_for_key */
@@ -16810,8 +17952,10 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_value_store, sizeof(__pyx_k_value_store), 0, 1, 1}, /* PyObject cname: __pyx_n_u_value_store */
   {__pyx_k_warning, sizeof(__pyx_k_warning), 0, 1, 1}, /* PyObject cname: __pyx_n_u_warning */
   {__pyx_k_was_not_inserted_correctly, sizeof(__pyx_k_was_not_inserted_correctly), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_was_not_inserted_correctly */
+  {__pyx_k_was_not_inserted_correctly_in, sizeof(__pyx_k_was_not_inserted_correctly_in), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_was_not_inserted_correctly_in */
   {__pyx_k_wb, sizeof(__pyx_k_wb), 0, 1, 1}, /* PyObject cname: __pyx_n_u_wb */
   {__pyx_k_with_order, sizeof(__pyx_k_with_order), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_with_order */
+  {__pyx_k_with_value, sizeof(__pyx_k_with_value), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_with_value */
   {0, 0, 0, 0, 0}
 };
 /* InitStrings.proto */
@@ -16824,8 +17968,8 @@ static int __Pyx_InitCachedBuiltins(__pyx_mstatetype *__pyx_mstate) {
   __pyx_builtin_ValueError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_ValueError); if (!__pyx_builtin_ValueError) __PYX_ERR(0, 90, __pyx_L1_error)
   __pyx_builtin_MemoryError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_MemoryError); if (!__pyx_builtin_MemoryError) __PYX_ERR(0, 117, __pyx_L1_error)
   __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_range); if (!__pyx_builtin_range) __PYX_ERR(0, 138, __pyx_L1_error)
-  __pyx_builtin_open = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_open); if (!__pyx_builtin_open) __PYX_ERR(0, 671, __pyx_L1_error)
-  __pyx_builtin_RuntimeError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_RuntimeError); if (!__pyx_builtin_RuntimeError) __PYX_ERR(0, 689, __pyx_L1_error)
+  __pyx_builtin_open = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_open); if (!__pyx_builtin_open) __PYX_ERR(0, 738, __pyx_L1_error)
+  __pyx_builtin_RuntimeError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_RuntimeError); if (!__pyx_builtin_RuntimeError) __PYX_ERR(0, 756, __pyx_L1_error)
   __pyx_builtin_TypeError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_TypeError); if (!__pyx_builtin_TypeError) __PYX_ERR(1, 2, __pyx_L1_error)
   return 0;
   __pyx_L1_error:;
@@ -16838,14 +17982,14 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   __Pyx_RefNannySetupContext("__Pyx_InitCachedConstants", 0);
 
-  /* "bptree_optimized.pyx":671
+  /* "bptree_optimized.pyx":738
  *         }
  * 
  *         with open(filename, 'wb') as f:             # <<<<<<<<<<<<<<
  *             pickle.dump(data, f)
  * 
 */
-  __pyx_mstate_global->__pyx_tuple[0] = PyTuple_Pack(3, Py_None, Py_None, Py_None); if (unlikely(!__pyx_mstate_global->__pyx_tuple[0])) __PYX_ERR(0, 671, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[0] = PyTuple_Pack(3, Py_None, Py_None, Py_None); if (unlikely(!__pyx_mstate_global->__pyx_tuple[0])) __PYX_ERR(0, 738, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[0]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[0]);
 
@@ -16882,14 +18026,14 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[3]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[3]);
 
-  /* "bptree_optimized.pyx":655
+  /* "bptree_optimized.pyx":722
  *         self.insert(key, value)
  * 
  *     def get(self, key, default=None):             # <<<<<<<<<<<<<<
  *         """Get value for key or return default if not found"""
  *         result = self.search(key)
 */
-  __pyx_mstate_global->__pyx_tuple[4] = PyTuple_Pack(1, Py_None); if (unlikely(!__pyx_mstate_global->__pyx_tuple[4])) __PYX_ERR(0, 655, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[4] = PyTuple_Pack(1, Py_None); if (unlikely(!__pyx_mstate_global->__pyx_tuple[4])) __PYX_ERR(0, 722, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[4]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[4]);
   __Pyx_RefNannyFinishContext();
@@ -16960,49 +18104,59 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
     __pyx_mstate_global->__pyx_codeobj_tab[3] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_search, __pyx_k_A_Qa_6_awa_5_IT1UUV_6at7_c_1_t_t, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[3])) goto bad;
   }
   {
-    __Pyx_PyCode_New_function_description descr = {3, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 655, 29};
+    __Pyx_PyCode_New_function_description descr = {3, 0, 0, 6, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 589, 102};
+    PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_key, __pyx_mstate->__pyx_n_u_value, __pyx_mstate->__pyx_n_u_k, __pyx_mstate->__pyx_n_u_existing_ptr, __pyx_mstate->__pyx_n_u_existing_holder};
+    __pyx_mstate_global->__pyx_codeobj_tab[4] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_insert_non_unique, __pyx_k_A_Qa_t_AT_1_d_aq_z_vWAQ_y_Qc, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[4])) goto bad;
+  }
+  {
+    __Pyx_PyCode_New_function_description descr = {3, 0, 0, 6, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 608, 324};
+    PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_key, __pyx_mstate->__pyx_n_u_value, __pyx_mstate->__pyx_n_u_value_ptr, __pyx_mstate->__pyx_n_u_new_root, __pyx_mstate->__pyx_n_u_result};
+    __pyx_mstate_global->__pyx_codeobj_tab[5] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_insert_single_value, __pyx_k_A_A_L_k_a_4vS_S_D_q_A_M_t6_A_fAR, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[5])) goto bad;
+  }
+  {
+    __Pyx_PyCode_New_function_description descr = {3, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 722, 29};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_key, __pyx_mstate->__pyx_n_u_default, __pyx_mstate->__pyx_n_u_result};
-    __pyx_mstate_global->__pyx_codeobj_tab[4] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_get, __pyx_k_q_WAQ_z_z, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[4])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[6] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_get, __pyx_k_q_WAQ_z_z, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[6])) goto bad;
   }
   {
-    __Pyx_PyCode_New_function_description descr = {2, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 660, 68};
+    __Pyx_PyCode_New_function_description descr = {2, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 727, 68};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_filename, __pyx_mstate->__pyx_n_u_data, __pyx_mstate->__pyx_n_u_f};
-    __pyx_mstate_global->__pyx_codeobj_tab[5] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_save_to_file, __pyx_k_A_vQb_a_D_T_4_a_IQ_q_a, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[5])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[7] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_save_to_file, __pyx_k_A_vQb_a_D_T_4_a_IQ_q_a, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[7])) goto bad;
   }
   {
-    __Pyx_PyCode_New_function_description descr = {2, 0, 0, 8, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 674, 118};
+    __Pyx_PyCode_New_function_description descr = {2, 0, 0, 8, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 741, 118};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_cls, __pyx_mstate->__pyx_n_u_file_path, __pyx_mstate->__pyx_n_u_file, __pyx_mstate->__pyx_n_u_data, __pyx_mstate->__pyx_n_u_tree_2, __pyx_mstate->__pyx_n_u_key, __pyx_mstate->__pyx_n_u_value, __pyx_mstate->__pyx_n_u_e};
-    __pyx_mstate_global->__pyx_codeobj_tab[6] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_load_from_file, __pyx_k_A_Qk_vU_1_s_6_Qj_T_E_aq_q_Q_q_q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[6])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[8] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_load_from_file, __pyx_k_A_Qk_vU_1_s_6_Qj_T_E_aq_q_Q_q_q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[8])) goto bad;
   }
   {
-    __Pyx_PyCode_New_function_description descr = {1, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 693, 26};
+    __Pyx_PyCode_New_function_description descr = {1, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 760, 26};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_items};
-    __pyx_mstate_global->__pyx_codeobj_tab[7] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_get_all_items, __pyx_k_A_q_G1_q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[7])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[9] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_get_all_items, __pyx_k_A_q_G1_q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[9])) goto bad;
   }
   {
-    __Pyx_PyCode_New_function_description descr = {3, 0, 0, 6, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 728, 123};
+    __Pyx_PyCode_New_function_description descr = {3, 0, 0, 6, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 795, 123};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_start_key, __pyx_mstate->__pyx_n_u_end_key, __pyx_mstate->__pyx_n_u_start, __pyx_mstate->__pyx_n_u_end, __pyx_mstate->__pyx_n_u_results};
-    __pyx_mstate_global->__pyx_codeobj_tab[8] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_range_query, __pyx_k_A_5_aq_6_awa_5_IT1ZZiij_7_6_awa, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[8])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[10] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_range_query, __pyx_k_A_5_aq_6_awa_5_IT1ZZiij_7_6_awa, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[10])) goto bad;
   }
   {
-    __Pyx_PyCode_New_function_description descr = {3, 0, 0, 10, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 746, 217};
+    __Pyx_PyCode_New_function_description descr = {3, 0, 0, 10, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 813, 217};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_start_key, __pyx_mstate->__pyx_n_u_end_key, __pyx_mstate->__pyx_n_u_current_leaf, __pyx_mstate->__pyx_n_u_i, __pyx_mstate->__pyx_n_u_key, __pyx_mstate->__pyx_n_u_value_ptr, __pyx_mstate->__pyx_n_u_results, __pyx_mstate->__pyx_n_u_epsilon, __pyx_mstate->__pyx_n_u_value_holder};
-    __pyx_mstate_global->__pyx_codeobj_tab[9] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_simple_range_query, __pyx_k_A_1_Q_4vS_1_t_aq_1_1_m3a_U_q_2S, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[9])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[11] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_bptree_optimized_pyx, __pyx_mstate->__pyx_n_u_simple_range_query, __pyx_k_A_1_Q_4vS_1_t_aq_1_1_m3a_U_q_2S, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[11])) goto bad;
   }
   {
     __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 1, 9};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_self};
-    __pyx_mstate_global->__pyx_codeobj_tab[10] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_reduce_cython, __pyx_k_Q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[10])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[12] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_reduce_cython, __pyx_k_Q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[12])) goto bad;
   }
   {
     __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 3, 9};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_pyx_state};
-    __pyx_mstate_global->__pyx_codeobj_tab[11] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_setstate_cython, __pyx_k_Q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[11])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[13] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_setstate_cython, __pyx_k_Q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[13])) goto bad;
   }
   {
     __Pyx_PyCode_New_function_description descr = {3, 0, 0, 5, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 1, 75};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_pyx_type, __pyx_mstate->__pyx_n_u_pyx_checksum, __pyx_mstate->__pyx_n_u_pyx_state, __pyx_mstate->__pyx_n_u_pyx_PickleError, __pyx_mstate->__pyx_n_u_pyx_result};
-    __pyx_mstate_global->__pyx_codeobj_tab[12] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_pyx_unpickle_ValueHolder, __pyx_k_hk_A_1_pprrs_haq_7_QnN_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[12])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[14] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_pyx_unpickle_ValueHolder, __pyx_k_hk_A_1_pprrs_haq_7_QnN_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[14])) goto bad;
   }
   Py_DECREF(tuple_dedup_map);
   return 0;
@@ -19115,6 +20269,147 @@ static PyObject* __Pyx_PyDict_GetItemDefault(PyObject* d, PyObject* key, PyObjec
     return value;
 }
 
+/* PyObjectGetMethod */
+static int __Pyx_PyObject_GetMethod(PyObject *obj, PyObject *name, PyObject **method) {
+    PyObject *attr;
+#if CYTHON_UNPACK_METHODS && CYTHON_COMPILING_IN_CPYTHON && CYTHON_USE_PYTYPE_LOOKUP
+    __Pyx_TypeName type_name;
+    PyTypeObject *tp = Py_TYPE(obj);
+    PyObject *descr;
+    descrgetfunc f = NULL;
+    PyObject **dictptr, *dict;
+    int meth_found = 0;
+    assert (*method == NULL);
+    if (unlikely(tp->tp_getattro != PyObject_GenericGetAttr)) {
+        attr = __Pyx_PyObject_GetAttrStr(obj, name);
+        goto try_unpack;
+    }
+    if (unlikely(tp->tp_dict == NULL) && unlikely(PyType_Ready(tp) < 0)) {
+        return 0;
+    }
+    descr = _PyType_Lookup(tp, name);
+    if (likely(descr != NULL)) {
+        Py_INCREF(descr);
+#if defined(Py_TPFLAGS_METHOD_DESCRIPTOR) && Py_TPFLAGS_METHOD_DESCRIPTOR
+        if (__Pyx_PyType_HasFeature(Py_TYPE(descr), Py_TPFLAGS_METHOD_DESCRIPTOR))
+#else
+        #ifdef __Pyx_CyFunction_USED
+        if (likely(PyFunction_Check(descr) || __Pyx_IS_TYPE(descr, &PyMethodDescr_Type) || __Pyx_CyFunction_Check(descr)))
+        #else
+        if (likely(PyFunction_Check(descr) || __Pyx_IS_TYPE(descr, &PyMethodDescr_Type)))
+        #endif
+#endif
+        {
+            meth_found = 1;
+        } else {
+            f = Py_TYPE(descr)->tp_descr_get;
+            if (f != NULL && PyDescr_IsData(descr)) {
+                attr = f(descr, obj, (PyObject *)Py_TYPE(obj));
+                Py_DECREF(descr);
+                goto try_unpack;
+            }
+        }
+    }
+    dictptr = _PyObject_GetDictPtr(obj);
+    if (dictptr != NULL && (dict = *dictptr) != NULL) {
+        Py_INCREF(dict);
+        attr = __Pyx_PyDict_GetItemStr(dict, name);
+        if (attr != NULL) {
+            Py_INCREF(attr);
+            Py_DECREF(dict);
+            Py_XDECREF(descr);
+            goto try_unpack;
+        }
+        Py_DECREF(dict);
+    }
+    if (meth_found) {
+        *method = descr;
+        return 1;
+    }
+    if (f != NULL) {
+        attr = f(descr, obj, (PyObject *)Py_TYPE(obj));
+        Py_DECREF(descr);
+        goto try_unpack;
+    }
+    if (likely(descr != NULL)) {
+        *method = descr;
+        return 0;
+    }
+    type_name = __Pyx_PyType_GetFullyQualifiedName(tp);
+    PyErr_Format(PyExc_AttributeError,
+                 "'" __Pyx_FMT_TYPENAME "' object has no attribute '%U'",
+                 type_name, name);
+    __Pyx_DECREF_TypeName(type_name);
+    return 0;
+#else
+    attr = __Pyx_PyObject_GetAttrStr(obj, name);
+    goto try_unpack;
+#endif
+try_unpack:
+#if CYTHON_UNPACK_METHODS
+    if (likely(attr) && PyMethod_Check(attr) && likely(PyMethod_GET_SELF(attr) == obj)) {
+        PyObject *function = PyMethod_GET_FUNCTION(attr);
+        Py_INCREF(function);
+        Py_DECREF(attr);
+        *method = function;
+        return 1;
+    }
+#endif
+    *method = attr;
+    return 0;
+}
+
+/* PyObjectCallMethod1 */
+#if !(CYTHON_VECTORCALL && __PYX_LIMITED_VERSION_HEX >= 0x030C0000)
+static PyObject* __Pyx__PyObject_CallMethod1(PyObject* method, PyObject* arg) {
+    PyObject *result = __Pyx_PyObject_CallOneArg(method, arg);
+    Py_DECREF(method);
+    return result;
+}
+#endif
+static PyObject* __Pyx_PyObject_CallMethod1(PyObject* obj, PyObject* method_name, PyObject* arg) {
+#if CYTHON_VECTORCALL && __PYX_LIMITED_VERSION_HEX >= 0x030C0000
+    PyObject *args[2] = {obj, arg};
+    (void) __Pyx_PyObject_GetMethod;
+    (void) __Pyx_PyObject_CallOneArg;
+    (void) __Pyx_PyObject_Call2Args;
+    return PyObject_VectorcallMethod(method_name, args, 2 | PY_VECTORCALL_ARGUMENTS_OFFSET, NULL);
+#else
+    PyObject *method = NULL, *result;
+    int is_method = __Pyx_PyObject_GetMethod(obj, method_name, &method);
+    if (likely(is_method)) {
+        result = __Pyx_PyObject_Call2Args(method, obj, arg);
+        Py_DECREF(method);
+        return result;
+    }
+    if (unlikely(!method)) return NULL;
+    return __Pyx__PyObject_CallMethod1(method, arg);
+#endif
+}
+
+/* append */
+static CYTHON_INLINE int __Pyx_PyObject_Append(PyObject* L, PyObject* x) {
+    if (likely(PyList_CheckExact(L))) {
+        if (unlikely(__Pyx_PyList_Append(L, x) < 0)) return -1;
+    } else {
+        PyObject* retval = __Pyx_PyObject_CallMethod1(L, __pyx_mstate_global->__pyx_n_u_append, x);
+        if (unlikely(!retval))
+            return -1;
+        Py_DECREF(retval);
+    }
+    return 0;
+}
+
+/* PyObjectSetAttrStr */
+#if CYTHON_USE_TYPE_SLOTS
+static CYTHON_INLINE int __Pyx_PyObject_SetAttrStr(PyObject* obj, PyObject* attr_name, PyObject* value) {
+    PyTypeObject* tp = Py_TYPE(obj);
+    if (likely(tp->tp_setattro))
+        return tp->tp_setattro(obj, attr_name, value);
+    return PyObject_SetAttr(obj, attr_name, value);
+}
+#endif
+
 /* PyObjectLookupSpecial */
 #if CYTHON_USE_PYTYPE_LOOKUP && CYTHON_USE_TYPE_SLOTS
 static CYTHON_INLINE PyObject* __Pyx__PyObject_LookupSpecial(PyObject* obj, PyObject* attr_name, int with_error) {
@@ -19803,96 +21098,6 @@ static int __Pyx_fix_up_extension_type_from_spec(PyType_Spec *spec, PyTypeObject
 static CYTHON_INLINE PyObject* __Pyx_PyObject_CallNoArg(PyObject *func) {
     PyObject *arg[2] = {NULL, NULL};
     return __Pyx_PyObject_FastCall(func, arg + 1, 0 | __Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET);
-}
-
-/* PyObjectGetMethod */
-static int __Pyx_PyObject_GetMethod(PyObject *obj, PyObject *name, PyObject **method) {
-    PyObject *attr;
-#if CYTHON_UNPACK_METHODS && CYTHON_COMPILING_IN_CPYTHON && CYTHON_USE_PYTYPE_LOOKUP
-    __Pyx_TypeName type_name;
-    PyTypeObject *tp = Py_TYPE(obj);
-    PyObject *descr;
-    descrgetfunc f = NULL;
-    PyObject **dictptr, *dict;
-    int meth_found = 0;
-    assert (*method == NULL);
-    if (unlikely(tp->tp_getattro != PyObject_GenericGetAttr)) {
-        attr = __Pyx_PyObject_GetAttrStr(obj, name);
-        goto try_unpack;
-    }
-    if (unlikely(tp->tp_dict == NULL) && unlikely(PyType_Ready(tp) < 0)) {
-        return 0;
-    }
-    descr = _PyType_Lookup(tp, name);
-    if (likely(descr != NULL)) {
-        Py_INCREF(descr);
-#if defined(Py_TPFLAGS_METHOD_DESCRIPTOR) && Py_TPFLAGS_METHOD_DESCRIPTOR
-        if (__Pyx_PyType_HasFeature(Py_TYPE(descr), Py_TPFLAGS_METHOD_DESCRIPTOR))
-#else
-        #ifdef __Pyx_CyFunction_USED
-        if (likely(PyFunction_Check(descr) || __Pyx_IS_TYPE(descr, &PyMethodDescr_Type) || __Pyx_CyFunction_Check(descr)))
-        #else
-        if (likely(PyFunction_Check(descr) || __Pyx_IS_TYPE(descr, &PyMethodDescr_Type)))
-        #endif
-#endif
-        {
-            meth_found = 1;
-        } else {
-            f = Py_TYPE(descr)->tp_descr_get;
-            if (f != NULL && PyDescr_IsData(descr)) {
-                attr = f(descr, obj, (PyObject *)Py_TYPE(obj));
-                Py_DECREF(descr);
-                goto try_unpack;
-            }
-        }
-    }
-    dictptr = _PyObject_GetDictPtr(obj);
-    if (dictptr != NULL && (dict = *dictptr) != NULL) {
-        Py_INCREF(dict);
-        attr = __Pyx_PyDict_GetItemStr(dict, name);
-        if (attr != NULL) {
-            Py_INCREF(attr);
-            Py_DECREF(dict);
-            Py_XDECREF(descr);
-            goto try_unpack;
-        }
-        Py_DECREF(dict);
-    }
-    if (meth_found) {
-        *method = descr;
-        return 1;
-    }
-    if (f != NULL) {
-        attr = f(descr, obj, (PyObject *)Py_TYPE(obj));
-        Py_DECREF(descr);
-        goto try_unpack;
-    }
-    if (likely(descr != NULL)) {
-        *method = descr;
-        return 0;
-    }
-    type_name = __Pyx_PyType_GetFullyQualifiedName(tp);
-    PyErr_Format(PyExc_AttributeError,
-                 "'" __Pyx_FMT_TYPENAME "' object has no attribute '%U'",
-                 type_name, name);
-    __Pyx_DECREF_TypeName(type_name);
-    return 0;
-#else
-    attr = __Pyx_PyObject_GetAttrStr(obj, name);
-    goto try_unpack;
-#endif
-try_unpack:
-#if CYTHON_UNPACK_METHODS
-    if (likely(attr) && PyMethod_Check(attr) && likely(PyMethod_GET_SELF(attr) == obj)) {
-        PyObject *function = PyMethod_GET_FUNCTION(attr);
-        Py_INCREF(function);
-        Py_DECREF(attr);
-        *method = function;
-        return 1;
-    }
-#endif
-    *method = attr;
-    return 0;
 }
 
 /* PyObjectCallMethod0 */

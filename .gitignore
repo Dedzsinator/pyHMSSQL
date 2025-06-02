@@ -9,3 +9,4 @@ client/java_client/target/
 logs/
 indexes/
 data/
+results.log

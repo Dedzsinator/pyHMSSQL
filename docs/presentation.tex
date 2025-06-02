@@ -1,157 +1,226 @@
 \documentclass[aspectratio=169]{beamer}
-\usetheme{Warsaw}
-\usecolortheme{beaver}
+\usetheme{Madrid}
+\usecolortheme{default}
+
+% Modern color scheme
+\definecolor{primaryblue}{RGB}{41, 128, 185}
+\definecolor{darkblue}{RGB}{52, 73, 94}
+\definecolor{lightgray}{RGB}{236, 240, 241}
+\definecolor{darkgray}{RGB}{52, 73, 94}
+\definecolor{accent}{RGB}{231, 76, 60}
+\definecolor{success}{RGB}{46, 204, 113}
+\definecolor{warning}{RGB}{241, 196, 15}
+
+% Set theme colors
+\setbeamercolor{structure}{fg=primaryblue}
+\setbeamercolor{palette primary}{bg=primaryblue,fg=white}
+\setbeamercolor{palette secondary}{bg=darkblue,fg=white}
+\setbeamercolor{palette tertiary}{bg=lightgray,fg=darkgray}
+\setbeamercolor{palette quaternary}{bg=darkgray,fg=white}
+\setbeamercolor{frametitle}{bg=primaryblue,fg=white}
+\setbeamercolor{title}{fg=darkblue}
+\setbeamercolor{block title}{bg=primaryblue,fg=white}
+\setbeamercolor{block body}{bg=lightgray,fg=darkgray}
+\setbeamercolor{block title alerted}{bg=accent,fg=white}
+\setbeamercolor{block body alerted}{bg=accent!10,fg=darkgray}
+
+% Remove navigation symbols
+\setbeamertemplate{navigation symbols}{}
+
+% Modern frame title
+\setbeamertemplate{frametitle}{
+    \begin{beamercolorbox}[wd=\paperwidth,ht=2.5ex,dp=1ex,leftskip=1em,rightskip=1em]{frametitle}
+        \usebeamerfont{frametitle}\insertframetitle
+    \end{beamercolorbox}
+}
+
+% Modern itemize
+\setbeamertemplate{itemize items}[circle]
+\setbeamercolor{itemize item}{fg=primaryblue}
+\setbeamercolor{itemize subitem}{fg=darkblue}
+\setbeamercolor{enumerate item}{fg=primaryblue}
 
 \usepackage{listings}
 \usepackage{graphicx}
 \usepackage{tikz}
 \usepackage{amsmath}
 \usepackage{amssymb}
-\usepackage{algorithm2e}
+\usepackage[ruled,vlined]{algorithm2e}
 \usepackage{xcolor}
 
 \usetikzlibrary{shapes,arrows,positioning,calc}
 
 \lstset{
-    basicstyle=\tiny\ttfamily,
-    keywordstyle=\color{blue},
-    commentstyle=\color{green!60!black},
-    stringstyle=\color{red},
-    breaklines=true,
-    showstringspaces=false,
-    frame=single,
-    language=Python
+  language=SQL,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{primaryblue}\bfseries,
+  commentstyle=\color{success}\itshape,
+  stringstyle=\color{accent},
+  showstringspaces=false,
+  frame=single,
+  frameround=tttt,
+  rulecolor=\color{lightgray},
+  backgroundcolor=\color{lightgray},
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny\color{darkgray},
+  stepnumber=1,
+  numbersep=8pt,
+  tabsize=2,
+  columns=flexible,
+  keepspaces=true,
 }
 
-\title{pyHMSSQL: A Complete Database Management System}
-\subtitle{Architecture, Theory, and Execution Pipeline}
-\author{Database Systems Analysis}
+\title{\textbf{pyHMSSQL}}
+\subtitle{Teljes Adatbázis-kezelő Rendszer\\Architektúra, Elmélet és Végrehajtási Pipeline}
+\author{\textbf{Adatbázis Rendszerek Analízis}}
+\institute{Haladó Adatbázis Rendszerek}
 \date{\today}
+
+% Modern title page
+\setbeamertemplate{title page}{
+    \begin{center}
+        \vspace{1cm}
+        {\usebeamerfont{title}\usebeamercolor[fg]{title}\inserttitle\par}
+        \vspace{0.5cm}
+        {\usebeamerfont{subtitle}\usebeamercolor[fg]{subtitle}\insertsubtitle\par}
+        \vspace{1cm}
+        {\usebeamerfont{author}\insertauthor\par}
+        \vspace{0.3cm}
+        {\usebeamerfont{institute}\insertinstitute\par}
+        \vspace{0.5cm}
+        {\usebeamerfont{date}\insertdate\par}
+    \end{center}
+}
 
 \begin{document}
 
 \frame{\titlepage}
 
-\begin{frame}{Outline}
-\tableofcontents
+\begin{frame}{Tartalom}
+\tableofcontents[hideallsubsections]
 \end{frame}
 
-\section{Introduction and System Overview}
+\section{Bevezetés és Rendszer Áttekintés}
 
-\begin{frame}{What is pyHMSSQL?}
+\begin{frame}{Mi a pyHMSSQL?}
+\begin{columns}
+\begin{column}{0.6\textwidth}
 \begin{itemize}
-    \item \textbf{Complete DBMS Implementation} in Python
-    \item \textbf{Client-Server Architecture} with socket-based communication
-    \item \textbf{Custom B+ Tree Indexing} for efficient data retrieval
-    \item \textbf{Full SQL Support} including complex queries, joins, transactions
-    \item \textbf{Advanced Features}: Views, stored procedures, triggers, replication
-    \item \textbf{Multiple Interfaces}: CLI, GUI (JavaFX), REST API
+    \item \textbf{Teljes DBMS Implementáció} Python nyelven
+    \item \textbf{Kliens-Szerver Architektúra} socket-alapú kommunikációval
+    \item \textbf{Egyedi B+ Fa Indexelés} hatékony adatlekérdezéshez
+    \item \textbf{Teljes SQL Támogatás} beleértve összetett lekérdezések, összekapcsolások, tranzakciók
+    \item \textbf{Haladó Funkciók}: Nézetek, tárolt eljárások, triggerek, replikáció
+    \item \textbf{Többféle Felület}: CLI, GUI (JavaFX), REST API
 \end{itemize}
-
-\vspace{0.3cm}
-\begin{block}{Key Innovation}
-Unlike most academic DBMS projects, pyHMSSQL implements \textbf{production-grade features} including ACID transactions, foreign key constraints, query optimization, and distributed replication.
-\end{block}
+\end{column}
+\begin{column}{0.35\textwidth}
+\begin{alertblock}{Fő Innováció}
+A legtöbb akadémiai DBMS projekttel ellentétben, a pyHMSSQL \textbf{gyártásra kész funkciókat} implementál, beleértve ACID tranzakciókat, idegen kulcs megszorításokat, lekérdezés optimalizálást és elosztott replikációt.
+\end{alertblock}
+\end{column}
+\end{columns}
 \end{frame}
 
-\begin{frame}{System Architecture Overview}
+\begin{frame}{Rendszer Architektúra Áttekintés}
 \begin{center}
-\begin{tikzpicture}[node distance=1.5cm]
+\begin{tikzpicture}[node distance=1.2cm, every node/.style={font=\small}]
     % Client Layer
-    \node[rectangle, draw, fill=blue!20, minimum width=2cm] (cli) {CLI Client};
-    \node[rectangle, draw, fill=blue!20, minimum width=2cm, right=of cli] (gui) {GUI Client};
-    \node[rectangle, draw, fill=blue!20, minimum width=2cm, right=of gui] (rest) {REST API};
+    \node[rectangle, draw, fill=primaryblue!20, minimum width=1.8cm, minimum height=0.8cm] (cli) {CLI Kliens};
+    \node[rectangle, draw, fill=primaryblue!20, minimum width=1.8cm, minimum height=0.8cm, right=of cli] (gui) {GUI Kliens};
+    \node[rectangle, draw, fill=primaryblue!20, minimum width=1.8cm, minimum height=0.8cm, right=of gui] (rest) {REST API};
     
     % Communication Layer
-    \node[rectangle, draw, fill=yellow!20, minimum width=6.5cm, below=of gui] (comm) {Socket/HTTP Communication};
+    \node[rectangle, draw, fill=warning!30, minimum width=6cm, minimum height=0.8cm, below=of gui] (comm) {Socket/HTTP Kommunikáció};
     
     % Server Core
-    \node[rectangle, draw, fill=green!20, minimum width=3cm, below=of comm] (server) {Server Core};
+    \node[rectangle, draw, fill=success!30, minimum width=2.5cm, minimum height=0.8cm, below=of comm] (server) {Szerver Mag};
     
     % Processing Pipeline
-    \node[rectangle, draw, fill=orange!20, minimum width=2cm, below left=of server] (parser) {SQL Parser};
-    \node[rectangle, draw, fill=orange!20, minimum width=2cm, below=of server] (planner) {Query Planner};
-    \node[rectangle, draw, fill=orange!20, minimum width=2cm, below right=of server] (optimizer) {Query Optimizer};
+    \node[rectangle, draw, fill=accent!20, minimum width=1.6cm, minimum height=0.8cm, below left=of server] (parser) {SQL Parser};
+    \node[rectangle, draw, fill=accent!20, minimum width=1.6cm, minimum height=0.8cm, below=of server] (planner) {Lekérdezés Tervező};
+    \node[rectangle, draw, fill=accent!20, minimum width=1.6cm, minimum height=0.8cm, below right=of server] (optimizer) {Lekérdezés Optimalizáló};
     
     % Execution Engine
-    \node[rectangle, draw, fill=red!20, minimum width=6.5cm, below=of planner] (engine) {Execution Engine};
+    \node[rectangle, draw, fill=darkblue!20, minimum width=6cm, minimum height=0.8cm, below=of planner] (engine) {Végrehajtó Motor};
     
     % Storage Layer
-    \node[rectangle, draw, fill=purple!20, minimum width=2cm, below left=of engine] (catalog) {Catalog Manager};
-    \node[rectangle, draw, fill=purple!20, minimum width=2cm, below=of engine] (index) {Index Manager};
-    \node[rectangle, draw, fill=purple!20, minimum width=2cm, below right=of engine] (storage) {Storage Engine};
+    \node[rectangle, draw, fill=lightgray, minimum width=1.6cm, minimum height=0.8cm, below left=of engine] (catalog) {Katalógus Kezelő};
+    \node[rectangle, draw, fill=lightgray, minimum width=1.6cm, minimum height=0.8cm, below=of engine] (index) {Index Kezelő};
+    \node[rectangle, draw, fill=lightgray, minimum width=1.6cm, minimum height=0.8cm, below right=of engine] (storage) {Tárolási Motor};
     
-    % Arrows
-    \draw[->] (cli) -- (comm);
-    \draw[->] (gui) -- (comm);
-    \draw[->] (rest) -- (comm);
-    \draw[->] (comm) -- (server);
-    \draw[->] (server) -- (parser);
-    \draw[->] (parser) -- (planner);
-    \draw[->] (planner) -- (optimizer);
-    \draw[->] (optimizer) -- (engine);
-    \draw[->] (engine) -- (catalog);
-    \draw[->] (engine) -- (index);
-    \draw[->] (engine) -- (storage);
+    % Modern arrows
+    \draw[->, line width=1.2pt, color=primaryblue] (cli) -- (comm);
+    \draw[->, line width=1.2pt, color=primaryblue] (gui) -- (comm);
+    \draw[->, line width=1.2pt, color=primaryblue] (rest) -- (comm);
+    \draw[->, line width=1.2pt, color=primaryblue] (comm) -- (server);
+    \draw[->, line width=1.2pt, color=primaryblue] (server) -- (parser);
+    \draw[->, line width=1.2pt, color=primaryblue] (parser) -- (planner);
+    \draw[->, line width=1.2pt, color=primaryblue] (planner) -- (optimizer);
+    \draw[->, line width=1.2pt, color=primaryblue] (optimizer) -- (engine);
+    \draw[->, line width=1.2pt, color=primaryblue] (engine) -- (catalog);
+    \draw[->, line width=1.2pt, color=primaryblue] (engine) -- (index);
+    \draw[->, line width=1.2pt, color=primaryblue] (engine) -- (storage);
 \end{tikzpicture}
 \end{center}
 \end{frame}
 
-\section{Query Processing Pipeline}
+\section{Lekérdezés Feldolgozási Pipeline}
 
-\begin{frame}{Query Processing Pipeline Overview}
+\begin{frame}{Lekérdezés Feldolgozási Pipeline Áttekintés}
 \begin{center}
 \begin{tikzpicture}[node distance=2cm, auto]
-    \node[rectangle, draw, fill=blue!20] (input) {SQL Query};
-    \node[rectangle, draw, fill=yellow!20, below=of input] (parse) {Parsing \& Validation};
-    \node[rectangle, draw, fill=orange!20, below=of parse] (plan) {Query Planning};
-    \node[rectangle, draw, fill=green!20, below=of plan] (optimize) {Query Optimization};
-    \node[rectangle, draw, fill=red!20, below=of optimize] (execute) {Execution};
-    \node[rectangle, draw, fill=purple!20, below=of execute] (result) {Result Set};
+    \node[rectangle, draw, fill=primaryblue!20] (input) {SQL Lekérdezés};
+    \node[rectangle, draw, fill=warning!30, below=of input] (parse) {Elemzés és Ellenőrzés};
+    \node[rectangle, draw, fill=accent!20, below=of parse] (plan) {Lekérdezés Tervezés};
+    \node[rectangle, draw, fill=success!30, below=of plan] (optimize) {Lekérdezés Optimalizálás};
+    \node[rectangle, draw, fill=darkblue!20, below=of optimize] (execute) {Végrehajtás};
+    \node[rectangle, draw, fill=lightgray, below=of execute] (result) {Eredmény Halmaz};
     
     % Side annotations
     \node[right=3cm of parse, text width=4cm] {
         \small
-        \textbf{Parsing Phase:}
+        \textbf{Elemzési Fázis:}
         \begin{itemize}
-            \item Lexical analysis
-            \item Syntax validation
-            \item AST generation
+            \item Lexikai elemzés
+            \item Szintaxis ellenőrzés
+            \item AST generálás
         \end{itemize}
     };
     
     \node[right=3cm of plan, text width=4cm] {
         \small
-        \textbf{Planning Phase:}
+        \textbf{Tervezési Fázis:}
         \begin{itemize}
-            \item Logical plan creation
-            \item Operator selection
-            \item Resource estimation
+            \item Logikai terv létrehozás
+            \item Operátor kiválasztás
+            \item Erőforrás becslés
         \end{itemize}
     };
     
     \node[right=3cm of optimize, text width=4cm] {
         \small
-        \textbf{Optimization Phase:}
+        \textbf{Optimalizálási Fázis:}
         \begin{itemize}
-            \item Cost-based optimization
-            \item Index selection
-            \item Join reordering
+            \item Költség-alapú optimalizálás
+            \item Index kiválasztás
+            \item Összekapcsolás újrarendezés
         \end{itemize}
     };
     
-    \draw[->] (input) -- (parse);
-    \draw[->] (parse) -- (plan);
-    \draw[->] (plan) -- (optimize);
-    \draw[->] (optimize) -- (execute);
-    \draw[->] (execute) -- (result);
+    \draw[->, line width=1.2pt, color=primaryblue] (input) -- (parse);
+    \draw[->, line width=1.2pt, color=primaryblue] (parse) -- (plan);
+    \draw[->, line width=1.2pt, color=primaryblue] (plan) -- (optimize);
+    \draw[->, line width=1.2pt, color=primaryblue] (optimize) -- (execute);
+    \draw[->, line width=1.2pt, color=primaryblue] (execute) -- (result);
 \end{tikzpicture}
 \end{center}
 \end{frame}
 
-\begin{frame}[fragile]{SQL Parsing and AST Generation}
-\begin{block}{Parsing Input}
-The parser converts SQL strings into structured query plans:
+\begin{frame}[fragile]{SQL Elemzés és AST Generálás}
+\begin{block}{Elemzési Bemenet}
+Az elemző az SQL karakterláncokat strukturált lekérdezési tervekké alakítja:
 \end{block}
 
 \begin{lstlisting}[language=SQL]
@@ -160,7 +229,7 @@ FROM employees
 GROUP BY dept_id
 \end{lstlisting}
 
-\begin{block}{Parsed Output Structure}
+\begin{block}{Elemzett Kimenet Struktúra}
 \begin{lstlisting}[language=Python]
 {
     "type": "AGGREGATE_GROUP",
@@ -177,73 +246,73 @@ GROUP BY dept_id
 \end{block}
 \end{frame}
 
-\section{Query Planning and Optimization}
+\section{Lekérdezés Tervezés és Optimalizálás}
 
-\begin{frame}{Query Planning Theory}
-\begin{block}{Logical vs Physical Plans}
+\begin{frame}{Lekérdezés Tervezés Elmélet}
+\begin{block}{Logikai vs Fizikai Tervek}
 \begin{itemize}
-    \item \textbf{Logical Plan}: High-level description of operations
-    \item \textbf{Physical Plan}: Specific algorithms and access methods
+    \item \textbf{Logikai Terv}: Magas szintű műveletek leírása
+    \item \textbf{Fizikai Terv}: Konkrét algoritmusok és hozzáférési módszerek
 \end{itemize}
 \end{block}
 
-\begin{block}{Planning Process in pyHMSSQL}
+\begin{block}{Tervezési Folyamat a pyHMSSQL-ben}
 \begin{enumerate}
-    \item \textbf{Table Validation}: Verify table existence with case-insensitive matching
-    \item \textbf{Column Resolution}: Map columns to actual table schema
-    \item \textbf{Operator Selection}: Choose appropriate execution operators
-    \item \textbf{Constraint Integration}: Apply foreign key and check constraints
-    \item \textbf{Index Consideration}: Identify available indexes for optimization
+    \item \textbf{Tábla Ellenőrzés}: Táblák létezésének ellenőrzése kis- és nagybetű különbségtétel nélkül
+    \item \textbf{Oszlop Feloldás}: Oszlopok hozzárendelése a valós tábla sémához
+    \item \textbf{Operátor Kiválasztás}: Megfelelő végrehajtási operátorok kiválasztása
+    \item \textbf{Megszorítás Integráció}: Idegen kulcs és ellenőrzési megszorítások alkalmazása
+    \item \textbf{Index Megfontolás}: Elérhető indexek azonosítása optimalizáláshoz
 \end{enumerate}
 \end{block}
 
-\begin{alertblock}{Advanced Feature}
-pyHMSSQL supports \textbf{compound primary keys} and \textbf{compound indexes}, enabling complex relational designs.
+\begin{alertblock}{Haladó Funkció}
+A pyHMSSQL támogatja az \textbf{összetett elsődleges kulcsokat} és \textbf{összetett indexeket}, lehetővé téve összetett relációs terveket.
 \end{alertblock}
 \end{frame}
 
-\begin{frame}{Cost-Based Query Optimization}
-\begin{block}{Optimization Strategies Implemented}
+\begin{frame}{Költség-alapú Lekérdezés Optimalizálás}
+\begin{block}{Implementált Optimalizálási Stratégiák}
 \begin{enumerate}
-    \item \textbf{Index-Based Access Path Selection}
-    \item \textbf{Join Algorithm Selection} (Hash, Sort-Merge, Nested Loop, Index)
-    \item \textbf{Join Reordering} using heuristics and cost estimation
-    \item \textbf{Predicate Pushdown} to reduce intermediate result sizes
-    \item \textbf{Expression Rewriting} and simplification
-    \item \textbf{Sort-Limit Optimization} (Top-N conversion)
+    \item \textbf{Index-alapú Hozzáférési Útvonal Kiválasztás}
+    \item \textbf{Összekapcsolási Algoritmus Kiválasztás} (Hash, Sort-Merge, Nested Loop, Index)
+    \item \textbf{Összekapcsolás Újrarendezés} heurisztikák és költségbecslés alapján
+    \item \textbf{Predikátum Lenyomás} köztes eredményméretek csökkentésére
+    \item \textbf{Kifejezés Újraírás} és egyszerűsítés
+    \item \textbf{Rendezés-Limit Optimalizálás} (Top-N konverzió)
 \end{enumerate}
 \end{block}
 
-\begin{block}{Cost Model}
+\begin{block}{Költség Modell}
 \begin{align}
-\text{Cost}_{total} &= \text{Cost}_{CPU} + \text{Cost}_{I/O} \\
-\text{Cost}_{I/O} &= \text{Pages}_{read} \times \text{Cost}_{page} \\
-\text{Cost}_{CPU} &= \text{Tuples}_{processed} \times \text{Cost}_{tuple}
+\text{Költség}_{összes} &= \text{Költség}_{CPU} + \text{Költség}_{I/O} \\
+\text{Költség}_{I/O} &= \text{Oldalak}_{olvasott} \times \text{Költség}_{oldal} \\
+\text{Költség}_{CPU} &= \text{Rekordok}_{feldolgozott} \times \text{Költség}_{rekord}
 \end{align}
 \end{block}
 \end{frame}
 
-\begin{frame}[fragile]{Index Selection and Optimization}
-\begin{block}{Index Types Supported}
+\begin{frame}[fragile]{Index Kiválasztás és Optimalizálás}
+\begin{block}{Támogatott Index Típusok}
 \begin{itemize}
-    \item \textbf{B+ Tree Indexes}: Primary access method
-    \item \textbf{Unique Indexes}: Constraint enforcement
-    \item \textbf{Compound Indexes}: Multi-column indexing
+    \item \textbf{B+ Fa Indexek}: Elsődleges hozzáférési módszer
+    \item \textbf{Egyedi Indexek}: Megszorítás kikényszerítés
+    \item \textbf{Összetett Indexek}: Többoszlopos indexelés
 \end{itemize}
 \end{block}
 
 \begin{lstlisting}[language=Python]
-# Index creation with compound columns
+# Index létrehozás összetett oszlopokkal
 def execute_create_index(self, plan):
     columns = plan.get("columns", [])
     if len(columns) > 1:
-        column_key = "_".join(columns)  # Compound key
+        column_key = "_".join(columns)  # Összetett kulcs
         index_display = f"({', '.join(columns)})"
     else:
         column_key = columns[0]
         index_display = columns[0]
         
-    # Create B+ Tree with compound key support
+    # B+ Fa létrehozás összetett kulcs támogatással
     result = self.catalog_manager.create_index(
         table_name=table_name,
         column_name=column_key,
@@ -254,33 +323,33 @@ def execute_create_index(self, plan):
 \end{lstlisting}
 \end{frame}
 
-\section{B+ Tree Implementation}
+\section{B+ Fa Implementáció}
 
-\begin{frame}{B+ Tree Theory and Implementation}
-\begin{block}{Why B+ Trees for Databases?}
+\begin{frame}{B+ Fa Elmélet és Implementáció}
+\begin{block}{Miért B+ Fák az Adatbázisokhoz?}
 \begin{itemize}
-    \item \textbf{Balanced Access}: $O(\log n)$ search, insert, delete
-    \item \textbf{Range Queries}: Efficient sequential access via leaf linking
-    \item \textbf{High Fanout}: Minimizes tree height, reduces I/O
-    \item \textbf{Persistence}: Optimized for disk-based storage
+    \item \textbf{Kiegyensúlyozott Hozzáférés}: $O(\log n)$ keresés, beszúrás, törlés
+    \item \textbf{Tartomány Lekérdezések}: Hatékony szekvenciális hozzáférés levelek összekapcsolásával
+    \item \textbf{Magas Elágazási Tényező}: Minimalizálja a fa magasságot, csökkenti I/O-t
+    \item \textbf{Perzisztencia}: Optimalizált lemez-alapú tároláshoz
 \end{itemize}
 \end{block}
 
-\begin{block}{B+ Tree Properties}
+\begin{block}{B+ Fa Tulajdonságok}
 \begin{itemize}
-    \item All data stored in leaf nodes
-    \item Internal nodes store only keys for navigation
-    \item Leaf nodes linked for sequential access
-    \item Maintains balance through node splitting/merging
+    \item Minden adat levél csomópontokban tárolva
+    \item Belső csomópontok csak navigációs kulcsokat tárolnak
+    \item Levél csomópontok összekapcsolva szekvenciális hozzáféréshez
+    \item Kiegyensúlyozottság fenntartása csomópont hasítás/összeolvasztás révén
 \end{itemize}
 \end{block}
 
-\begin{alertblock}{Implementation Detail}
-pyHMSSQL's B+ Tree supports \textbf{serialization} for persistence and \textbf{compound keys} for multi-column indexes.
+\begin{alertblock}{Implementációs Részlet}
+A pyHMSSQL B+ Fája támogatja a \textbf{szerializációt} perzisztenciához és \textbf{összetett kulcsokat} többoszlopos indexekhez.
 \end{alertblock}
 \end{frame}
 
-\begin{frame}{B+ Tree Operations}
+\begin{frame}{B+ Fa Műveletek}
 \begin{center}
 \begin{tikzpicture}[level distance=1.5cm, sibling distance=3cm]
     \node[rectangle, draw] {50}
@@ -302,55 +371,55 @@ pyHMSSQL's B+ Tree supports \textbf{serialization} for persistence and \textbf{c
 \end{tikzpicture}
 \end{center}
 
-\begin{block}{Search Algorithm Complexity}
+\begin{block}{Keresési Algoritmus Komplexitás}
 \begin{align}
-\text{Height} &= \lceil \log_{\text{fanout}} n \rceil \\
-\text{Search Cost} &= \text{Height} \times \text{Cost}_{page\_read} \\
-\text{Range Cost} &= \text{Search Cost} + k \times \text{Cost}_{sequential}
+\text{Magasság} &= \lceil \log_{\text{elágazási tényező}} n \rceil \\
+\text{Keresési Költség} &= \text{Magasság} \times \text{Költség}_{oldal\_olvasás} \\
+\text{Tartomány Költség} &= \text{Keresési Költség} + k \times \text{Költség}_{szekvenciális}
 \end{align}
-where $k$ is the number of qualifying records.
+ahol $k$ a kvalifikáló rekordok száma.
 \end{block}
 \end{frame}
 
-\section{Execution Engine Architecture}
+\section{Végrehajtó Motor Architektúra}
 
-\begin{frame}{Execution Engine Components}
+\begin{frame}{Végrehajtó Motor Komponensei}
 \begin{center}
 \begin{tikzpicture}[node distance=1.5cm]
     % Main Engine
-    \node[rectangle, draw, fill=red!20, minimum width=4cm] (engine) {Execution Engine};
+    \node[rectangle, draw, fill=darkblue!20, minimum width=4cm] (engine) {Végrehajtó Motor};
     
     % Sub-executors
-    \node[rectangle, draw, fill=blue!20, below left=of engine] (select) {Select Executor};
-    \node[rectangle, draw, fill=blue!20, below=of engine] (dml) {DML Executor};
-    \node[rectangle, draw, fill=blue!20, below right=of engine] (ddl) {DDL Executor};
+    \node[rectangle, draw, fill=primaryblue!20, below left=of engine] (select) {Select Végrehajtó};
+    \node[rectangle, draw, fill=primaryblue!20, below=of engine] (dml) {DML Végrehajtó};
+    \node[rectangle, draw, fill=primaryblue!20, below right=of engine] (ddl) {DDL Végrehajtó};
     
     % Specialized components
-    \node[rectangle, draw, fill=green!20, left=of select] (join) {Join Executor};
-    \node[rectangle, draw, fill=green!20, right=of ddl] (agg) {Aggregate Executor};
+    \node[rectangle, draw, fill=success!30, left=of select] (join) {Join Végrehajtó};
+    \node[rectangle, draw, fill=success!30, right=of ddl] (agg) {Aggregáció Végrehajtó};
     
     % Support systems
-    \node[rectangle, draw, fill=yellow!20, below=of select] (trans) {Transaction Manager};
-    \node[rectangle, draw, fill=yellow!20, below=of dml] (lock) {Lock Manager};
-    \node[rectangle, draw, fill=yellow!20, below=of ddl] (view) {View Manager};
+    \node[rectangle, draw, fill=warning!30, below=of select] (trans) {Tranzakció Kezelő};
+    \node[rectangle, draw, fill=warning!30, below=of dml] (lock) {Zárolás Kezelő};
+    \node[rectangle, draw, fill=warning!30, below=of ddl] (view) {Nézet Kezelő};
     
     % Arrows
-    \draw[->] (engine) -- (select);
-    \draw[->] (engine) -- (dml);
-    \draw[->] (engine) -- (ddl);
-    \draw[->] (select) -- (join);
-    \draw[->] (dml) -- (agg);
-    \draw[->] (engine) -- (trans);
-    \draw[->] (engine) -- (lock);
-    \draw[->] (engine) -- (view);
+    \draw[->, line width=1.2pt, color=primaryblue] (engine) -- (select);
+    \draw[->, line width=1.2pt, color=primaryblue] (engine) -- (dml);
+    \draw[->, line width=1.2pt, color=primaryblue] (engine) -- (ddl);
+    \draw[->, line width=1.2pt, color=primaryblue] (select) -- (join);
+    \draw[->, line width=1.2pt, color=primaryblue] (dml) -- (agg);
+    \draw[->, line width=1.2pt, color=primaryblue] (engine) -- (trans);
+    \draw[->, line width=1.2pt, color=primaryblue] (engine) -- (lock);
+    \draw[->, line width=1.2pt, color=primaryblue] (engine) -- (view);
 \end{tikzpicture}
 \end{center}
 \end{frame}
 
-\begin{frame}[fragile]{Execution Engine Dispatch Logic}
+\begin{frame}[fragile]{Végrehajtó Motor Küldési Logika}
 \begin{lstlisting}[language=Python]
 def execute(self, plan):
-    """Main execution dispatcher"""
+    """Fő végrehajtási küldő"""
     plan_type = plan.get("type", "UNKNOWN")
     
     if plan_type == "SELECT":
@@ -371,51 +440,51 @@ def execute(self, plan):
         return self.execute_set_operation(plan)
     elif plan_type == "BATCH_INSERT":
         return self.execute_batch_insert(plan)
-    # ... additional operators
+    # ... további operátorok
 \end{lstlisting}
 \end{frame}
 
-\section{Data Manipulation Language (DML)}
+\section{Adatmanipulációs Nyelv (DML)}
 
-\begin{frame}{DML Operations Theory}
-\begin{block}{ACID Properties Implementation}
+\begin{frame}{DML Műveletek Elmélete}
+\begin{block}{ACID Tulajdonságok Implementációja}
 \begin{itemize}
-    \item \textbf{Atomicity}: Transaction-based operations with rollback capability
-    \item \textbf{Consistency}: Foreign key constraint enforcement
-    \item \textbf{Isolation}: Lock-based concurrency control
-    \item \textbf{Durability}: Persistent storage with write-ahead logging
+    \item \textbf{Atomicitás}: Tranzakció-alapú műveletek visszavonási képességgel
+    \item \textbf{Konzisztencia}: Idegen kulcs megszorítás kikényszerítés
+    \item \textbf{Izolációs szint}: Zárolás-alapú egyidejűség-vezérlés
+    \item \textbf{Tartósság}: Perzisztens tárolás előre írt naplózással
 \end{itemize}
 \end{block}
 
-\begin{block}{Constraint Enforcement}
+\begin{block}{Megszorítás Kikényszerítés}
 \begin{itemize}
-    \item \textbf{Primary Key}: Uniqueness and non-null validation
-    \item \textbf{Foreign Key}: Referential integrity checking
-    \item \textbf{Check Constraints}: Domain validation
-    \item \textbf{Unique Constraints}: Duplicate prevention
+    \item \textbf{Elsődleges Kulcs}: Egyediség és nem-null ellenőrzés
+    \item \textbf{Idegen Kulcs}: Referenciális integritás ellenőrzés
+    \item \textbf{Ellenőrzési Megszorítások}: Tartomány validáció
+    \item \textbf{Egyediségi Megszorítások}: Duplikátum megelőzés
 \end{itemize}
 \end{block}
 \end{frame}
 
-\begin{frame}[fragile]{Foreign Key Constraint Enforcement}
+\begin{frame}[fragile]{Idegen Kulcs Megszorítás Kikényszerítés}
 \begin{lstlisting}[language=Python]
 def _check_fk_constraints_for_delete(self, db_name, table_name, records_to_delete):
-    """Check if deletion violates referential integrity"""
+    """Ellenőrzi, hogy a törlés sérti-e a referenciális integritást"""
     
-    # Find all tables that might reference this table
+    # Minden tábla megkeresése, amely hivatkozhat erre a táblára
     tables = self.catalog_manager.list_tables(db_name)
     
     for other_table in tables:
         if other_table == table_name:
             continue
             
-        # Extract foreign key relationships from schema
+        # Idegen kulcs kapcsolatok kibontása a sémából
         schema = self.catalog_manager.get_table_schema(other_table)
         fk_relationships = self._extract_foreign_keys(schema)
         
         for relationship in fk_relationships:
             if relationship['referenced_table'] == table_name:
-                # Check if any referencing records exist
+                # Ellenőrzi, hogy léteznek-e hivatkozó rekordok
                 for record in records_to_delete:
                     ref_value = record[relationship['referenced_column']]
                     
@@ -428,96 +497,96 @@ def _check_fk_constraints_for_delete(self, db_name, table_name, records_to_delet
                     )
                     
                     if referencing_records:
-                        return f"FK constraint violation: {other_table} references {table_name}"
+                        return f"FK megszorítás sértés: {other_table} hivatkozik {table_name}-ra"
     
-    return None  # No violations
+    return None  # Nincs sértés
 \end{lstlisting}
 \end{frame}
 
-\begin{frame}{Batch Operations and Performance}
-\begin{block}{Batch Insert Optimization}
+\begin{frame}{Kötegelt Műveletek és Teljesítmény}
+\begin{block}{Kötegelt Beszúrás Optimalizálás}
 \begin{itemize}
-    \item \textbf{Batch Size Tuning}: Default 5000 records per batch
-    \item \textbf{Index Maintenance}: Deferred until batch completion
-    \item \textbf{Memory Management}: Streaming processing for large datasets
-    \item \textbf{Error Handling}: Partial success reporting
+    \item \textbf{Köteg Méret Hangolás}: Alapértelmezett 5000 rekord kötegenként
+    \item \textbf{Index Karbantartás}: Halasztva a köteg befejezéséig
+    \item \textbf{Memória Kezelés}: Folyamatos feldolgozás nagy adathalmazokhoz
+    \item \textbf{Hibakezelés}: Részleges sikeresség jelentés
 \end{itemize}
 \end{block}
 
-\begin{block}{Performance Metrics}
+\begin{block}{Teljesítmény Metrikák}
 \begin{align}
-\text{Throughput} &= \frac{\text{Records Inserted}}{\text{Total Time}} \\
-\text{Batch Efficiency} &= \frac{\text{Batch Insert Time}}{\text{Individual Insert Time} \times \text{Batch Size}}
+\text{Áteresztőképesség} &= \frac{\text{Beszúrt Rekordok}}{\text{Összes Idő}} \\
+\text{Köteg Hatékonyság} &= \frac{\text{Kötegelt Beszúrás Idő}}{\text{Egyedi Beszúrás Idő} \times \text{Köteg Méret}}
 \end{align}
 \end{block}
 
-\begin{alertblock}{Real Performance}
-Batch inserts achieve \textbf{10-100x} performance improvement over individual inserts due to reduced overhead and optimized index updates.
+\begin{alertblock}{Valós Teljesítmény}
+A kötegelt beszúrások \textbf{10-100x} teljesítményjavulást érnek el az egyedi beszúrásokhoz képest a csökkentett költségek és optimalizált index frissítések miatt.
 \end{alertblock}
 \end{frame}
 
-\section{Join Algorithms}
+\section{Összekapcsolási Algoritmusok}
 
-\begin{frame}{Join Algorithm Selection}
-\begin{block}{Available Join Algorithms}
+\begin{frame}{Összekapcsolási Algoritmus Kiválasztás}
+\begin{block}{Elérhető Összekapcsolási Algoritmusok}
 \begin{enumerate}
-    \item \textbf{Hash Join}: Default for equi-joins
-    \item \textbf{Sort-Merge Join}: For sorted inputs
-    \item \textbf{Nested Loop Join}: Fallback algorithm
-    \item \textbf{Index Join}: When indexes available
+    \item \textbf{Hash Join}: Alapértelmezett egyenlőségi összekapcsolásokhoz
+    \item \textbf{Sort-Merge Join}: Rendezett bemenetekhez
+    \item \textbf{Nested Loop Join}: Tartalék algoritmus
+    \item \textbf{Index Join}: Amikor indexek elérhetők
 \end{enumerate}
 \end{block}
 
-\begin{block}{Algorithm Selection Criteria}
+\begin{block}{Algoritmus Kiválasztási Kritériumok}
 \begin{itemize}
-    \item \textbf{Table Size}: Hash join for large tables
-    \item \textbf{Index Availability}: Index join when appropriate indexes exist
-    \item \textbf{Join Selectivity}: Nested loop for highly selective joins
-    \item \textbf{Memory Constraints}: Sort-merge for memory-limited environments
+    \item \textbf{Tábla Méret}: Hash join nagy táblákhoz
+    \item \textbf{Index Elérhetőség}: Index join amikor megfelelő indexek léteznek
+    \item \textbf{Join Szelektivitás}: Nested loop nagyon szelektív összekapcsolásokhoz
+    \item \textbf{Memória Megszorítások}: Sort-merge memória-korlátozott környezetekhez
 \end{itemize}
 \end{block}
 \end{frame}
 
-\begin{frame}{Hash Join Implementation}
+\begin{frame}{Hash Join Implementáció}
 \begin{center}
 \begin{tikzpicture}[node distance=2cm]
     % Build Phase
-    \node[rectangle, draw, fill=blue!20] (build_table) {Build Table (Smaller)};
-    \node[rectangle, draw, fill=yellow!20, below=of build_table] (hash_table) {Hash Table};
+    \node[rectangle, draw, fill=primaryblue!20] (build_table) {Építő Tábla (Kisebb)};
+    \node[rectangle, draw, fill=warning!30, below=of build_table] (hash_table) {Hash Tábla};
     
     % Probe Phase
-    \node[rectangle, draw, fill=green!20, right=3cm of build_table] (probe_table) {Probe Table (Larger)};
-    \node[rectangle, draw, fill=orange!20, below=of probe_table] (join_result) {Join Results};
+    \node[rectangle, draw, fill=success!30, right=3cm of build_table] (probe_table) {Kutató Tábla (Nagyobb)};
+    \node[rectangle, draw, fill=accent!20, below=of probe_table] (join_result) {Join Eredmények};
     
     % Process
-    \draw[->] (build_table) -- (hash_table) node[midway, right] {Build Phase};
-    \draw[->] (probe_table) -- (hash_table) node[midway, above] {Probe Phase};
-    \draw[->] (hash_table) -- (join_result);
+    \draw[->, line width=1.2pt, color=primaryblue] (build_table) -- (hash_table) node[midway, right] {Építési Fázis};
+    \draw[->, line width=1.2pt, color=primaryblue] (probe_table) -- (hash_table) node[midway, above] {Kutatási Fázis};
+    \draw[->, line width=1.2pt, color=primaryblue] (hash_table) -- (join_result);
 \end{tikzpicture}
 \end{center}
 
-\begin{block}{Hash Join Complexity}
+\begin{block}{Hash Join Komplexitás}
 \begin{align}
-\text{Build Cost} &= |R| \times \text{Cost}_{hash} \\
-\text{Probe Cost} &= |S| \times \text{Cost}_{lookup} \\
-\text{Total Cost} &= |R| + |S| + \text{Output Size}
+\text{Építési Költség} &= |R| \times \text{Költség}_{hash} \\
+\text{Kutatási Költség} &= |S| \times \text{Költség}_{keresés} \\
+\text{Összes Költség} &= |R| + |S| + \text{Kimenet Méret}
 \end{align}
-where $|R|$ is the build relation size and $|S|$ is the probe relation size.
-\end{block>
+ahol $|R|$ az építő reláció mérete és $|S|$ a kutató reláció mérete.
+\end{block}
 \end{frame}
 
-\begin{frame}[fragile]{Join Execution with Hints}
+\begin{frame}[fragile]{Join Végrehajtás Tippekkel}
 \begin{lstlisting}[language=Python]
 def execute_join(self, plan):
-    """Execute join with algorithm selection"""
+    """Join végrehajtás algoritmus kiválasztással"""
     
-    # Extract join hint from plan
+    # Join tipp kibontása a tervből
     join_hint = plan.get("hint", {}).get("JOIN_TYPE", "HASH")
     left_table = plan.get("left_table")
     right_table = plan.get("right_table")
     join_condition = plan.get("condition")
     
-    # Select join algorithm based on hint and statistics
+    # Join algoritmus kiválasztás tipp és statisztikák alapján
     if join_hint == "HASH" or self._should_use_hash_join(left_table, right_table):
         return self._execute_hash_join(plan)
     elif join_hint == "MERGE" or self._should_use_sort_merge(left_table, right_table):
@@ -528,57 +597,55 @@ def execute_join(self, plan):
         return self._execute_nested_loop_join(plan)
 
 def _should_use_hash_join(self, left_table, right_table):
-    """Cost-based decision for hash join"""
+    """Költség-alapú döntés hash join-hoz"""
     left_size = self.catalog_manager.get_table_size(left_table)
     right_size = self.catalog_manager.get_table_size(right_table)
     
-    # Use hash join if one table is significantly smaller
+    # Hash join használata ha az egyik tábla jelentősen kisebb
     return min(left_size, right_size) * 10 < max(left_size, right_size)
 \end{lstlisting}
 \end{frame}
 
-\section{Aggregation and Group By}
+\section{Aggregáció és Csoportosítás}
 
-\begin{frame}{Aggregation Theory}
-\begin{block}{Aggregation Functions Implemented}
+\begin{frame}{Aggregáció Elmélet}
+\begin{block}{Implementált Aggregációs Függvények}
 \begin{itemize}
-    \item \textbf{Standard Functions}: COUNT, SUM, AVG, MIN, MAX
-    \item \textbf{Mathematical Functions}: GCD (Greatest Common Divisor)
-    \item \textbf{Sampling Functions}: RAND with parameterized sampling
+    \item \textbf{Standard Függvények}: COUNT, SUM, AVG, MIN, MAX
+    \item \textbf{Matematikai Függvények}: GCD (Legnagyobb Közös Osztó)
+    \item \textbf{Mintavételezési Függvények}: RAND paraméteres mintavételezéssel
 \end{itemize}
 \end{block}
 
-\begin{block}{Group By Implementation Strategy}
+\begin{block}{Csoportosítás Implementációs Stratégia}
 \begin{enumerate}
-    \item \textbf{Grouping Phase}: Hash-based partitioning by group key
-    \item \textbf{Aggregation Phase}: Apply aggregate functions per group
-    \item \textbf{Result Assembly}: Combine group keys with aggregated values
+    \item \textbf{Csoportosítási Fázis}: Hash-alapú particionálás csoport kulcs szerint
+    \item \textbf{Aggregációs Fázis}: Aggregáció függvények alkalmazása csoportonként
+    \item \textbf{Eredmény Összeállítás}: Csoport kulcsok kombinálása aggregált értékekkel
 \end{enumerate}
 \end{block}
 
-\begin{block}{Memory Management}
-Groups stored in hash table with composite keys:
-\begin{center}
+\begin{block}{Memória Kezelés}
+Csoportok hash táblában tárolva összetett kulcsokkal:\\
 \texttt{group\_key = "|".join([str(record[col]) for col in group\_by\_columns])}
-\end{center>
 \end{block}
 \end{frame}
 
-\begin{frame}[fragile]{Aggregate with Group By Execution}
+\begin{frame}[fragile]{Aggregáció Csoportosítással Végrehajtás}
 \begin{lstlisting}[language=Python]
 def execute_aggregate_with_groupby(self, plan):
-    """Execute GROUP BY aggregation"""
+    """GROUP BY aggregáció végrehajtás"""
     table_name = plan.get("table")
     group_by_columns = plan.get("group_by", [])
     aggregate_columns = plan.get("columns", [])
     
-    # Fetch all records
+    # Minden rekord lekérése
     all_records = self.catalog_manager.query_with_condition(table_name, [], ["*"])
     
-    # Group records by GROUP BY columns
+    # Rekordok csoportosítása GROUP BY oszlopok szerint
     groups = {}
     for record in all_records:
-        # Create composite group key
+        # Összetett csoport kulcs létrehozása
         group_key_parts = []
         for col in group_by_columns:
             group_key_parts.append(str(record.get(col, 'NULL')))
@@ -588,17 +655,17 @@ def execute_aggregate_with_groupby(self, plan):
             groups[group_key] = []
         groups[group_key].append(record)
     
-    # Calculate aggregates for each group
+    # Aggregátumok számítása minden csoporthoz
     result_rows = []
     for group_key, group_records in groups.items():
         row = []
         
-        # Add group by values
+        # Csoportosító értékek hozzáadása
         group_values = group_key.split('|')
         for i, val in enumerate(group_values):
             row.append(None if val == 'NULL' else val)
         
-        # Calculate aggregate values
+        # Aggregált értékek számítása
         for agg_col in aggregate_columns:
             agg_value = self._calculate_group_aggregate(agg_col, group_records)
             row.append(agg_value)
@@ -609,342 +676,273 @@ def execute_aggregate_with_groupby(self, plan):
 \end{lstlisting}
 \end{frame}
 
-\section{Transaction Management}
+\section{Tranzakció Kezelés}
 
-\begin{frame}{Transaction Theory and Implementation}
-\begin{block}{ACID Properties in pyHMSSQL}
+\begin{frame}{Tranzakció Elmélet és Implementáció}
+\begin{block}{ACID Tulajdonságok a pyHMSSQL-ben}
 \begin{itemize}
-    \item \textbf{Atomicity}: All-or-nothing execution with rollback capability
-    \item \textbf{Consistency}: Constraint enforcement and integrity checking
-    \item \textbf{Isolation}: Lock-based concurrency control
-    \item \textbf{Durability}: Persistent storage with recovery mechanisms
+    \item \textbf{Atomicitás}: Minden-vagy-semmi végrehajtás visszavonási képességgel
+    \item \textbf{Konzisztencia}: Megszorítás kikényszerítés és integritás ellenőrzés
+    \item \textbf{Izolációs szint}: Zárolás-alapú egyidejűség-vezérlés
+    \item \textbf{Tartósság}: Perzisztens tárolás helyreállítási mechanizmusokkal
 \end{itemize}
 \end{block}
 
-\begin{block}{Transaction States}
+\begin{block}{Tranzakció Állapotok}
 \begin{center}
 \begin{tikzpicture}[node distance=2cm, auto]
-    \node[circle, draw] (begin) {BEGIN};
-    \node[circle, draw, right=of begin] (active) {ACTIVE};
-    \node[circle, draw, above right=of active] (commit) {COMMITTED};
-    \node[circle, draw, below right=of active] (abort) {ABORTED};
+    \node[circle, draw, fill=primaryblue!20] (begin) {BEGIN};
+    \node[circle, draw, fill=success!30, right=of begin] (active) {AKTÍV};
+    \node[circle, draw, fill=accent!20, above right=of active] (commit) {BEFEJEZETT};
+    \node[circle, draw, fill=warning!30, below right=of active] (abort) {MEGSZAKÍTOTT};
     
-    \draw[->] (begin) -- (active) node[midway, above] {START};
-    \draw[->] (active) -- (commit) node[midway, above] {COMMIT};
-    \draw[->] (active) -- (abort) node[midway, below] {ROLLBACK};
+    \draw[->, line width=1.2pt, color=primaryblue] (begin) -- (active) node[midway, above] {INDÍTÁS};
+    \draw[->, line width=1.2pt, color=primaryblue] (active) -- (commit) node[midway, above] {COMMIT};
+    \draw[->, line width=1.2pt, color=primaryblue] (active) -- (abort) node[midway, below] {ROLLBACK};
 \end{tikzpicture}
 \end{center}
-\end{block>
+\end{block}
 \end{frame}
 
-\begin{frame}{Concurrency Control}
-\begin{block}{Lock Manager Implementation}
+\begin{frame}{Egyidejűség-vezérlés}
+\begin{block}{Zárolás Kezelő Implementáció}
 \begin{itemize}
-    \item \textbf{Lock Types}: Shared (S) and Exclusive (X) locks
-    \item \textbf{Lock Granularity}: Record-level and table-level locking
-    \item \textbf{Deadlock Prevention}: Timeout-based resolution
-    \item \textbf{Lock Compatibility Matrix}:
+    \item \textbf{Zárolás Típusok}: Megosztott (S) és Kizárólagos (X) zárolások
+    \item \textbf{Zárolás Granularitás}: Rekord-szintű és tábla-szintű zárolás
+    \item \textbf{Holtpont Megelőzés}: Időkorlát-alapú megoldás
+    \item \textbf{Zárolás Kompatibilitási Mátrix}:
 \end{itemize}
 \end{block}
 
 \begin{center}
 \begin{tabular}{|c|c|c|}
 \hline
-& \textbf{Shared} & \textbf{Exclusive} \\
+& \textbf{Megosztott} & \textbf{Kizárólagos} \\
 \hline
-\textbf{Shared} & ✓ & ✗ \\
+\textbf{Megosztott} & ✓ & ✗ \\
 \hline
-\textbf{Exclusive} & ✗ & ✗ \\
+\textbf{Kizárólagos} & ✗ & ✗ \\
 \hline
 \end{tabular}
 \end{center}
 
-\begin{alertblock}{Advanced Feature}
-pyHMSSQL implements \textbf{intention locks} (IS, IX) for hierarchical locking, allowing efficient multi-granularity concurrency control.
+\begin{alertblock}{Haladó Funkció}
+A pyHMSSQL \textbf{szándék zárolásokat} (IS, IX) implementál hierarchikus zároláshoz, lehetővé téve hatékony többszintű egyidejűség-vezérlést.
 \end{alertblock}
 \end{frame}
 
-\section{Set Operations}
+\section{Halmazműveletek}
 
-\begin{frame}{Set Operations Implementation}
-\begin{block}{Supported Set Operations}
+\begin{frame}{Halmazműveletek Implementációja}
+\begin{block}{Támogatott Halmazműveletek}
 \begin{itemize}
-    \item \textbf{UNION}: Combines results, eliminates duplicates
-    \item \textbf{INTERSECT}: Returns common records between sets
-    \item \textbf{EXCEPT}: Returns records in left set but not in right set
+    \item \textbf{UNION}: Eredmények kombinálása, duplikátumok eliminálása
+    \item \textbf{INTERSECT}: Közös rekordok visszaadása halmazok között
+    \item \textbf{EXCEPT}: Bal halmazban lévő, de jobb halmazban nem lévő rekordok visszaadása
 \end{itemize}
-\end{block>
+\end{block}
 
-\begin{block}{Implementation Strategy}
+\begin{block}{Implementációs Stratégia}
 \begin{enumerate}
-    \item \textbf{Execute Subqueries}: Independently execute left and right operands
-    \item \textbf{Result Normalization}: Convert to common tuple format
-    \item \textbf{Set Operation Logic}: Apply mathematical set theory
-    \item \textbf{Duplicate Elimination}: Hash-based deduplication for UNION
-\end{enumerate>
+    \item \textbf{Allekérdezések Végrehajtása}: Bal és jobb operandusok független végrehajtása
+    \item \textbf{Eredmény Normalizálás}: Közös rekord formátumra konvertálás
+    \item \textbf{Halmaz Művelet Logika}: Matematikai halmazelmélet alkalmazása
+    \item \textbf{Duplikátum Eliminálás}: Hash-alapú deduplikáció UNION-hoz
+\end{enumerate}
 \end{block}
 
-\begin{block}{Complexity Analysis}
+\begin{block}{Komplexitás Elemzés}
 \begin{align}
-\text{UNION Cost} &= |L| + |R| + \text{Sort/Hash Cost} \\
-\text{INTERSECT Cost} &= |L| \times \log|R| \text{ (if indexed)} \\
-\text{EXCEPT Cost} &= |L| \times \log|R| \text{ (if indexed)}
+\text{UNION Költség} &= |L| + |R| + \text{Rendezés/Hash Költség} \\
+\text{INTERSECT Költség} &= |L| \times \log|R| \text{ (ha indexelt)} \\
+\text{EXCEPT Költség} &= |L| \times \log|R| \text{ (ha indexelt)}
 \end{align}
-\end{block>
+\end{block}
 \end{frame}
 
-\section{Storage Engine}
+\section{Tárolási Motor}
 
-\begin{frame}{Storage Architecture}
-\begin{block}{Storage Components}
+\begin{frame}{Tárolási Architektúra}
+\begin{block}{Tárolási Komponensek}
 \begin{itemize}
-    \item \textbf{Catalog Manager}: Metadata and schema management
-    \item \textbf{Buffer Pool Manager}: Memory management for pages
-    \item \textbf{Index Manager}: B+ tree persistence and management
-    \item \textbf{File Manager}: Low-level file operations
+    \item \textbf{Katalógus Kezelő}: Metaadat és séma kezelés
+    \item \textbf{Puffer Pool Kezelő}: Memória kezelés oldalakhoz
+    \item \textbf{Index Kezelő}: B+ fa perzisztencia és kezelés
+    \item \textbf{Fájl Kezelő}: Alacsony szintű fájlműveletek
 \end{itemize}
 \end{block}
 
-\begin{block}{Data Organization}
+\begin{block}{Adat Szervezés}
 \begin{itemize}
-    \item \textbf{Database Files}: Separate directories per database
-    \item \textbf{Table Files}: Binary serialization with schema metadata
-    \item \textbf{Index Files}: B+ tree serialization with efficient access
-    \item \textbf{Log Files}: Write-ahead logging for recovery
+    \item \textbf{Adatbázis Fájlok}: Külön könyvtárak adatbázisonként
+    \item \textbf{Tábla Fájlok}: Bináris szerializáció séma metaadatokkal
+    \item \textbf{Index Fájlok}: B+ fa szerializáció hatékony hozzáféréssel
+    \item \textbf{Napló Fájlok}: Előre írt naplózás helyreállításhoz
 \end{itemize}
 \end{block}
 
-\begin{alertblock}{Performance Optimization}
-Buffer pool with \textbf{LRU eviction} and \textbf{page pinning} ensures frequently accessed data remains in memory.
-\end{alertblock>
+\begin{alertblock}{Teljesítmény Optimalizálás}
+Puffer pool \textbf{LRU kiszorítással} és \textbf{oldal rögzítéssel} biztosítja, hogy a gyakran elért adatok memóriában maradjanak.
+\end{alertblock}
 \end{frame}
 
-\begin{frame}{Schema Management}
-\begin{block}{Catalog Information Stored}
+\begin{frame}{Séma Kezelés}
+\begin{block}{Tárolt Katalógus Információk}
 \begin{itemize}
-    \item \textbf{Database Metadata}: Creation time, owner, properties
-    \item \textbf{Table Schemas}: Column definitions, constraints, indexes
-    \item \textbf{Index Definitions}: B+ tree configuration and statistics
-    \item \textbf{User Information}: Authentication and authorization data
-    \item \textbf{View Definitions}: Stored query text and dependencies
+    \item \textbf{Adatbázis Metaadatok}: Létrehozási idő, tulajdonos, tulajdonságok
+    \item \textbf{Tábla Sémák}: Oszlop definíciók, megszorítások, indexek
+    \item \textbf{Index Definíciók}: B+ fa konfiguráció és statisztikák
+    \item \textbf{Felhasználói Információk}: Hitelesítési és jogosultsági adatok
+    \item \textbf{Nézet Definíciók}: Tárolt lekérdezés szöveg és függőségek
 \end{itemize}
 \end{block}
 
-\begin{block}{Case Sensitivity Handling}
-pyHMSSQL implements \textbf{case-insensitive} table and column name resolution while preserving the \textbf{original case} in storage:
+\begin{block}{Kis- és Nagybetű Érzékenység Kezelés}
+A pyHMSSQL \textbf{kis- és nagybetű érzéketlen} tábla és oszlop név feloldást implementál, miközben megőrzi az \textbf{eredeti betűméretet} a tárolásban:\\
 
-\begin{center}
 \texttt{SELECT * FROM Customers} $\rightarrow$ \texttt{customers}
-\end{center>
 
-This provides \textbf{SQL standard compliance} while maintaining usability.
-\end{block>
+Ez \textbf{SQL szabvány megfelelőséget} biztosít a használhatóság fenntartása mellett.
+\end{block}
 \end{frame}
 
-\section{Advanced Features}
+\section{Haladó Funkciók}
 
-\begin{frame}{Views and Virtual Tables}
-\begin{block}{View Implementation}
+\begin{frame}{Nézetek és Virtuális Táblák}
+\begin{block}{Nézet Implementáció}
 \begin{itemize}
-    \item \textbf{View Definition Storage}: Parsed query stored in catalog
-    \item \textbf{Query Substitution}: View references replaced with stored query
-    \item \textbf{Recursive Resolution}: Support for views referencing other views
-    \item \textbf{Security Integration}: View-based access control
-\end{itemize}
-\end{block>
-
-\begin{block}{View Processing Algorithm}
-\begin{enumerate}
-    \item Parse query containing view reference
-    \item Retrieve view definition from catalog
-    \item Substitute view reference with stored query
-    \item Apply any additional WHERE conditions
-    \item Execute modified query
-\end{enumerate}
-\end{block>
-
-\begin{alertblock}{Optimization Opportunity}
-View materialization and incremental maintenance could significantly improve query performance for complex views.
-\end{alertblock>
-\end{frame>
-
-\begin{frame}{Replication and High Availability}
-\begin{block}{Replication Architecture}
-\begin{itemize}
-    \item \textbf{Master-Slave Topology}: Primary server with multiple replicas
-    \item \textbf{Synchronization Modes}: Sync, Semi-sync, Async replication
-    \item \textbf{Conflict Resolution}: Last-writer-wins with timestamp ordering
-    \item \textbf{Failover Support}: Automatic promotion of replica to primary
-\end{itemize>
-\end{block>
-
-\begin{block}{Replication Consistency Levels}
-\begin{enumerate}
-    \item \textbf{Synchronous}: All replicas must acknowledge before commit
-    \item \textbf{Semi-synchronous}: Configurable number of replicas must acknowledge
-    \item \textbf{Asynchronous}: Primary commits immediately, replicas update later
-\end{enumerate}
-\end{block>
-
-\begin{block}{CAP Theorem Trade-offs}
-pyHMSSQL allows configuration of \textbf{Consistency vs Availability} trade-offs through replication mode selection.
-\end{block>
-\end{frame>
-
-\section{Performance Analysis}
-
-\begin{frame}{Query Optimization Impact}
-\begin{block}{Optimization Techniques Performance}
-\begin{itemize}
-    \item \textbf{Index Usage}: 10-1000x performance improvement for selective queries
-    \item \textbf{Join Reordering}: 2-10x improvement for multi-table joins
-    \item \textbf{Predicate Pushdown}: 50-90\% reduction in intermediate result size
-    \item \textbf{Batch Operations}: 10-100x improvement for bulk inserts
+    \item \textbf{Nézet Definíció Tárolás}: Elemzett lekérdezés tárolva a katalógusban
+    \item \textbf{Lekérdezés Helyettesítés}: Nézet hivatkozások lecserélve tárolt lekérdezéssel
+    \item \textbf{Rekurzív Feloldás}: Támogatás nézetekre hivatkozó nézetekhez
+    \item \textbf{Biztonsági Integráció}: Nézet-alapú hozzáférés-vezérlés
 \end{itemize}
 \end{block}
 
-\begin{block}{B+ Tree Performance}
-\begin{align}
-\text{Search Time} &= O(\log_m n) \text{ where } m \text{ is fanout} \\
-\text{Range Query} &= O(\log_m n + k) \text{ where } k \text{ is result size} \\
-\text{Typical Fanout} &\approx 100-500 \text{ (depends on key size)}
-\end{align}
-\end{block>
-
-\begin{alertblock}{Real-world Performance}
-With proper indexing, pyHMSSQL can handle \textbf{millions of records} with sub-second query response times on commodity hardware.
-\end{alertblock>
-\end{frame}
-
-\begin{frame}{Scalability Analysis}
-\begin{block}{Vertical Scaling Characteristics}
-\begin{itemize}
-    \item \textbf{Memory}: Buffer pool scales linearly with available RAM
-    \item \textbf{CPU}: Parallel query execution for complex operations
-    \item \textbf{Storage}: Efficient B+ tree structure minimizes I/O
-\end{itemize}
-\end{block>
-
-\begin{block}{Horizontal Scaling (Replication)}
-\begin{itemize}
-    \item \textbf{Read Scaling}: Linear improvement with read replicas
-    \item \textbf{Write Scaling}: Limited by synchronization requirements
-    \item \textbf{Geographic Distribution}: Support for remote replicas
-\end{itemize>
-\end{block>
-
-\begin{block}{Bottleneck Analysis}
+\begin{block}{Nézet Feldolgozási Algoritmus}
 \begin{enumerate}
-    \item \textbf{I/O Bound}: Solved by indexing and buffer pools
-    \item \textbf{CPU Bound}: Addressed through query optimization
-    \item \textbf{Network Bound}: Minimized through efficient protocols
+    \item Nézet hivatkozást tartalmazó lekérdezés elemzése
+    \item Nézet definíció lekérése a katalógusból
+    \item Nézet hivatkozás helyettesítése tárolt lekérdezéssel
+    \item További WHERE feltételek alkalmazása
+    \item Módosított lekérdezés végrehajtása
 \end{enumerate}
-\end{block>
+\end{block}
+
+\begin{alertblock}{Optimalizálási Lehetőség}
+Nézet materializálás és inkrementális karbantartás jelentősen javíthatná a lekérdezési teljesítményt összetett nézetekhez.
+\end{alertblock}
 \end{frame}
 
-\section{Comparison with Production Systems}
+\begin{frame}{Replikáció és Magas Elérhetőség}
+\begin{block}{Replikációs Architektúra}
+\begin{itemize}
+    \item \textbf{Mester-Szolga Topológia}: Elsődleges szerver többszörös replikákkal
+    \item \textbf{Szinkronizációs Módok}: Szinkron, félszinkron, aszinkron replikáció
+    \item \textbf{Konfliktus Megoldás}: Utolsó-író-győz időbélyeg rendezéssel
+    \item \textbf{Failover Támogatás}: Automatikus replika előléptetés elsődlegessé
+\end{itemize}
+\end{block}
 
-\begin{frame}{Feature Comparison}
+\begin{block}{Replikációs Konzisztencia Szintek}
+\begin{enumerate}
+    \item \textbf{Szinkron}: Minden replikának nyugtáznia kell commit előtt
+    \item \textbf{Félszinkron}: Konfigurálható számú replikának kell nyugtáznia
+    \item \textbf{Aszinkron}: Elsődleges azonnal commitol, replikák később frissülnek
+\end{enumerate}
+\end{block}
+
+\begin{block}{CAP Tétel Kompromisszumok}
+A pyHMSSQL lehetővé teszi a \textbf{Konzisztencia vs Elérhetőség} kompromisszumok konfigurálását replikációs mód kiválasztás révén.
+\end{block}
+\end{frame}
+
+\section{Teljesítmény Elemzés}
+
+\begin{frame}{Lekérdezés Optimalizálás Hatása}
+\begin{block}{Optimalizálási Technikák Teljesítménye}
+\begin{itemize}
+    \item \textbf{Index Használat}: 10-1000x teljesítményjavulás szelektív lekérdezésekhez
+    \item \textbf{Join Újrarendezés}: 2-10x javulás többtáblás összekapcsolásokhoz
+    \item \textbf{Predikátum Lenyomás}: 50-90\% csökkenés köztes eredmény méretben
+    \item \textbf{Kötegelt Műveletek}: 10-100x javulás tömeges beszúrásokhoz
+\end{itemize}
+\end{block}
+
+\begin{block}{B+ Fa Teljesítmény}
+\begin{align}
+\text{Keresési Idő} &= O(\log_m n) \text{ ahol } m \text{ az elágazási tényező} \\
+\text{Tartomány Lekérdezés} &= O(\log_m n + k) \text{ ahol } k \text{ az eredmény mérete} \\
+\text{Tipikus Elágazási Tényező} &\approx 100-500 \text{ (kulcs mérettől függ)}
+\end{align}
+\end{block}
+
+\begin{alertblock}{Valós Teljesítmény}
+Megfelelő indexeléssel a pyHMSSQL \textbf{milliónyi rekordot} képes kezelni másodperc alatti lekérdezési válaszidőkkel általános hardveren.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Skálázhatósági Elemzés}
+\begin{block}{Vertikális Skálázási Karakterisztikák}
+\begin{itemize}
+    \item \textbf{Memória}: Puffer pool lineárisan skálázódik az elérhető RAM-mal
+    \item \textbf{CPU}: Párhuzamos lekérdezés végrehajtás összetett műveletekhez
+    \item \textbf{Tárolás}: Hatékony B+ fa struktúra minimalizálja I/O-t
+\end{itemize}
+\end{block}
+
+\begin{block}{Horizontális Skálázás (Replikáció)}
+\begin{itemize}
+    \item \textbf{Olvasási Skálázás}: Lineáris javulás olvasási replikákkal
+    \item \textbf{Írási Skálázás}: Korlátozott szinkronizációs követelményekkel
+    \item \textbf{Földrajzi Elosztás}: Támogatás távoli replikákhoz
+\end{itemize}
+\end{block}
+
+\begin{block}{Szűk Keresztmetszet Elemzés}
+\begin{enumerate}
+    \item \textbf{I/O Korlátozott}: Megoldva indexeléssel és puffer poolokkal
+    \item \textbf{CPU Korlátozott}: Kezelve lekérdezés optimalizálással
+    \item \textbf{Hálózat Korlátozott}: Minimalizálva hatékony protokollokkal
+\end{enumerate}
+\end{block}
+\end{frame}
+
+\section{Összehasonlítás Gyártási Rendszerekkel}
+
+\begin{frame}{Funkció Összehasonlítás}
 \begin{center}
 \begin{tabular}{|l|c|c|c|c|}
 \hline
-\textbf{Feature} & \textbf{pyHMSSQL} & \textbf{PostgreSQL} & \textbf{MySQL} & \textbf{SQLite} \\
+\textbf{Funkció} & \textbf{pyHMSSQL} & \textbf{PostgreSQL} & \textbf{MySQL} & \textbf{SQLite} \\
 \hline
-ACID Transactions & ✓ & ✓ & ✓ & ✓ \\
-B+ Tree Indexes & ✓ & ✓ & ✓ & ✓ \\
-Foreign Keys & ✓ & ✓ & ✓ & ✓ \\
-Views & ✓ & ✓ & ✓ & ✓ \\
-Stored Procedures & ✓ & ✓ & ✓ & ✗ \\
-Replication & ✓ & ✓ & ✓ & ✗ \\
+ACID Tranzakciók & ✓ & ✓ & ✓ & ✓ \\
+B+ Fa Indexek & ✓ & ✓ & ✓ & ✓ \\
+Idegen Kulcsok & ✓ & ✓ & ✓ & ✓ \\
+Nézetek & ✓ & ✓ & ✓ & ✓ \\
+Tárolt Eljárások & ✓ & ✓ & ✓ & ✗ \\
+Replikáció & ✓ & ✓ & ✓ & ✗ \\
 REST API & ✓ & ✗ & ✗ & ✗ \\
-Custom Aggregates & ✓ & ✓ & ✓ & ✗ \\
-Query Optimization & ✓ & ✓ & ✓ & ✓ \\
+Egyedi Aggregátumok & ✓ & ✓ & ✓ & ✗ \\
+Lekérdezés Optimalizálás & ✓ & ✓ & ✓ & ✓ \\
 \hline
 \end{tabular}
 \end{center}
 
-\begin{alertblock}{Unique Features}
-pyHMSSQL includes several unique features like \textbf{built-in REST API}, \textbf{mathematical aggregates (GCD)}, and \textbf{integrated visualization tools}.
-\end{alertblock>
+\begin{alertblock}{Egyedi Funkciók}
+A pyHMSSQL több egyedi funkciót tartalmaz, mint \textbf{beépített REST API}, \textbf{matematikai aggregátumok (GCD)}, és \textbf{integrált vizualizációs eszközök}.
+\end{alertblock}
 \end{frame}
-
-\section{Conclusion}
-
-\begin{frame}{Technical Achievements}
-\begin{block}{Core Database Features}
-\begin{itemize}
-    \item ✓ Complete SQL implementation with advanced features
-    \item ✓ ACID transaction support with proper concurrency control
-    \item ✓ Sophisticated query optimization with cost-based planning
-    \item ✓ Efficient B+ tree indexing with compound key support
-    \item ✓ Foreign key constraint enforcement
-\end{itemize}
-\end{block}
-
-\begin{block}{Advanced System Features}
-\begin{itemize}
-    \item ✓ Master-slave replication with configurable consistency
-    \item ✓ Multiple client interfaces (CLI, GUI, REST API)
-    \item ✓ Stored procedures, functions, and triggers
-    \item ✓ Views and temporary tables
-    \item ✓ Comprehensive error handling and recovery
-\end{itemize}
-\end{block>
-\end{frame}
-
-\begin{frame}{Educational Value}
-\begin{block}{Learning Outcomes}
-\begin{itemize}
-    \item \textbf{Database Theory}: Practical implementation of textbook concepts
-    \item \textbf{Algorithm Design}: B+ trees, join algorithms, optimization
-    \item \textbf{System Architecture}: Client-server design patterns
-    \item \textbf{Concurrency}: Lock management and transaction processing
-    \item \textbf{Distributed Systems}: Replication and consistency models
-\end{itemize}
-\end{block>
-
-\begin{block}{Research Applications}
-\begin{itemize}
-    \item \textbf{Algorithm Testing}: Platform for new optimization techniques
-    \item \textbf{Performance Analysis}: Controlled environment for benchmarking
-    \item \textbf{Feature Prototyping}: Rapid implementation of new database features
-    \item \textbf{Educational Tool}: Complete system for database course projects
-\end{itemize}
-\end{block>
-\end{frame}
-
-\begin{frame}{Future Research Directions}
-\begin{block}{Performance Enhancements}
-\begin{itemize}
-    \item \textbf{Columnar Storage}: For analytical workloads
-    \item \textbf{Query Compilation}: JIT compilation for hot queries
-    \item \textbf{Adaptive Indexing}: Self-tuning index structures
-    \item \textbf{Machine Learning}: ML-based query optimization
-\end{itemize}
-\end{block}
-
-\begin{block}{Distributed Features}
-\begin{itemize}
-    \item \textbf{Sharding}: Horizontal partitioning for scale-out
-    \item \textbf{Consensus Protocols}: Raft/Paxos for stronger consistency
-    \item \textbf{Global Transactions}: Distributed ACID semantics
-    \item \textbf{Cloud Integration}: Kubernetes-native deployment
-\end{itemize>
-\end{block>
-\end{frame>
 
 \begin{frame}[c]
 \begin{center}
-{\Huge Thank You}
+{\Huge Köszönöm}
 
 \vspace{1cm}
 
-{\Large Questions and Discussion}
-
 \vspace{1cm}
 
-\textit{pyHMSSQL: A complete, production-ready database management system demonstrating the full spectrum of database theory in practice.}
+\textit{pyHMSSQL: Egy teljes, gyártásra kész adatbázis-kezelő rendszer, amely az adatbázis elmélet teljes spektrumát demonstrálja a gyakorlatban.}
 \end{center}
 \end{frame}
 
-\end{document>
+\end{document}

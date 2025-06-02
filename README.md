@@ -94,6 +94,14 @@ A lightweight, powerful database management system built in Python. pyHMSSQL imp
   - [x] Multiple aggregation functions
   - [x] Autocomplete
 
+## Some Stats about execution speed and performance
+
+| Query Type                | Execution Time (s)   | Notes                                      |
+|---------------------------|----------------------|--------------------------------------------|
+| Insertion of 10k elements | 1.8888               |                                            |
+| Two tables joined together| 0.1070               | 10k x 10k elements + WHERE condition       |
+| Two tables joined together| 0.2300               | 100k x 100k elements + not all columns     |
+
 ## 📱 REST API
 
 pyHMSSQL now provides a REST API for applications to connect and interact with the database server. This allows you to integrate with the database using HTTP requests rather than direct socket connections.
@@ -210,6 +218,14 @@ Then run it with:
 
 ```bash
 java --module-path "path\to\javafx-sdk\lib" --add-modules javafx.controls,javafx.fxml,javafx.web,javafx.swing,javafx.graphics -jar target\java-client-1.0-SNAPSHOT.jar
+```
+
+## 🧪 Testing
+
+To run the tests, use:
+
+```bash
+pytest tests/ --tb=no -q > results.log 2>&1 && echo "✅ Tests passed" || echo "❌ Tests failed"
 ```
 
 Creating executable JAR:
@@ -454,6 +470,10 @@ query INSERT INTO products (name, price, stock) VALUES
 ('Keyboard', 59.99, 50);
 
 query CREATE TABLE products (id INT IDENTITY(1,1) PRIMARY KEY, name VARCHAR(100) NOT NULL, price DECIMAL(10,2), stock INT DEFAULT 0) ✅
+
+-- Test for the joins
+
+SELECT p.product_id, p.product_name, p.category, od.order_id, od.quantity, od.status FROM products p INNER JOIN order_details od ON p.product_id = od.product_id WHERE p.category = 'Electronics' AND od.quantity > 1;
 
 -- ✅
 query INSERT INTO products (name, price, stock) VALUES ('Laptop', 999.99, 10)
@@ -856,3 +876,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
   -Page-based storage
   -Write-ahead logging
   -Buffer management
+

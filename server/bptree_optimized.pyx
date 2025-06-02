@@ -522,73 +522,6 @@ cdef class BPlusTreeOptimized:
             # Recursively insert
             self._insert_non_full(node.children[pos], key, value_ptr)
 
-def insert_non_unique(self, key, value):
-    """Insert allowing duplicate keys"""
-    cdef double k = float(key)
-    
-    # Check if key already exists
-    existing_ptr = self._search_internal(self.root, k)
-    
-    if existing_ptr != 0:
-        # Key exists - append to existing values
-        existing_holder = self.value_store[existing_ptr]
-        if isinstance(existing_holder.value, list):
-            existing_holder.value.append(value)
-        else:
-            # Convert single value to list
-            existing_holder.value = [existing_holder.value, value]
-    else:
-        # New key - store as single value
-        self._insert_single_value(k, value)
-
-def _insert_single_value(self, double key, value):
-    """Insert a single value (helper method)"""
-    cdef size_t value_ptr = self.next_value_id
-    cdef BPNode* new_root
-    
-    self.value_store[value_ptr] = ValueHolder(value)
-    self.next_value_id += 1
-    
-    # Check if root is NULL or invalid
-    if self.root == NULL or not self._validate_node(self.root):
-        # Root is invalid, create a new one
-        self.root = self._create_node(1)  # Create a new leaf root
-        if self.root == NULL:
-            logger.error(f"[{self.name}] Failed to create new root node in _insert_single_value")
-            return
-    
-    # Handle root split if necessary
-    if self.root.num_keys >= self.root.capacity:
-        # Root is full, need to split it
-        new_root = self._create_node(0)  # Create new internal root
-        if new_root == NULL:
-            logger.error(f"[{self.name}] Failed to create new root node during split in _insert_single_value")
-            return
-            
-        # Make old root the first child of new root
-        new_root.children[0] = self.root
-        new_root.num_keys = 0  # Start with no keys in new root
-        
-        # Update root pointer
-        self.root = new_root
-        
-        # Split the old root (now first child of new root)
-        self._split_child(new_root, 0)
-        
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"[{self.name}] Root split completed in _insert_single_value")
-    
-    # Insert into the (possibly new) non-full root
-    self._insert_non_full(self.root, key, value_ptr)
-    
-    # Verify insertion for debugging
-    if logger.isEnabledFor(logging.DEBUG):
-        result = self.search(key)
-        if result != value:
-            logger.error(f"[{self.name}] Key {key} was not inserted correctly in _insert_single_value")
-        else:
-            logger.debug(f"[{self.name}] Successfully inserted key {key} with value {value}")
-
     def search(self, key):
         """Search for a key and return its value"""
         self.operation_counter += 1
@@ -652,6 +585,73 @@ def _insert_single_value(self, double key, value):
                     
             # Recursively search
             return self._search_internal(node.children[pos], key)
+
+    def insert_non_unique(self, key, value):
+        """Insert allowing duplicate keys"""
+        cdef double k = float(key)
+        
+        # Check if key already exists
+        existing_ptr = self._search_internal(self.root, k)
+        
+        if existing_ptr != 0:
+            # Key exists - append to existing values
+            existing_holder = self.value_store[existing_ptr]
+            if isinstance(existing_holder.value, list):
+                existing_holder.value.append(value)
+            else:
+                # Convert single value to list
+                existing_holder.value = [existing_holder.value, value]
+        else:
+            # New key - store as single value
+            self._insert_single_value(k, value)
+
+    def _insert_single_value(self, double key, value):
+        """Insert a single value (helper method)"""
+        cdef size_t value_ptr = self.next_value_id
+        cdef BPNode* new_root
+        
+        self.value_store[value_ptr] = ValueHolder(value)
+        self.next_value_id += 1
+        
+        # Check if root is NULL or invalid
+        if self.root == NULL or not self._validate_node(self.root):
+            # Root is invalid, create a new one
+            self.root = self._create_node(1)  # Create a new leaf root
+            if self.root == NULL:
+                logger.error(f"[{self.name}] Failed to create new root node in _insert_single_value")
+                return
+        
+        # Handle root split if necessary
+        if self.root.num_keys >= self.root.capacity:
+            # Root is full, need to split it
+            new_root = self._create_node(0)  # Create new internal root
+            if new_root == NULL:
+                logger.error(f"[{self.name}] Failed to create new root node during split in _insert_single_value")
+                return
+                
+            # Make old root the first child of new root
+            new_root.children[0] = self.root
+            new_root.num_keys = 0  # Start with no keys in new root
+            
+            # Update root pointer
+            self.root = new_root
+            
+            # Split the old root (now first child of new root)
+            self._split_child(new_root, 0)
+            
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"[{self.name}] Root split completed in _insert_single_value")
+        
+        # Insert into the (possibly new) non-full root
+        self._insert_non_full(self.root, key, value_ptr)
+        
+        # Verify insertion for debugging
+        if logger.isEnabledFor(logging.DEBUG):
+            result = self.search(key)
+            if result != value:
+                logger.error(f"[{self.name}] Key {key} was not inserted correctly in _insert_single_value")
+            else:
+                logger.debug(f"[{self.name}] Successfully inserted key {key} with value {value}")
 
     cdef void _collect_range(self, BPNode* node, double start_key, double end_key, list result) except *:
         """Safer implementation to collect keys in range - with more error handling"""
