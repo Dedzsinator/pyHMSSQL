@@ -1,163 +1,147 @@
 package com.pyhmssql.client.controllers;
 
 import com.pyhmssql.client.model.ColumnSelectionModel;
-
-import java.util.HashMap;
+import com.pyhmssql.client.model.ColumnSelectionModel.AggregateFunction;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 /**
- * Controller for managing column projections (SELECT clause)
+ * Controller for managing column projections (SELECT clause) in visual query
+ * builder
  */
 public class ProjectionController {
-    private final QueryBuilderController queryBuilderController;
-    private final Map<String, Object> projectionUIComponents;
-    private Consumer<String> onColumnRemoved;
-    
-    public ProjectionController(QueryBuilderController queryBuilderController) {
-        this.queryBuilderController = queryBuilderController;
-        this.projectionUIComponents = new HashMap<>();
+    private List<ColumnSelectionModel> selectedColumns;
+    private boolean selectAll;
+
+    public ProjectionController() {
+        this.selectedColumns = new ArrayList<>();
+        this.selectAll = false;
     }
-    
-    /**
-     * Add a column to the projection list
-     * @param table Table name
-     * @param column Column name
-     * @param alias Optional alias
-     * @param aggregate Optional aggregate function
-     * @return True if added successfully
-     */
-    public boolean addColumn(String table, String column, String alias, 
-                          ColumnSelectionModel.AggregateFunction aggregate) {
-        if (hasColumn(table, column)) {
-            return false; // Already exists
-        }
-        
-        ColumnSelectionModel columnModel = new ColumnSelectionModel(table, column, alias, aggregate, true);
-        queryBuilderController.getQueryModel().addColumn(columnModel);
-        return true;
+
+    public void addColumn(String table, String column) {
+        addColumn(table, column, "", AggregateFunction.NONE, true);
     }
-    
-    /**
-     * Update a column's properties
-     * @param table Table name
-     * @param column Column name
-     * @param alias New alias
-     * @param aggregate New aggregate function
-     * @param selected Whether the column is selected
-     */
-    public void updateColumn(String table, String column, String alias, 
-                           ColumnSelectionModel.AggregateFunction aggregate, boolean selected) {
-        List<ColumnSelectionModel> columns = queryBuilderController.getQueryModel().getColumns();
-        
-        for (ColumnSelectionModel col : columns) {
+
+    public void addColumn(String table, String column, String alias) {
+        addColumn(table, column, alias, AggregateFunction.NONE, true);
+    }
+
+    public void addColumn(String table, String column, String alias,
+            AggregateFunction aggregateFunction, boolean selected) {
+        // Check if column already exists
+        for (ColumnSelectionModel col : selectedColumns) {
             if (col.getTable().equals(table) && col.getColumn().equals(column)) {
-                col.setAlias(alias);
+                return; // Already exists
+            }
+        }
+
+        ColumnSelectionModel columnSelection = new ColumnSelectionModel(
+                table, column, alias, aggregateFunction, selected);
+        selectedColumns.add(columnSelection);
+    }
+
+    public void removeColumn(ColumnSelectionModel column) {
+        selectedColumns.remove(column);
+    }
+
+    public void removeColumn(String table, String column) {
+        selectedColumns.removeIf(col -> col.getTable().equals(table) && col.getColumn().equals(column));
+    }
+
+    public void updateColumnAggregate(String table, String column, AggregateFunction aggregate) {
+        for (ColumnSelectionModel col : selectedColumns) {
+            if (col.getTable().equals(table) && col.getColumn().equals(column)) {
                 col.setAggregate(aggregate);
-                col.setSelected(selected);
-                return;
+                break;
             }
         }
     }
-    
-    /**
-     * Remove a column from the projection list
-     * @param table Table name
-     * @param column Column name
-     */
-    public void removeColumn(String table, String column) {
-        String columnKey = getColumnKey(table, column);
-        
-        // Find and remove the model
-        List<ColumnSelectionModel> columns = queryBuilderController.getQueryModel().getColumns();
-        columns.removeIf(col -> col.getTable().equals(table) && col.getColumn().equals(column));
-        
-        // Remove UI component reference
-        projectionUIComponents.remove(columnKey);
-        
-        // Notify listeners
-        if (onColumnRemoved != null) {
-            onColumnRemoved.accept(columnKey);
+
+    public void updateColumnAlias(String table, String column, String alias) {
+        for (ColumnSelectionModel col : selectedColumns) {
+            if (col.getTable().equals(table) && col.getColumn().equals(column)) {
+                col.setAlias(alias);
+                break;
+            }
         }
     }
-    
-    /**
-     * Register a UI component for a column
-     * @param table Table name
-     * @param column Column name
-     * @param component UI component representing the column
-     */
-    public void registerUIComponent(String table, String column, Object component) {
-        String columnKey = getColumnKey(table, column);
-        projectionUIComponents.put(columnKey, component);
+
+    public List<ColumnSelectionModel> getSelectedColumns() {
+        return new ArrayList<>(selectedColumns);
     }
-    
-    /**
-     * Get the UI component for a column
-     * @param table Table name
-     * @param column Column name
-     * @return UI component or null if not found
-     */
-    public Object getUIComponent(String table, String column) {
-        String columnKey = getColumnKey(table, column);
-        return projectionUIComponents.get(columnKey);
+
+    public List<ColumnSelectionModel> getActiveColumns() {
+        return selectedColumns.stream()
+                .filter(ColumnSelectionModel::isSelected)
+                .collect(Collectors.toList());
     }
-    
-    /**
-     * Set the handler for column removal events
-     * @param handler Consumer that handles column keys
-     */
-    public void setOnColumnRemoved(Consumer<String> handler) {
-        this.onColumnRemoved = handler;
+
+    public void clearColumns() {
+        selectedColumns.clear();
     }
-    
-    /**
-     * Get all columns in the projection
-     * @return List of ColumnSelectionModel
-     */
-    public List<ColumnSelectionModel> getColumns() {
-        return queryBuilderController.getQueryModel().getColumns();
+
+    public boolean isSelectAll() {
+        return selectAll;
     }
-    
-    /**
-     * Get columns for a specific table
-     * @param tableName Table name
-     * @return List of ColumnSelectionModel for the table
-     */
+
+    public void setSelectAll(boolean selectAll) {
+        this.selectAll = selectAll;
+    }
+
+    public String generateProjectionSQL() {
+        if (selectAll || selectedColumns.isEmpty()) {
+            return "*";
+        }
+
+        List<String> columnSqls = selectedColumns.stream()
+                .filter(ColumnSelectionModel::isSelected)
+                .map(ColumnSelectionModel::toSql)
+                .collect(Collectors.toList());
+
+        if (columnSqls.isEmpty()) {
+            return "*";
+        }
+
+        return String.join(", ", columnSqls);
+    }
+
+    public boolean hasColumns() {
+        return !selectedColumns.isEmpty();
+    }
+
+    public int getColumnCount() {
+        return selectedColumns.size();
+    }
+
+    public int getActiveColumnCount() {
+        return (int) selectedColumns.stream()
+                .filter(ColumnSelectionModel::isSelected)
+                .count();
+    }
+
+    public void toggleColumnSelection(String table, String column) {
+        for (ColumnSelectionModel col : selectedColumns) {
+            if (col.getTable().equals(table) && col.getColumn().equals(column)) {
+                col.setSelected(!col.isSelected());
+                break;
+            }
+        }
+    }
+
+    public void selectAllColumns(boolean selected) {
+        for (ColumnSelectionModel col : selectedColumns) {
+            col.setSelected(selected);
+        }
+    }
+
+    public void removeColumnsForTable(String tableName) {
+        selectedColumns.removeIf(col -> col.getTable().equals(tableName));
+    }
+
     public List<ColumnSelectionModel> getColumnsForTable(String tableName) {
-        return queryBuilderController.getQueryModel().getColumns().stream()
-            .filter(col -> col.getTable().equals(tableName))
-            .collect(Collectors.toList());
-    }
-    
-    /**
-     * Check if a column is already in the projection
-     * @param table Table name
-     * @param column Column name
-     * @return True if column is in projection
-     */
-    public boolean hasColumn(String table, String column) {
-        String columnKey = getColumnKey(table, column);
-        return projectionUIComponents.containsKey(columnKey);
-    }
-    
-    /**
-     * Clear all columns from the projection
-     */
-    public void clearAllColumns() {
-        queryBuilderController.getQueryModel().getColumns().clear();
-        projectionUIComponents.clear();
-    }
-    
-    /**
-     * Generate a unique key for a column
-     * @param table Table name
-     * @param column Column name
-     * @return Unique key string
-     */
-    private String getColumnKey(String table, String column) {
-        return table + "." + column;
+        return selectedColumns.stream()
+                .filter(col -> col.getTable().equals(tableName))
+                .collect(Collectors.toList());
     }
 }

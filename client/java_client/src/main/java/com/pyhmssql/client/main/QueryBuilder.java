@@ -1,68 +1,105 @@
 package com.pyhmssql.client.main;
 
-import com.pyhmssql.client.views.QueryEditor;
-import com.pyhmssql.client.views.ResultPane;
-import com.pyhmssql.client.views.VisualQueryBuilder;
-import javafx.scene.control.SplitPane;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
-import javafx.geometry.Orientation;
+import com.pyhmssql.client.model.QueryModel;
+import com.pyhmssql.client.model.QueryModel.QueryType;
 
 /**
- * Wrapper class for VisualQueryBuilder to manage query builder tabs
+ * Utility class for building SQL queries programmatically
  */
 public class QueryBuilder {
-    private final TabPane tabPane;
-    private final ConnectionManager connectionManager;
+    private final QueryModel model;
 
-    public QueryBuilder(TabPane tabPane, ConnectionManager connectionManager) {
-        this.tabPane = tabPane;
-        this.connectionManager = connectionManager;
+    public QueryBuilder() {
+        this.model = new QueryModel();
     }
 
-    public void openQueryBuilder() {
-        Tab builderTab = new Tab("Query Builder");
-        builderTab.setClosable(true);
-
-        VisualQueryBuilder visualBuilder = new VisualQueryBuilder(connectionManager, sql -> {
-            // Open the generated SQL in a new query tab
-            openSqlInNewTab(sql);
-        });
-
-        builderTab.setContent(visualBuilder);
-        tabPane.getTabs().add(builderTab);
-        tabPane.getSelectionModel().select(builderTab);
+    public QueryBuilder(QueryModel model) {
+        this.model = model;
     }
 
-    private void openSqlInNewTab(String sql) {
-        // Create a new query tab with the generated SQL
-        Tab queryTab = new Tab("Generated Query");
-        queryTab.setClosable(true);
+    /**
+     * Set the query type
+     */
+    public QueryBuilder queryType(QueryType type) {
+        model.setType(type);
+        return this;
+    }
 
-        // Create a split pane for query editor and results
-        SplitPane splitPane = new SplitPane();
-        splitPane.setOrientation(Orientation.VERTICAL);
+    /**
+     * Set the query name
+     */
+    public QueryBuilder name(String name) {
+        model.setName(name);
+        return this;
+    }
 
-        // Create the query editor with the generated SQL
-        QueryEditor queryEditor = new QueryEditor(connectionManager);
-        queryEditor.setQuery(sql);
+    /**
+     * Set DISTINCT flag
+     */
+    public QueryBuilder distinct(boolean distinct) {
+        model.setDistinct(distinct);
+        return this;
+    }
 
-        // Create a results pane
-        ResultPane resultPane = new ResultPane();
+    /**
+     * Set the database context
+     */
+    public QueryBuilder database(String database) {
+        model.setDatabase(database);
+        return this;
+    }
 
-        // Connect the query editor to the results pane
-        queryEditor.setOnExecuteQuery(resultPane::displayResults);
+    /**
+     * Add a table to the query
+     */
+    public QueryBuilder addTable(String table) {
+        model.addTable(table);
+        return this;
+    }
 
-        // Add components to the split pane
-        splitPane.getItems().addAll(new org.fxmisc.flowless.VirtualizedScrollPane<>(queryEditor.getCodeArea()),
-                resultPane);
-        splitPane.setDividerPositions(0.6);
+    /**
+     * Set ORDER BY clause
+     */
+    public QueryBuilder orderBy(String column, boolean ascending) {
+        model.setOrderByColumn(column);
+        model.setOrderAscending(ascending);
+        return this;
+    }
 
-        // Set as tab content
-        queryTab.setContent(splitPane);
+    /**
+     * Set LIMIT clause
+     */
+    public QueryBuilder limit(int limit) {
+        model.setLimit(limit);
+        return this;
+    }
 
-        // Add and select the new tab
-        tabPane.getTabs().add(queryTab);
-        tabPane.getSelectionModel().select(queryTab);
+    /**
+     * Build the SQL query
+     */
+    public String build() {
+        return model.toSql();
+    }
+
+    /**
+     * Get the query model
+     */
+    public QueryModel getModel() {
+        return model;
+    }
+
+    /**
+     * Clear the query
+     */
+    public QueryBuilder clear() {
+        model.clear();
+        return this;
+    }
+
+    /**
+     * Create a copy of this builder
+     */
+    public QueryBuilder copy() {
+        return new QueryBuilder(model.copy());
     }
 }

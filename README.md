@@ -229,75 +229,6 @@ pytest tests/ --tb=no -q > results.log 2>&1 && echo "✅ Tests passed" || echo "
 ```
 
 Creating executable JAR:
-name: "CodeQL Advanced"
-
-on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
-  schedule:
-    - cron: "15 15 * * 6"
-
-jobs:
-  analyze:
-    name: Analyze (${{ matrix.language }})
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
-    permissions:
-      security-events: write
-      packages: read
-      actions: read
-      contents: read
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - language: python
-            build-mode: none
-          - language: java-kotlin
-            build-mode: manual
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Java
-        if: matrix.language == 'java-kotlin'
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
-      - name: Setup Python
-        if: matrix.language == 'python'
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
-
-      - name: Install dependencies
-        if: matrix.language == 'python'
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-
-      - name: Build Java project
-        if: matrix.language == 'java-kotlin'
-        run: |
-          cd client/java_client
-          mvn clean compile
-          mvn package -DskipTests
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:${{matrix.language}}"
 
 ```bash
 cd e:\Programming\pyHMSSQL\client\java_client
@@ -473,7 +404,7 @@ query CREATE TABLE products (id INT IDENTITY(1,1) PRIMARY KEY, name VARCHAR(100)
 
 -- Test for the joins
 
-SELECT p.product_id, p.product_name, p.category, od.order_id, od.quantity, od.status FROM products p INNER JOIN order_details od ON p.product_id = od.product_id WHERE p.category = 'Electronics' AND od.quantity > 1;
+query SELECT p.product_id, p.product_name, p.category, od.order_id, od.quantity, od.status FROM products p INNER JOIN order_details od ON p.product_id = od.product_id WHERE p.category = 'Electronics' AND od.quantity > 1;
 
 -- ✅
 query INSERT INTO products (name, price, stock) VALUES ('Laptop', 999.99, 10)

@@ -4,14 +4,17 @@ import com.pyhmssql.client.main.ConnectionManager;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.geometry.Insets;
+import javafx.application.Platform;
+import java.util.Map;
 
 public class TransactionPanel extends BorderPane {
-    private final ConnectionManager connectionManager;
+
+    private ConnectionManager connectionManager;
+    private boolean transactionActive = false;
     private Button beginButton;
     private Button commitButton;
     private Button rollbackButton;
     private Label statusLabel;
-    private boolean transactionActive = false;
 
     public TransactionPanel(ConnectionManager connectionManager) {
         this.connectionManager = connectionManager;
@@ -21,36 +24,31 @@ public class TransactionPanel extends BorderPane {
     private void setupUI() {
         setPadding(new Insets(10));
 
-        // Create buttons
-        beginButton = new Button("Begin Transaction");
-        commitButton = new Button("Commit");
-        rollbackButton = new Button("Rollback");
+        // Create the UI components
+        VBox content = new VBox(10);
+
         statusLabel = new Label("No active transaction");
 
-        // Disable commit and rollback initially
+        beginButton = new Button("Begin Transaction");
+        beginButton.setOnAction(e -> beginTransaction());
+
+        commitButton = new Button("Commit Transaction");
+        commitButton.setOnAction(e -> commitTransaction());
         commitButton.setDisable(true);
+
+        rollbackButton = new Button("Rollback Transaction");
+        rollbackButton.setOnAction(e -> rollbackTransaction());
         rollbackButton.setDisable(true);
 
-        // Add event handlers
-        beginButton.setOnAction(e -> beginTransaction());
-        commitButton.setOnAction(e -> commitTransaction());
-        rollbackButton.setOnAction(e -> rollbackTransaction());
-
-        // Create layout
-        HBox buttonBox = new HBox(10);
-        buttonBox.getChildren().addAll(beginButton, commitButton, rollbackButton);
-
-        VBox mainLayout = new VBox(10);
-        mainLayout.getChildren().addAll(buttonBox, statusLabel);
-
-        setCenter(mainLayout);
+        content.getChildren().addAll(statusLabel, beginButton, commitButton, rollbackButton);
+        setCenter(content);
     }
 
     private void beginTransaction() {
-        connectionManager.startTransaction()
+        connectionManager.executeQuery("BEGIN TRANSACTION")
                 .thenAccept(result -> {
-                    javafx.application.Platform.runLater(() -> {
-                        if (result.containsKey("response")) {
+                    Platform.runLater(() -> {
+                        if (result.containsKey("response") || result.containsKey("status")) {
                             transactionActive = true;
                             updateUI();
                             statusLabel.setText("Transaction started");
@@ -62,10 +60,10 @@ public class TransactionPanel extends BorderPane {
     }
 
     private void commitTransaction() {
-        connectionManager.commitTransaction()
+        connectionManager.executeQuery("COMMIT TRANSACTION")
                 .thenAccept(result -> {
-                    javafx.application.Platform.runLater(() -> {
-                        if (result.containsKey("response")) {
+                    Platform.runLater(() -> {
+                        if (result.containsKey("response") || result.containsKey("status")) {
                             transactionActive = false;
                             updateUI();
                             statusLabel.setText("Transaction committed");
@@ -79,8 +77,8 @@ public class TransactionPanel extends BorderPane {
     private void rollbackTransaction() {
         connectionManager.rollbackTransaction()
                 .thenAccept(result -> {
-                    javafx.application.Platform.runLater(() -> {
-                        if (result.containsKey("response")) {
+                    Platform.runLater(() -> {
+                        if (result.containsKey("response") || result.containsKey("status")) {
                             transactionActive = false;
                             updateUI();
                             statusLabel.setText("Transaction rolled back");

@@ -1,48 +1,108 @@
-/* SQL syntax highlighting styles */
-.keyword {
-    -fx-fill: #3366cc;
+/* SQL Syntax Highlighting Styles */
+.sql-keyword {
+    -fx-fill: #0000FF;
     -fx-font-weight: bold;
 }
 
-.string {
-    -fx-fill: #008800;
+.sql-type {
+    -fx-fill: #008080;
+    -fx-font-weight: bold;
 }
 
-.comment {
+.sql-operator {
+    -fx-fill: #FF6600;
+    -fx-font-weight: bold;
+}
+
+.sql-string {
+    -fx-fill: #008000;
+}
+
+.sql-number {
+    -fx-fill: #FF0000;
+}
+
+.sql-comment {
     -fx-fill: #808080;
     -fx-font-style: italic;
 }
 
-.number {
-    -fx-fill: #c04040;
+.sql-identifier {
+    -fx-fill: #000000;
 }
 
-.error {
-    -fx-fill: red;
-    -fx-font-weight: bold;
-    -fx-underline: true;
+/* CodeArea Styling */
+.code-area {
+    -fx-background-color: #FFFFFF;
+    -fx-font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
+    -fx-font-size: 12px;
+    -fx-border-color: #CCCCCC;
+    -fx-border-width: 1px;
 }
 
-.paren {
-    -fx-fill: #804080;
-    -fx-font-weight: bold;
+.code-area .text {
+    -fx-fill: #000000;
 }
 
-.bracket {
-    -fx-fill: #804080;
-    -fx-font-weight: bold;
+.code-area .line-number {
+    -fx-background-color: #F8F8F8;
+    -fx-text-fill: #808080;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 0 1px 0 0;
+    -fx-padding: 0 8px;
+    -fx-font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
+    -fx-font-size: 11px;
+    -fx-alignment: center-right;
 }
 
-.brace {
-    -fx-fill: #804080;
-    -fx-font-weight: bold;
+.code-area .selection {
+    -fx-fill: #3399FF;
 }
 
-.semicolon {
-    -fx-font-weight: bold;
+.code-area .caret {
+    -fx-stroke: #000000;
+    -fx-stroke-width: 1px;
 }
 
-.operator {
-    -fx-fill: #333333;
-    -fx-font-weight: bold;
+/* Dark theme variant */
+.code-area.dark-theme {
+    -fx-background-color: #2B2B2B;
+}
+
+.dark-theme .sql-keyword {
+    -fx-fill: #569CD6;
+}
+
+.dark-theme .sql-type {
+    -fx-fill: #4EC9B0;
+}
+
+.dark-theme .sql-operator {
+    -fx-fill: #D4D4D4;
+}
+
+.dark-theme .sql-string {
+    -fx-fill: #CE9178;
+}
+
+.dark-theme .sql-number {
+    -fx-fill: #B5CEA8;
+}
+
+.dark-theme .sql-comment {
+    -fx-fill: #6A9955;
+}
+
+.dark-theme .sql-identifier {
+    -fx-fill: #D4D4D4;
+}
+
+.dark-theme .code-area .text {
+    -fx-fill: #D4D4D4;
+}
+
+.dark-theme .code-area .line-number {
+    -fx-background-color: #3C3C3C;
+    -fx-text-fill: #858585;
+    -fx-border-color: #464647;
 }

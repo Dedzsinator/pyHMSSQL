@@ -1,152 +1,130 @@
 package com.pyhmssql.client.controllers;
 
-import com.pyhmssql.client.model.TableMetadata;
-import javafx.geometry.Point2D;
+import javafx.scene.control.TableView;
+import javafx.scene.layout.Pane;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 /**
- * Controller for managing tables in the diagram area
+ * Controller for managing the visual table diagram in the query builder
  */
 public class TableDiagramController {
-    private final QueryBuilderController queryBuilderController;
-    private final Map<String, Object> tableUIComponents;
-    private final Map<String, Point2D> tablePositions;
-    private Consumer<String> onTableRemoved;
-    
-    public TableDiagramController(QueryBuilderController queryBuilderController) {
-        this.queryBuilderController = queryBuilderController;
-        this.tableUIComponents = new HashMap<>();
-        this.tablePositions = new HashMap<>();
+    private final Map<String, TableView<Map<String, String>>> tableNodes;
+    private Pane diagramPane;
+
+    // No-argument constructor
+    public TableDiagramController() {
+        // Initialize any necessary components
+        this.tableNodes = new HashMap<>();
     }
-    
+
+    /**
+     * Set the diagram pane
+     *
+     * @param diagramPane The pane where tables are displayed
+     */
+    public void setDiagramPane(Pane diagramPane) {
+        this.diagramPane = diagramPane;
+    }
+
     /**
      * Add a table to the diagram
-     * @param tableName Table name
-     * @param x X position
-     * @param y Y position
-     * @return CompletableFuture with TableMetadata
+     *
+     * @param tableName Name of the table
+     * @param tableView The table view component
      */
-    public CompletableFuture<TableMetadata> addTable(String tableName, double x, double y) {
-        // Check if already exists
-        if (tableUIComponents.containsKey(tableName)) {
-            return CompletableFuture.completedFuture(null);
-        }
-        
-        // Store position
-        tablePositions.put(tableName, new Point2D(x, y));
-        
-        // Add to query model and get metadata
-        return queryBuilderController.addTable(tableName);
+    public void addTable(String tableName, TableView<Map<String, String>> tableView) {
+        tableNodes.put(tableName, tableView);
     }
-    
+
     /**
      * Remove a table from the diagram
-     * @param tableName Table name
+     *
+     * @param tableName Name of the table to remove
      */
     public void removeTable(String tableName) {
-        queryBuilderController.removeTable(tableName);
-        
-        // Remove UI component reference
-        tableUIComponents.remove(tableName);
-        
-        // Remove position
-        tablePositions.remove(tableName);
-        
-        // Notify listeners
-        if (onTableRemoved != null) {
-            onTableRemoved.accept(tableName);
+        TableView<Map<String, String>> tableView = tableNodes.remove(tableName);
+        if (tableView != null && diagramPane != null) {
+            diagramPane.getChildren().remove(tableView.getParent());
         }
     }
-    
+
     /**
-     * Update a table's position
-     * @param tableName Table name
-     * @param x New X position
-     * @param y New Y position
+     * Get all table names in the diagram
+     *
+     * @return Set of table names
      */
-    public void updateTablePosition(String tableName, double x, double y) {
-        tablePositions.put(tableName, new Point2D(x, y));
+    public Set<String> getTableNames() {
+        return tableNodes.keySet();
     }
-    
+
     /**
-     * Get a table's position
-     * @param tableName Table name
-     * @return Point2D with position or null if not found
+     * Get table view for a specific table
+     *
+     * @param tableName Name of the table
+     * @return TableView or null if not found
      */
-    public Point2D getTablePosition(String tableName) {
-        return tablePositions.get(tableName);
+    public TableView<Map<String, String>> getTableView(String tableName) {
+        return tableNodes.get(tableName);
     }
-    
-    /**
-     * Register a UI component for a table
-     * @param tableName Table name
-     * @param component UI component representing the table
-     */
-    public void registerUIComponent(String tableName, Object component) {
-        tableUIComponents.put(tableName, component);
-    }
-    
-    /**
-     * Get the UI component for a table
-     * @param tableName Table name
-     * @return UI component or null if not found
-     */
-    public Object getUIComponent(String tableName) {
-        return tableUIComponents.get(tableName);
-    }
-    
-    /**
-     * Set the handler for table removal events
-     * @param handler Consumer that handles table names
-     */
-    public void setOnTableRemoved(Consumer<String> handler) {
-        this.onTableRemoved = handler;
-    }
-    
-    /**
-     * Get all tables in the diagram
-     * @return List of table names
-     */
-    public List<String> getTables() {
-        return queryBuilderController.getQueryModel().getTables();
-    }
-    
+
     /**
      * Check if a table is in the diagram
-     * @param tableName Table name
-     * @return True if table exists
+     *
+     * @param tableName Name of the table
+     * @return true if table exists in diagram
      */
     public boolean hasTable(String tableName) {
-        return tableUIComponents.containsKey(tableName);
+        return tableNodes.containsKey(tableName);
     }
-    
+
     /**
      * Clear all tables from the diagram
      */
-    public void clearAllTables() {
-        List<String> tables = getTables();
-        
-        // Copy the list to avoid concurrent modification
-        List<String> tablesCopy = tables.stream().collect(Collectors.toList());
-        
-        // Remove each table
-        for (String tableName : tablesCopy) {
-            removeTable(tableName);
+    public void clearAll() {
+        if (diagramPane != null) {
+            diagramPane.getChildren().clear();
         }
+        tableNodes.clear();
     }
-    
+
     /**
-     * Get metadata for a table
-     * @param tableName Table name
-     * @return CompletableFuture with TableMetadata
+     * Get the number of tables in the diagram
+     *
+     * @return Number of tables
      */
-    public CompletableFuture<TableMetadata> getTableMetadata(String tableName) {
-        return queryBuilderController.getTableMetadata(tableName);
+    public int getTableCount() {
+        return tableNodes.size();
+    }
+
+    /**
+     * Add a table to the diagram at a specific location
+     *
+     * @param tableName Name of the table
+     * @param x         X-coordinate for the table's position
+     * @param y         Y-coordinate for the table's position
+     */
+    public void addTable(String tableName, double x, double y) {
+        // Implementation for adding table to diagram
+    }
+
+    /**
+     * Add a join between two tables
+     *
+     * @param leftTable  Name of the left table
+     * @param rightTable Name of the right table
+     * @param condition  Join condition
+     */
+    public void addJoin(String leftTable, String rightTable, String condition) {
+        // Implementation for adding joins between tables
+    }
+
+    /**
+     * Clear the entire diagram
+     */
+    public void clearDiagram() {
+        // Implementation for clearing the diagram
     }
 }

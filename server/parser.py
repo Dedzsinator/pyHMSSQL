@@ -2,7 +2,7 @@ import re
 import logging
 import traceback
 import sqlparse
-
+from haskell_parser import HaskellParser
 
 class SQLParser:
     """
@@ -13,19 +13,52 @@ class SQLParser:
 
     def __init__(self, engine=None):
         self.engine = engine
+        
+        # Initialize the Haskell parser with better error reporting
+        try:
+            self.haskell_parser = HaskellParser()
+            self.use_haskell_parser = True
+            logging.info("✅ Successfully initialized Haskell SQL parser for enhanced performance")
+            print("✅ Haskell SQL parser initialized successfully")
+        except FileNotFoundError as e:
+            logging.warning(f"❌ Haskell parser binary not found: {e}")
+            print(f"❌ Haskell parser not found: {e}")
+            logging.warning("🔄 Falling back to Python parser")
+            print("🔄 Falling back to Python parser")
+            self.use_haskell_parser = False
+        except Exception as e:
+            logging.warning(f"❌ Failed to initialize Haskell parser: {e}")
+            print(f"❌ Failed to initialize Haskell parser: {e}")
+            logging.warning("🔄 Falling back to Python parser")
+            print("🔄 Falling back to Python parser")
+            self.use_haskell_parser = False
 
-    def set_engine(self, engine):
-        """Set the execution engine reference"""
-        self.engine = engine
-
+    # Modify parse_sql to use Haskell parser when available
     def parse_sql(self, sql):
         """
         Parse SQL query into a structured format.
         """
-
         if not sql or not sql.strip():
             return {"error": "Empty query"}
         
+        # Use Haskell parser if available for all SQL statements
+        if self.use_haskell_parser:
+            try:
+                logging.info("🚀 Using Haskell parser for query: %s", sql[:50] + "..." if len(sql) > 50 else sql)
+                # Try parsing with the Haskell parser
+                result = self.haskell_parser.parse(sql)
+                logging.info("✅ Haskell parser succeeded")
+                return result
+            except Exception as e:
+                # Log the error and fall back to Python parser
+                logging.warning(f"❌ Haskell parser error: {str(e)}")
+                logging.warning("🔄 Falling back to Python parser for this query")
+                # Continue with Python parser
+
+        # Log when using Python parser
+        logging.info("🐍 Using Python parser for query: %s", sql[:50] + "..." if len(sql) > 50 else sql)
+
+        # Original Python parser logic follows
         if sql.strip().upper().startswith("SCRIPT "):
             return self._parse_script_statement(sql)
 
@@ -35,7 +68,6 @@ class SQLParser:
             return transaction_result
 
         try:
-
             # First check for set operations (UNION, INTERSECT, EXCEPT)
             if re.search(r'\s+UNION\s+|\s+INTERSECT\s+|\s+EXCEPT\s+', sql, re.IGNORECASE):
                 return self._parse_set_operation(sql)

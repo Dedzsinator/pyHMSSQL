@@ -250,4 +250,27 @@ public class SQLFormatter {
 
         return "<div class='sql-formatted'>" + sql + "</div>";
     }
+
+    /**
+     * Minify SQL by removing unnecessary whitespace
+     * 
+     * @param sql SQL query to minify
+     * @return Minified SQL
+     */
+    public static String minify(String sql) {
+        if (sql == null || sql.trim().isEmpty()) {
+            return sql;
+        }
+
+        // Preserve strings and comments
+        sql = preserveSpecialContent(sql);
+
+        // Remove extra whitespace
+        sql = sql.replaceAll("\\s+", " ").trim();
+
+        // Restore content
+        sql = restoreSpecialContent(sql);
+
+        return sql;
+    }
 }

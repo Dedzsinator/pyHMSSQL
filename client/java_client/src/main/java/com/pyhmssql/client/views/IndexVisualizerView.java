@@ -1,13 +1,14 @@
 package com.pyhmssql.client.views;
 
 import com.pyhmssql.client.main.ConnectionManager;
+import javafx.application.Platform;
+import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.web.WebView;
 import javafx.scene.web.WebEngine;
-import javafx.geometry.Insets;
+
 import java.util.Map;
-import javafx.application.Platform;
 
 /**
  * Component for visualizing B+ tree indexes

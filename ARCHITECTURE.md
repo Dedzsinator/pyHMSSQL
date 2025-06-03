@@ -2,7 +2,7 @@
 
 ## System Overview
 
-pyHMSSQL is a database management system built with a client-server architecture. The system consists of several components that work together to provide database functionality.
+pyHMSSQL is a sophisticated database management system built with a client-server architecture that implements advanced query optimization, indexing, and transaction management. The system is designed with modularity and performance in mind, featuring cost-based optimization, parallel query execution, and adaptive caching strategies.
 
 ![Architecture Diagram](https://via.placeholder.com/800x400?text=pyHMSSQL+Architecture)
 
@@ -13,308 +13,479 @@ pyHMSSQL is a database management system built with a client-server architecture
 1. **CLI Client** (`client/cli_client.py`)
    - Provides a command-line interface for interacting with the database
    - Parses user commands and sends them to the server
-   - Displays results from the server
-   - Handles connection management
-   - Supports batch execution from files
-   - Implements session-based authentication
+   - Displays results from the server with formatted output
+   - Handles connection management and reconnection logic
+   - Supports batch execution from SQL script files
+   - Implements session-based authentication with secure token management
+   - **Optimization**: Connection pooling and result streaming for large datasets
 
 2. **GUI Client** (`client/gui_client.py` & `client/gui/main_window.py`)
    - Provides a graphical user interface for database operations
    - Offers form-based input for common database operations
-   - Displays results and notifications to the user
-   - Uses Tkinter for the UI components
+   - Displays results in tabular format with pagination
+   - Uses Tkinter for cross-platform UI components
+   - **Optimization**: Lazy loading of results and asynchronous query execution
 
 3. **Shared Utilities** (`shared/` directory)
    - Contains common code used by both client and server
    - Implements network communication protocol (JSON over sockets)
    - Defines constants and utility functions
-   - Handles JSON serialization/deserialization
+   - Handles JSON serialization/deserialization with custom encoders
    - Provides custom JSON encoder for MongoDB ObjectId
+   - **Optimization**: Message compression and binary protocol for large data transfers
 
 ### Server Side
 
-1. **Server** (`server/server.py`)
-   - Listens for client connections on a predefined port
-   - Routes requests to appropriate components
-   - Returns results to clients
-   - Handles multiple concurrent client connections
-   - Provides error handling and logging
-   - Manages user authentication and sessions
-   - Implements role-based access control
+## Query Processing Pipeline
 
-2. **Catalog Manager** (`server/catalog_manager.py`)
-   - Manages database metadata (schemas, tables, columns)
-   - Stores information about indexes
-   - Provides CRUD operations for database objects
-   - Uses MongoDB for persistent storage of metadata
-   - Handles user authentication and registration
-   - Manages user preferences
-   - Manages views, stored procedures, functions, and triggers
-   - Handles temporary tables for sessions
-   - Provides management functions for all database objects
+The server implements a sophisticated multi-stage query processing pipeline:
 
-3. **Index Manager** (`server/index_manager.py`)
-   - Creates and maintains indexes for fast data retrieval
-   - Implements B+ Tree data structure for efficient lookups
-   - Provides methods for updating and querying indexes
-   - Handles serialization and deserialization of index structures
-   - Manages index files on disk
+### 1. **Parser** (`server/parser.py`)
 
-4. **B+ Tree Implementation** (`server/bptree.py`)
-   - Custom implementation of the B+ Tree data structure
-   - Provides efficient key-value lookups
-   - Supports range queries
-   - Implements node splitting and balancing
-   - Handles serialization for persistence
+   - **Dual Parser Architecture**: Uses both Haskell and Python parsers for robustness
+   - **Haskell Parser**: High-performance parser for complex SQL statements
+   - **Python Fallback**: sqlparse-based parser for compatibility
+   - **Parsing Features**:
+     - Complex SELECT statements with multiple JOINs
+     - Subqueries and correlated subqueries
+     - Set operations (UNION, INTERSECT, EXCEPT)
+     - Aggregate functions and GROUP BY clauses
+     - Window functions and CTEs
+   - **Optimization**: 
+     - AST caching for repeated query patterns
+     - Early syntax validation to reduce processing overhead
+     - Incremental parsing for large queries
 
-5. **Planner** (`server/planner.py`)
-   - Parses SQL queries (SELECT, INSERT, UPDATE, DELETE)
-   - Generates execution plans for queries
-   - Handles complex query structures (joins, subqueries)
-   - Transforms SQL statements into executable operations
-   - Uses Haskell-based SQL parser (`SQLParser.hs`)
+### 2. **Query Planner** (`server/planner.py`)
+   - **Plan Generation**: Creates logical execution plans from parsed SQL
+   - **Plan Types**:
+     - Sequential plans for simple queries
+     - Tree-structured plans for complex queries
+     - Parallel plans for large dataset operations
+   - **Plan Components**:
+     - Table access methods (sequential, index-based)
+     - Join operations with algorithm selection
+     - Filter and projection operations
+     - Sorting and grouping operations
+   - **Optimization**:
+     - Plan caching based on query fingerprints
+     - Cost estimation for plan selection
+     - Dynamic plan adjustment based on data statistics
 
-6. **Optimizer** (`server/optimizer.py`)
-   - Analyzes execution plans to improve performance
-   - Uses indexes for efficient data access
-   - Implements join optimizations (hash joins, index joins, sort-merge joins)
-   - Applies techniques like filter pushdown, expression rewriting
-   - Handles join reordering and index selection
-   - Optimizes sort operations and limit clauses
+### 3. **Query Optimizer** (`server/optimizer.py`)
+   
+   The optimizer implements advanced cost-based optimization with several sophisticated components:
 
-7. **Execution Engine** (`server/execution_engine.py`)
-   - Executes query plans
-   - Interacts with storage engine (MongoDB)
-   - Returns results to the server
-   - Performs CRUD operations on actual data
-   - Implements join algorithms and aggregation functions
-   - Handles set operations and logical operations
-   - Supports transactions (begin, commit, rollback)
-   - Respects user preferences
+   #### **Cost-Based Optimization Engine**
+   - **Cardinality Estimation**: Uses table statistics and histograms
+   - **Selectivity Estimation**: Analyzes filter conditions for row count prediction
+   - **Cost Models**: Implements CPU and I/O cost models for different operations
+   - **Statistics Collection**: Maintains column statistics, histograms, and data distribution
 
-8. **Procedure Manager**
-   - Executes stored procedures
-   - Manages procedure context and variables
-   - Handles control flow (IF, WHILE, etc.)
-   - Supports transaction management within procedures
+   #### **Buffer Manager with Hybrid Caching**
+   ```python
+   # LRU/LFU hybrid buffer pool for optimal cache hit ratios
+   class BufferManager:
+       def __init__(self, max_size=1000, lru_ratio=0.7):
+           # 70% LRU for temporal locality, 30% LFU for frequency patterns
+   ```
+   - **Hybrid Strategy**: Combines LRU (70%) and LFU (30%) for optimal cache performance
+   - **Query Result Caching**: Caches intermediate and final query results
+   - **Adaptive Replacement**: Dynamic cache replacement based on access patterns
+   - **Cache Invalidation**: Smart invalidation based on table modifications
 
-9. **Function Manager**
-   - Executes user-defined functions
-   - Handles return values
-   - Supports function calls within SQL queries
-   - Manages function context and variables
+   #### **Parallel Query Coordinator**
+   - **Intra-Query Parallelism**: Partitions large operations across multiple cores
+   - **Resource Management**: Monitors CPU and memory usage for optimal performance
+   - **Adaptive Partitioning**: Adjusts parallelism based on system load
+   - **Work Stealing**: Load balancing across worker threads
 
-10. **Trigger Manager**
-    - Monitors database events (INSERT, UPDATE, DELETE)
-    - Executes associated triggers when events occur
-    - Provides access to OLD and NEW row values
-    - Handles trigger chaining and recursion prevention
+   #### **Join Optimization Strategies**
+   - **Join Reordering**: Uses dynamic programming for optimal join order
+   - **Algorithm Selection**: Chooses between hash, sort-merge, and index joins
+   - **Cost-Based Selection**: Evaluates multiple join algorithms and selects optimal
+   - **Index-Aware Planning**: Leverages existing indexes for join optimization
 
-## Data Flow
+   #### **Index Selection and Usage**
+   - **Automatic Index Selection**: Chooses optimal indexes for query conditions
+   - **Multi-Column Index Support**: Efficiently uses compound indexes
+   - **Index-Only Scans**: Avoids table access when possible
+   - **Index Intersection**: Combines multiple indexes for complex predicates
 
-1. **Authentication Flow**:
-   - Client sends login credentials
-   - Server authenticates against stored user records
-   - Server generates and returns a session ID
-   - Client includes session ID in subsequent requests
-   - Server validates the session ID before processing requests
+### 4. **Execution Engine** (`server/execution_engine.py`)
+   
+   The execution engine implements multiple specialized executors:
 
-2. **Query Execution Pipeline**:
-   - Client submits a command or query
-   - Server validates user permissions for the operation
-   - For schema operations (CREATE/DROP), the Catalog Manager handles the request
-   - For data operations (SELECT/INSERT/DELETE/UPDATE):
-     - SQL is parsed using the Haskell parser
-     - The Planner creates an execution plan
-     - The Optimizer improves the plan for efficiency
-     - The Execution Engine executes the optimized plan
-     - Results are returned to the client
+   #### **DML Executor** (`server/query_processor/dml_executor.py`)
+   - **UPDATE Operations**:
+     - Primary key constraint checking before updates
+     - Foreign key validation for referential integrity
+     - Index maintenance during updates
+     - Batch update optimization for multiple rows
+     - **Optimization**: Uses prepared statements and bulk operations
+   
+   - **INSERT Operations**:
+     - Batch insertion for multiple rows
+     - Constraint validation (PRIMARY KEY, FOREIGN KEY, UNIQUE)
+     - Index updates for all affected indexes
+     - **Optimization**: Bulk loading strategies and index buffering
+   
+   - **DELETE Operations**:
+     - Cascade delete handling for foreign keys
+     - Index cleanup for deleted records
+     - **Optimization**: Batch deletion and lazy index cleanup
 
-3. **Index Usage**:
-   - When a query involves a field with an index, the index is used for lookups
-   - B+ Tree indexes provide efficient key-based and range-based access
-   - When data is modified, indexes are updated accordingly
-   - The optimizer selects appropriate indexes for query conditions
+   #### **DDL Executor** (`server/ddl_processor/schema_manager.py`)
+   - **Schema Management**:
+     - Database creation and management
+     - Table schema definition and modification
+     - Index creation with compound column support
+     - View, procedure, and trigger management
+   - **Constraint Management**:
+     - Primary key enforcement (single and compound)
+     - Foreign key relationships
+     - Unique constraints
+     - Check constraints
+   - **Optimization**: 
+     - Schema caching for fast metadata access
+     - Incremental schema updates
+     - Parallel DDL operations for large schemas
 
-4. **Advanced Query Processing**:
-   - For views, the view definition is retrieved and executed
-   - For procedure calls, the procedure body is executed step by step
-   - For function calls, the function is executed and its result integrated into the query
-   - For triggers, associated triggers are executed when table events occur
+### 5. **Index Manager** (`server/index_manager.py`)
+   
+   #### **B+ Tree Implementation** (`server/bptree.py`)
+   The system uses a sophisticated B+ Tree implementation optimized for database workloads:
+   
+   - **Tree Structure Optimizations**:
+     - **Adaptive Node Size**: Adjusts node size based on key distribution
+     - **Leaf Node Linking**: Bidirectional links for efficient range scans
+     - **Key Compression**: Prefix compression for space efficiency
+     - **Bulk Loading**: Optimized bulk insertion for index creation
+   
+   - **Concurrency Control**:
+     - **Lock-Free Reads**: Uses copy-on-write for read operations
+     - **Fine-Grained Locking**: Node-level locking for concurrent updates
+     - **Deadlock Prevention**: Lock ordering to prevent deadlocks
+   
+   - **Performance Optimizations**:
+     - **Cache-Aware Design**: Minimizes cache misses with compact node layout
+     - **Lazy Splitting**: Defers node splits until necessary
+     - **Batch Updates**: Groups multiple updates for efficiency
+     - **Memory Pool**: Reduces allocation overhead with object pooling
 
-## B+ Tree Implementation
+   #### **Index Types and Optimizations**:
+   - **Single Column Indexes**: Standard B+ tree indexes on individual columns
+   - **Compound Indexes**: Multi-column indexes with prefix matching
+   - **Unique Indexes**: Enforces uniqueness constraints efficiently
+   - **Partial Indexes**: Indexes with WHERE conditions for space efficiency
 
-The system uses a custom B+ Tree implementation for indexing:
+### 6. **Transaction Management**
+   
+   The system implements ACID properties with sophisticated transaction handling:
+   
+   #### **Transaction Isolation**:
+   - **Read Committed**: Default isolation level preventing dirty reads
+   - **Snapshot Isolation**: Point-in-time consistent views of data
+   - **Lock-Based Concurrency**: Row-level and table-level locking
+   
+   #### **Transaction Log**:
+   - **Write-Ahead Logging (WAL)**: Ensures durability and crash recovery
+   - **Checkpoint Mechanism**: Periodic flushing of dirty pages
+   - **Recovery Manager**: Automatic recovery after system crashes
+   
+   #### **Deadlock Detection**:
+   - **Wait-For Graph**: Detects circular dependencies
+   - **Timeout-Based**: Prevents indefinite waiting
+   - **Victim Selection**: Chooses transactions to abort based on cost
 
-- **Tree Structure**:
-  - Keys are column values, values are record identifiers
-  - Leaf nodes contain actual data entries
-  - Non-leaf nodes contain routing information
-  - Leaves are linked for efficient range scans
+### 7. **Catalog Manager** (`server/catalog_manager.py`)
+   
+   #### **Metadata Management**:
+   - **Schema Storage**: Stores table definitions, column types, and constraints
+   - **Index Metadata**: Tracks all indexes and their properties
+   - **User Management**: Handles authentication and authorization
+   - **Statistics Storage**: Maintains table and column statistics for optimization
+   
+   #### **Advanced Features**:
+   - **View Management**: Stores and resolves view definitions
+   - **Stored Procedures**: Manages procedure definitions and execution
+   - **Triggers**: Handles trigger definitions and execution
+   - **Temporary Tables**: Session-specific temporary table management
+   
+   #### **Optimization Features**:
+   - **Metadata Caching**: LRU cache for frequently accessed metadata
+   - **Lazy Loading**: Loads metadata on-demand to reduce memory usage
+   - **Batch Operations**: Groups metadata updates for efficiency
 
-- **Key Operations**:
-  - Insert: Add a new key-value pair
-  - Search: Lookup a specific key
-  - Range Query: Find all keys in a given range
-  
-- **Optimizations**:
-  - Node splitting for balanced tree structure
-  - Leaf node linking for efficient sequential access
-  - Key-value storage in leaf nodes for direct data access
-  
-- **Persistence**:
-  - Trees are serialized using pickle
-  - Each index is stored in a separate file
-  - Loaded on-demand to minimize memory usage
+## Advanced Query Processing
 
-## Join Algorithms
+### Aggregation Processing
 
-The system implements multiple join algorithms:
+The system implements sophisticated aggregation with multiple optimization strategies:
 
-1. **Hash Join**:
-   - Builds a hash table on the smaller relation
-   - Probes the hash table with the larger relation
-   - Efficient for equality joins
+#### **Aggregation Algorithms**
 
-2. **Sort-Merge Join**:
-   - Sorts both relations on the join key
-   - Merges the sorted relations
-   - Efficient for sorted data
+1. **Hash-Based Aggregation**
 
-3. **Index Join**:
-   - Uses an index on one relation
-   - Looks up matching records for each tuple in the other relation
-   - Efficient when an index exists on the join column
+   - Uses hash tables for GROUP BY operations
+   - Memory-efficient with spillover to disk for large groups
+   - Parallel aggregation across multiple threads
 
-4. **Nested Loop Join**:
-   - Fallback algorithm when others aren't applicable
-   - Iterates through both relations
+2. **Sort-Based Aggregation**:
+   - Sorts input data before aggregation
+   - More memory-efficient for sorted data
+   - Better for ordered output requirements
 
-## Advanced Features
+3. **Index-Based Aggregation**:
+   - Uses indexes for pre-sorted aggregation
+   - Avoids sorting overhead when possible
+   - Optimal for indexed GROUP BY columns
 
-### Views Management
+#### **Aggregation Functions**
 
-The system supports database views:
+- **COUNT**: Optimized counting with early termination
+- **SUM/AVG**: Streaming computation for large datasets
+- **MIN/MAX**: Index-based optimization for sorted data
+- **DISTINCT**: Hash-based deduplication with memory management
 
-- **Creation and Storage**: Views are stored in the catalog
-- **Query Resolution**: When a view is referenced, its query is executed
-- **Metadata Management**: View definitions are accessible through the catalog
-- **Security**: Access to views follows the same permission model as tables
+### Join Processing
 
-### Stored Procedures and Functions
+The system implements multiple join algorithms with automatic selection:
 
-The system supports stored procedures and functions:
+#### **Hash Join**
 
-- **Procedure Execution**:
-  - Procedures are parsed and stored in the catalog
-  - When called, procedures are executed in a controlled environment
-  - Procedures can contain multiple SQL statements
-  - Parameters are supported for flexible execution
+- **Build Phase**: Creates hash table on smaller relation
+- **Probe Phase**: Probes hash table with larger relation
+- **Optimization**
+  - Grace hash join for memory overflow
+  - Bloom filters for early pruning
+  - Parallel hash join for large datasets
 
-- **Function Execution**:
-  - Functions are compiled and stored in the catalog
-  - Functions can be called from SQL statements
-  - Return values are integrated into the calling query
-  - Functions support parameters and local variables
+#### **Sort-Merge Join**
 
-### Triggers
+- **Sort Phase**: Sorts both relations on join keys
+- **Merge Phase**: Merges sorted relations in linear time
+- **Optimization**:
+  - External sorting for large datasets
+  - Index-aware sorting when data is already sorted
+  - Parallel sorting and merging
 
-The system implements database triggers:
+#### **Index Join**
 
-- **Event Monitoring**:
-  - INSERT, UPDATE, and DELETE events are monitored
-  - When an event occurs on a table with triggers, they are executed
+- **Index Lookup**: Uses index on one relation for lookups
+- **Nested Loop**: Efficient when one relation is small
+- **Optimization**:
+  - Index-only scans when possible
+  - Batch index lookups
+  - Cache-aware access patterns
 
-- **Execution Context**:
-  - Triggers have access to OLD and NEW row values
-  - Triggers execute in the context of the transaction
-  - Multiple triggers on the same event are executed in order
+#### **Cross Join**
 
-- **Management**:
-  - Triggers can be created, dropped, and enabled/disabled
-  - Metadata about triggers is stored in the catalog
+- **Cartesian Product**: Full cross product of relations
+- **Optimization**:
+  - Block-wise processing for memory efficiency
+  - Early termination with LIMIT clauses
+  - Parallel processing for large datasets
 
-### Temporary Tables
+### SELECT Operation Types
 
-The system supports temporary tables:
+#### **Simple SELECT**
 
-- **Session Isolation**:
-  - Temporary tables are only visible to the creating session
-  - Tables are automatically dropped when the session ends
+- **Sequential Scan**: Full table scan with predicate evaluation
+- **Index Scan**: Uses indexes for efficient data access
+- **Optimization**:
+  - Predicate pushdown to storage layer
+  - Column pruning for projection
+  - Early termination with LIMIT
 
-- **Use Cases**:
-  - Complex query intermediate results
-  - Multi-step data processing
-  - Transaction-specific data storage
+#### **JOIN SELECT**
 
-## Query Optimization Techniques
+- **Multiple Join Algorithms**: Automatic algorithm selection
+- **Join Reordering**: Cost-based join order optimization
+- **Optimization**:
+  - Filter pushdown to reduce intermediate results
+  - Index intersection for multiple predicates
+  - Parallel join execution
 
-The Optimizer implements several strategies:
+#### **Aggregate SELECT**
 
-1. **Index-Based Access**:
-   - Uses indexes for efficient data retrieval
-   - Avoids full table scans when possible
+- **Grouping Optimization**: Index-based grouping when possible
+- **Aggregate Pushdown**: Computation at storage layer
+- **Optimization**:
+  - Hash aggregation for unsorted data
+  - Sort-based aggregation for ordered data
+  - Parallel aggregation for large groups
 
-2. **Join Optimization**:
-   - Selects the most efficient join algorithm based on available indexes
-   - Reorders joins to minimize intermediate results
-   - Pushes filters down to reduce early result sizes
+#### **Subquery SELECT**
 
-3. **Predicate Pushdown**:
-   - Pushes filter conditions closer to data sources
-   - Reduces intermediate result sizes
+- **Correlated Subqueries**: Efficient execution with caching
+- - **Uncorrelated Subqueries**: Single execution with result caching
+- **Optimization**:
+  - Subquery flattening when possible
+  - Materialization vs. recomputation decisions
+  - Semi-join and anti-join optimizations
 
-4. **Join Reordering**:
-   - Reorders join operations to minimize intermediate results
-   - Prioritizes joins with available indexes
+#### **Set Operations**
 
-5. **Expression Rewriting**:
-   - Simplifies and normalizes expressions
-   - Eliminates redundant conditions
-   - Merges multiple filters
+- **UNION**: Combines results with duplicate elimination
+- **INTERSECT**: Finds common rows between result sets
+- **EXCEPT**: Finds rows in first set but not in second
+- **Optimization**:
+  - Sort-based set operations for large datasets
+  - Hash-based operations for memory-resident data
+  - Parallel set operations
 
-6. **Sort-Limit Optimization**:
-   - Converts sort + limit to top-N operation
-   - More efficient for retrieving top results
+### Window Functions and Analytics
 
-## Security Model
+#### **Window Function Processing**
 
-The system implements a role-based security model:
+- **Partition-Based**: Efficient partitioning with sort/hash
+- **Frame-Aware**: Optimized frame calculations
+- **Functions**: ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD
+- **Optimization**:
+  - Index-based partitioning when possible
+  - Incremental frame computation
+  - Memory-efficient sliding windows
 
-1. **User Authentication**:
-   - Password-based authentication
-   - Secure password hashing (SHA-256)
-   - Session-based authorization
+## Storage and Persistence
 
-2. **Role-Based Access Control**:
-   - Different user roles (admin, user)
-   - Permission checking for operations
-   - Query filtering based on user permissions
+### Storage Engine Integration
 
-3. **Session Management**:
-   - UUID-based session identifiers
-   - Session tracking on the server
-   - Session termination on logout
+#### **MongoDB Backend**
 
-## Storage Layer
+- **Document Storage**: Flexible schema with BSON format
+- **Index Integration**: Maps B+ tree indexes to MongoDB indexes
+- **Query Translation**: Converts SQL to MongoDB queries
+- **Optimization**:
+  - Connection pooling for concurrent access
+  - Bulk operations for large datasets
+  - Aggregation pipeline optimization
 
-pyHMSSQL uses MongoDB as its storage engine with these additions:
+#### **File System Storage**
 
-- **Metadata Collections**:
-  - `views` collection for view definitions
-  - `procedures` collection for stored procedure definitions
-  - `functions` collection for function definitions
-  - `triggers` collection for trigger definitions
+- **Index Files**: Serialized B+ trees stored on disk
+- **Log Files**: Transaction logs for recovery
+- **Temporary Files**: Spillover storage for large operations
+- **Optimization**:
+  - Sequential I/O patterns for better performance
+  - File-level locking for concurrency
+  - Compression for space efficiency
 
-- **In-Memory Storage**:
-  - Temporary tables stored in memory, linked to session ID
-  - Not persisted between server restarts
+## Performance Optimization Strategies
+
+### Cost-Based Optimization
+
+#### **Statistics Collection**
+
+- **Table Statistics**: Row count, data size, modification frequency
+- **Column Statistics**: Cardinality, data distribution, null percentage
+- **Index Statistics**: Index height, leaf page count, clustering factor
+- **Histogram Data**: Value distribution for accurate selectivity estimation
+
+#### **Query Plan Caching**
+
+- **Plan Cache**: Stores compiled plans for reuse
+- **Parameterized Plans**: Reusable plans with parameter substitution
+- **Adaptive Plans**: Plans that adjust based on runtime statistics
+- **Cache Management**: LRU eviction with cost-based prioritization
+
+#### **Adaptive Optimization**
+
+- **Runtime Statistics**: Collects actual vs. estimated cardinalities
+- **Plan Adjustment**: Modifies plans based on execution feedback
+- **Learning**: Improves future optimization decisions
+- **Monitoring**: Tracks query performance for optimization opportunities
+
+### Memory Management
+
+#### **Buffer Pool Management**
+
+- **Replacement Policies**: LRU, LFU, and Clock algorithms
+- **Prefetching**: Anticipates future page accesses
+- **Dirty Page Management**: Efficient write-back strategies
+- **Memory Allocation**: Dynamic allocation based on workload
+
+#### **Memory-Aware Processing**
+
+- **Spillover Handling**: Graceful degradation when memory is exhausted
+- **Memory Budgeting**: Allocates memory across concurrent operations
+- **Garbage Collection**: Efficient memory reclamation
+- **Memory Pools**: Reduces allocation overhead
+
+### Concurrency and Parallelism
+
+#### **Parallel Query Execution**
+
+- **Partition Parallelism**: Divides data across worker threads
+- **Pipeline Parallelism**: Overlaps different query stages
+- **Independent Parallelism**: Executes independent operations concurrently
+- **Resource Management**: Balanc`es CPU, memory, and I/O resources
+
+#### **Lock Management**
+
+- **Lock Granularity**: Row, page, and table-level locks
+- **Lock Modes**: Shared, exclusive, and intention locks
+- **Deadlock Prevention**: Lock ordering and timeout mechanisms
+- **Lock Escalation**: Converts fine-grained to coarse-grained locks
+
+## Security and Access Control
+
+### Authentication and Authorization
+
+#### **User Management**
+
+- **Password Security**: SHA-256 hashing with salt
+- **Session Management**: UUID-based session tokens
+- **Role-Based Access**: Admin and user roles with different permissions
+- **Session Timeout**: Automatic session expiration for security
+
+#### **Query-Level Security**
+
+- **Permission Checking**: Validates user access to tables and operations
+- **Query Filtering**: Restricts data access based on user permissions
+- **Audit Logging**: Tracks all database operations for security monitoring
+- **Data Masking**: Hides sensitive data from unauthorized users
+
+## Monitoring and Observability
+
+### Performance Monitoring
+
+#### **Query Performance**
+
+- **Execution Time Tracking**: Measures query execution time
+
+- **Resource Utilization**: Monitors CPU, memory, and I/O usage
+- **Cache Hit Ratios**: Tracks buffer pool and query cache effectiveness
+- **Index Usage Statistics**: Monitors index access patterns
+
+#### **System Health**
+
+- **Connection Monitoring**: Tracks active connections and connection pools
+- **Transaction Monitoring**: Monitors transaction duration and conflicts
+- **Error Tracking**: Logs and categorizes system errors
+- **Resource Alerts**: Warns about resource exhaustion
+
+### Debugging and Profiling
+
+#### **Query Profiling**
+
+- **Execution Plans**: Shows actual vs. estimated costs
+- **Timing Breakdown**: Details time spent in each operation
+- **Resource Usage**: Shows memory and CPU consumption per operation
+- **Cache Analysis**: Displays cache hit/miss ratios
+
+#### **System Profiling**
+
+- **Lock Contention**: Identifies locking bottlenecks
+- **I/O Patterns**: Analyzes disk access patterns
+- **Memory Usage**: Tracks memory allocation and usage
+- **Network Analysis**: Monitors client-server communication
 
 ## Communication Protocol
 
-The client and server communicate using a simple JSON-based protocol:
+The client and server communicate using an optimized JSON-based protocol:
 
-**Client Request Format:**
+**Enhanced Client Request Format:**
 
 ```json
 {
@@ -325,43 +496,86 @@ The client and server communicate using a simple JSON-based protocol:
   "session_id": "uuid",
   "db_name": "database_name",
   "table_name": "table_name",
-  "columns": { "column_name": {"type": "data_type"} },
+  "columns": { "column_name": {"type": "data_type", "constraints": []} },
   "index_name": "index_name",
   "column": "column_name",
-  "query": "SQL_QUERY"
+  "query": "SQL_QUERY",
+  "query_options": {
+    "timeout": 30000,
+    "result_limit": 1000,
+    "parallel_execution": true
+  }
 }
 ```
 
-**Server Response Format:**
+**Enhanced Server Response Format:**
 
 ```json
 {
   "response": "Success or error message or query results",
   "session_id": "uuid for login responses",
-  "role": "user role for login responses"
+  "role": "user role for login responses",
+  "execution_stats": {
+    "execution_time_ms": 150,
+    "rows_processed": 1000,
+    "cache_hit_ratio": 0.85,
+    "parallel_workers": 4
+  },
+  "warnings": ["List of warnings if any"]
 }
 ```
 
-## Special Features
+## Why These Optimizations Are Optimal
 
-1. Batch Processing:
-   -Execute multiple SQL commands from script files
-   -Process large operations efficiently
-2. Aggregation Functions:
-   -Implement AVG, MIN, MAX, SUM, COUNT operations
-   -Support for TOP N queries
-   -DISTINCT operation support
-3. Set Operations:
-   -UNION, INTERSECT, EXCEPT operations between query results
-   -Support for logical operations (AND, OR, NOT)
-4. Advanced Query Support:
-   -Subquery processing
-   -Join operations
-   -Filter conditions
-5. Transaction Support:
-   -Begin, commit, and rollback operations
-   -Transaction state tracking
-6. User Preferences:
-   -Configurable result limits
-   -Pretty printing options
-   -Per-user preference storage
+### 1. **Cost-Based Optimization**
+
+- **Adaptive**: Adjusts to actual data characteristics
+- **Statistical**: Uses real data distribution for accurate estimates
+- **Multi-Dimensional**: Considers CPU, I/O, and memory costs
+- **Feedback-Driven**: Learns from execution to improve future decisions
+
+### 2. **Hybrid Caching Strategy**
+
+- **Temporal and Frequency Locality**: LRU handles temporal patterns, LFU handles frequency patterns
+- **Adaptive Replacement**: Adjusts cache strategy based on workload
+- **Multi-Level**: Different caching strategies for different data types
+- **Cache-Aware Algorithms**: Designs algorithms to maximize cache efficiency
+
+### 3. **Parallel Processing**
+
+- **Resource-Aware**: Adapts parallelism to available system resources
+- **Load-Balanced**: Distributes work evenly across workers
+- **Scalable**: Scales with available CPU cores and memory
+- **Overhead-Conscious**: Minimizes coordination overhead
+
+### 4. **Index Optimization**
+
+- **Multi-Algorithm Support**: Uses the best algorithm for each scenario
+- **Compound Index Utilization**: Efficiently uses multi-column indexes
+- **Index-Only Operations**: Avoids table access when possible
+- **Dynamic Selection**: Chooses indexes based on query patterns
+
+### 5. **Memory Management**
+
+- **Adaptive Allocation**: Allocates memory based on operation requirements
+- **Spillover Handling**: Gracefully handles memory pressure
+- **Garbage Collection**: Minimizes memory fragmentation
+- **Pool Management**: Reduces allocation overhead
+
+### 6. **Transaction Processing**
+
+- **ACID Compliance**: Ensures data consistency and durability
+- **Deadlock Prevention**: Minimizes transaction conflicts
+- **Efficient Logging**: Optimizes transaction log performance
+- **Recovery Optimization**: Fast recovery after failures
+
+These optimizations work together to create a database system that:
+
+- **Adapts** to different workloads and data characteristics
+- **Scales** with available hardware resources
+- **Learns** from execution patterns to improve performance
+- **Balances** multiple competing performance factors
+- **Maintains** data consistency and durability
+- **Provides** predictable and optimal performance across various scenarios
+
+The modular architecture allows each component to be optimized independently while working together for overall system performance.

@@ -12,7 +12,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
  */
 public class ConnectionManager {
     private Socket socket;
+    @SuppressWarnings("unused")
     private PrintWriter writer;
+    @SuppressWarnings("unused")
     private BufferedReader reader;
     private String sessionId;
     private String currentDatabase;
@@ -102,10 +104,35 @@ public class ConnectionManager {
         Thread discoveryThread = new Thread(() -> {
             try {
                 // Create UDP socket for discovery
-                discoverySocket = new DatagramSocket(DISCOVERY_PORT);
+                discoverySocket = new DatagramSocket();
+                discoverySocket.setBroadcast(true);
                 discoverySocket.setSoTimeout(500); // Short timeout for responsive stopping
                 isDiscovering = true;
 
+                // Send discovery request
+                String discoveryMessage = "{\"action\":\"discover\",\"type\":\"HMSSQL_CLIENT\"}";
+                byte[] sendData = discoveryMessage.getBytes();
+
+                // Broadcast to common subnets
+                String[] broadcastAddresses = {
+                        "255.255.255.255",
+                        "192.168.1.255",
+                        "192.168.0.255",
+                        "10.0.0.255"
+                };
+
+                for (String broadcastAddr : broadcastAddresses) {
+                    try {
+                        InetAddress broadcast = InetAddress.getByName(broadcastAddr);
+                        DatagramPacket sendPacket = new DatagramPacket(
+                                sendData, sendData.length, broadcast, DISCOVERY_PORT);
+                        discoverySocket.send(sendPacket);
+                    } catch (Exception e) {
+                        // Ignore broadcast errors for specific subnets
+                    }
+                }
+
+                // Listen for responses
                 byte[] buffer = new byte[4096];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 
@@ -122,8 +149,8 @@ public class ConnectionManager {
                                     new TypeReference<Map<String, Object>>() {
                                     });
 
-                            if ("HMSSQL".equals(serverInfo.get("service"))) {
-                                String host = (String) serverInfo.get("host");
+                            if ("HMSSQL_SERVER".equals(serverInfo.get("type"))) {
+                                String host = packet.getAddress().getHostAddress();
                                 int port = (Integer) serverInfo.get("port");
                                 String name = (String) serverInfo.get("name");
 
@@ -190,6 +217,7 @@ public class ConnectionManager {
 
                     // If we got a tree structure, convert it to a flattened table format
                     if (response.containsKey("tree") && response.get("tree") instanceof List) {
+                        @SuppressWarnings("unchecked")
                         List<Map<String, Object>> tree = (List<Map<String, Object>>) response.get("tree");
                         List<List<String>> rows = new ArrayList<>();
 
@@ -197,6 +225,7 @@ public class ConnectionManager {
                         for (Map<String, Object> database : tree) {
                             String dbName = (String) database.get("name");
                             if (database.containsKey("children")) {
+                                @SuppressWarnings("unchecked")
                                 List<Map<String, Object>> tables = (List<Map<String, Object>>) database.get("children");
                                 for (Map<String, Object> table : tables) {
                                     List<String> row = new ArrayList<>();
@@ -359,7 +388,7 @@ public class ConnectionManager {
         return future;
     }
 
-    // Send data using the same protocol as Python's send_data
+    // Send data using the exact same protocol as Python's send_data
     private void sendDataToServer(Socket socket, Map<String, Object> data) throws IOException {
         // Add type field to match server expectations (same as action)
         if (data.containsKey("action") && !data.containsKey("type")) {
@@ -371,54 +400,81 @@ public class ConnectionManager {
         byte[] jsonBytes = jsonData.getBytes("UTF-8");
 
         if (debugMode) {
-            System.out.println("[DEBUG] Sending data to server: " + jsonData);
+            System.out.println("[DEBUG] Sending JSON: " + jsonData);
+            System.out.println("[DEBUG] JSON bytes length: " + jsonBytes.length);
         }
 
-        // Use buffered streams for more reliable transmission
-        BufferedOutputStream bos = new BufferedOutputStream(socket.getOutputStream());
+        // Send data with 4-byte length prefix (big-endian) like Python
+        // struct.pack('>I', length)
+        OutputStream os = socket.getOutputStream();
 
-        // Send the JSON data directly without length prefixing
-        bos.write(jsonBytes);
-        bos.flush();
+        // Send length as 4 bytes in big-endian format
+        int length = jsonBytes.length;
+        byte[] lengthBytes = new byte[4];
+        lengthBytes[0] = (byte) ((length >>> 24) & 0xFF);
+        lengthBytes[1] = (byte) ((length >>> 16) & 0xFF);
+        lengthBytes[2] = (byte) ((length >>> 8) & 0xFF);
+        lengthBytes[3] = (byte) (length & 0xFF);
+
+        os.write(lengthBytes);
+        os.write(jsonBytes);
+        os.flush();
 
         if (debugMode) {
-            System.out.println("[DEBUG] Data sent successfully");
+            System.out.println("[DEBUG] Data sent successfully with 4-byte length prefix: " + length);
         }
     }
 
-    // Receive data using the same protocol as Python's receive_data
+    // Receive data using the exact same protocol as Python's receive_data
     private Map<String, Object> receiveDataFromServer(Socket socket) throws IOException {
         try {
-            // Use buffered stream for more reliable reception
-            BufferedInputStream bis = new BufferedInputStream(socket.getInputStream());
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            InputStream is = socket.getInputStream();
 
-            // Read data in chunks until no more is available
-            byte[] chunk = new byte[4096];
-            int bytesRead;
-
-            while ((bytesRead = bis.read(chunk)) != -1) {
-                buffer.write(chunk, 0, bytesRead);
-                if (bytesRead < chunk.length) {
-                    break; // End of message when we get less than a full chunk
+            // Read 4-byte length prefix (big-endian)
+            byte[] lengthBytes = new byte[4];
+            int totalRead = 0;
+            while (totalRead < 4) {
+                int bytesRead = is.read(lengthBytes, totalRead, 4 - totalRead);
+                if (bytesRead == -1) {
+                    throw new IOException("Connection closed while reading length prefix");
                 }
+                totalRead += bytesRead;
             }
 
-            byte[] responseData = buffer.toByteArray();
-
-            if (responseData.length == 0) {
-                throw new IOException("No data received from server");
-            }
-
-            // Convert JSON to Map
-            String jsonData = new String(responseData, "UTF-8");
+            // Convert 4 bytes to int (big-endian)
+            int length = ((lengthBytes[0] & 0xFF) << 24) |
+                    ((lengthBytes[1] & 0xFF) << 16) |
+                    ((lengthBytes[2] & 0xFF) << 8) |
+                    (lengthBytes[3] & 0xFF);
 
             if (debugMode) {
-                System.out.println("[DEBUG] Received JSON from server: " + jsonData);
+                System.out.println("[DEBUG] Expected message length: " + length);
+            }
+
+            if (length <= 0 || length > 10 * 1024 * 1024) { // Max 10MB
+                throw new IOException("Invalid message length: " + length);
+            }
+
+            // Read exactly 'length' bytes of JSON data
+            byte[] jsonBytes = new byte[length];
+            totalRead = 0;
+            while (totalRead < length) {
+                int bytesRead = is.read(jsonBytes, totalRead, length - totalRead);
+                if (bytesRead == -1) {
+                    throw new IOException("Connection closed while reading message data");
+                }
+                totalRead += bytesRead;
+            }
+
+            String jsonData = new String(jsonBytes, "UTF-8");
+
+            if (debugMode) {
+                System.out.println("[DEBUG] Received JSON: " + jsonData);
             }
 
             return objectMapper.readValue(jsonData, new TypeReference<Map<String, Object>>() {
             });
+
         } catch (IOException e) {
             System.err.println("Error receiving data: " + e.getMessage());
             throw e;
@@ -430,6 +486,7 @@ public class ConnectionManager {
      * 
      * @return CompletableFuture with reconnection result
      */
+    @SuppressWarnings("unused")
     private synchronized CompletableFuture<Boolean> reconnect() {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
 
@@ -515,80 +572,6 @@ public class ConnectionManager {
         return future;
     }
 
-    private CompletableFuture<Map<String, Object>> sendRequest(Map<String, Object> request) {
-        CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
-
-        // Create a new thread to handle the request asynchronously
-        new Thread(() -> {
-            try {
-                // Add session ID if available
-                if (sessionId != null) {
-                    request.put("session_id", sessionId);
-                }
-
-                // Add type field to match server expectations (same as action)
-                if (request.containsKey("action") && !request.containsKey("type")) {
-                    request.put("type", request.get("action"));
-                }
-
-                if (debugMode) {
-                    System.out.println("[DEBUG] Preparing to send request: " + request);
-                }
-
-                // Check if we need to reconnect
-                boolean needsConnection = (socket == null || !socket.isConnected() || socket.isClosed());
-
-                if (needsConnection && autoReconnect && storedUsername != null) {
-                    if (debugMode) {
-                        System.out.println("[DEBUG] Connection lost, attempting reconnection");
-                    }
-
-                    // Try to reconnect
-                    Boolean reconnected = reconnect().get(); // Wait for reconnection
-
-                    if (!reconnected) {
-                        throw new IOException("Not connected to server. Automatic reconnection failed.");
-                    }
-                } else if (needsConnection) {
-                    throw new IOException("Not connected to server. Please log in first.");
-                }
-
-                // Create a new socket for each request (stateless protocol)
-                Socket requestSocket = new Socket();
-                requestSocket.setSoTimeout(15000);
-                requestSocket.connect(new InetSocketAddress(serverHost, serverPort), 5000);
-
-                if (debugMode) {
-                    System.out.println("[DEBUG] Request socket connected successfully");
-                }
-
-                // Use the temporary connection for this request
-                sendDataToServer(requestSocket, request);
-
-                // Receive and process response
-                Map<String, Object> response = receiveDataFromServer(requestSocket);
-
-                // Close the socket after the request is complete
-                requestSocket.close();
-
-                future.complete(response);
-            } catch (Exception e) {
-                System.err.println("Request error:");
-                e.printStackTrace();
-                Map<String, Object> error = new HashMap<>();
-                error.put("error", "Request error: " + e.getMessage());
-                future.complete(error);
-
-                // If connection issues occurred, notify listeners
-                if (e instanceof SocketException || e instanceof IOException) {
-                    notifyListeners(false);
-                }
-            }
-        }).start();
-
-        return future;
-    }
-
     public CompletableFuture<Map<String, Object>> connect(String username, String password) {
         CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
 
@@ -612,23 +595,20 @@ public class ConnectionManager {
                     System.out.println("[DEBUG] Login request payload: " + objectMapper.writeValueAsString(request));
                 }
 
-                // Create a new socket
+                // Create a new socket with appropriate settings
                 socket = new Socket();
-                socket.setSoTimeout(15000);
-                socket.connect(new InetSocketAddress(serverHost, serverPort), 5000);
+                socket.setSoTimeout(30000); // 30 second read timeout
+                socket.setTcpNoDelay(true); // Disable Nagle's algorithm for faster transmission
+                socket.connect(new InetSocketAddress(serverHost, serverPort), 10000); // 10 second connect timeout
 
                 if (debugMode) {
                     System.out.println("[DEBUG] Socket connected successfully.");
                 }
 
-                // Set up streams
-                writer = new PrintWriter(socket.getOutputStream(), true);
-                reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-                // Send login request
+                // Send login request using the binary protocol
                 sendDataToServer(socket, request);
 
-                // Receive response
+                // Receive response using the binary protocol
                 Map<String, Object> response = receiveDataFromServer(socket);
                 System.out.println("[DEBUG] Received login response: " + response);
 
@@ -636,20 +616,11 @@ public class ConnectionManager {
                 if (response.containsKey("session_id")) {
                     sessionId = (String) response.get("session_id");
                     notifyListeners(true);
-
-                    // We need to close this socket because the server will have closed it
-                    socket.close();
-
                     future.complete(response);
                 } else {
                     // If login failed, clean stored credentials
                     storedUsername = null;
                     storedPassword = null;
-
-                    // Close the socket
-                    socket.close();
-                    socket = null;
-
                     notifyListeners(false);
                     future.complete(response);
                 }
@@ -681,45 +652,84 @@ public class ConnectionManager {
         return future;
     }
 
-    public void disconnect() {
-        try {
-            if (socket != null && !socket.isClosed()) {
-                // Send logout request if we have a valid session
-                if (sessionId != null) {
-                    Map<String, Object> request = new HashMap<>();
-                    request.put("action", "logout");
-                    request.put("session_id", sessionId);
+    private CompletableFuture<Map<String, Object>> sendRequest(Map<String, Object> request) {
+        CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
 
+        // Create a new thread to handle the request asynchronously
+        new Thread(() -> {
+            Socket requestSocket = null;
+            try {
+                // Add session ID if available
+                if (sessionId != null) {
+                    request.put("session_id", sessionId);
+                }
+
+                // Add type field to match server expectations (same as action)
+                if (request.containsKey("action") && !request.containsKey("type")) {
+                    request.put("type", request.get("action"));
+                }
+
+                if (debugMode) {
+                    System.out.println("[DEBUG] Preparing to send request: " + request);
+                }
+
+                // Check if we have session credentials
+                if (sessionId == null) {
+                    throw new IOException("Not connected to server. Please log in first.");
+                }
+
+                // Create a NEW socket for each request (Python server closes after each
+                // response)
+                requestSocket = new Socket();
+                requestSocket.setSoTimeout(30000); // 30 second read timeout
+                requestSocket.setTcpNoDelay(true); // Disable Nagle's algorithm for faster transmission
+                requestSocket.connect(new InetSocketAddress(serverHost, serverPort), 10000);
+
+                if (debugMode) {
+                    System.out.println("[DEBUG] New request socket connected successfully");
+                }
+
+                // Use the new connection for this request
+                sendDataToServer(requestSocket, request);
+
+                // Receive and process response
+                Map<String, Object> response = receiveDataFromServer(requestSocket);
+
+                // Close the socket immediately after receiving response
+                requestSocket.close();
+
+                if (debugMode) {
+                    System.out.println("[DEBUG] Request completed successfully");
+                }
+
+                future.complete(response);
+            } catch (Exception e) {
+                System.err.println("Request error:");
+                e.printStackTrace();
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "Request error: " + e.getMessage());
+                future.complete(error);
+
+                // Clean up socket on error
+                if (requestSocket != null && !requestSocket.isClosed()) {
                     try {
-                        sendDataToServer(socket, request);
-                        // We don't need to wait for a response
-                    } catch (IOException e) {
-                        System.err.println("Error sending logout request: " + e.getMessage());
+                        requestSocket.close();
+                    } catch (IOException ioe) {
+                        System.err.println("Error closing request socket: " + ioe.getMessage());
                     }
                 }
 
-                socket.close();
-                socket = null;
+                // If connection issues occurred, notify listeners
+                if (e instanceof SocketException || e instanceof IOException) {
+                    notifyListeners(false);
+                }
             }
+        }).start();
 
-            if (writer != null) {
-                writer.close();
-                writer = null;
-            }
-
-            if (reader != null) {
-                reader.close();
-                reader = null;
-            }
-
-            sessionId = null;
-            notifyListeners(false);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        return future;
     }
 
-    // Helper method for executing queries - simplified
+    // Method for executing queries - simplified
     public CompletableFuture<Map<String, Object>> executeQuery(String sql) {
         Map<String, Object> request = new HashMap<>();
         request.put("action", "query");
@@ -745,35 +755,203 @@ public class ConnectionManager {
     }
 
     public CompletableFuture<Map<String, Object>> getDatabases() {
-        // Use a clean approach each time
         Map<String, Object> request = new HashMap<>();
         request.put("action", "query");
-        request.put("type", "query"); // Explicitly set type field
+        request.put("type", "query");
         request.put("query", "SHOW DATABASES");
 
-        return sendRequest(request);
+        return sendRequest(request)
+                .thenApply(response -> {
+                    if (debugMode) {
+                        System.out.println("[DEBUG] Raw database response: " + response);
+                    }
+
+                    // Check for errors first
+                    if (response.containsKey("error")) {
+                        return response;
+                    }
+
+                    // Check if it's already in the expected format
+                    if (response.containsKey("databases")) {
+                        return response;
+                    }
+
+                    // Check if it's in rows format and convert
+                    if (response.containsKey("rows")) {
+                        Object rowsObj = response.get("rows");
+                        List<String> databases = new ArrayList<>();
+
+                        if (rowsObj instanceof List) {
+                            @SuppressWarnings("unchecked")
+                            List<Object> rows = (List<Object>) rowsObj;
+
+                            for (Object rowObj : rows) {
+                                if (rowObj instanceof List) {
+                                    @SuppressWarnings("unchecked")
+                                    List<Object> row = (List<Object>) rowObj;
+                                    if (!row.isEmpty()) {
+                                        databases.add(row.get(0).toString());
+                                    }
+                                } else if (rowObj instanceof Map) {
+                                    @SuppressWarnings("unchecked")
+                                    Map<String, Object> rowMap = (Map<String, Object>) rowObj;
+                                    // Try common database column names
+                                    Object dbName = rowMap.get("Database") != null ? rowMap.get("Database")
+                                            : rowMap.get("database") != null ? rowMap.get("database")
+                                                    : rowMap.get("name") != null ? rowMap.get("name")
+                                                            : rowMap.values().iterator().next();
+                                    if (dbName != null) {
+                                        databases.add(dbName.toString());
+                                    }
+                                } else {
+                                    databases.add(rowObj.toString());
+                                }
+                            }
+                        }
+
+                        Map<String, Object> convertedResponse = new HashMap<>();
+                        convertedResponse.put("databases", databases);
+                        convertedResponse.put("status", "success");
+                        return convertedResponse;
+                    }
+
+                    // If no recognized format, return as-is
+                    return response;
+                });
     }
 
-    // Method for getting table list
+    // Method for getting table list - improved error handling
     public CompletableFuture<Map<String, Object>> getTables(String database) {
-        return executeQuery("USE " + database + "; SHOW TABLES");
+        String query = database != null && !database.isEmpty() ? "USE " + database + "; SHOW TABLES" : "SHOW TABLES";
+
+        return executeQuery(query)
+                .thenApply(response -> {
+                    if (debugMode) {
+                        System.out.println("[DEBUG] Raw tables response: " + response);
+                    }
+
+                    // Check for errors first
+                    if (response.containsKey("error")) {
+                        return response;
+                    }
+
+                    // Check if it's already in the expected format
+                    if (response.containsKey("tables")) {
+                        return response;
+                    }
+
+                    // Check if it's in rows format and convert
+                    if (response.containsKey("rows")) {
+                        Object rowsObj = response.get("rows");
+                        List<String> tables = new ArrayList<>();
+
+                        if (rowsObj instanceof List) {
+                            @SuppressWarnings("unchecked")
+                            List<Object> rows = (List<Object>) rowsObj;
+
+                            for (Object rowObj : rows) {
+                                if (rowObj instanceof List) {
+                                    @SuppressWarnings("unchecked")
+                                    List<Object> row = (List<Object>) rowObj;
+                                    if (!row.isEmpty()) {
+                                        tables.add(row.get(0).toString());
+                                    }
+                                } else if (rowObj instanceof Map) {
+                                    @SuppressWarnings("unchecked")
+                                    Map<String, Object> rowMap = (Map<String, Object>) rowObj;
+                                    // Try common table column names
+                                    Object tableName = rowMap.get("Table") != null ? rowMap.get("Table")
+                                            : rowMap.get("table") != null ? rowMap.get("table")
+                                                    : rowMap.get("name") != null ? rowMap.get("name")
+                                                            : rowMap.values().iterator().next();
+                                    if (tableName != null) {
+                                        tables.add(tableName.toString());
+                                    }
+                                } else {
+                                    tables.add(rowObj.toString());
+                                }
+                            }
+                        }
+
+                        Map<String, Object> convertedResponse = new HashMap<>();
+                        convertedResponse.put("tables", tables);
+                        convertedResponse.put("status", "success");
+                        return convertedResponse;
+                    }
+
+                    // If no recognized format, return as-is
+                    return response;
+                });
     }
 
     // Method for getting columns of a table
     public CompletableFuture<Map<String, Object>> getColumns(String database, String table) {
-        return executeQuery("USE " + database + "; DESCRIBE " + table);
-    }
+        return executeQuery("USE " + database + "; DESCRIBE " + table)
+                .thenApply(response -> {
+                    if (debugMode) {
+                        System.out.println("[DEBUG] Raw columns response: " + response);
+                    }
 
-    // Method for setting current database
-    public void setCurrentDatabase(String database) {
-        this.currentDatabase = database;
-        // Asynchronously set the database on the server
-        executeQuery("USE " + database);
-    }
+                    // Check for errors first
+                    if (response.containsKey("error")) {
+                        return response;
+                    }
 
-    // Method for getting current database
-    public String getCurrentDatabase() {
-        return currentDatabase;
+                    // Check if it's already in the expected format
+                    if (response.containsKey("columns")) {
+                        return response;
+                    }
+
+                    // Check if it's in rows format and convert
+                    if (response.containsKey("rows")) {
+                        Object rowsObj = response.get("rows");
+                        List<Map<String, Object>> columns = new ArrayList<>();
+
+                        if (rowsObj instanceof List) {
+                            @SuppressWarnings("unchecked")
+                            List<Object> rows = (List<Object>) rowsObj;
+
+                            for (Object rowObj : rows) {
+                                Map<String, Object> columnInfo = new HashMap<>();
+
+                                if (rowObj instanceof List) {
+                                    @SuppressWarnings("unchecked")
+                                    List<Object> row = (List<Object>) rowObj;
+                                    if (row.size() >= 2) {
+                                        columnInfo.put("name", row.get(0).toString());
+                                        columnInfo.put("type", row.get(1).toString());
+                                        if (row.size() >= 3) {
+                                            columnInfo.put("nullable", row.get(2));
+                                        }
+                                        if (row.size() >= 4) {
+                                            columnInfo.put("primary_key", row.get(3));
+                                        }
+                                    }
+                                } else if (rowObj instanceof Map) {
+                                    @SuppressWarnings("unchecked")
+                                    Map<String, Object> rowMap = (Map<String, Object>) rowObj;
+                                    columnInfo.putAll(rowMap);
+                                } else {
+                                    // Single value, assume it's the column name
+                                    columnInfo.put("name", rowObj.toString());
+                                    columnInfo.put("type", "VARCHAR");
+                                }
+
+                                if (!columnInfo.isEmpty()) {
+                                    columns.add(columnInfo);
+                                }
+                            }
+                        }
+
+                        Map<String, Object> convertedResponse = new HashMap<>();
+                        convertedResponse.put("columns", columns);
+                        convertedResponse.put("status", "success");
+                        return convertedResponse;
+                    }
+
+                    // If no recognized format, return as-is
+                    return response;
+                });
     }
 
     // New methods to support visual query builder features
@@ -799,65 +977,54 @@ public class ConnectionManager {
         return executeQuery(query);
     }
 
-    public CompletableFuture<Map<String, Object>> startTransaction() {
-        return executeQuery("BEGIN TRANSACTION");
+    /**
+     * Set the current database context
+     * 
+     * @param database Database name
+     */
+    public void setCurrentDatabase(String database) {
+        this.currentDatabase = database;
+        if (debugMode) {
+            System.out.println("[DEBUG] Current database set to: " + database);
+        }
     }
 
-    public CompletableFuture<Map<String, Object>> commitTransaction() {
-        return executeQuery("COMMIT TRANSACTION");
+    /**
+     * Get the current database context
+     * 
+     * @return Current database name or null if not set
+     */
+    public String getCurrentDatabase() {
+        return this.currentDatabase;
     }
 
+    /**
+     * Get server information
+     * 
+     * @return CompletableFuture containing server info
+     */
+    public CompletableFuture<Map<String, Object>> getServerInfo() {
+        return executeQuery("SHOW SERVER INFO");
+    }
+
+    /**
+     * Rollback current transaction
+     * 
+     * @return CompletableFuture containing the result
+     */
     public CompletableFuture<Map<String, Object>> rollbackTransaction() {
         return executeQuery("ROLLBACK TRANSACTION");
     }
 
-    public CompletableFuture<Map<String, Object>> executeSetOperation(String type, String leftQuery,
-            String rightQuery) {
-        String setQuery = "(" + leftQuery + ") " + type + " (" + rightQuery + ")";
-        return executeQuery(setQuery);
-    }
-
-    public CompletableFuture<Map<String, Object>> getPreference(String name) {
-        return executeQuery("GET PREFERENCE " + name);
-    }
-
-    public CompletableFuture<Map<String, Object>> setPreference(String name, String value) {
-        return executeQuery("SET PREFERENCE " + name + " " + value);
-    }
-
     /**
-     * Enable or disable debug mode
+     * Set a single preference
      * 
-     * @param debug Whether to enable debug mode
+     * @param key   Preference key
+     * @param value Preference value (already formatted as needed)
+     * @return CompletableFuture containing the result
      */
-    public void setDebugMode(boolean debug) {
-        this.debugMode = debug;
-    }
-
-    /**
-     * Check if debug mode is enabled
-     * 
-     * @return Whether debug mode is enabled
-     */
-    public boolean isDebugMode() {
-        return debugMode;
-    }
-
-    /**
-     * Enable or disable automatic reconnection
-     * 
-     * @param autoReconnect Whether to automatically reconnect
-     */
-    public void setAutoReconnect(boolean autoReconnect) {
-        this.autoReconnect = autoReconnect;
-    }
-
-    /**
-     * Check if auto reconnect is enabled
-     * 
-     * @return Whether auto reconnect is enabled
-     */
-    public boolean isAutoReconnect() {
-        return autoReconnect;
+    public CompletableFuture<Map<String, Object>> setPreference(String key, String value) {
+        String query = "SET PREFERENCE " + key + " " + value;
+        return executeQuery(query);
     }
 }

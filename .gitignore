@@ -10,3 +10,4 @@ logs/
 indexes/
 data/
 results.log
+hsqlparser

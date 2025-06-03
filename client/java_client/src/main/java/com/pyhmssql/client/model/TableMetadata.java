@@ -2,81 +2,57 @@ package com.pyhmssql.client.model;
 
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.Map;
 
 /**
- * Model class representing a database table's metadata
+ * Represents metadata for a database table
  */
 public class TableMetadata {
-    private final String name;
-    private final List<ColumnMetadata> columns;
-    
+    private String name;
+    private List<ColumnMetadata> columns;
+
     public TableMetadata(String name, List<ColumnMetadata> columns) {
         this.name = name;
         this.columns = columns != null ? columns : new ArrayList<>();
     }
-    
+
     public String getName() {
         return name;
     }
-    
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
     public List<ColumnMetadata> getColumns() {
         return columns;
     }
-    
-    /**
-     * Get a column by name
-     * @param columnName The name of the column to retrieve
-     * @return The column metadata, or null if not found
-     */
-    public ColumnMetadata getColumn(String columnName) {
-        if (columnName == null) return null;
-        
-        return columns.stream()
-            .filter(col -> columnName.equals(col.getName()))
-            .findFirst()
-            .orElse(null);
+
+    public void setColumns(List<ColumnMetadata> columns) {
+        this.columns = columns;
     }
 
-    public static TableMetadata fromColumnsData(String tableName, List<Map<String, Object>> columnsData) {
-        List<ColumnMetadata> columns = columnsData.stream()
-            .map(data -> new ColumnMetadata(
-                (String) data.get("name"),
-                (String) data.get("type"),
-                (Boolean) data.getOrDefault("primary_key", false),
-                (Boolean) data.getOrDefault("nullable", true)
-            ))
-            .collect(Collectors.toList());
-        
-        return new TableMetadata(tableName, columns);
-    }
-    
     /**
-     * Checks if the table has a column with the specified name
-     * @param columnName The column name to check
-     * @return true if the column exists, false otherwise
+     * Creates TableMetadata from columns data received from server
+     * 
+     * @param tableName   Name of the table
+     * @param columnsData List of column data maps
+     * @return TableMetadata instance
      */
-    public boolean hasColumn(String columnName) {
-        return getColumn(columnName) != null;
-    }
-    
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TableMetadata that = (TableMetadata) o;
-        return Objects.equals(name, that.name);
-    }
-    
-    @Override
-    public int hashCode() {
-        return Objects.hash(name);
-    }
-    
-    @Override
-    public String toString() {
-        return name;
+    public static TableMetadata fromColumnsData(String tableName, List<Map<String, Object>> columnsData) {
+        List<ColumnMetadata> columns = new ArrayList<>();
+
+        if (columnsData != null) {
+            for (Map<String, Object> columnData : columnsData) {
+                String name = (String) columnData.get("name");
+                String type = (String) columnData.get("type");
+                boolean primaryKey = (Boolean) columnData.getOrDefault("primary_key", false);
+                boolean nullable = (Boolean) columnData.getOrDefault("nullable", true);
+
+                columns.add(new ColumnMetadata(name, type, primaryKey, nullable));
+            }
+        }
+
+        return new TableMetadata(tableName, columns);
     }
 }

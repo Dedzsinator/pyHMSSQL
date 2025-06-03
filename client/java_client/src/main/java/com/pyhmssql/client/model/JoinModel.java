@@ -1,153 +1,133 @@
 package com.pyhmssql.client.model;
 
-import java.util.Objects;
-
 /**
- * Model class representing a join between two tables
+ * Model representing a JOIN operation in a query
  */
 public class JoinModel {
     public enum JoinType {
         INNER("INNER JOIN"),
         LEFT("LEFT JOIN"),
         RIGHT("RIGHT JOIN"),
-        FULL("FULL JOIN");
-        
+        FULL("FULL JOIN"),
+        CROSS("CROSS JOIN");
+
         private final String sql;
-        
+
         JoinType(String sql) {
             this.sql = sql;
         }
-        
+
         public String getSql() {
             return sql;
         }
-        
-        /**
-         * Convert a string to a JoinType
-         * @param type The string representation of the join type
-         * @return The corresponding JoinType enum value
-         */
-        public static JoinType fromString(String type) {
-            if (type == null || type.isEmpty()) {
+
+        public static JoinType fromString(String joinTypeStr) {
+            if (joinTypeStr == null || joinTypeStr.isEmpty()) {
                 return INNER;
             }
-            
-            for (JoinType joinType : values()) {
-                if (joinType.name().equalsIgnoreCase(type) || 
-                    joinType.getSql().equalsIgnoreCase(type)) {
-                    return joinType;
-                }
+
+            String normalized = joinTypeStr.trim().toUpperCase().replace(" ", "_");
+
+            try {
+                return JoinType.valueOf(normalized);
+            } catch (IllegalArgumentException e) {
+                // If exact match fails, try partial matches
+                if (normalized.contains("LEFT"))
+                    return LEFT;
+                if (normalized.contains("RIGHT"))
+                    return RIGHT;
+                if (normalized.contains("FULL"))
+                    return FULL;
+                if (normalized.contains("CROSS"))
+                    return CROSS;
+                if (normalized.contains("INNER"))
+                    return INNER;
+
+                // Default to INNER JOIN
+                return INNER;
             }
-            
-            return INNER;
-        }
-        
-        @Override
-        public String toString() {
-            return sql;
         }
     }
-    
-    private JoinType type;
+
+    private JoinType joinType;
     private String leftTable;
     private String leftColumn;
     private String rightTable;
     private String rightColumn;
-    
-    public JoinModel(JoinType type, String leftTable, String leftColumn, 
-                     String rightTable, String rightColumn) {
-        this.type = type;
+
+    public JoinModel(JoinType joinType, String leftTable, String leftColumn,
+            String rightTable, String rightColumn) {
+        this.joinType = joinType;
         this.leftTable = leftTable;
         this.leftColumn = leftColumn;
         this.rightTable = rightTable;
         this.rightColumn = rightColumn;
     }
-    
-    public JoinType getType() {
-        return type;
-    }
-    
-    /**
-     * Set the join type
-     * @param type The JoinType enum value
-     */
-    public void setType(JoinType type) {
-        this.type = type;
+
+    // String constructor for backward compatibility
+    public JoinModel(String joinType, String leftTable, String leftColumn,
+            String rightTable, String rightColumn) {
+        this.joinType = JoinType.valueOf(joinType.replace(" ", "_").toUpperCase());
+        this.leftTable = leftTable;
+        this.leftColumn = leftColumn;
+        this.rightTable = rightTable;
+        this.rightColumn = rightColumn;
     }
 
-    /**
-     * Set the join type from a string representation
-     * @param typeStr String representation of join type
-     */
-    public void setJoinType(String typeStr) {
-        this.type = JoinType.fromString(typeStr);
+    // Getters and setters
+    public JoinType getJoinType() {
+        return joinType;
     }
-    
+
+    public void setJoinType(JoinType joinType) {
+        this.joinType = joinType;
+    }
+
     public String getLeftTable() {
         return leftTable;
     }
-    
+
     public void setLeftTable(String leftTable) {
         this.leftTable = leftTable;
     }
-    
+
     public String getLeftColumn() {
         return leftColumn;
     }
-    
+
     public void setLeftColumn(String leftColumn) {
         this.leftColumn = leftColumn;
     }
-    
+
     public String getRightTable() {
         return rightTable;
     }
-    
+
     public void setRightTable(String rightTable) {
         this.rightTable = rightTable;
     }
-    
+
     public String getRightColumn() {
         return rightColumn;
     }
-    
+
     public void setRightColumn(String rightColumn) {
         this.rightColumn = rightColumn;
     }
-    
+
     /**
-     * Generates the SQL JOIN clause
-     * @return SQL representation of this JOIN
+     * Generate SQL representation of this join
+     * 
+     * @return SQL string
      */
     public String toSql() {
-        return type.getSql() + " " + rightTable + " ON " +
-               leftTable + "." + leftColumn + " = " +
-               rightTable + "." + rightColumn;
+        return joinType.getSql() + " " + rightTable + " ON " +
+                leftTable + "." + leftColumn + " = " +
+                rightTable + "." + rightColumn;
     }
-    
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        JoinModel joinModel = (JoinModel) o;
-        return Objects.equals(leftTable, joinModel.leftTable) &&
-               Objects.equals(leftColumn, joinModel.leftColumn) &&
-               Objects.equals(rightTable, joinModel.rightTable) &&
-               Objects.equals(rightColumn, joinModel.rightColumn);
-    }
-    
-    @Override
-    public int hashCode() {
-        return Objects.hash(leftTable, leftColumn, rightTable, rightColumn);
-    }
-    
+
     @Override
     public String toString() {
-        return leftTable + "." + leftColumn + " " + 
-               type.toString() + " " + 
-               rightTable + "." + rightColumn;
+        return toSql();
     }
-    
-    // Remove this duplicate static method - it's already in the JoinType enum
-    // public static JoinType fromString(String type) { ... }
 }

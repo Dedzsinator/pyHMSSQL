@@ -1,9 +1,7 @@
 package com.pyhmssql.client.model;
 
-import java.util.Objects;
-
 /**
- * Model class representing a column selection in a query
+ * Model representing a column selection in a query
  */
 public class ColumnSelectionModel {
     public enum AggregateFunction {
@@ -13,138 +11,159 @@ public class ColumnSelectionModel {
         AVG("AVG"),
         MIN("MIN"),
         MAX("MAX");
-        
+
         private final String sql;
-        
+
         AggregateFunction(String sql) {
             this.sql = sql;
         }
-        
+
         public String getSql() {
             return sql;
         }
-        
-        public static AggregateFunction fromString(String value) {
-            if (value == null || value.isEmpty()) {
-                return NONE;
-            }
-            
-            for (AggregateFunction func : values()) {
-                if (func.getSql().equalsIgnoreCase(value)) {
-                    return func;
-                }
-            }
-            return NONE;
-        }
-        
-        @Override
-        public String toString() {
-            return sql;
-        }
     }
-    
-    private final String table;
-    private final String column;
+
+    private String table;
+    private String column;
     private String alias;
-    private AggregateFunction aggregate;
     private boolean selected;
-    
+    private String insertValue;
+    private String updateValue;
+    private AggregateFunction aggregateFunction;
+
     public ColumnSelectionModel(String table, String column) {
-        this(table, column, "", AggregateFunction.NONE, true);
-    }
-    
-    public ColumnSelectionModel(String table, String column, String alias, 
-                                AggregateFunction aggregate, boolean selected) {
         this.table = table;
         this.column = column;
-        this.alias = alias;
-        this.aggregate = aggregate;
-        this.selected = selected;
+        this.selected = true;
+        this.alias = "";
+        this.insertValue = "";
+        this.updateValue = "";
+        this.aggregateFunction = AggregateFunction.NONE;
     }
-    
+
+    // Additional constructor to match usage in controllers
+    public ColumnSelectionModel(String table, String column, String alias, AggregateFunction aggregateFunction,
+            boolean selected) {
+        this.table = table;
+        this.column = column;
+        this.alias = alias != null ? alias : "";
+        this.selected = selected;
+        this.insertValue = "";
+        this.updateValue = "";
+        this.aggregateFunction = aggregateFunction != null ? aggregateFunction : AggregateFunction.NONE;
+    }
+
+    // Getters and setters
     public String getTable() {
         return table;
     }
-    
+
+    public void setTable(String table) {
+        this.table = table;
+    }
+
     public String getColumn() {
         return column;
     }
-    
+
+    public void setColumn(String column) {
+        this.column = column;
+    }
+
     public String getAlias() {
         return alias;
     }
-    
+
     public void setAlias(String alias) {
-        this.alias = alias != null ? alias : "";
+        this.alias = alias;
     }
-    
-    public AggregateFunction getAggregate() {
-        return aggregate;
-    }
-    
-    public void setAggregate(AggregateFunction aggregate) {
-        this.aggregate = aggregate;
-    }
-    
-    public void setAggregate(String aggregateStr) {
-        this.aggregate = AggregateFunction.fromString(aggregateStr);
-    }
-    
+
     public boolean isSelected() {
         return selected;
     }
-    
+
     public void setSelected(boolean selected) {
         this.selected = selected;
     }
-    
+
+    public String getInsertValue() {
+        return insertValue;
+    }
+
+    public void setInsertValue(String insertValue) {
+        this.insertValue = insertValue;
+    }
+
+    public String getUpdateValue() {
+        return updateValue;
+    }
+
+    public void setUpdateValue(String updateValue) {
+        this.updateValue = updateValue;
+    }
+
+    public AggregateFunction getAggregateFunction() {
+        return aggregateFunction;
+    }
+
+    public void setAggregateFunction(AggregateFunction aggregateFunction) {
+        this.aggregateFunction = aggregateFunction;
+    }
+
+    // Add setAggregate method for backward compatibility
+    public void setAggregate(AggregateFunction aggregateFunction) {
+        this.aggregateFunction = aggregateFunction;
+    }
+
+    // String version for convenience
+    public void setAggregateFunction(String aggregateFunction) {
+        if (aggregateFunction == null || aggregateFunction.isEmpty()) {
+            this.aggregateFunction = AggregateFunction.NONE;
+        } else {
+            try {
+                this.aggregateFunction = AggregateFunction.valueOf(aggregateFunction.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                this.aggregateFunction = AggregateFunction.NONE;
+            }
+        }
+    }
+
+    // Legacy getValue method for backward compatibility
+    public String getValue() {
+        return insertValue;
+    }
+
+    public void setValue(String value) {
+        this.insertValue = value;
+    }
+
     /**
-     * Generates the SQL column expression
-     * @return SQL representation of this column selection
+     * Generate SQL representation of this column selection
+     * 
+     * @return SQL string
      */
     public String toSql() {
         StringBuilder sql = new StringBuilder();
-        
-        // Add aggregate function if present
-        if (aggregate != AggregateFunction.NONE) {
-            sql.append(aggregate.getSql()).append("(");
+
+        if (aggregateFunction != AggregateFunction.NONE) {
+            sql.append(aggregateFunction.getSql()).append("(");
         }
-        
-        // Add table and column
+
         sql.append(table).append(".").append(column);
-        
-        // Close aggregate function if present
-        if (aggregate != AggregateFunction.NONE) {
+
+        if (aggregateFunction != AggregateFunction.NONE) {
             sql.append(")");
         }
-        
-        // Add alias if present
+
         if (alias != null && !alias.isEmpty()) {
             sql.append(" AS ").append(alias);
         }
-        
+
         return sql.toString();
     }
-    
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ColumnSelectionModel that = (ColumnSelectionModel) o;
-        return Objects.equals(table, that.table) && 
-               Objects.equals(column, that.column);
-    }
-    
-    @Override
-    public int hashCode() {
-        return Objects.hash(table, column);
-    }
-    
+
     @Override
     public String toString() {
-        return (aggregate != AggregateFunction.NONE ? aggregate + "(" : "") +
-               table + "." + column +
-               (aggregate != AggregateFunction.NONE ? ")" : "") +
-               (alias != null && !alias.isEmpty() ? " AS " + alias : "");
+        return table + "." + column + (alias.isEmpty() ? "" : " AS " + alias);
     }
 }

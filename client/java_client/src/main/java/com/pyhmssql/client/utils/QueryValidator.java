@@ -11,67 +11,68 @@ import java.util.List;
  * Utility class for validating query models
  */
 public class QueryValidator {
-    
+
     /**
      * Validate a query model
+     * 
      * @param queryModel The model to validate
      * @return List of validation error messages, empty if valid
      */
     public static List<String> validate(QueryModel queryModel) {
         List<String> errors = new ArrayList<>();
-        
+
         // Check database
         if (queryModel.getDatabase() == null || queryModel.getDatabase().isEmpty()) {
             errors.add("No database selected");
         }
-        
+
         // Check tables
         if (queryModel.getTables().isEmpty()) {
             errors.add("No tables selected");
         }
-        
+
         // For SELECT queries, validate projections
         if (queryModel.getType() == QueryModel.QueryType.SELECT) {
             validateSelectQuery(queryModel, errors);
         }
-        
+
         // For UPDATE queries
         else if (queryModel.getType() == QueryModel.QueryType.UPDATE) {
             validateUpdateQuery(queryModel, errors);
         }
-        
+
         // For DELETE queries
         else if (queryModel.getType() == QueryModel.QueryType.DELETE) {
             validateDeleteQuery(queryModel, errors);
         }
-        
+
         // For INSERT queries
         else if (queryModel.getType() == QueryModel.QueryType.INSERT) {
             validateInsertQuery(queryModel, errors);
         }
-        
+
         return errors;
     }
-    
+
     /**
      * Validate a SELECT query
      */
     private static void validateSelectQuery(QueryModel queryModel, List<String> errors) {
         // Validate columns
         List<ColumnSelectionModel> selectedColumns = queryModel.getColumns().stream()
-            .filter(ColumnSelectionModel::isSelected)
-            .toList();
-            
+                .filter(ColumnSelectionModel::isSelected)
+                .toList();
+
         if (selectedColumns.isEmpty()) {
             errors.add("No columns selected for projection");
         }
-        
+
         // Validate joins if multiple tables
         if (queryModel.getTables().size() > 1) {
             validateJoins(queryModel, errors);
         }
     }
-    
+
     /**
      * Validate an UPDATE query
      */
@@ -80,13 +81,13 @@ public class QueryValidator {
         if (queryModel.getTables().size() > 1) {
             errors.add("UPDATE queries should have only one table");
         }
-        
+
         // Check for at least one column to update
         if (queryModel.getColumns().isEmpty()) {
             errors.add("No columns selected for update");
         }
     }
-    
+
     /**
      * Validate a DELETE query
      */
@@ -95,13 +96,13 @@ public class QueryValidator {
         if (queryModel.getTables().size() > 1) {
             errors.add("DELETE queries should have only one table");
         }
-        
+
         // Check for WHERE clause (safety check)
         if (queryModel.getWhereConditions().isEmpty()) {
             errors.add("WARNING: DELETE without WHERE will affect all rows");
         }
     }
-    
+
     /**
      * Validate an INSERT query
      */
@@ -110,43 +111,43 @@ public class QueryValidator {
         if (queryModel.getTables().size() > 1) {
             errors.add("INSERT queries should have only one table");
         }
-        
+
         // Check for at least one column
         if (queryModel.getColumns().isEmpty()) {
             errors.add("No columns selected for insert");
         }
     }
-    
+
     /**
      * Validate joins between tables
      */
     private static void validateJoins(QueryModel queryModel, List<String> errors) {
         List<String> tables = queryModel.getTables();
         List<JoinModel> joins = queryModel.getJoins();
-        
+
         // Check if all tables are joined
         if (tables.size() > 1 && joins.isEmpty()) {
             errors.add("Multiple tables selected but no joins defined");
             return;
         }
-        
+
         // Create a list of joined tables
         List<String> joinedTables = new ArrayList<>();
-        
+
         // Add the first table to start with
         if (!tables.isEmpty()) {
             joinedTables.add(tables.get(0));
         }
-        
+
         // Check each join to see if it connects to a table we've already joined
         boolean progress;
         do {
             progress = false;
-            
+
             for (JoinModel join : joins) {
                 String leftTable = join.getLeftTable();
                 String rightTable = join.getRightTable();
-                
+
                 if (joinedTables.contains(leftTable) && !joinedTables.contains(rightTable)) {
                     joinedTables.add(rightTable);
                     progress = true;
@@ -156,12 +157,59 @@ public class QueryValidator {
                 }
             }
         } while (progress);
-        
+
         // Check if all tables are now joined
         for (String table : tables) {
             if (!joinedTables.contains(table)) {
                 errors.add("Table '" + table + "' is not joined with other tables");
             }
         }
+    }
+
+    /**
+     * Validate SQL syntax for basic errors
+     * 
+     * @param sql SQL string to validate
+     * @return List of syntax errors
+     */
+    public static List<String> validateSqlSyntax(String sql) {
+        List<String> errors = new ArrayList<>();
+
+        if (sql == null || sql.trim().isEmpty()) {
+            errors.add("Query cannot be empty");
+            return errors;
+        }
+
+        // Basic syntax checks
+        String trimmed = sql.trim().toUpperCase();
+
+        // Check for balanced parentheses
+        int openParens = 0;
+        for (char c : sql.toCharArray()) {
+            if (c == '(')
+                openParens++;
+            if (c == ')')
+                openParens--;
+            if (openParens < 0) {
+                errors.add("Unmatched closing parenthesis");
+                break;
+            }
+        }
+        if (openParens > 0) {
+            errors.add("Unmatched opening parenthesis");
+        }
+
+        // Check for valid SQL statement start
+        if (!trimmed.startsWith("SELECT") && !trimmed.startsWith("INSERT") &&
+                !trimmed.startsWith("UPDATE") && !trimmed.startsWith("DELETE") &&
+                !trimmed.startsWith("CREATE") && !trimmed.startsWith("DROP") &&
+                !trimmed.startsWith("ALTER") && !trimmed.startsWith("SHOW") &&
+                !trimmed.startsWith("USE") && !trimmed.startsWith("DESCRIBE") &&
+                !trimmed.startsWith("BEGIN") && !trimmed.startsWith("COMMIT") &&
+                !trimmed.startsWith("ROLLBACK")) {
+            errors.add("Invalid SQL statement type");
+        }
+
+        return errors;
     }
 }

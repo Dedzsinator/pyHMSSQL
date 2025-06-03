@@ -1,0 +1,26 @@
+name: hsqlparser
+version: 0.1.0.0
+description: Haskell SQL parser for pyHMSSQL
+license: MIT
+author: pyHMSSQL Team
+maintainer: pyhmssql@example.com
+category: Database
+
+dependencies:
+  - base >= 4.7 && < 5
+  - aeson >= 2.0
+  - megaparsec >= 9.0
+  - parser-combinators >= 1.0
+  - text >= 1.2
+  - bytestring >= 0.10
+  - containers >= 0.6
+
+executables:
+  hsqlparser:
+    main: parser.hs
+    source-dirs: .
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+      - -O2
