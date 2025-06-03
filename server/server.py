@@ -611,7 +611,7 @@ class DBMSServer:
         return {"error": "Unknown node command", "status": "error"}
 
     def handle_query(self, query, session_id=None, user=None):
-        """Handle a query request with enhanced optimization."""
+        """Handle a SQL query and return the result."""
         start_time = time.time()
         if not query:
             return {"error": "No query provided", "status": "error"}
@@ -701,11 +701,44 @@ class DBMSServer:
             # Log execution time
             logging.info(f"⏱️ Query executed in {duration*1000:.2f} ms")
 
+            # CRITICAL FIX: Format JOIN results properly
+            if isinstance(result, list) and result and isinstance(result[0], dict):
+                # This is a JOIN result or similar list of records
+                if not result:
+                    return {"rows": [], "columns": [], "status": "success"}
+                
+                # Get all unique columns from all records
+                all_columns = set()
+                for record in result:
+                    all_columns.update(record.keys())
+                
+                # Sort columns for consistent display
+                columns = sorted(list(all_columns))
+                
+                # Convert records to rows format
+                rows = []
+                for record in result:
+                    row = []
+                    for col in columns:
+                        value = record.get(col)
+                        # Handle None values
+                        if value is None:
+                            row.append("NULL")
+                        else:
+                            row.append(str(value))
+                    rows.append(row)
+                
+                return {
+                    "rows": rows,
+                    "columns": columns,
+                    "status": "success"
+                }
+            
             return result
+            
         except Exception as e:
-            logging.error(f"Error executing query: {str(e)}")
-            logging.error(traceback.format_exc())
-            return {"error": f"Error executing query: {str(e)}", "status": "error"}
+            logging.error(f"Error handling query: {str(e)}")
+            return {"error": f"Query execution failed: {str(e)}", "status": "error"}
 
     def shutdown(self):
         """Perform clean shutdown tasks."""
@@ -737,51 +770,86 @@ class DBMSServer:
             return
 
         # First check if there's a simple message to display
-        if "message" in result:
+        if isinstance(result, dict) and "message" in result:
             print(result["message"])
             return
 
-        # Then check for rows and columns (table data)
-        if "rows" in result and "columns" in result:
-            # Display results as a table
+        # Handle list of dictionaries (should be converted by handle_query now)
+        if isinstance(result, list) and result and isinstance(result[0], dict):
+            # This shouldn't happen anymore with the fix, but keep as fallback
+            if not result:
+                print("0 row(s) returned")
+                return
+            
+            # Get all unique columns from all records
+            all_columns = set()
+            for record in result:
+                all_columns.update(record.keys())
+            
+            # Sort columns for consistent display
+            columns = sorted(list(all_columns))
+            
+            # Prepare rows data
+            rows = []
+            for record in result:
+                row = []
+                for col in columns:
+                    value = record.get(col)
+                    # Handle None values
+                    if value is None:
+                        row.append("NULL")
+                    else:
+                        row.append(str(value))
+                rows.append(row)
+        
+        # Then check for rows and columns (table data) - this should be the main path now
+        elif isinstance(result, dict) and "rows" in result and "columns" in result:
             columns = result["columns"]
             rows = result["rows"]
-
-            # Calculate column widths
-            col_widths = [len(str(col)) for col in columns]
-            for row in rows:
-                for i, cell in enumerate(row):
-                    if i < len(col_widths):
-                        col_widths[i] = max(col_widths[i], len(str(cell)))
-
-            # Print header
-            header = " | ".join(
-                str(col).ljust(col_widths[i]) for i, col in enumerate(columns)
-            )
-            separator = "-+-".join("-" * width for width in col_widths)
-            print(header)
-            print(separator)
-
-            # Print rows
-            for row in rows:
-                row_str = " | ".join(
-                    str(cell).ljust(col_widths[i]) if i < len(
-                        col_widths) else str(cell)
-                    for i, cell in enumerate(row)
-                )
-                print(row_str)
-
-            print("\n{%i row(s) returned", len(rows))
-        # Handle error messages
-        elif "error" in result:
-            print(f"Error: {str(result['error'])}")
-        # Handle any other data formats
         else:
-            # If it's just key-value pairs without a clear format, print them nicely
-            for key, value in result.items():
-                if key not in ["status", "type"]:  # Skip non-content fields
-                    print(f"{key}: {value}")
+            # Handle error messages
+            if isinstance(result, dict) and "error" in result:
+                print(f"Error: {str(result['error'])}")
+                return
+            # Handle any other data formats
+            elif isinstance(result, dict):
+                for key, value in result.items():
+                    if key not in ["status", "type"]:  # Skip non-content fields
+                        print(f"{key}: {value}")
+                return
+            else:
+                print(str(result))
+                return
 
+        # Display results as a table
+        if not rows:
+            print("0 row(s) returned")
+            return
+
+        # Calculate column widths
+        col_widths = [len(str(col)) for col in columns]
+        for row in rows:
+            for i, cell in enumerate(row):
+                if i < len(col_widths):
+                    col_widths[i] = max(col_widths[i], len(str(cell)))
+
+        # Print header
+        header = " | ".join(
+            str(col).ljust(col_widths[i]) for i, col in enumerate(columns)
+        )
+        separator = "-+-".join("-" * width for width in col_widths)
+        print(header)
+        print(separator)
+
+        # Print rows
+        for row in rows:
+            row_str = " | ".join(
+                str(cell).ljust(col_widths[i]) if i < len(col_widths) else str(cell)
+                for i, cell in enumerate(row)
+            )
+            print(row_str)
+
+        print(f"\n{len(rows)} row(s) returned")
 def start_server(server_name=None, replication_mode=ReplicationMode.SEMI_SYNC, sync_replicas=1):
     """Start the DBMS server with the specified configuration."""
     # Make sure sqlparse is installed

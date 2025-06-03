@@ -342,91 +342,85 @@ class SQLParser:
             limit = int(limit_match.group(1))
             result["limit"] = limit
 
+        # CRITICAL FIX: Improved JOIN parsing with WHERE condition handling
         if " FROM " in original_sql.upper():
-            parts = original_sql.upper().split(" FROM ", 1)
-            if len(parts) > 1:
-                from_clause = parts[1].strip()
-                # Table part goes up to WHERE, ORDER BY, GROUP BY, HAVING, LIMIT, etc.
-                end_keywords = [
-                    " WHERE ",
-                    " ORDER BY ",
-                    " GROUP BY ",
-                    " HAVING ",
-                    " LIMIT ",
-                ]
-                table_end = len(from_clause)
-                for keyword in end_keywords:
-                    pos = from_clause.find(keyword)
-                    if pos != -1 and pos < table_end:
-                        table_end = pos
-
-                # Get the original case version for tables
-                original_from_clause = original_sql.split(" FROM ", 1)[1].strip()[:table_end]
-                tables_part = original_from_clause.strip()
-
-                if re.search(r'\s+(JOIN|INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL JOIN|CROSS JOIN)\s+',\
-                    from_clause, re.IGNORECASE):
-                    # This query has JOIN syntax
+            # Get the FROM clause up to WHERE/ORDER BY/etc
+            from_part = re.search(r"FROM\s+(.+?)(?:\s+WHERE|\s+ORDER\s+BY|\s+GROUP\s+BY|\s+HAVING|\s+LIMIT|\s*$)", 
+                                original_sql, re.IGNORECASE)
+            
+            if from_part:
+                from_clause = from_part.group(1).strip()
+                
+                # Check for JOIN syntax
+                join_match = re.search(r'\s+(INNER\s+JOIN|JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|FULL\s+JOIN|CROSS\s+JOIN)\s+', 
+                                     from_clause, re.IGNORECASE)
+                
+                if join_match:
                     result["type"] = "JOIN"
-
-                    # First check for CROSS JOIN which doesn't need an ON clause
-                    cross_join_match = re.search(
-                        r'(\w+)(?:\s+(\w+))?\s+(CROSS\s+JOIN)\s+(\w+)(?:\s+(\w+))?',
-                        original_from_clause,
-                        re.IGNORECASE
-                    )
-
-                    if cross_join_match:
-                        table1 = cross_join_match.group(1)
-                        alias1 = cross_join_match.group(2) or table1
-                        table2 = cross_join_match.group(4)
-                        alias2 = cross_join_match.group(5) or table2
-
-                        # Build tables list with aliases
-                        tables = [f"{table1} {alias1}", f"{table2} {alias2}"]
-
-                        # Store the join info for the execution engine
+                    
+                    # Parse the join more carefully
+                    join_pattern = r'(\w+)(?:\s+(\w+))?\s+(INNER\s+JOIN|JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|FULL\s+JOIN|CROSS\s+JOIN)\s+(\w+)(?:\s+(\w+))?(?:\s+ON\s+(.+?))?(?:\s+WHERE|\s*$)'
+                    
+                    match = re.search(join_pattern, from_clause, re.IGNORECASE)
+                    if match:
+                        table1 = match.group(1)
+                        alias1 = match.group(2) or table1
+                        join_type_full = match.group(3).upper()
+                        table2 = match.group(4) 
+                        alias2 = match.group(5) or table2
+                        join_condition = match.group(6) if match.group(6) else None
+                        
+                        # Clean up join type
+                        join_type = join_type_full.replace(" JOIN", "").replace("INNER", "INNER")
+                        if join_type == "JOIN":
+                            join_type = "INNER"
+                        
+                        # Set tables correctly
+                        tables = [table1, table2]
+                        
+                        # Store join info
                         result["join_info"] = {
-                            "type": "CROSS",
-                            "condition": None,  # CROSS JOIN has no condition
-                            "table1": f"{table1} {alias1}",
-                            "table2": f"{table2} {alias2}"
+                            "type": join_type,
+                            "condition": join_condition,
+                            "table1": table1,
+                            "table2": table2,
+                            "join_algorithm": "HASH"  # Default
                         }
+                        
+                        # Check for algorithm hints
+                        hint_match = re.search(r"WITH\s*\(\s*JOIN_TYPE\s*=\s*'(\w+)'\s*\)", original_sql, re.IGNORECASE)
+                        if hint_match:
+                            result["join_info"]["join_algorithm"] = hint_match.group(1).upper()
+                    
                     else:
-                        # Check for other JOIN types with ON clause
-                        join_match = re.search(
-                            r'(\w+)(?:\s+(\w+))?\s+(JOIN|INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL JOIN)\s+(\w+)(?:\s+(\w+))?\s+ON\s+(.+?)(?:\s+WITH\s*\(|\s+WHERE|\s+ORDER|\s+LIMIT|\s*$)',
-                            original_from_clause,
-                            re.IGNORECASE
-                        )
-
-                        if join_match:
-                            table1 = join_match.group(1)
-                            alias1 = join_match.group(2) or table1
-                            join_type = join_match.group(3).upper().replace(" JOIN", "")
-                            table2 = join_match.group(4)
-                            alias2 = join_match.group(5) or table2
-                            join_condition = join_match.group(6)
-
-                            # Check for JOIN algorithm hint
-                            join_algorithm = "HASH"  # Default
-                            hint_match = re.search(r"WITH\s*\(\s*JOIN_TYPE\s*=\s*'(\w+)'\s*\)", original_from_clause, re.IGNORECASE)
-                            if hint_match:
-                                join_algorithm = hint_match.group(1).upper()
-
-                            # Build tables list with aliases
-                            tables = [f"{table1} {alias1}", f"{table2} {alias2}"]
-
-                            # Store the join info for the execution engine
+                        # Fallback: try to extract tables from a simpler pattern
+                        tables_before_join = from_clause.split(join_match.group(0))[0].strip()
+                        tables_after_join = from_clause.split(join_match.group(0))[1].strip()
+                        
+                        # Extract table names
+                        table1 = tables_before_join.split()[-1] if tables_before_join else ""
+                        
+                        # For table2, take everything before ON or end
+                        if " ON " in tables_after_join:
+                            table2_part = tables_after_join.split(" ON ")[0].strip()
+                            join_condition = tables_after_join.split(" ON ")[1].strip()
+                        else:
+                            table2_part = tables_after_join.strip()
+                            join_condition = None
+                        
+                        table2 = table2_part.split()[0] if table2_part else ""
+                        
+                        if table1 and table2:
+                            tables = [table1, table2]
                             result["join_info"] = {
-                                "type": join_type,
+                                "type": "INNER",
                                 "condition": join_condition,
-                                "table1": f"{table1} {alias1}",
-                                "table2": f"{table2} {alias2}",
-                                "join_algorithm": join_algorithm
+                                "table1": table1,
+                                "table2": table2,
+                                "join_algorithm": "HASH"
                             }
                         else:
-                            # Fall back to simple tables if JOIN syntax isn't matched
+                            # Fallback to original tables extraction
                             tables = self._process_from_clause(from_clause)
                 else:
                     # No JOIN syntax, process as normal table list
@@ -440,26 +434,29 @@ class SQLParser:
         if not condition_str:
             return None
 
+        # Strip trailing semicolons from the condition string
+        condition_str = condition_str.rstrip(';')
+
         # Look for top-level AND/OR operators
         and_parts = re.split(r'\sAND\s', condition_str, flags=re.IGNORECASE)
         if len(and_parts) > 1:
             return {
                 "operator": "AND",
-                "operands": [self._parse_where_condition(part) for part in and_parts]
+                "operands": [self._parse_where_condition(part.strip()) for part in and_parts]
             }
 
         or_parts = re.split(r'\sOR\s', condition_str, flags=re.IGNORECASE)
         if len(or_parts) > 1:
             return {
                 "operator": "OR",
-                "operands": [self._parse_where_condition(part) for part in or_parts]
+                "operands": [self._parse_where_condition(part.strip()) for part in or_parts]
             }
 
         # Look for NOT operator
         if condition_str.upper().startswith("NOT "):
             return {
                 "operator": "NOT",
-                "operand": self._parse_where_condition(condition_str[4:])
+                "operand": self._parse_where_condition(condition_str[4:].strip())
             }
 
         # Look for subquery with IN
@@ -467,26 +464,48 @@ class SQLParser:
         if in_subquery_match:
             column = in_subquery_match.group(1).strip()
             subquery = in_subquery_match.group(2).strip()
-            subquery_plan = self.parse_sql(subquery)
             return {
                 "operator": "IN",
                 "column": column,
-                "subquery": subquery_plan
+                "subquery": subquery
             }
 
         # Simple comparison - identify the operator and operands
         for op in [">=", "<=", "<>", "!=", "=", ">", "<", "LIKE", "NOT LIKE", "IS NULL", "IS NOT NULL"]:
-            if op.lower() in condition_str.lower():
-                parts = re.split(r'\s*' + re.escape(op) + r'\s*', condition_str, flags=re.IGNORECASE, maxsplit=1)
+            if f" {op} " in condition_str.upper():
+                parts = re.split(rf'\s+{re.escape(op)}\s+', condition_str, maxsplit=1, flags=re.IGNORECASE)
                 if len(parts) == 2:
+                    column = parts[0].strip()
+                    value_str = parts[1].strip()
+                    
+                    # Parse the value
+                    if value_str.upper() == "NULL":
+                        value = None
+                    elif value_str.startswith("'") and value_str.endswith("'"):
+                        value = value_str[1:-1]  # Remove quotes
+                    elif value_str.startswith('"') and value_str.endswith('"'):
+                        value = value_str[1:-1]  # Remove quotes
+                    else:
+                        try:
+                            if '.' in value_str:
+                                value = float(value_str)
+                            else:
+                                value = int(value_str)
+                        except ValueError:
+                            value = value_str
+                    
                     return {
-                        "operator": op,
-                        "column": parts[0].strip(),
-                        "value": parts[1].strip()
+                        "operator": op.upper(),
+                        "column": column,
+                        "value": value
                     }
+                break
 
-        # If it doesn't match any pattern, return as is
-        return {"raw_condition": condition_str}
+        # If no operator found, return as raw condition
+        return {
+            "operator": "RAW",
+            "condition": condition_str
+        }
 
     def _process_from_clause(self, tables_part):
         """Process FROM clause to extract table names."""
@@ -1091,7 +1110,7 @@ class SQLParser:
                 # Check if it's an escaped quote
                 if i + 1 < len(values_part) and values_part[i + 1] == quote_char:
                     current_group += char + char
-                    i += 1  # Skip the next quote
+                    i += 1 # Skip the next quote
                 else:
                     in_string = False
                     quote_char = None
@@ -1200,3 +1219,43 @@ class SQLParser:
         except ValueError:
             # Return as string if conversion fails
             return value
+
+    def parse(self, sql):
+        """Parse SQL and return structured result."""
+        try:
+            # Clean and normalize the SQL
+            sql = sql.strip()
+            if not sql:
+                return {"error": "Empty query"}
+
+            # Remove trailing semicolon
+            if sql.endswith(';'):
+                sql = sql[:-1]
+
+            # Determine query type - CRITICAL: Check SELECT before SHOW
+            sql_upper = sql.upper()
+            
+            if sql_upper.startswith("SELECT"):
+                return self._parse_select(sql)
+            elif sql_upper.startswith("SHOW"):
+                return self._parse_show(sql)
+            elif sql_upper.startswith("INSERT"):
+                return self._parse_insert(sql)
+            elif sql_upper.startswith("UPDATE"):
+                return self._parse_update(sql)
+            elif sql_upper.startswith("DELETE"):
+                return self._parse_delete(sql)
+            elif sql_upper.startswith("CREATE"):
+                return self._parse_create(sql)
+            elif sql_upper.startswith("DROP"):
+                return self._parse_drop(sql)
+            elif sql_upper.startswith("ALTER"):
+                return self._parse_alter(sql)
+            elif sql_upper.startswith("USE"):
+                return self._parse_use(sql)
+            else:
+                return {"error": f"Unsupported query type: {sql[:20]}..."}
+
+        except Exception as e:
+            logging.error(f"Error parsing SQL: {e}")
+            return {"error": f"Parse error: {str(e)}"}

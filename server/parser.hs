@@ -9,12 +9,12 @@ import Control.Applicative ((<|>), optional)
 import qualified Control.Applicative as A
 import Control.Monad (void)
 import Control.Monad.Combinators.Expr (makeExprParser, Operator(..))
-import Data.Aeson (ToJSON(..), FromJSON, encode, decode, Options(..), defaultOptions, genericToJSON, genericParseJSON, fieldLabelModifier)
+import Data.Aeson (ToJSON(..), FromJSON, encode, decode, Options(..), defaultOptions, genericToJSON, genericParseJSON, fieldLabelModifier, object, (.=), Value(..))
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.Char (toLower, isAlphaNum, isSpace)
 import Data.List (intercalate)
-import Data.Maybe (fromMaybe, isJust, fromJust)
+import Data.Maybe (fromMaybe, isJust, fromJust, catMaybes)
 import Data.Void (Void)
 import GHC.Generics (Generic)
 import Text.Megaparsec
@@ -368,10 +368,14 @@ parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
 
 identifier :: Parser String
-identifier = lexeme $ do
+identifier = lexeme $ try $ do
   first <- letterChar <|> char '_'
   rest <- A.many (alphaNumChar <|> char '_')
-  return (first : rest)
+  let result = first : rest
+  -- Check if it's a reserved keyword
+  if map toLower result `elem` keywords
+    then fail $ "unexpected keyword " ++ result
+    else return result
 
 quoted :: Parser String
 quoted = lexeme $ do
@@ -424,10 +428,10 @@ keywords = ["select", "from", "where", "insert", "into", "values", "update", "se
 
 keyword :: String -> Parser String
 keyword w = try $ do
-  k <- identifier
-  if map toLower k == w
-    then return k
-    else fail $ "expecting keyword " ++ w
+  k <- string' w  -- Use string' instead of identifier for keywords
+  notFollowedBy alphaNumChar
+  sc
+  return k
   
 kw :: String -> Parser ()
 kw w = do
@@ -440,8 +444,8 @@ parseExpr = makeExprParser parseTerm operatorTable
 
 parseTerm :: Parser Expr
 parseTerm = choice
-  [ try parseLiteral
-  , try parseColumnRef
+  [ try parseColumnRef      -- Try column references first (including table.column)
+  , try parseLiteral
   , try parseFunctionCall
   , try parseSubqueryExpr
   , try parseCaseExpr
@@ -460,12 +464,17 @@ parseLiteral = choice
 
 parseColumnRef :: Parser Expr
 parseColumnRef = try $ do
-  tbl <- optional $ try $ do
-    t <- anyIdentifier
+  -- First part: could be table name or column name
+  first <- anyIdentifier
+  -- Check if there's a dot (table.column format)
+  maybeDot <- optional $ try $ do
     _ <- symbol "."
-    return t
-  col <- anyIdentifier
-  return $ ColumnRef col tbl
+    second <- anyIdentifier
+    return second
+  
+  case maybeDot of
+    Just column -> return $ ColumnRef column (Just first)  -- table.column
+    Nothing -> return $ ColumnRef first Nothing             -- just column
 
 parseFunctionCall :: Parser Expr
 parseFunctionCall = try $ do
@@ -515,13 +524,13 @@ operatorTable =
   , [ InfixL (try $ symbol "+" >> return (BinaryOp Add))
     , InfixL (try $ symbol "-" >> return (BinaryOp Sub))
     ]
-  , [ InfixL (try $ symbol "=" >> return (BinaryOp Eq))
-    , InfixL (try $ symbol "!=" >> return (BinaryOp Neq))
-    , InfixL (try $ symbol "<>" >> return (BinaryOp Neq))
+  , [ InfixL (try $ symbol ">=" >> return (BinaryOp Gte))
     , InfixL (try $ symbol "<=" >> return (BinaryOp Lte))
-    , InfixL (try $ symbol ">=" >> return (BinaryOp Gte))
-    , InfixL (try $ symbol "<" >> return (BinaryOp Lt))
+    , InfixL (try $ symbol "<>" >> return (BinaryOp Neq))
+    , InfixL (try $ symbol "!=" >> return (BinaryOp Neq))
+    , InfixL (try $ symbol "=" >> return (BinaryOp Eq))
     , InfixL (try $ symbol ">" >> return (BinaryOp Gt))
+    , InfixL (try $ symbol "<" >> return (BinaryOp Lt))
     ]
   , [ InfixL (try $ kw "like" >> return (BinaryOp Like))
     , InfixL (try $ (kw "not" >> kw "like") >> return (BinaryOp NotLike))
@@ -604,10 +613,9 @@ parseSelect = do
   _ <- kw "select"
   distinct <- option False (True <$ kw "distinct")
   columns <- parseSelectColumns
-  tables <- option [] $ do
+  (tables, joinInfo) <- option ([], Nothing) $ do
     _ <- kw "from"
-    parseTables
-  joinInfo <- optional parseJoinInfo
+    parseFromClauseWithJoin
   whereClause <- optional $ do
     _ <- kw "where"
     parseWhereExpr
@@ -619,6 +627,45 @@ parseSelect = do
     _ <- kw "offset"
     fromIntegral <$> integer
   return $ SelectExpr distinct columns tables whereClause orderBy limit offset joinInfo
+
+parseFromClauseWithJoin :: Parser ([TableExpr], Maybe JoinInfo)
+parseFromClauseWithJoin = try parseJoinClause <|> parseRegularTables
+  where
+    parseJoinClause = do
+      leftTable <- parseSimpleTable
+      joinType <- parseJoinType
+      rightTable <- parseSimpleTable
+      condition <- optional $ do
+        _ <- kw "on"
+        parseExpr
+      
+      -- Extract table names for JoinInfo
+      let leftName = extractTableName leftTable
+      let rightName = extractTableName rightTable
+      let joinTypeStr = joinTypeToString joinType
+      let conditionStr = case condition of
+            Just expr -> Just $ exprToString expr
+            Nothing -> Nothing
+      
+      let joinInfo = JoinInfo joinTypeStr conditionStr leftName rightName Nothing
+      let joinExpr = TableJoin $ JoinExpr leftTable rightTable joinType condition
+      
+      return ([joinExpr], Just joinInfo)
+    
+    parseRegularTables = do
+      tables <- parseTableExpr `sepBy` symbol ","
+      return (tables, Nothing)
+
+parseTableExpr :: Parser TableExpr
+parseTableExpr = choice
+  [ try $ do
+      _ <- symbol "("
+      query <- parseSelect
+      _ <- symbol ")"
+      alias <- anyIdentifier
+      return $ Subquery query alias
+  , parseSimpleTable
+  ]
 
 parseSelectColumns :: Parser [SelectColumn]
 parseSelectColumns = parseSelectColumn `sepBy` symbol ","
@@ -639,11 +686,31 @@ parseSelectColumn = choice
       return $ ExprColumn expr alias
   ]
 
-parseTables :: Parser [TableExpr]
-parseTables = parseTableExpr `sepBy` symbol ","
+parseFromClause :: Parser [TableExpr]
+parseFromClause = do
+  firstTable <- parseSimpleTable
+  -- Check if there's a JOIN after the first table
+  joinResult <- optional parseJoinSequence
+  case joinResult of
+    Just (joinType, secondTable, condition) -> do
+      -- Create a join expression
+      let joinExpr = TableJoin $ JoinExpr firstTable secondTable joinType condition
+      return [joinExpr]
+    Nothing -> do
+      -- No JOIN, check for comma-separated tables
+      moreTables <- many $ do
+        _ <- symbol ","
+        parseSimpleTable
+      return (firstTable : moreTables)
 
-parseTableExpr :: Parser TableExpr
-parseTableExpr = try parseTableJoin <|> parseSimpleTable
+parseJoinSequence :: Parser (JoinType, TableExpr, Maybe Expr)
+parseJoinSequence = do
+  joinType <- parseJoinType
+  secondTable <- parseSimpleTable
+  condition <- optional $ do
+    _ <- kw "on"
+    parseExpr
+  return (joinType, secondTable, condition)
 
 parseSimpleTable :: Parser TableExpr
 parseSimpleTable = try $ do
@@ -653,16 +720,6 @@ parseSimpleTable = try $ do
     anyIdentifier
   return $ Table name alias
 
-parseTableJoin :: Parser TableExpr
-parseTableJoin = try $ do
-  left <- parseSimpleTable
-  joinType <- parseJoinType
-  right <- parseSimpleTable
-  condition <- optional $ do
-    _ <- kw "on"
-    parseExpr
-  return $ TableJoin $ JoinExpr left right joinType condition
-
 parseJoinType :: Parser JoinType
 parseJoinType = choice
   [ InnerJoin <$ (try (kw "inner" >> kw "join") <|> kw "join")
@@ -671,45 +728,6 @@ parseJoinType = choice
   , FullJoin <$ (try (kw "full" >> optional (kw "outer") >> kw "join"))
   , CrossJoin <$ (try (kw "cross" >> kw "join"))
   ]
-
-parseJoinInfo :: Parser JoinInfo
-parseJoinInfo = try $ do
-  -- Extract join info from table expressions
-  tables <- parseTables
-  case tables of
-    [TableJoin (JoinExpr left right joinType condition)] -> do
-      let joinTypeStr = case joinType of
-            InnerJoin -> "INNER"
-            LeftJoin -> "LEFT"
-            RightJoin -> "RIGHT"
-            FullJoin -> "FULL"
-            CrossJoin -> "CROSS"
-      
-      let table1 = case left of
-            Table name alias -> name ++ maybe "" (" " ++) alias
-            _ -> error "Complex join not supported"
-      
-      let table2 = case right of
-            Table name alias -> name ++ maybe "" (" " ++) alias
-            _ -> error "Complex join not supported"
-      
-      let condStr = case condition of
-            Just expr -> Just $ show expr -- Convert expr to string
-            Nothing -> Nothing
-      
-      -- Check for join algorithm hint
-      algorithm <- optional $ try $ do
-        _ <- kw "with"
-        _ <- symbol "("
-        _ <- kw "join_type"
-        _ <- symbol "="
-        alg <- quotedIdentifier
-        _ <- symbol ")"
-        return alg
-      
-      return $ JoinInfo joinTypeStr condStr table1 table2 algorithm
-    
-    _ -> fail "No join detected"
 
 parseWhereExpr :: Parser WhereExpr
 parseWhereExpr = Where <$> parseExpr
@@ -1035,3 +1053,47 @@ processStdin = do
   let result = parseResultToJSON input
   BL.putStrLn result
   exitSuccess
+
+-- Helper functions for table name extraction and join type conversion
+extractTableName :: TableExpr -> String
+extractTableName (Table name _) = name
+extractTableName (TableJoin joinExpr) = extractTableName (joinLeft joinExpr)
+extractTableName (Subquery _ alias) = alias
+
+joinTypeToString :: JoinType -> String
+joinTypeToString InnerJoin = "INNER"
+joinTypeToString LeftJoin = "LEFT"
+joinTypeToString RightJoin = "RIGHT"
+joinTypeToString FullJoin = "FULL"
+joinTypeToString CrossJoin = "CROSS"
+
+exprToString :: Expr -> String
+exprToString (BinaryOp Eq (ColumnRef leftCol leftTable) (ColumnRef rightCol rightTable)) =
+  let leftFull = maybe leftCol (\t -> t ++ "." ++ leftCol) leftTable
+      rightFull = maybe rightCol (\t -> t ++ "." ++ rightCol) rightTable
+  in leftFull ++ " = " ++ rightFull
+exprToString (BinaryOp And left right) = 
+  exprToString left ++ " AND " ++ exprToString right
+exprToString (BinaryOp Or left right) = 
+  exprToString left ++ " OR " ++ exprToString right
+exprToString (BinaryOp Eq (ColumnRef col tbl) (LiteralString val)) =
+  let colFull = maybe col (\t -> t ++ "." ++ col) tbl
+  in colFull ++ " = '" ++ val ++ "'"
+exprToString (BinaryOp Gt (ColumnRef col tbl) (LiteralInt val)) =
+  let colFull = maybe col (\t -> t ++ "." ++ col) tbl
+  in colFull ++ " > " ++ show val
+exprToString (BinaryOp Lt (ColumnRef col tbl) (LiteralInt val)) =
+  let colFull = maybe col (\t -> t ++ "." ++ col) tbl
+  in colFull ++ " < " ++ show val
+exprToString (BinaryOp Gte (ColumnRef col tbl) (LiteralInt val)) =
+  let colFull = maybe col (\t -> t ++ "." ++ col) tbl
+  in colFull ++ " >= " ++ show val
+exprToString (BinaryOp Lte (ColumnRef col tbl) (LiteralInt val)) =
+  let colFull = maybe col (\t -> t ++ "." ++ col) tbl
+  in colFull ++ " <= " ++ show val
+exprToString (ColumnRef col tbl) =
+  maybe col (\t -> t ++ "." ++ col) tbl
+exprToString (LiteralString s) = "'" ++ s ++ "'"
+exprToString (LiteralInt i) = show i
+exprToString (LiteralDecimal d) = show d
+exprToString expr = show expr -- Fallback for other expressions

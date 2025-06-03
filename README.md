@@ -404,7 +404,7 @@ query CREATE TABLE products (id INT IDENTITY(1,1) PRIMARY KEY, name VARCHAR(100)
 
 -- Test for the joins
 
-query SELECT p.product_id, p.product_name, p.category, od.order_id, od.quantity, od.status FROM products p INNER JOIN order_details od ON p.product_id = od.product_id WHERE p.category = 'Electronics' AND od.quantity > 1;
+query SELECT products.product_id, products.category, order_details.quantity, order_details.status FROM products INNER JOIN order_details ON products.product_id = order_details.product_id WHERE products.category = 'Electronics' AND order_details.quantity > 2;
 
 -- ✅
 query INSERT INTO products (name, price, stock) VALUES ('Laptop', 999.99, 10)

@@ -470,96 +470,106 @@ class CatalogManager:
         if not conditions:
             return True  # No conditions, record matches
 
-        for condition in conditions:
-            column = condition.get("column")
-            operator = condition.get("operator")
-            value = condition.get("value")
-
-            if column not in record:
+        # Handle compound condition (AND/OR structure)
+        if len(conditions) == 1 and isinstance(conditions[0], dict):
+            condition = conditions[0]
+            if "operator" in condition and condition["operator"] == "AND" and "operands" in condition:
+                # Process AND condition
+                for operand in condition["operands"]:
+                    if not self._record_matches_single_condition(record, operand):
+                        return False
+                return True
+            elif "operator" in condition and condition["operator"] == "OR" and "operands" in condition:
+                # Process OR condition
+                for operand in condition["operands"]:
+                    if self._record_matches_single_condition(record, operand):
+                        return True
                 return False
-
-            record_value = record[column]
-
-            # Convert both to numeric if possible
-            value = self._convert_to_numeric(value)
-            record_value = self._convert_to_numeric(record_value)
-
-            # Handle different operators
-            if operator == "=":
-                if record_value != value:
-                    return False
-            elif operator == "!=":
-                if record_value == value:
-                    return False
-            elif operator == ">":
-                if not record_value > value:
-                    return False
-            elif operator == ">=":
-                if not record_value >= value:
-                    return False
-            elif operator == "<":
-                if not record_value < value:
-                    return False
-            elif operator == "<=":
-                if not record_value <= value:
-                    return False
-            elif operator.upper() == "LIKE":
-                if not self._matches_like_pattern(str(record_value), str(value)):
-                    return False
-            elif operator.upper() == "IN":
-                if not self._matches_in_condition(record_value, value):
-                    return False
-
-        # All conditions passed
+            else:
+                # Single condition in a list
+                return self._record_matches_single_condition(record, condition)
+        
+        # Standard list of conditions (implicit AND)
+        for condition in conditions:
+            if not self._record_matches_single_condition(record, condition):
+                return False
+        
         return True
 
-    def _matches_like_pattern(self, record_value, pattern):
-        """Check if a value matches a LIKE pattern.
+    def _record_matches_single_condition(self, record, condition):
+        """Check if a record matches a single condition."""
+        column = condition.get("column")
+        operator = condition.get("operator")
+        value = condition.get("value")
 
-        Args:
-            record_value: String value from the record
-            pattern: LIKE pattern (with % wildcards)
+        if not column:
+            return False
 
-        Returns:
-            bool: True if the value matches the pattern
-        """
-        # Remove quotes if present
-        if pattern.startswith(("'", '"')) and pattern.endswith(("'", '"')):
-            pattern = pattern[1:-1]
+        # Handle table-qualified column names (e.g., "products.price")
+        actual_column = column
+        if "." in column:
+            # Extract just the column name part
+            table_part, column_part = column.split(".", 1)
+            actual_column = column_part
+            
+            # Also try the full qualified name in case the record has it
+            if column in record:
+                actual_column = column
+            elif column_part in record:
+                actual_column = column_part
+            else:
+                # Try both variations
+                for key in record.keys():
+                    if key == column_part or key == column:
+                        actual_column = key
+                        break
+                else:
+                    return False
+        
+        if actual_column not in record:
+            return False
 
-        # Convert SQL LIKE pattern to regex
-        # % in SQL LIKE is .* in regex
-        # _ in SQL LIKE is . in regex
-        # Escape other regex special characters
-        regex_pattern = pattern.replace('%', '.*').replace('_', '.')
-        regex_pattern = f"^{regex_pattern}$"  # Match whole string
+        record_value = record[actual_column]
 
-        return re.match(regex_pattern, record_value, re.IGNORECASE) is not None
+        # Convert both to numeric if possible
+        value = self._convert_to_numeric(value)
+        record_value = self._convert_to_numeric(record_value)
 
-    def _matches_in_condition(self, record_value, value_list):
-        """Check if a value is in a list for IN operator.
-
-        Args:
-            record_value: Value from the record
-            value_list: List of values or string representing a list
-
-        Returns:
-            bool: True if the value is in the list
-        """
-        # Convert string representation to list if needed
-        if isinstance(value_list, str):
-            if value_list.startswith('(') and value_list.endswith(')'):
-                value_list = value_list[1:-1]
-            # Split by comma and strip whitespace and quotes
-            items = []
-            for item in value_list.split(','):
-                item = item.strip()
-                if item.startswith(("'", '"')) and item.endswith(("'", '"')):
-                    item = item[1:-1]
-                items.append(item)
-            value_list = items
-
-        return record_value in value_list
+        # Handle different operators
+        if operator == "=":
+            # Handle string comparisons with quote removal
+            if isinstance(value, str) and value.startswith("'") and value.endswith("'"):
+                value = value[1:-1]
+            return record_value == value
+        elif operator == "!=":
+            return record_value != value
+        elif operator == ">":
+            # Ensure numeric comparison for > operator
+            try:
+                return float(record_value) > float(value)
+            except (ValueError, TypeError):
+                return str(record_value) > str(value)
+        elif operator == ">=":
+            try:
+                return float(record_value) >= float(value)
+            except (ValueError, TypeError):
+                return str(record_value) >= str(value)
+        elif operator == "<":
+            try:
+                return float(record_value) < float(value)
+            except (ValueError, TypeError):
+                return str(record_value) < str(value)
+        elif operator == "<=":
+            try:
+                return float(record_value) <= float(value)
+            except (ValueError, TypeError):
+                return str(record_value) <= str(value)
+        elif operator.upper() == "LIKE":
+            return self._matches_like_pattern(str(record_value), str(value))
+        elif operator.upper() == "IN":
+            return self._matches_in_condition(record_value, value)
+        
+        return False
 
     def query_with_condition(self, table_name, conditions=None, columns=None, limit=None, order_by=None):
         """Query table data with conditions and optional column selection."""

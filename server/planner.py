@@ -127,16 +127,20 @@ class Planner:
 
         # Extract columns to select
         columns = parsed_query.get("columns", ["*"])
+        
+        # CRITICAL FIX: Extract WHERE conditions from parsed query
+        where_conditions = parsed_query.get("parsed_condition") or parsed_query.get("condition")
 
         # Create plan
         plan = {
             "type": "JOIN",
             "join_type": join_type,
-            "join_algorithm": join_algorithm,  # Use the algorithm from the hint
+            "join_algorithm": join_algorithm,
             "table1": table1,
             "table2": table2,
             "condition": condition,
-            "columns": columns
+            "columns": columns,
+            "where_conditions": where_conditions  # Add WHERE conditions to plan
         }
 
         return plan
@@ -515,7 +519,7 @@ class Planner:
         tables = parsed_query.get("tables", [])
 
         # If there are multiple tables or a join condition, this is a JOIN query
-        if len(tables) > 1 or parsed_query.get("join_condition"):
+        if len(tables) > 1 or parsed_query.get("join_condition") or parsed_query.get("join_info"):
             return self.plan_join(parsed_query)
 
         table = tables[0] if tables else None
@@ -692,40 +696,24 @@ class Planner:
         # Get join-specific information if available
         join_info = parsed_query.get("join_info", {})
         join_type = join_info.get("type", "INNER").upper()
-        join_condition = join_info.get("condition") or parsed_query.get("join_condition")
-
-        # IMPORTANT FIX: Extract join_algorithm directly from join_info
-        join_algorithm = join_info.get("join_algorithm")
-
-        # Only if no algorithm was specified in join_info, try other methods
-        if not join_algorithm:
-            # Try to extract from hint
-            if "WITH" in parsed_query.get("query", "").upper():
-                hint_match = re.search(
-                    r"WITH\s*\(\s*JOIN_TYPE\s*=\s*'(\w+)'\s*\)",
-                    parsed_query.get("query", ""),
-                    re.IGNORECASE,
-                )
-                if hint_match:
-                    join_algorithm = hint_match.group(1).upper()
-
-        # If still no algorithm, set a default
-        if not join_algorithm:
-            join_algorithm = "HASH"  # Default algorithm
-
-        # Build the join plan
-        join_plan = {
+        
+        # CRITICAL FIX: Extract WHERE conditions properly
+        where_conditions = parsed_query.get("parsed_condition") or parsed_query.get("condition")
+        
+        # Create the join plan with all necessary information
+        plan = {
             "type": "JOIN",
             "join_type": join_type,
-            "join_algorithm": join_algorithm,
-            "table1": join_info.get("table1", "") or tables[0] if tables else "",
-            "table2": join_info.get("table2", "") or (tables[1] if len(tables) > 1 else ""),
-            "condition": join_condition,
+            "join_algorithm": join_info.get("join_algorithm", "HASH"),
+            "table1": join_info.get("table1") or (tables[0] if len(tables) > 0 else ""),
+            "table2": join_info.get("table2") or (tables[1] if len(tables) > 1 else ""),
+            "condition": join_info.get("condition") or condition,
             "columns": columns,
-            "where_condition": condition,
+            "where_conditions": where_conditions,  # Add WHERE conditions
+            "tables": tables
         }
-
-        return join_plan
+        
+        return plan
 
     def _choose_join_algorithm(self, tables, join_condition):
         """Choose the best join algorithm based on table statistics and available indexes."""
