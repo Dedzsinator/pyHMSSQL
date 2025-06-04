@@ -276,45 +276,53 @@ class HaskellParser:
 
     def _process_where_clause(self, where_clause: Dict[str, Any]) -> str:
         """Convert WHERE clause to string format."""
-        if isinstance(where_clause, dict) and where_clause.get("tag") == "Where":
-            # Extract the expression and convert to string
-            contents = where_clause.get("contents")
-            if contents:
-                return self._expr_to_string(contents)
-        return str(where_clause)
+        if isinstance(where_clause, dict):
+            tag = where_clause.get("tag")
+            contents = where_clause.get("contents", {})
+            
+            if tag == "Where":
+                # Recursively process the contents
+                return self._process_expression(contents)
+            else:
+                return self._process_expression(where_clause)
+        else:
+            return str(where_clause)
 
-    def _process_order_by(self, order_by: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert ORDER BY clause to expected format."""
-        if isinstance(order_by, dict):
-            return {
-                "column": order_by.get("column", ""),
-                "direction": order_by.get("direction", "ASC")
-            }
-        return {"column": str(order_by), "direction": "ASC"}
-
-    def _expr_to_string(self, expr) -> str:
-        """Convert an expression to string format."""
-        if isinstance(expr, dict) and "tag" in expr:
-            tag = expr["tag"]
+    def _process_expression(self, expr: Any) -> str:
+        """Convert expression to string format."""
+        if isinstance(expr, dict):
+            tag = expr.get("tag")
             contents = expr.get("contents", [])
             
-            if tag == "ColumnRef" and len(contents) >= 1:
-                return contents[0]
-            elif tag == "LiteralString" and len(contents) >= 1:
-                return f"'{contents[0]}'"
-            elif tag == "LiteralInt" and len(contents) >= 1:
-                return str(contents[0])
-            elif tag == "BinaryOp" and len(contents) >= 3:
-                op = contents[0]
-                left = self._expr_to_string(contents[1])
-                right = self._expr_to_string(contents[2])
-                return f"{left} {op} {right}"
+            if tag == "BinaryOp":
+                if len(contents) >= 3:
+                    op = contents[0]
+                    left = self._process_expression(contents[1])
+                    right = self._process_expression(contents[2])
+                    return f"{left} {op} {right}"
+            elif tag == "ColumnRef":
+                if contents and len(contents) > 0:
+                    return contents[0]
+            elif tag == "LiteralInt":
+                return str(contents)
+            elif tag == "LiteralString":
+                return f"'{contents}'"
+            elif tag == "LiteralDecimal":
+                return str(contents)
         
         return str(expr)
 
+    def _process_order_by(self, order_by: Dict[str, Any]) -> Dict[str, str]:
+        """Process ORDER BY clause."""
+        if isinstance(order_by, dict):
+            column = order_by.get("column", "")
+            direction = order_by.get("direction", "ASC")
+            return {"column": column, "direction": direction}
+        return {"column": "", "direction": "ASC"}
+
     def _extract_create_type(self, contents: Dict[str, Any]) -> str:
-        """Extract the specific CREATE statement type."""
-        if "tag" in contents:
+        """Extract the type of CREATE statement."""
+        if isinstance(contents, dict) and "tag" in contents:
             tag = contents["tag"]
             if tag == "CreateTableExpr":
                 return "CREATE_TABLE"
@@ -324,48 +332,35 @@ class HaskellParser:
                 return "CREATE_INDEX"
             elif tag == "CreateViewExpr":
                 return "CREATE_VIEW"
-        return "CREATE"
+        return "CREATE_UNKNOWN"
 
     def _extract_create_data(self, contents: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract data from a CREATE statement."""
-        if "tag" not in contents:
-            return {}
+        """Extract data from CREATE statement."""
+        result = {}
+        if isinstance(contents, dict):
+            tag = contents.get("tag")
+            data = contents.get("contents", {})
             
-        tag = contents["tag"]
-        data = contents.get("contents", {})
+            if tag == "CreateTableExpr":
+                result["create_type"] = "TABLE"
+                result["table"] = data.get("cteName", "")
+                result["columns"] = data.get("cteColumns", [])
+                result["constraints"] = data.get("cteConstraints", [])
+            elif tag == "CreateDatabaseExpr":
+                result["create_type"] = "DATABASE"
+                result["database"] = data
+            elif tag == "CreateIndexExpr":
+                result["create_type"] = "INDEX"
+                result["index_name"] = data.get("cieIndexName", "")
+                result["table"] = data.get("cieTable", "")
+                result["columns"] = data.get("cieColumns", [])
+                result["unique"] = data.get("cieUnique", False)
         
-        if tag == "CreateTableExpr":
-            return {
-                "create_type": "TABLE",
-                "table": data.get("table"),
-                "columns": data.get("columns", []),
-                "constraints": data.get("constraints", [])
-            }
-        elif tag == "CreateDatabaseExpr":
-            return {
-                "create_type": "DATABASE",
-                "database": data
-            }
-        elif tag == "CreateIndexExpr":
-            return {
-                "create_type": "INDEX",
-                "index_name": data.get("index_name"),
-                "table": data.get("table"),
-                "columns": data.get("columns", []),
-                "unique": data.get("unique", False)
-            }
-        elif tag == "CreateViewExpr":
-            return {
-                "create_type": "VIEW",
-                "view_name": data.get("view_name"),
-                "select": data.get("query", {})
-            }
-            
-        return {}
+        return result
 
     def _extract_drop_type(self, contents: Dict[str, Any]) -> str:
-        """Extract the specific DROP statement type."""
-        if "tag" in contents:
+        """Extract the type of DROP statement."""
+        if isinstance(contents, dict) and "tag" in contents:
             tag = contents["tag"]
             if tag == "DropTableExpr":
                 return "DROP_TABLE"
@@ -375,87 +370,82 @@ class HaskellParser:
                 return "DROP_INDEX"
             elif tag == "DropViewExpr":
                 return "DROP_VIEW"
-        return "DROP"
+        return "DROP_UNKNOWN"
 
     def _extract_drop_data(self, contents: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract data from a DROP statement."""
-        if "tag" not in contents:
-            return {}
+        """Extract data from DROP statement."""
+        result = {}
+        if isinstance(contents, dict):
+            tag = contents.get("tag")
+            data = contents.get("contents", {})
             
-        tag = contents["tag"]
-        data = contents.get("contents")
+            if tag == "DropTableExpr":
+                result["table"] = data
+            elif tag == "DropDatabaseExpr":
+                result["database"] = data
+            elif tag == "DropIndexExpr":
+                result["index_name"] = data.get("dieIndexName", "")
+                result["table"] = data.get("dieTable", "")
+            elif tag == "DropViewExpr":
+                result["view"] = data
         
-        if tag == "DropTableExpr":
-            return {
-                "drop_type": "TABLE",
-                "table": data
-            }
-        elif tag == "DropDatabaseExpr":
-            return {
-                "drop_type": "DATABASE",
-                "database": data
-            }
-        elif tag == "DropIndexExpr":
-            return {
-                "drop_type": "INDEX",
-                "index": data.get("index"),
-                "table": data.get("table")
-            }
-        elif tag == "DropViewExpr":
-            return {
-                "drop_type": "VIEW",
-                "view": data
-            }
-            
-        return {}
+        return result
 
     def _extract_show_data(self, contents: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract data from a SHOW statement."""
-        if "tag" not in contents:
-            return {}
+        """Extract data from SHOW statement."""
+        result = {}
+        if isinstance(contents, dict) and "tag" in contents:
+            tag = contents["tag"]
             
-        tag = contents["tag"]
-        data = contents.get("contents")
+            if tag == "ShowDatabases":
+                result["object"] = "DATABASES"
+            elif tag == "ShowTables":
+                result["object"] = "TABLES"
+            elif tag == "ShowAllTables":
+                result["object"] = "ALL_TABLES"
+            elif tag == "ShowColumns":
+                result["object"] = "COLUMNS"
+                result["table"] = contents.get("contents", "")
+            elif tag == "ShowIndexes":
+                result["object"] = "INDEXES"
+                result["table"] = contents.get("contents")
         
-        if tag == "ShowDatabases":
-            return {"object": "DATABASES"}
-        elif tag == "ShowTables":
-            return {"object": "TABLES"}
-        elif tag == "ShowAllTables":
-            return {"object": "ALL_TABLES"}
-        elif tag == "ShowColumns":
-            return {"object": "COLUMNS", "table": data}
-        elif tag == "ShowIndexes":
-            return {"object": "INDEXES", "table": data}
-            
-        return {}
-        
+        return result
+
     def _extract_visualize_data(self, contents: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract data from a VISUALIZE statement."""
-        if "tag" not in contents or contents["tag"] != "VisualizeBPTree":
-            return {}
+        """Extract data from VISUALIZE statement."""
+        result = {}
+        if isinstance(contents, dict) and "tag" in contents:
+            tag = contents["tag"]
             
-        data = contents.get("contents", [None, None])
-        return {
-            "object": "BPTREE",
-            "index_name": data[0],
-            "table": data[1]
-        }
+            if tag == "VisualizeBPTree":
+                result["object"] = "BPTREE"
+                data = contents.get("contents", [])
+                if len(data) >= 2:
+                    result["index_name"] = data[0]
+                    result["table"] = data[1]
+                elif len(data) == 1:
+                    result["table"] = data[0]
         
+        return result
+
     def _extract_cache_data(self, contents: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract data from a CACHE statement."""
-        if "tag" not in contents:
-            return {}
+        """Extract data from CACHE statement."""
+        result = {}
+        if isinstance(contents, dict) and "tag" in contents:
+            tag = contents["tag"]
             
-        tag = contents["tag"]
-        data = contents.get("contents")
+            if tag == "CacheStats":
+                result["action"] = "STATS"
+            elif tag == "CacheClear":
+                result["action"] = "CLEAR"
+                clear_data = contents.get("contents", {})
+                if isinstance(clear_data, dict) and "tag" in clear_data:
+                    clear_tag = clear_data["tag"]
+                    if clear_tag == "CacheClearAll":
+                        result["target"] = "ALL"
+                    elif clear_tag == "CacheClearTable":
+                        result["target"] = "TABLE"
+                        result["table"] = clear_data.get("contents", "")
         
-        if tag == "CacheStats":
-            return {"command": "STATS"}
-        elif tag == "CacheClear":
-            if data and data.get("tag") == "CacheClearAll":
-                return {"command": "CLEAR", "target": "ALL"}
-            elif data and data.get("tag") == "CacheClearTable":
-                return {"command": "CLEAR", "target": "TABLE", "table": data.get("contents")}
-            
-        return {}
+        return result

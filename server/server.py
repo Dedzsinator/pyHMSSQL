@@ -177,18 +177,8 @@ class DBMSServer:
         """
         try:
             timestamp = datetime.datetime.now().isoformat()
-            
-            # FIX: Create proper dictionary structure - ensure query is always a string
-            if isinstance(query, dict):
-                query_str = query.get('query', str(query))
-            else:
-                query_str = str(query)
-                
-            log_entry = {
-                "timestamp": timestamp,
-                "username": username, 
-                "query": query_str
-            }
+            log_entry = {"timestamp": timestamp,
+                         "username": username, "query": query}
 
             # Log to the audit log file
             logs_dir = os.path.join(
@@ -198,17 +188,17 @@ class DBMSServer:
             audit_log_file = os.path.join(logs_dir, "query_audit.log")
 
             with open(audit_log_file, "a", encoding="utf-8") as f:
-                f.write(f"{timestamp} | {username} | {log_entry['query']}\n")
+                f.write(f"{timestamp} | {username} | {query}\n")
 
             # Also log to the standard logger
-            logging.info("AUDIT: User %s executed: %s", username, log_entry['query'])
+            logging.info("AUDIT: User %s executed: %s", username, query)
 
             # Optionally store in a database for more advanced auditing
-            # self._store_audit_log(log_entry)
-            
-        except Exception as e:
+            self._store_audit_log(log_entry)
+
+        except (IOError, PermissionError, FileNotFoundError) as e:
             # Don't let logging errors affect query execution
-            logging.error(f"Error logging query audit: {str(e)}")
+            logging.error("Failed to log query: %s", str(e))
 
     def _broadcast_presence(self):
         """Broadcast server presence on the network"""
@@ -486,6 +476,7 @@ class DBMSServer:
             logs_dir = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), "../logs"
             )
+            os.makedirs(logs_dir, exist_ok=True)
             audit_log_file = os.path.join(logs_dir, "query_audit.log")
 
             with open(audit_log_file, "a", encoding="utf-8") as f:
@@ -616,13 +607,25 @@ class DBMSServer:
         if not query:
             return {"error": "No query provided", "status": "error"}
 
-        logging.info("Query from %s: %s", user or "anonymous", query)
+        # Fix the user logging issue - handle both dict and string user values
+        if isinstance(user, dict):
+            username = user.get("username", "anonymous")
+        elif isinstance(user, str):
+            username = user
+        else:
+            username = "anonymous"
+        
+        logging.info("Query from %s: %s", username, query)
 
         # Log to audit trail
         try:
-            self._log_query_audit(user.get("username", "anonymous") if user else "anonymous", query)
+            self._log_query_audit(username, query)
         except Exception as e:
             logging.error(f"Error logging query audit: {str(e)}")
+
+        # Handle SCRIPT commands specially before other processing
+        if query.strip().upper().startswith("SCRIPT "):
+            return self._handle_script_execution(query, user)
 
         # DISABLED CACHING FOR NOW
         try:
@@ -674,6 +677,10 @@ class DBMSServer:
             # Parse and execute the query
             parsed_query = self.sql_parser.parse_sql(query)
             logging.info(f"▶️ Parsed query: {parsed_query}")
+
+            # Handle SCRIPT execution
+            if parsed_query.get("type") == "SCRIPT":
+                return self._execute_script_plan(parsed_query, user)
 
             # Plan the query
             plan = self.planner.plan_query(parsed_query)
@@ -739,6 +746,308 @@ class DBMSServer:
         except Exception as e:
             logging.error(f"Error handling query: {str(e)}")
             return {"error": f"Query execution failed: {str(e)}", "status": "error"}
+
+    def _handle_script_execution(self, query, user=None):
+        """
+        Handle SQL script execution commands.
+        
+        Args:
+            query: The script command (e.g., "SCRIPT filename.sql")
+            user: The user executing the command
+            
+        Returns:
+            dict: Result of script execution
+        """
+        try:
+            # Extract filename from the SCRIPT command
+            parts = query.strip().split(None, 1)  # Split at first whitespace
+            if len(parts) < 2:
+                return {"error": "Invalid SCRIPT command. Usage: SCRIPT filename.sql", "status": "error"}
+            
+            filename = parts[1].strip().rstrip(';')  # Remove semicolon if present
+            logging.info(f"Executing script: {filename}")
+            
+            # Create a simple plan for script execution
+            script_plan = {
+                "type": "SCRIPT",
+                "filename": filename
+            }
+            
+            # Use the existing method to execute the script
+            return self._execute_script_plan(script_plan, user)
+            
+        except Exception as e:
+            logging.error(f"Error handling script execution: {str(e)}")
+            logging.error(traceback.format_exc())
+            return {"error": f"Script execution failed: {str(e)}", "status": "error"}
+
+    def _find_script_file(self, filename):
+        """Find the script file in various locations."""
+        # Remove leading ./ if present
+        clean_filename = filename
+        if filename.startswith('./'):
+            clean_filename = filename[2:]
+        
+        # Get the current working directory (where client was started)
+        client_cwd = os.getcwd()
+        
+        potential_paths = [
+            # Relative to client's current working directory (most common)
+            os.path.join(client_cwd, filename),
+            os.path.join(client_cwd, clean_filename),
+            # Direct path as provided
+            filename,
+            clean_filename,
+            # Absolute path if provided
+            filename if os.path.isabs(filename) else None,
+            # Relative to project root
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filename),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), clean_filename),
+            # Relative to server directory
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), clean_filename),
+            # In scripts subdirectory of project root
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", filename),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", clean_filename),
+            # In scripts subdirectory of server directory
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", filename),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", clean_filename),
+        ]
+        
+        # Filter out None values
+        potential_paths = [path for path in potential_paths if path is not None]
+        
+        for path in potential_paths:
+            if os.path.exists(path):
+                logging.info(f"Found script file at: {path}")
+                return path
+        
+        # Log all attempted paths for debugging
+        logging.warning(f"Script file '{filename}' not found in any of these locations:")
+        for path in potential_paths:
+            logging.warning(f"  - {path}")
+        
+        return None
+
+    def _execute_script_plan(self, plan, user=None):
+        """Execute a SCRIPT plan by reading and executing SQL file."""
+        try:
+            filename = plan.get("filename")
+            if not filename:
+                return {"error": "No filename specified in SCRIPT command", "status": "error"}
+            
+            # Find the script file
+            script_path = self._find_script_file(filename)
+            if not script_path:
+                return {"error": f"Script file '{filename}' not found", "status": "error"}
+            
+            logging.info(f"Executing script file: {script_path}")
+            
+            # Read the script file
+            try:
+                with open(script_path, 'r', encoding='utf-8') as f:
+                    script_content = f.read()
+            except IOError as e:
+                return {"error": f"Failed to read script file '{filename}': {str(e)}", "status": "error"}
+            
+            # Execute the script
+            results = self._execute_sql_script(script_content, user)
+            
+            # Format results for display
+            formatted_results = []
+            for result in results:
+                if result["status"] == "success":
+                    if result["result"]["type"] == "data":
+                        # For data results, include the actual data
+                        formatted_results.append({
+                            "statement": result["statement"],
+                            "sql": result["sql"][:100] + "..." if len(result["sql"]) > 100 else result["sql"],
+                            "status": "success",
+                            "data": result["result"]
+                        })
+                    else:
+                        # For message results
+                        formatted_results.append({
+                            "statement": result["statement"],
+                            "sql": result["sql"][:100] + "..." if len(result["sql"]) > 100 else result["sql"],
+                            "status": "success",
+                            "message": result["result"]["message"]
+                        })
+                else:
+                    formatted_results.append({
+                        "statement": result["statement"],
+                        "sql": result["sql"][:100] + "..." if len(result["sql"]) > 100 else result["sql"],
+                        "status": "error",
+                        "error": result["error"]
+                    })
+            
+            successful_count = sum(1 for r in results if r["status"] == "success")
+            
+            return {
+                "status": "success",
+                "message": f"Script '{filename}' executed: {successful_count}/{len(results)} statements successful",
+                "script_file": filename,
+                "statements_executed": len(results),
+                "successful_statements": successful_count,
+                "results": formatted_results
+            }
+            
+        except Exception as e:
+            logging.error(f"Error executing script plan: {str(e)}")
+            return {"error": f"Script execution failed: {str(e)}", "status": "error"}
+
+    def _execute_sql_script(self, script_content, user=None):
+        """Execute a SQL script containing multiple statements."""
+        # Split script into individual statements
+        statements = []
+        current_statement = ""
+        
+        for line in script_content.split('\n'):
+            line = line.strip()
+            
+            # Skip empty lines and comments
+            if not line or line.startswith('--'):
+                continue
+            
+            current_statement += line + "\n"
+            
+            # Check if statement is complete (ends with semicolon)
+            if line.endswith(';'):
+                statements.append(current_statement.strip())
+                current_statement = ""
+        
+        # Add any remaining statement
+        if current_statement.strip():
+            statements.append(current_statement.strip())
+        
+        results = []
+        successful_statements = 0
+        
+        for i, statement in enumerate(statements, 1):
+            if not statement:
+                continue
+            
+            logging.info(f"Executing statement {i}: {statement[:50]}...")
+            
+            try:
+                # Execute the statement
+                result = self.handle_query(statement, user=user)
+                
+                # Format result for display
+                if isinstance(result, dict):
+                    if result.get("status") == "error":
+                        logging.warning(f"Statement {i} failed: {result.get('error', 'Unknown error')}")
+                        results.append({
+                            "statement": i,
+                            "sql": statement,
+                            "status": "error",
+                            "error": result.get('error', 'Unknown error')
+                        })
+                    else:
+                        logging.info(f"Statement {i} executed successfully")
+                        
+                        # Create a user-friendly result
+                        formatted_result = self._format_script_result(statement, result)
+                        results.append({
+                            "statement": i,
+                            "sql": statement,
+                            "status": "success",
+                            "result": formatted_result
+                        })
+                        successful_statements += 1
+                else:
+                    logging.info(f"Statement {i} executed successfully")
+                    formatted_result = self._format_script_result(statement, result)
+                    results.append({
+                        "statement": i,
+                        "sql": statement,
+                        "status": "success",
+                        "result": formatted_result
+                    })
+                    successful_statements += 1
+                    
+            except Exception as e:
+                error_msg = f"Execution error: {str(e)}"
+                logging.warning(f"Statement {i} failed: {error_msg}")
+                results.append({
+                    "statement": i,
+                    "sql": statement,
+                    "status": "error",
+                    "error": error_msg
+                })
+        
+        logging.info(f"Script execution completed: {successful_statements}/{len(statements)} statements successful")
+        return results
+
+    def _format_script_result(self, statement, result):
+        """Format query result for script output."""
+        stmt_type = statement.strip().upper().split()[0]
+        
+        if stmt_type in ['SELECT', 'SHOW']:
+            # For SELECT and SHOW statements, return the data
+            if isinstance(result, dict):
+                if 'rows' in result and 'columns' in result:
+                    return {
+                        "type": "data",
+                        "columns": result['columns'],
+                        "rows": result['rows'],
+                        "row_count": len(result['rows'])
+                    }
+                elif 'data' in result:
+                    return {
+                        "type": "data",
+                        "data": result['data']
+                    }
+            elif isinstance(result, list):
+                return {
+                    "type": "data", 
+                    "rows": result,
+                    "row_count": len(result)
+                }
+            return {"type": "data", "message": "Query executed successfully"}
+            
+        elif stmt_type in ['INSERT']:
+            # For INSERT statements
+            if isinstance(result, dict) and 'rows_affected' in result:
+                return {"type": "message", "message": f"Inserted {result['rows_affected']} rows"}
+            elif isinstance(result, dict) and result.get('status') == 'success':
+                return {"type": "message", "message": "Insert completed successfully"}
+            return {"type": "message", "message": "Insert executed"}
+            
+        elif stmt_type in ['UPDATE']:
+            if isinstance(result, dict) and 'rows_affected' in result:
+                return {"type": "message", "message": f"Updated {result['rows_affected']} rows"}
+            elif isinstance(result, dict) and result.get('status') == 'success':
+                return {"type": "message", "message": "Update completed successfully"}
+            return {"type": "message", "message": "Update executed"}
+            
+        elif stmt_type in ['DELETE']:
+            if isinstance(result, dict) and 'rows_affected' in result:
+                return {"type": "message", "message": f"Deleted {result['rows_affected']} rows"}
+            elif isinstance(result, dict) and result.get('status') == 'success':
+                return {"type": "message", "message": "Delete completed successfully"}
+            return {"type": "message", "message": "Delete executed"}
+            
+        elif stmt_type == 'CREATE':
+            if 'TABLE' in statement.upper():
+                return {"type": "message", "message": "Table created successfully"}
+            elif 'DATABASE' in statement.upper():
+                return {"type": "message", "message": "Database created successfully"}
+            elif 'INDEX' in statement.upper():
+                return {"type": "message", "message": "Index created successfully"}
+            return {"type": "message", "message": "Create operation completed"}
+            
+        elif stmt_type == 'DROP':
+            return {"type": "message", "message": "Drop operation completed"}
+            
+        elif stmt_type in ['BEGIN', 'COMMIT', 'ROLLBACK']:
+            return {"type": "message", "message": f"{stmt_type} transaction executed"}
+            
+        elif stmt_type == 'USE':
+            return {"type": "message", "message": "Database changed successfully"}
+            
+        else:
+            return {"type": "message", "message": "Statement executed successfully"}
 
     def shutdown(self):
         """Perform clean shutdown tasks."""

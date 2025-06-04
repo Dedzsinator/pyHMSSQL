@@ -1,8 +1,8 @@
 ? /home/deginandor/Documents/Programming/pyHMSSQL/server/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.4.8/build/hsqlparser/autogen/Paths_hsqlparser.hs
-: hash: 2f34cf8e0a5269f6d07dcbc6b1b10ee4c4351cb4452597a179f3c5c71df71da9
+: hash: 47487a7ecc3e4ebf9306f691c31f2d79441dda1bc376a3361efa8ea46ec2518c
 /home/deginandor/Documents/Programming/pyHMSSQL/server/hsqlparser.cabal:
-  hash: 237e0e19aa4b0aa8ba04341ff18add4a9f0e405f37be1b7844950a2fd2ba34f6
+  hash: 5806c30203e225a3642bbe36f462a2a327da08ea37fb18073c6d770442e13c9c
 /home/deginandor/Documents/Programming/pyHMSSQL/server/package.yaml:
-  hash: 1a7877f11768f16ff0159a9a1b6852daf87f684ce2ecba12a663d65f3d5ffeb6
+  hash: a1ebecebd802b2c2e9d18c02b428a3a93970f1625f2d17e1c69f40fd852f579a
 /home/deginandor/Documents/Programming/pyHMSSQL/server/parser.hs:
-  hash: 17456413558938ebed271b03c2550025c9c6472f1f11744a4ce840c9faad4635
+  hash: a25e41227303ba14b0f1050fd22199f9a7a8b0030f210484b94b0e2a9697b37a

@@ -27,84 +27,113 @@ if ! command -v stack &> /dev/null; then
     echo "Installation instructions:"
     echo "  On Ubuntu/Debian: curl -sSL https://get.haskellstack.org/ | sh"
     echo "  On macOS: brew install haskell-stack"
-    echo "  On Windows: Download from https://docs.haskellstack.org/en/stable/install_and_upgrade/"
+    echo "  On Windows: Download from https://get.haskellstack.org/"
     exit 1
 fi
 
-# Check if we need to initialize stack project
+# Create stack.yaml if it doesn't exist
 if [[ ! -f "$SCRIPT_DIR/stack.yaml" ]]; then
-    echo "Initializing Stack project..."
-    cd "$SCRIPT_DIR"
-    stack init --resolver lts
+    echo "Creating stack.yaml..."
+    cat > "$SCRIPT_DIR/stack.yaml" << 'EOF'
+resolver: lts-21.21
+
+packages:
+- .
+
+dependencies:
+- base >= 4.7 && < 5
+- parsec
+- aeson
+- text
+- containers
+
+ghc-options:
+  "$locals": -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+
+extra-deps: []
+
+allow-newer: true
+EOF
 fi
 
-# Change to script directory for building
+# Create package.yaml if it doesn't exist
+if [[ ! -f "$SCRIPT_DIR/package.yaml" ]]; then
+    echo "Creating package.yaml..."
+    cat > "$SCRIPT_DIR/package.yaml" << 'EOF'
+name:                hsqlparser
+version:             0.1.0.0
+github:              "pyHMSSQL/hsqlparser"
+license:             BSD3
+author:              "pyHMSSQL Team"
+maintainer:          "example@example.com"
+copyright:           "2024 pyHMSSQL Team"
+
+extra-source-files:
+- README.md
+
+description:         Please see the README on GitHub at <https://github.com/pyHMSSQL/hsqlparser#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- parsec
+- aeson
+- text
+- containers
+
+ghc-options:
+- -Wall
+- -Wcompat
+- -Widentities
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wmissing-export-lists
+- -Wmissing-home-modules
+- -Wpartial-fields
+- -Wredundant-constraints
+
+library:
+  source-dirs: src
+
+executables:
+  hsqlparser:
+    main:                parser.hs
+    source-dirs:         .
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - hsqlparser
+
+tests:
+  hsqlparser-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - hsqlparser
+EOF
+fi
+
 cd "$SCRIPT_DIR"
 
-# Clean previous builds
-echo "Cleaning previous builds..."
-stack clean 2>/dev/null || true
+echo "Installing dependencies..."
+stack setup
 
-# Build the parser
-echo "Building with Stack..."
-if ! stack build; then
-    echo "Error: Stack build failed"
-    echo "This might be due to missing dependencies or compilation errors"
-    echo "Try running: stack setup"
-    exit 1
-fi
+echo "Building the parser..."
+stack build
 
-# Find the built executable
-echo "Locating built executable..."
-INSTALL_ROOT=$(stack path --local-install-root 2>/dev/null)
-if [[ -z "$INSTALL_ROOT" ]]; then
-    echo "Error: Could not determine stack install root"
-    exit 1
-fi
+echo "Building executable..."
+stack install --local-bin-path .
 
-BINARY_PATH="$INSTALL_ROOT/bin/hsqlparser"
-if [[ ! -f "$BINARY_PATH" ]]; then
-    echo "Error: Built executable not found at $BINARY_PATH"
-    echo "Available files in $(dirname "$BINARY_PATH"):"
-    ls -la "$(dirname "$BINARY_PATH")" 2>/dev/null || echo "Directory does not exist"
-    
-    # Try alternative locations
-    echo "Searching for hsqlparser executable..."
-    find "$INSTALL_ROOT" -name "hsqlparser*" -type f 2>/dev/null || true
-    
-    # Try building with explicit target
-    echo "Attempting to build with explicit executable target..."
-    if stack build :hsqlparser; then
-        BINARY_PATH=$(find "$INSTALL_ROOT" -name "hsqlparser*" -type f | head -1)
-    fi
-    
-    if [[ ! -f "$BINARY_PATH" ]]; then
-        echo "Error: Could not locate built executable"
-        exit 1
-    fi
-fi
-
-# Copy the binary to the project root directory
-TARGET_PATH="$PROJECT_ROOT/hsqlparser"
-echo "Installing binary to $TARGET_PATH..."
-
-if cp "$BINARY_PATH" "$TARGET_PATH"; then
-    chmod +x "$TARGET_PATH"
-    echo "Build complete! Parser executable installed to: $TARGET_PATH"
-    
-    # Test the executable
+if [[ -f "$SCRIPT_DIR/hsqlparser" ]]; then
+    echo "✅ Build successful! Parser executable created at: $SCRIPT_DIR/hsqlparser"
     echo "Testing the parser..."
-    if "$TARGET_PATH" --help >/dev/null 2>&1; then
-        echo "✓ Parser executable is working correctly"
-    else
-        echo "⚠ Warning: Parser executable may not be working correctly"
-        echo "Try running: $TARGET_PATH --help"
-    fi
-    
-    echo ""
-    echo "You can now use the Haskell parser with pyHMSSQL."
-    echo "The parser will be automatically used when available."
+    echo '{"tag": "Success", "contents": "Parser is working"}' | ./hsqlparser "SELECT * FROM test" > /dev/null 2>&1 && echo "✅ Parser test passed" || echo "⚠️  Parser test failed (this is expected if the parser is incomplete)"
 else
-    echo "Error: Failed to copy binary to $TARGET_PATH"
+    echo "❌ Build failed - executable not found"
     exit 1
 fi

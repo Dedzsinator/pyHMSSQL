@@ -420,15 +420,17 @@ class ExecutionEngine:
             elif plan_type in ["UNION", "INTERSECT", "EXCEPT"]:
                 return self.execute_set_operation(plan)
             elif plan_type == "BEGIN_TRANSACTION":
-                return self.transaction_manager.begin_transaction()
+                return self.transaction_manager.begin()
             elif plan_type == "COMMIT":
-                return self.transaction_manager.commit_transaction()
+                return self.transaction_manager.commit()
             elif plan_type == "ROLLBACK":
-                return self.transaction_manager.rollback_transaction()
+                return self.transaction_manager.rollback()
             elif plan_type == "SET_PREFERENCE":
                 return self.execute_set_preference(plan)
             elif plan_type == "SCRIPT":
                 return self.execute_script(plan)
+            elif plan_type == "AGGREGATE":
+                return self.aggregate_executor.execute_aggregate(plan)
             else:
                 return {"error": f"Unsupported plan type: {plan_type}", "status": "error"}
 

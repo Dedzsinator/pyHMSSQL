@@ -1,19 +1,38 @@
 name: hsqlparser
 version: 0.1.0.0
-description: Haskell SQL parser for pyHMSSQL
-license: MIT
-author: pyHMSSQL Team
-maintainer: pyhmssql@example.com
-category: Database
+github: "pyHMSSQL/hsqlparser"
+license: BSD3
+author: "pyHMSSQL Team"
+maintainer: "example@example.com"
+copyright: "2024 pyHMSSQL Team"
+
+extra-source-files:
+  - README.md
+
+description: Please see the README on GitHub at <https://github.com/pyHMSSQL/hsqlparser#readme>
 
 dependencies:
   - base >= 4.7 && < 5
-  - aeson >= 2.0
-  - megaparsec >= 9.0
-  - parser-combinators >= 1.0
-  - text >= 1.2
-  - bytestring >= 0.10
-  - containers >= 0.6
+  - parsec
+  - aeson
+  - text
+  - containers
+  - megaparsec
+  - bytestring
+
+ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Widentities
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wmissing-export-lists
+  - -Wmissing-home-modules
+  - -Wpartial-fields
+  - -Wredundant-constraints
+
+library:
+  source-dirs: src
 
 executables:
   hsqlparser:
@@ -23,4 +42,16 @@ executables:
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
-      - -O2
+    dependencies:
+      - hsqlparser
+
+tests:
+  hsqlparser-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - hsqlparser

@@ -543,72 +543,169 @@ class DBMSClient(cmd.Cmd):
 
     def display_result(self, result):
         """Display the result of a query in a formatted table"""
-        # If the result has status='error', it's an error message
+        # First check for common error formats
         if isinstance(result, dict) and result.get("status") == "error" and "error" in result:
             print(f"Error: {result['error']}")
             return
-
-        # Check if this is a SHOW ALL_TABLES result - prioritize showing the tree
-        if isinstance(result, dict) and "rows" in result and "columns" in result:
-            # Check if the query was SHOW ALL_TABLES
-            if (len(result["columns"]) >= 2 and
-                "DATABASE_NAME" in result["columns"] and
-                "TABLE_NAME" in result["columns"]):
-                self.display_tables_tree(result)
-                return
-
-        # Show message if present and no special handling was done above
-        if isinstance(result, dict) and "message" in result:
-            print(result["message"])
+            
+        # Handle simple string response
+        if isinstance(result, str):
+            print(result)
             return
 
-        # Normal table display for other results
+        # Check for success messages
+        if isinstance(result, dict) and "message" in result:
+            print(result["message"])
+            
+            # Check for script execution results containing SELECT data
+            if "results" in result and isinstance(result["results"], list):
+                print("\n--- Script Execution Details ---")
+                
+                for i, stmt_result in enumerate(result["results"]):
+                    sql = stmt_result.get("sql", "")
+                    status = stmt_result.get("status", "unknown")
+                    
+                    # Print statement header
+                    print(f"\nStatement {stmt_result.get('statement', i+1)}:")
+                    print(f"SQL: {sql}")
+                    
+                    if status == "success":
+                        # Check if this is a data result (from SELECT)
+                        if "data" in stmt_result and isinstance(stmt_result["data"], dict):
+                            data_result = stmt_result["data"]
+                            
+                            # If it has columns and rows, it's a SELECT result
+                            if data_result.get("type") == "data" and "columns" in data_result and "rows" in data_result:
+                                columns = data_result["columns"]
+                                rows = data_result["rows"]
+                                
+                                # Display the SELECT results in a formatted table
+                                print("\nResults:")
+                                if not rows:
+                                    print("Query returned no rows.")
+                                else:
+                                    # Calculate column widths
+                                    col_widths = [max(len(str(col)), 10) for col in columns]
+                                    for row in rows:
+                                        for i, cell in enumerate(row):
+                                            if i < len(col_widths):
+                                                cell_str = str(cell) if cell is not None else "NULL"
+                                                col_widths[i] = max(col_widths[i], len(cell_str))
+                                    
+                                    # Print header
+                                    print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
+                                    header = " | ".join(str(col).ljust(col_widths[i]) for i, col in enumerate(columns))
+                                    print(header)
+                                    print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
+                                    
+                                    # Print rows
+                                    for row in rows:
+                                        row_str = " | ".join(
+                                            (str(cell) if cell is not None else "NULL").ljust(col_widths[i]) 
+                                            if i < len(col_widths) else (str(cell) if cell is not None else "NULL")
+                                            for i, cell in enumerate(row)
+                                        )
+                                        print(row_str)
+                                    
+                                    print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
+                                    print(f"Total: {len(rows)} row(s) returned")
+                            elif "message" in data_result:
+                                print(f"Result: {data_result['message']}")
+                        elif "message" in stmt_result:
+                            print(f"Result: {stmt_result['message']}")
+                    else:
+                        # Print errors
+                        print(f"Error: {stmt_result.get('error', 'Unknown error')}")
+                
+                print("\n--- End of Script Results ---")
+            return
+            
+        # Handle table data (most SELECT results)
         if isinstance(result, dict) and "rows" in result and "columns" in result:
             columns = result["columns"]
             rows = result["rows"]
-
-            # If no rows, show a simple message
+            
+            # If no rows, show a message instead of empty table
             if not rows:
                 print("Query executed successfully. No results to display.")
                 return
 
-            # Calculate column widths
-            col_widths = [len(str(col)) for col in columns]
+            # Calculate column widths (minimum width of 10 characters)
+            col_widths = [max(len(str(col)), 10) for col in columns]
             for row in rows:
                 for i, cell in enumerate(row):
                     if i < len(col_widths):
-                        col_widths[i] = max(col_widths[i], len(str(cell)))
+                        cell_str = str(cell) if cell is not None else "NULL"
+                        col_widths[i] = max(col_widths[i], len(cell_str))
 
-            # Print header
-            header = " | ".join(
-                str(col).ljust(col_widths[i]) for i, col in enumerate(columns)
-            )
-            separator = "-+-".join("-" * width for width in col_widths)
+            # Print header with bold formatting
+            print("\n" + "-" * (sum(col_widths) + (3 * len(columns)) - 3))
+            header = " | ".join(str(col).ljust(col_widths[i]) for i, col in enumerate(columns))
             print(header)
-            print(separator)
+            print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
 
             # Print rows
             for row in rows:
                 row_str = " | ".join(
-                    str(cell).ljust(col_widths[i]) if i < len(
-                        col_widths) else str(cell)
+                    (str(cell) if cell is not None else "NULL").ljust(col_widths[i]) 
+                    if i < len(col_widths) else (str(cell) if cell is not None else "NULL")
                     for i, cell in enumerate(row)
                 )
                 print(row_str)
 
-            print(f"\n{len(rows)} row(s) returned")
-        # Handle error messages
-        elif isinstance(result, dict) and "error" in result:
-            print(f"Error: {result['error']}")
-        # Handle any other data formats
-        else:
-            # Just print key-value pairs without status or type fields
-            if isinstance(result, dict):
-                for key, value in result.items():
-                    if key not in ["status", "type"]:
-                        print(f"{key}: {value}")
-            else:
-                print(result)
+            print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
+            print(f"\nTotal: {len(rows)} row(s) returned")
+            return
+            
+        # Handle insert/update/delete success with row count
+        if isinstance(result, dict) and "rows_affected" in result:
+            operation = result.get("operation", "Operation")
+            print(f"{operation} completed successfully. {result['rows_affected']} row(s) affected.")
+            return
+            
+        # Handle list of dictionaries (unpacked results)
+        if isinstance(result, list) and result and isinstance(result[0], dict):
+            # Get all unique columns
+            columns = set()
+            for item in result:
+                columns.update(item.keys())
+                
+            columns = sorted(list(columns))
+            
+            # Calculate column widths
+            col_widths = [len(col) for col in columns]
+            for item in result:
+                for i, col in enumerate(columns):
+                    value = str(item.get(col, "NULL"))
+                    col_widths[i] = max(col_widths[i], len(value))
+            
+            # Print header
+            print("\n" + "-" * (sum(col_widths) + (3 * len(columns)) - 3))
+            header = " | ".join(col.ljust(col_widths[i]) for i, col in enumerate(columns))
+            print(header)
+            print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
+            
+            # Print rows
+            for item in result:
+                row_str = " | ".join(
+                    str(item.get(col, "NULL")).ljust(col_widths[i])
+                    for i, col in enumerate(columns)
+                )
+                print(row_str)
+                
+            print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
+            print(f"\nTotal: {len(result)} row(s) returned")
+            return
+            
+        # Handle any other dictionary format by printing key-values
+        if isinstance(result, dict):
+            for key, value in result.items():
+                if key not in ["status", "type", "_duration"]:  # Skip metadata fields
+                    print(f"{key}: {value}")
+            return
+            
+        # Final fallback - just print the raw result
+        print(result)
 
     def do_query(self, sql_query):
         """
