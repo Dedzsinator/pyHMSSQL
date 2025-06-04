@@ -402,6 +402,14 @@ query INSERT INTO products (name, price, stock) VALUES
 
 query CREATE TABLE products (id INT IDENTITY(1,1) PRIMARY KEY, name VARCHAR(100) NOT NULL, price DECIMAL(10,2), stock INT DEFAULT 0) ✅
 
+query CREATE TABLE order_details (
+    order_id INT IDENTITY(1,1) PRIMARY KEY,
+    product_id INT,
+    quantity INT,
+    status VARCHAR(20),
+    FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
 -- Test for the joins
 
 query SELECT products.product_id, products.category, order_details.quantity, order_details.status FROM products INNER JOIN order_details ON products.product_id = order_details.product_id WHERE products.category = 'Electronics' AND order_details.quantity > 2;

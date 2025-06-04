@@ -553,8 +553,48 @@ class DBMSClient(cmd.Cmd):
             print(result)
             return
 
-        # Check for success messages
-        if isinstance(result, dict) and "message" in result:
+        # Check for results that have both a message and tabular data (rows/columns)
+        if isinstance(result, dict) and "message" in result and "rows" in result and "columns" in result:
+            # Print the message but continue to display the table
+            print(f"{result['message']}")
+            
+            # Display the table data (don't return after printing the message)
+            columns = result["columns"]
+            rows = result["rows"]
+            
+            if not rows:
+                print("Query returned no rows.")
+                return
+
+            # Calculate column widths
+            col_widths = [max(len(str(col)), 10) for col in columns]
+            for row in rows:
+                for i, cell in enumerate(row):
+                    if i < len(col_widths):
+                        cell_str = str(cell) if cell is not None else "NULL"
+                        col_widths[i] = max(col_widths[i], len(cell_str))
+
+            # Print header
+            print("\n" + "-" * (sum(col_widths) + (3 * len(columns)) - 3))
+            header = " | ".join(str(col).ljust(col_widths[i]) for i, col in enumerate(columns))
+            print(header)
+            print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
+
+            # Print rows
+            for row in rows:
+                row_str = " | ".join(
+                    (str(cell) if cell is not None else "NULL").ljust(col_widths[i]) 
+                    if i < len(col_widths) else (str(cell) if cell is not None else "NULL")
+                    for i, cell in enumerate(row)
+                )
+                print(row_str)
+
+            print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
+            print(f"\nTotal: {len(rows)} row(s) returned")
+            return
+        
+        # Standard message handling (no tabular data)
+        elif isinstance(result, dict) and "message" in result:
             print(result["message"])
             
             # Check for script execution results containing SELECT data

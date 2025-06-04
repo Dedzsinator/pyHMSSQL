@@ -7,6 +7,7 @@ import logging
 import os
 from bptree import BPlusTree
 import re
+import traceback
 from parsers.condition_parser import ConditionParser
 from transaction.lock_manager import LockManager, LockType
 from utils.sql_helpers import parse_simple_condition, check_database_selected
@@ -168,43 +169,52 @@ class DMLExecutor:
         return conditions
 
     def execute_delete(self, plan):
-        """Execute a DELETE statement."""
+        """Execute a DELETE operation."""
         table_name = plan.get("table")
         condition = plan.get("condition")
-
-        # Get database name
-        db_name = self.catalog_manager.get_current_database()
-        if not db_name:
-            return {"error": "No database selected", "status": "error"}
-
-        # Parse the condition
-        parsed_conditions = self._parse_conditions(condition) if condition else []
-
-        # First query the records that would be deleted to check constraints
-        records_to_delete = self.catalog_manager.query_with_condition(
-            table_name, parsed_conditions, ["*"]
-        )
-
-        # Check if deleting would violate foreign key constraints
-        fk_violation = self._check_fk_constraints_for_delete(db_name, table_name, records_to_delete)
-        if fk_violation:
-            return {"error": fk_violation, "status": "error"}
-
-        # Execute delete
+        
+        # Log the condition for debugging
+        logging.info(f"DELETE from {table_name} with condition: {condition}")
+        
+        # Make sure we have a valid condition format
+        parsed_conditions = []
+        if condition:
+            if isinstance(condition, list):
+                parsed_conditions = condition  # Already correctly formatted
+            else:
+                # Try to parse it if it's a string
+                try:
+                    if isinstance(condition, str):
+                        # Basic condition parsing for "column operator value"
+                        parts = condition.split()
+                        if len(parts) >= 3:
+                            column = parts[0]
+                            op = parts[1]
+                            value_str = ' '.join(parts[2:]).strip(';')
+                            
+                            # Try to convert value to appropriate type
+                            try:
+                                if value_str.isdigit():
+                                    value = int(value_str)
+                                elif value_str.replace('.', '', 1).isdigit():
+                                    value = float(value_str)
+                                else:
+                                    value = value_str
+                            except:
+                                value = value_str
+                                
+                            parsed_conditions = [{"column": column, "operator": op, "value": value}]
+                except Exception as e:
+                    logging.error(f"Error parsing delete condition: {str(e)}")
+        
+        # Call catalog manager with parsed conditions
         result = self.catalog_manager.delete_records(table_name, parsed_conditions)
-
-        # Important: Check if result is an error dictionary
-        if isinstance(result, dict) and "error" in result and "status" in result:
-            logging.error(f"DELETE failed: {result['error']}")
-            return result  # Return error dictionary to the client
-
-        # Success case - return formatted result
-        return {
-            "message": result,  # This will be like "1 records deleted."
-            "status": "success",
-            "type": "delete_result",
-            "rowCount": int(result.split()[0]) if isinstance(result, str) and result[0].isdigit() else 0
-        }
+        
+        if isinstance(result, str) and "records deleted" in result:
+            count = result.split()[0]
+            return {"status": "success", "message": result, "rowCount": int(count)}
+        else:
+            return {"status": "error", "message": result}
 
     def _check_fk_constraints_for_delete(self, db_name, table_name, records_to_delete):
         """

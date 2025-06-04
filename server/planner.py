@@ -841,10 +841,47 @@ class Planner:
         Example: DELETE FROM table1 WHERE id = 1
         """
         logging.debug("Planning DELETE query: %s", parsed_query)
+        
+        # Extract the condition from either 'where' or 'condition' field
+        condition_str = parsed_query.get("where") or parsed_query.get("condition")
+        
+        # Parse the condition string into a structured format
+        parsed_condition = None
+        if condition_str:
+            # Remove trailing semicolon if present
+            if condition_str.endswith(';'):
+                condition_str = condition_str[:-1]
+                
+            # Parse simple condition (column op value)
+            parts = condition_str.split()
+            if len(parts) >= 3:
+                column = parts[0]
+                op = parts[1]
+                
+                # Handle the value part which might be quoted
+                value_str = ' '.join(parts[2:])
+                
+                # Try to convert to numeric if possible
+                try:
+                    if value_str.isdigit():
+                        value = int(value_str)
+                    elif value_str.replace('.', '', 1).isdigit():
+                        value = float(value_str)
+                    else:
+                        # Remove quotes if present
+                        if value_str.startswith(("'", '"')) and value_str.endswith(("'", '"')):
+                            value = value_str[1:-1]
+                        else:
+                            value = value_str
+                except Exception:
+                    value = value_str
+                    
+                parsed_condition = [{"column": column, "operator": op, "value": value}]
+        
         return {
             "type": "DELETE",
             "table": parsed_query["table"],
-            "condition": parsed_query.get("where"),
+            "condition": parsed_condition  # Use our parsed condition
         }
 
     def plan_create_table(self, parsed_query):

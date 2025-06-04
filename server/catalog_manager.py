@@ -774,6 +774,9 @@ class CatalogManager:
             current_time = int(time.time() * 1000000)  # Get base timestamp
             
             for i, record in enumerate(records):
+                fk_violation = self._check_fk_constraints_for_insert(db_name, table_name, record)
+                if fk_violation:
+                    return {"error": fk_violation, "status": "error", "record_index": i}
                 try:
                     # Make a copy of the record to avoid modifying the original
                     record_copy = record.copy() if isinstance(record, dict) else record
@@ -834,6 +837,11 @@ class CatalogManager:
         table_id = f"{db_name}.{table_name}"
         if table_id not in self.tables:
             return {"error": f"Table '{table_name}' does not exist.", "status": "error"}
+        
+        # ADD THIS CODE: Check foreign key constraints BEFORE insertion
+        fk_violation = self._check_fk_constraints_for_insert(db_name, table_name, record)
+        if fk_violation:
+            return {"error": fk_violation, "status": "error"}
 
         table_schema = self.tables[table_id]
         
@@ -1065,9 +1073,7 @@ class CatalogManager:
                             if referencing_records:
                                 logging.info("Found %s referencing records: %s",
                                                 len(referencing_records), referencing_records)
-                                error_msg = f"Cannot delete from {table_name} \
-                                    because records in {other_table}\
-                                        reference it via foreign key {fk_column}->{ref_column}"
+                                error_msg = f"Cannot delete from {table_name} because records in {other_table} reference it via foreign key {fk_column}->{ref_column}"
                                 return error_msg
 
         return None  # No constraints violated
@@ -1110,9 +1116,7 @@ class CatalogManager:
                     )
 
                     if not ref_records:
-                        return f"Foreign key constraint violation:\
-                            Value {fk_value} in {table_name}.{fk_column}\
-                                does not exist in {ref_table}.{ref_column}"
+                        return f"Foreign key constraint violation: Value {fk_value} in {table_name}.{fk_column} does not exist in {ref_table}.{ref_column}"
 
         # For heuristic FK checks (columns ending with _id)
         for col_name, value in record.items():
@@ -1136,10 +1140,6 @@ class CatalogManager:
                 # Check each possible referenced table
                 for ref_table in possible_tables:
                     if ref_table in self.list_tables(db_name):
-                        logging.info("Heuristic FK check: %s.%s -> %s.id = %s",
-                                    table_name, col_name, ref_table, value)
-
-                        # Check if referenced value exists
                         ref_records = self.query_with_condition(
                             ref_table,
                             [{"column": "id", "operator": "=", "value": value}],
@@ -1147,9 +1147,7 @@ class CatalogManager:
                         )
 
                         if not ref_records:
-                            return f"Foreign key constraint violation:\
-                                Value {value} in {table_name}.{col_name}\
-                                    does not exist in {ref_table}.id"
+                            return f"Foreign key constraint violation: Value {value} in {table_name}.{col_name} does not exist in {ref_table}.id"
                         break
 
         return None  # No violations
@@ -1295,7 +1293,7 @@ class CatalogManager:
 
             # Get all records
             all_records = tree.range_query(float("-inf"), float("inf"))
-
+            
             if not all_records:
                 return "0 records deleted."
 
@@ -1304,129 +1302,135 @@ class CatalogManager:
             records_to_keep = []
 
             # Identify records to delete based on conditions
-            for record_key, record in all_records:
+            for key, record_value in all_records:
+                # Extract the actual record from the value
+                if hasattr(record_value, 'value'):
+                    record = record_value.value
+                elif isinstance(record_value, dict):
+                    record = record_value
+                else:
+                    # Skip if we can't extract a proper record
+                    records_to_keep.append((key, record_value))
+                    continue
+                    
                 # Check if record matches all conditions
                 should_delete = True
-
+                
                 # If no conditions, delete all records
                 if not conditions:
-                    records_to_delete.append(record_key)
+                    records_to_delete.append(record)
                     continue
 
-                # Otherwise, check each condition
+                # Check each condition
                 for condition in conditions:
                     col = condition.get("column")
                     op = condition.get("operator")
                     val = condition.get("value")
-
+                    
                     # Skip invalid conditions
                     if not col or not op:
                         continue
-
+                        
                     # Case-insensitive column matching
                     matching_col = None
                     for record_col in record:
                         if record_col.lower() == col.lower():
                             matching_col = record_col
                             break
-
+                            
                     if matching_col is None:
                         should_delete = False
                         break
-
-                    # Get the column value using the correct case
+                        
+                    # Get the column value
                     record_val = record[matching_col]
-
-                    # Apply operator
-                    if op == "=":
-                        if record_val != val:
-                            should_delete = False
-                            break
-                    elif op == ">":
-                        try:
-                            if float(record_val) <= float(val):
-                                should_delete = False
-                                break
-                        except (ValueError, TypeError):
-                            # Fall back to string comparison
-                            if str(record_val) <= str(val):
-                                should_delete = False
-                                break
-                    elif op == "<":
-                        try:
-                            if float(record_val) >= float(val):
-                                should_delete = False
-                                break
-                        except (ValueError, TypeError):
-                            if str(record_val) >= str(val):
-                                should_delete = False
-                                break
-                    elif op == ">=":
-                        try:
-                            if float(record_val) < float(val):
-                                should_delete = False
-                                break
-                        except (ValueError, TypeError):
-                            if str(record_val) < str(val):
-                                should_delete = False
-                                break
-                    elif op == "<=":
-                        try:
-                            if float(record_val) > float(val):
-                                should_delete = False
-                                break
-                        except (ValueError, TypeError):
-                            if str(record_val) > str(val):
-                                should_delete = False
-                                break
-                    elif op == "!=":
-                        if record_val == val:
-                            should_delete = False
-                            break
-
+                    
+                    # Apply operator (use helper method for consistent comparison)
+                    if not self._compare_values(record_val, val, op):
+                        should_delete = False
+                        break
+                        
                 if should_delete:
-                    records_to_delete.append(record_key)
+                    records_to_delete.append(record)
                 else:
-                    records_to_keep.append((record_key, record))
-
+                    records_to_keep.append((key, record_value))
+                    
             if not records_to_delete:
                 return "0 records deleted."
-
-            # CHECK FOREIGN KEY CONSTRAINTS BEFORE DELETE
-            fk_violation = self._check_fk_constraints_for_delete(db_name,\
-                actual_table_name, records_to_delete)
+                
+            # Check foreign key constraints
+            fk_violation = self._check_fk_constraints_for_delete(db_name, actual_table_name, records_to_delete)
             if fk_violation:
-                logging.error("FK constraint violation during delete from %s: %s",
-                            table_name, fk_violation)
-                # Return a dictionary with error information
-                return {"error": fk_violation, "status": "error"}
-
+                return fk_violation
+                
             # Create a new tree with only the records to keep
             new_tree = BPlusTreeFactory.create(order=50, name=actual_table_name)
-
+            
             # Add records to keep to the new tree
-            for key, record in records_to_keep:
-                new_tree.insert(key, record)
-
+            for key, value in records_to_keep:
+                new_tree.insert(key, value)
+                
             # Save the new tree
             new_tree.save_to_file(table_file)
-
-            # Update any indexes
-            for key, record in records_to_keep:
-                self._update_indexes_after_insert(
-                    db_name, actual_table_name, key, record
-                )
-
+            
             # Invalidate cache for this table
             self._invalidate_table_cache(actual_table_name)
-
+            
             return f"{len(records_to_delete)} records deleted."
-
-        except RuntimeError as e:
+            
+        except Exception as e:
             logging.error("Error deleting records: %s", str(e))
-
             logging.error(traceback.format_exc())
             return f"Error deleting records: {str(e)}"
+
+    def _compare_values(self, record_val, condition_val, operator):
+        """Helper method for consistent value comparison."""
+        # Special handling for equality comparisons
+        if operator == "=":
+            # Try string comparison
+            if str(record_val).strip() == str(condition_val).strip():
+                return True
+                
+            # Try numeric comparison
+            try:
+                if float(record_val) == float(condition_val):
+                    return True
+            except (ValueError, TypeError):
+                pass
+                
+            return False
+        
+        # For other operators, try numeric conversion
+        try:
+            if isinstance(record_val, (int, float)) or (isinstance(record_val, str) and record_val.replace('.', '', 1).isdigit()):
+                record_val = float(record_val)
+            if isinstance(condition_val, (int, float)) or (isinstance(condition_val, str) and str(condition_val).replace('.', '', 1).isdigit()):
+                condition_val = float(condition_val)
+        except (ValueError, TypeError):
+            pass  # Keep original values for string comparison
+            
+        # Apply the operator
+        if operator == ">":
+            return record_val > condition_val
+        elif operator == "<":
+            return record_val < condition_val
+        elif operator == ">=":
+            return record_val >= condition_val
+        elif operator == "<=":
+            return record_val <= condition_val
+        elif operator == "!=":
+            return record_val != condition_val
+        elif operator.upper() == "LIKE":
+            # Implement LIKE operator (simplified)
+            pattern = str(condition_val).replace("%", ".*")
+            return bool(re.match(f"^{pattern}$", str(record_val)))
+        elif operator.upper() == "IN":
+            # Implement IN operator
+            if isinstance(condition_val, list):
+                return record_val in condition_val
+            return False
+        
+        return False  # Unknown operator
 
     def execute_update(self, plan):
         """Execute an UPDATE operation."""
@@ -1476,18 +1480,11 @@ class CatalogManager:
                 col_name = column.split()[0]
                 pk_columns.append(col_name)
 
-        # Check for FK constraints if we're updating a primary key
         for update_col in updates.keys():
             if update_col in pk_columns:
-                fk_violation = self._check_fk_constraints_for_update(
-                    db_name, table_name, update_col, records_to_update
-                )
+                fk_violation = self._check_fk_constraints_for_update(db_name, table_name, update_col, records_to_update)
                 if fk_violation:
-                    return {
-                        "error": fk_violation,
-                        "status": "error",
-                        "type": "error"
-                    }
+                    return {"error": fk_violation, "status": "error", "type": "error"}
 
         # Update each matching record
         updated_count = 0
