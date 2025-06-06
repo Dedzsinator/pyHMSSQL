@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import traceback
 import shutil
 import logging
@@ -9,6 +8,8 @@ import datetime
 from hashlib import sha256
 import datetime
 from bptree_wrapper import BPlusTreeFactory
+from sqlglot_parser import SQLGlotParser
+from sqlglot import exp, parse_one
 
 class CatalogManager:
     """_summary_
@@ -19,6 +20,9 @@ class CatalogManager:
         self.catalog_dir = os.path.join(data_dir, "catalog")
         self.tables_dir = os.path.join(data_dir, "tables")
         self.indexes_dir = os.path.join(data_dir, "indexes")
+
+        # Initialize SQLGlot parser for column definition parsing
+        self.sqlglot_parser = SQLGlotParser()
 
         # Ensure directories exist
         for dir_path in [
@@ -232,56 +236,8 @@ class CatalogManager:
         return self.current_database
 
     def _process_column_definition(self, col_def):
-        """Process a single column definition string into a structured format."""
-        col_def = col_def.strip()
-        
-        # Extract column name (first word)
-        parts = col_def.split()
-        if not parts:
-            raise ValueError("Empty column definition")
-        
-        column_name = parts[0]
-        remaining = ' '.join(parts[1:])
-        
-        # Initialize column info
-        column_info = {
-            "name": column_name,
-            "type": None,
-            "primary_key": False,
-            "identity": False,
-            "not_null": False,
-            "default": None
-        }
-        
-        # Parse IDENTITY specification
-        identity_match = re.search(r'IDENTITY\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', remaining, re.IGNORECASE)
-        if identity_match:
-            column_info["identity"] = True
-            column_info["identity_seed"] = int(identity_match.group(1))
-            column_info["identity_increment"] = int(identity_match.group(2))
-            remaining = re.sub(r'IDENTITY\s*\([^)]+\)', '', remaining, flags=re.IGNORECASE).strip()
-        
-        # Parse PRIMARY KEY
-        if re.search(r'\bPRIMARY\s+KEY\b', remaining, re.IGNORECASE):
-            column_info["primary_key"] = True
-            remaining = re.sub(r'\bPRIMARY\s+KEY\b', '', remaining, flags=re.IGNORECASE).strip()
-        
-        # Parse NOT NULL
-        if re.search(r'\bNOT\s+NULL\b', remaining, re.IGNORECASE):
-            column_info["not_null"] = True
-            remaining = re.sub(r'\bNOT\s+NULL\b', '', remaining, flags=re.IGNORECASE).strip()
-        
-        # Parse DEFAULT
-        default_match = re.search(r'\bDEFAULT\s+(.+?)(?:\s|$)', remaining, re.IGNORECASE)
-        if default_match:
-            column_info["default"] = default_match.group(1)
-            remaining = re.sub(r'\bDEFAULT\s+.+?(?:\s|$)', '', remaining, flags=re.IGNORECASE).strip()
-        
-        # What's left should be the data type
-        if remaining:
-            column_info["type"] = remaining
-        
-        return column_info
+        """Process a single column definition string using SQLGlot parser."""
+        return self.sqlglot_parser.parse_column_definition(col_def)
 
     def create_table(self, table_name, columns, constraints=None):
         """Create a table in the catalog with compound key support."""
@@ -843,7 +799,20 @@ class CatalogManager:
         if fk_violation:
             return {"error": fk_violation, "status": "error"}
 
+        # Check unique index constraints BEFORE insertion
+        unique_violation = self._check_unique_constraints_before_insert(db_name, table_name, record)
+        if unique_violation:
+            return {"error": unique_violation, "status": "error"}
+
         table_schema = self.tables[table_id]
+        
+        # CRITICAL: Validate that all columns in the record exist in the table schema
+        table_columns = set(table_schema.get("columns", {}).keys())
+        record_columns = set(record.keys())
+        invalid_columns = record_columns - table_columns
+        
+        if invalid_columns:
+            return {"error": f"Invalid column(s): {', '.join(invalid_columns)}. Valid columns are: {', '.join(table_columns)}", "status": "error"}
         
         # Get primary key columns (compound or single)
         compound_pk = table_schema.get("compound_primary_key")
@@ -855,6 +824,51 @@ class CatalogManager:
             for col_name, col_info in table_schema.get("columns", {}).items():
                 if isinstance(col_info, dict) and col_info.get("primary_key"):
                     primary_key_columns.append(col_name)
+
+        # CRITICAL FIX: Check primary key constraint BEFORE processing record
+        if primary_key_columns:
+            # Check if we have all required primary key values (before IDENTITY generation)
+            pk_check_record = record.copy()
+            
+            # For IDENTITY columns, we need to check after generation, so skip this check for IDENTITY columns
+            identity_pk_columns = []
+            for col_name in primary_key_columns:
+                col_info = table_schema.get("columns", {}).get(col_name, {})
+                if isinstance(col_info, dict) and col_info.get("identity"):
+                    identity_pk_columns.append(col_name)
+            
+            # Only check for duplicate primary keys if we have non-identity primary key values
+            non_identity_pk_columns = [col for col in primary_key_columns if col not in identity_pk_columns]
+            if non_identity_pk_columns:
+                # Generate temporary key for checking duplicates
+                try:
+                    temp_record_key = self._generate_compound_key(pk_check_record, non_identity_pk_columns)
+                    
+                    # Check if this primary key already exists
+                    table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+                    if os.path.exists(table_file):
+                        try:
+                            existing_tree = BPlusTreeFactory.load_from_file(table_file)
+                            all_records = existing_tree.range_query(float("-inf"), float("inf"))
+                            
+                            for _, existing_record in all_records:
+                                if isinstance(existing_record, dict):
+                                    # Check if the non-identity primary key values match
+                                    matches = True
+                                    for col_name in non_identity_pk_columns:
+                                        if col_name in pk_check_record and col_name in existing_record:
+                                            if str(pk_check_record[col_name]) != str(existing_record[col_name]):
+                                                matches = False
+                                                break
+                                    
+                                    if matches:
+                                        pk_values = [str(pk_check_record.get(col, 'NULL')) for col in non_identity_pk_columns]
+                                        return {"error": f"Duplicate primary key constraint violation: Primary key ({', '.join(non_identity_pk_columns)}) = ({', '.join(pk_values)}) already exists", "status": "error"}
+                        except Exception as e:
+                            logging.warning(f"Could not check existing primary keys: {e}")
+                except ValueError:
+                    # Missing primary key values - this will be caught later
+                    pass
 
         # CRITICAL FIX: Handle IDENTITY columns FIRST - make a copy to avoid modifying original
         record = record.copy()
@@ -909,6 +923,28 @@ class CatalogManager:
                 record_key = hashlib.md5(record_str.encode()).hexdigest()[:16]
         except ValueError as e:
             return {"error": f"Error generating record key: {str(e)}", "status": "error"}
+
+        # CRITICAL: Check for duplicate primary key AFTER IDENTITY generation
+        if primary_key_columns and record_key:
+            table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
+            if os.path.exists(table_file):
+                try:
+                    existing_tree = BPlusTreeFactory.load_from_file(table_file)
+                    all_records = existing_tree.range_query(float("-inf"), float("inf"))
+                    
+                    for _, existing_record in all_records:
+                        if isinstance(existing_record, dict):
+                            # Generate the primary key for the existing record
+                            try:
+                                existing_key = self._generate_compound_key(existing_record, primary_key_columns)
+                                if str(existing_key) == str(record_key):
+                                    pk_values = [str(record.get(col, 'NULL')) for col in primary_key_columns]
+                                    return {"error": f"Duplicate primary key constraint violation: Primary key ({', '.join(primary_key_columns)}) = ({', '.join(pk_values)}) already exists", "status": "error"}
+                            except ValueError:
+                                # Skip records with incomplete primary keys
+                                continue
+                except Exception as e:
+                    logging.warning(f"Could not check for duplicate primary keys: {e}")
 
         # Load table file and insert
         table_file = os.path.join(self.tables_dir, db_name, f"{table_name}.tbl")
@@ -1025,23 +1061,12 @@ class CatalogManager:
                 ref_column = None
 
                 # Try these patterns in sequence
-                patterns = [
-                    r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
-                    r"REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
-                    r"FOREIGN\s+KEY\s*[\(\s](\w+)[\)\s]+REFERENCES\s+(\w+)\s*[\(\s](\w+)"
-                ]
-
-                for pattern in patterns:
-                    match = re.search(pattern, constraint_str, re.IGNORECASE)
-                    if match:
-                        if len(match.groups()) == 3:
-                            fk_column = match.group(1)
-                            ref_table = match.group(2)
-                            ref_column = match.group(3)
-                        elif len(match.groups()) == 2:
-                            ref_table = match.group(1)
-                            ref_column = match.group(2)
-                        break  # Stop after first successful match
+                fk_info = self._parse_foreign_key_constraint(constraint_str)
+                
+                if fk_info:
+                    fk_column = fk_info["fk_column"]
+                    ref_table = fk_info["ref_table"]
+                    ref_column = fk_info["ref_column"]
 
                 # If we found a reference to the table we're deleting from
                 if ref_table and ref_table.lower() == table_name.lower():
@@ -1093,14 +1118,13 @@ class CatalogManager:
         for constraint in constraints:
             # Parse out FOREIGN KEY constraints
             if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
-                # Parse the FK definition using regex
-                pattern = r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)"
-                match = re.search(pattern, constraint, re.IGNORECASE)
+                # Parse the FK definition using SQLGlot
+                fk_info = self._parse_foreign_key_constraint(constraint)
 
-                if match:
-                    fk_column = match.group(1)
-                    ref_table = match.group(2)
-                    ref_column = match.group(3)
+                if fk_info:
+                    fk_column = fk_info["fk_column"]
+                    ref_table = fk_info["ref_table"]
+                    ref_column = fk_info["ref_column"]
 
                     # Skip if the FK column isn't in our record or is NULL
                     if fk_column not in record or record[fk_column] is None:
@@ -1151,6 +1175,86 @@ class CatalogManager:
                         break
 
         return None  # No violations
+
+    def _check_unique_constraints_before_insert(self, db_name, table_name, record):
+        """Check unique index constraints before inserting a record."""
+        table_id = f"{db_name}.{table_name}"
+
+        # Check if we have any unique indexes to validate
+        indexes_to_check = {}
+        for index_id, index_info in self.indexes.items():
+            if index_info.get("table") == table_id and index_info.get("unique", False):
+                # Handle both single column and multiple columns
+                columns = index_info.get("columns", [])
+                if not columns:
+                    # Fallback to single column format
+                    column = index_info.get("column")
+                    if column:
+                        columns = [column]
+                
+                # Check if any of the indexed columns exist in the record
+                for column in columns:
+                    if column in record:
+                        if index_id not in indexes_to_check:
+                            indexes_to_check[index_id] = index_info
+                        break
+
+        if not indexes_to_check:
+            return None  # No unique indexes to check
+
+        # Check each unique index
+        for index_id, index_info in indexes_to_check.items():
+            # Get the primary column for the index file name
+            columns = index_info.get("columns", [])
+            if not columns:
+                column = index_info.get("column")
+                if column:
+                    columns = [column]
+            
+            if not columns:
+                continue
+                
+            # Use the first column for file naming (backward compatibility)
+            main_column = columns[0]
+            
+            index_filename = f"{db_name}_{table_name}_{main_column}.idx"
+            index_path = os.path.join(self.indexes_dir, index_filename)
+
+            # Load the index if it exists
+            if os.path.exists(index_path):
+                try:
+                    index_tree = BPlusTreeFactory.load_from_file(index_path)
+                    if index_tree is None:
+                        continue
+                except Exception as e:
+                    logging.warning(f"Error loading index {index_path}: {e}")
+                    continue
+            else:
+                continue  # No index file exists yet, so no duplicates possible
+
+            # Check if the record value would violate uniqueness
+            if main_column in record:
+                column_value = record[main_column]
+                if column_value is not None:
+                    try:
+                        # Convert to numeric key for B+ tree
+                        if isinstance(column_value, (int, float)):
+                            numeric_key = float(column_value)
+                        else:
+                            # Hash non-numeric values
+                            import hashlib
+                            hash_obj = hashlib.md5(str(column_value).encode())
+                            numeric_key = float(int(hash_obj.hexdigest()[:8], 16))
+                        
+                        # Check if value already exists
+                        existing = index_tree.search(numeric_key)
+                        if existing:
+                            return f"Unique constraint violation: Value '{column_value}' already exists in unique index on column '{main_column}'"
+                            
+                    except Exception as e:
+                        logging.warning(f"Error checking unique constraint for {main_column}={column_value}: {e}")
+
+        return None  # No violations found
 
     def _update_indexes_after_insert(self, db_name, table_name, record_key, record):
         """Update indexes after a record is inserted."""
@@ -1228,16 +1332,7 @@ class CatalogManager:
                             hash_obj = hashlib.md5(str(column_value).encode())
                             numeric_key = float(int(hash_obj.hexdigest()[:8], 16))
                         
-                        # For unique indexes, check if value already exists
-                        if index_info.get("unique", False):
-                            existing = index_tree.search(numeric_key)
-                            if existing and existing != record_key:
-                                logging.warning(
-                                    f"Unique constraint violation on {main_column}={column_value}"
-                                )
-                                continue
-
-                        # Insert into index
+                        # Insert into index (unique constraint was already checked before insertion)
                         index_tree.insert(numeric_key, record_key)
                         index_tree.save_to_file(index_path)
                         
@@ -1421,9 +1516,10 @@ class CatalogManager:
         elif operator == "!=":
             return record_val != condition_val
         elif operator.upper() == "LIKE":
-            # Implement LIKE operator (simplified)
-            pattern = str(condition_val).replace("%", ".*")
-            return bool(re.match(f"^{pattern}$", str(record_val)))
+            # Implement LIKE operator (simplified without regex)
+            pattern = str(condition_val).replace("%", "*")
+            import fnmatch
+            return fnmatch.fnmatch(str(record_val), pattern)
         elif operator.upper() == "IN":
             # Implement IN operator
             if isinstance(condition_val, list):
@@ -2148,6 +2244,7 @@ class CatalogManager:
 
         Returns:
             bool: True if successful
+       
         """
         # Ensure the record has the correct ID
         record = record_data.copy()
@@ -2216,3 +2313,82 @@ class CatalogManager:
         except Exception as e:
             # Don't let cache invalidation errors affect the main operation
             logging.error(f"Error during cache invalidation for {table_name}: {str(e)}")
+
+    def _parse_foreign_key_constraint(self, constraint_str):
+        """Parse foreign key constraint using SQLGlot instead of regex.
+        
+        Args:
+            constraint_str: String like "FOREIGN KEY (col) REFERENCES table (col)"
+            
+        Returns:
+            Dictionary with parsed FK info or None if parsing fails
+        """
+        try:
+            # Create a temporary CREATE TABLE statement to parse the constraint
+            temp_sql = f"CREATE TABLE temp (id INT, {constraint_str})"
+            parsed = parse_one(temp_sql, dialect=self.sqlglot_parser.dialect)
+            
+            if isinstance(parsed, exp.Create) and isinstance(parsed.this, exp.Schema):
+                if parsed.this.expressions:
+                    for expr in parsed.this.expressions:
+                        if isinstance(expr, exp.ForeignKey):
+                            # Extract foreign key information
+                            fk_columns = [col.name for col in expr.expressions] if expr.expressions else []
+                            ref_table = expr.reference.this.name if expr.reference and expr.reference.this else None
+                            ref_columns = [col.name for col in expr.reference.expressions] if expr.reference and expr.reference.expressions else []
+                            
+                            if fk_columns and ref_table and ref_columns:
+                                return {
+                                    "fk_column": fk_columns[0],  # First column for compatibility
+                                    "ref_table": ref_table,
+                                    "ref_column": ref_columns[0]  # First column for compatibility
+                                }
+            
+            # Fallback: simple string parsing for basic cases
+            return self._parse_foreign_key_fallback(constraint_str)
+            
+        except Exception as e:
+            logging.warning(f"SQLGlot FK parsing failed for '{constraint_str}': {e}")
+            return self._parse_foreign_key_fallback(constraint_str)
+
+    def _parse_foreign_key_fallback(self, constraint_str):
+        """Fallback FK parsing without regex."""
+        constraint_upper = constraint_str.upper()
+        
+        if "FOREIGN KEY" not in constraint_upper or "REFERENCES" not in constraint_upper:
+            return None
+        
+        try:
+            # Simple parsing for common patterns
+            # FOREIGN KEY (col) REFERENCES table (col)
+            if "(" in constraint_str and ")" in constraint_str:
+                parts = constraint_str.split()
+                fk_column = None
+                ref_table = None
+                ref_column = None
+                
+                for i, part in enumerate(parts):
+                    if part.upper() == "KEY" and i + 1 < len(parts):
+                        # Next part should contain the column
+                        next_part = parts[i + 1]
+                        if "(" in next_part and ")" in next_part:
+                            fk_column = next_part.strip("()")
+                    elif part.upper() == "REFERENCES" and i + 1 < len(parts):
+                        # Next part is the table name
+                        ref_table = parts[i + 1]
+                        # Column after that
+                        if i + 2 < len(parts):
+                            col_part = parts[i + 2]
+                            if "(" in col_part and ")" in col_part:
+                                ref_column = col_part.strip("()")
+                
+                if fk_column and ref_table and ref_column:
+                    return {
+                        "fk_column": fk_column,
+                        "ref_table": ref_table,
+                        "ref_column": ref_column
+                    }
+        except Exception as e:
+            logging.warning(f"FK fallback parsing failed: {e}")
+        
+        return None

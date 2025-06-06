@@ -344,6 +344,17 @@ class SchemaManager:
 
         # Process column strings to define columns
         for col_str in column_strings:
+            # Skip table-level constraints (they start with constraint keywords)
+            col_str_upper = col_str.upper().strip()
+            if (col_str_upper.startswith("FOREIGN KEY") or 
+                col_str_upper.startswith("PRIMARY KEY") or
+                col_str_upper.startswith("UNIQUE") or
+                col_str_upper.startswith("CHECK") or
+                col_str_upper.startswith("CONSTRAINT")):
+                # This is a table-level constraint, add to constraints list
+                final_constraints_for_catalog.append(col_str)
+                continue
+            
             # Basic parsing of column definition
             parts = col_str.split()
             col_name = parts[0]
@@ -485,13 +496,14 @@ class SchemaManager:
                 columns=columns  # Pass original columns list
             )
             
-            if result is True:
+            if isinstance(result, dict) and result.get("status") == "success":
                 return {
                     "message": f"Index '{index_name}' created on {table_name}{index_display}",
                     "status": "success"
                 }
             else:
-                return {"error": str(result), "status": "error"}
+                error_msg = result.get("error", str(result)) if isinstance(result, dict) else str(result)
+                return {"error": error_msg, "status": "error"}
 
         except Exception as e:
             return {"error": f"Failed to create index: {str(e)}", "status": "error"}

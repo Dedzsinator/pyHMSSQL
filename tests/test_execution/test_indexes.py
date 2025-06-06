@@ -68,9 +68,11 @@ class TestIndexScan:
 
         # Verify results
         assert result["status"] == "success"
-        data = result.get("data", [])
+        rows = result.get("rows", [])
+        columns = result.get("columns", [])
         # Check that all returned rows have age=30
-        assert all(row["age"] == 30 for row in data)
+        age_index = columns.index("age")
+        assert all(row[age_index] == 30 for row in rows)
 
         # Check that the optimizer used an index scan
         assert "scan_type" in plan
@@ -94,9 +96,11 @@ class TestIndexScan:
 
         # Verify results
         assert result["status"] == "success"
-        data = result.get("data", [])
-        assert len(data) == 1
-        assert data[0]["username"] == "user100"
+        rows = result.get("rows", [])
+        columns = result.get("columns", [])
+        assert len(rows) == 1
+        username_index = columns.index("username")
+        assert rows[0][username_index] == "user100"
 
         # Check that this was a full table scan
         assert "scan_type" in plan

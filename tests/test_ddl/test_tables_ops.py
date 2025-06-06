@@ -68,7 +68,7 @@ class TestCreateTable:
 
         # Verify constraints in schema
         schema = catalog_manager.get_table_schema("products")
-        assert any("FOREIGN KEY" in str(schema).upper())
+        assert any("FOREIGN KEY" in str(item).upper() for item in schema)
 
 
 class TestDropTable:

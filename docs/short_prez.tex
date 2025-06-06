@@ -1,0 +1,294 @@
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[hungarian]{babel}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+
+\title{HMSSQL - Adatbázis-kezelő Rendszer}
+\subtitle{SQL Feldolgozási Pipeline és Belső Működés}
+\author{Brustur-Buksa Beatrice, Dégi Nándor, Erdei Kristóf, Komjátszegi-Fábián Hunor}
+\date{\today}
+
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    backgroundcolor=\color{gray!10},
+    frame=single,
+    breaklines=true
+}
+
+\begin{document}
+
+\frame{\titlepage}
+
+% Slide 1
+\begin{frame}
+\frametitle{Bevezetés - HMSSQL ABKR Rendszer}
+
+\textbf{A rendszerről:}
+\begin{itemize}
+    \item Teljes SQL feldolgozási pipeline
+    \item B+ fa indexekkel optimalizált lekérdezések
+\end{itemize}
+
+\vspace{0.5cm}
+\textbf{Főbb komponensek:}
+\begin{itemize}
+    \item \textbf{Parser} - SQL szintaxis elemzés
+    \item \textbf{Execution Engine} - Lekérdezések végrehajtása
+    \item \textbf{Buffer Pool Manager} - Memória és lemez közötti adatkezelés
+    \item \textbf{Index Manager} - B+ fa indexek kezelése és optimalizálása
+    \item \textbf{Optimizer} - Lekérdezési tervek költség-alapú optimalizálása
+\end{itemize}
+
+\end{frame}
+
+% Slide 2
+\begin{frame}
+\frametitle{Architektúra Áttekintés}
+
+\textbf{Rendszer felépítése:}
+\begin{center}
+\texttt{SQL Query → Parser → Planner → Optimizer → Execution Engine → Storage}
+\end{center}
+
+\vspace{0.5cm}
+\textbf{Kulcs komponensek:}
+\begin{itemize}
+    \item \textbf{haskell\_parser.py} - Jelenleg Python-ban
+    \item \textbf{planner.py} - Lekérdezési terv készítés
+    \item \textbf{optimizer.py} - Költség-alapú optimalizálás
+    \item \textbf{execution\_engine.py} - Végrehajtási motor
+    \item \textbf{buffer\_pool\_manager.py} - Memória kezelés
+    \item \textbf{index\_manager.py} - Index kezelés
+\end{itemize}
+
+\end{frame}
+
+% Slide 3
+\begin{frame}
+\frametitle{SQL Parancs Végrehajtási Pipeline}
+
+\textbf{1. Parsing Fázis:}
+\begin{itemize}
+    \item Haskell parser elemzi a SQL-t
+    \item AST (Abstract Syntax Tree) létrehozása
+    \item Szintaxis ellenőrzés
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{2. Planning Fázis:}
+\begin{itemize}
+    \item Logikai terv készítése
+    \item Tábla és oszlop validálás
+    \item Join sorrend meghatározása
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{3. Optimization Fázis:}
+\begin{itemize}
+    \item Join algoritmusok kiválasztása
+    \item Index kiválasztás
+    \item Predikátum push-down
+\end{itemize}
+
+\end{frame}
+
+% Slide 4
+\begin{frame}
+\frametitle{Execution Engine Működése}
+
+\textbf{Végrehajtási lépések:}
+\begin{enumerate}
+    \item \textbf{Operator inicializálás} - Scan, Join, Aggregation operátorok
+    \item \textbf{Iterator modell} - Volcano-style végrehajtás
+    \item \textbf{Tuple-by-tuple feldolgozás} - Memória hatékony
+    \item \textbf{Pipeline execution} - Streaming feldolgozás
+\end{enumerate}
+
+\vspace{0.5cm}
+\textbf{Operator típusok:}
+\begin{itemize}
+    \item \texttt{TableScan} - Tábla beolvasás
+    \item \texttt{IndexScan} - Index alapú keresés
+    \item \texttt{NestedLoopJoin} - Beágyazott ciklusú join
+    \item \texttt{HashJoin} - Hash alapú join
+    \item \texttt{Aggregation} - Csoportosítás és összesítés
+\end{itemize}
+
+\end{frame}
+
+% Slide 5
+\begin{frame}
+\frametitle{Buffer Pool Manager}
+
+\textbf{Memória kezelés stratégiája:}
+\begin{itemize}
+    \item \textbf{LRU (Least Recently Used)} - Legrégebben használt kiszorítása
+    \item \textbf{Pin/Unpin mechanizmus} - Aktív oldalak védése
+    \item \textbf{Dirty page tracking} - Módosított oldalak nyomon követése
+    \item \textbf{Background flushing} - Aszinkron lemezre írás
+\end{itemize}
+
+\vspace{0.5cm}
+\textbf{Optimalizációk:}
+\begin{itemize}
+    \item Előre betöltés (prefetching)
+    \item Batch I/O műveletek
+    \item Memória pool újrafelhasználás
+\end{itemize}
+
+\end{frame}
+
+% Slide 6
+\begin{frame}
+\frametitle{B+ Fa Index Tárolás}
+
+\textbf{bptree.py és bptree\_optimized.pyx implementáció:}
+\begin{itemize}
+    \item \textbf{Leaf node-ok} - Tényleges adatok tárolása
+    \item \textbf{Internal node-ok} - Routing információ
+    \item \textbf{Cython optimalizáció} - C szintű teljesítmény
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Tárolási stratégia:}
+\begin{itemize}
+    \item \textbf{Page-based storage} - Fix méretű blokkok
+    \item \textbf{Split/Merge algoritmusok} - Automatikus kiegyensúlyozás
+    \item \textbf{Bulk loading} - Hatékony kezdeti betöltés
+    \item \textbf{Range queries} - Intervallum lekérdezések optimalizálása
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Különlegességek:}
+\begin{itemize}
+    \item bptree\_visualizer.py - Debug és monitoring
+    \item Adaptív node méret
+\end{itemize}
+
+\end{frame}
+
+% Slide 7
+\begin{frame}
+\frametitle{Aggregációs Függvények Implementálása}
+
+\textbf{Aggregation Engine:}
+\begin{itemize}
+    \item \textbf{Hash-based grouping} - GROUP BY hatékony kezelése
+    \item \textbf{Streaming aggregation} - Memória-hatékony feldolgozás
+    \item \textbf{Parallel aggregation} - Többszálú összeG számítás
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Támogatott függvények:}
+\begin{itemize}
+    \item \texttt{COUNT, SUM, AVG} - Alapvető statisztikák
+    \item \texttt{MIN, MAX} - Szélsőértékek
+    \item \texttt{DISTINCT} - Egyedi értékek számlálása
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Optimalizációk:}
+\begin{itemize}
+    \item Pre-aggregation - Korai csoportosítás
+    \item Index-based MIN/MAX - Index alapú szélsőérték keresés
+    \item Incremental aggregation - Növekményes számítás
+\end{itemize}
+
+\end{frame}
+
+% Slide 8
+\begin{frame}
+\frametitle{10K Rekord SELECT Kezelése}
+
+\textbf{Nagy lekérdezések optimalizálása:}
+\begin{itemize}
+    \item \textbf{Index scan} - B+ fa alapú hatékony keresés
+    \item \textbf{Batch processing} - Blokk szintű feldolgozás
+    \item \textbf{Pipeline execution} - Streaming feldolgozás
+    \item \textbf{Buffer pool} - Intelligens memória kezelés
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Teljesítmény stratégiák:}
+\begin{itemize}
+    \item \textbf{Predicate pushdown} - Szűrés korai alkalmazása
+    \item \textbf{Projection pushdown} - Csak szükséges oszlopok
+    \item \textbf{Parallel execution} - Többszálú végrehajtás
+    \item \textbf{Result caching} - Eredmény gyorsítótárazás
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Benchmark eredmények:}
+\begin{itemize}
+    \item benchmark.py - Teljesítmény mérés
+    \item Automatikus skálázás (scaler.py)
+\end{itemize}
+
+\end{frame}
+
+% Slide 9
+\begin{frame}
+\frametitle{Speciális Funkciók és Érdekességek}
+
+\textbf{Optimizer finomságok:}
+\begin{itemize}
+    \item \textbf{Cost-based optimization} - Statisztika alapú döntések
+    \item \textbf{Join order optimization} - Optimal join sorrend
+    \item \textbf{Index selection} - Automatikus index kiválasztás
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Monitoring és Debug:}
+\begin{itemize}
+    \item \textbf{profiler.py} - Teljesítmény profilozás
+    \item \textbf{table\_stats.py} - Tábla statisztikák
+    \item \textbf{bptree\_visualizer.py} - Index struktúra vizualizáció
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{REST API integrálás:}
+\begin{itemize}
+    \item \textbf{rest\_api.py} - HTTP-based interface
+    \item \textbf{server.py} - Aszinkron szerver
+    \item JSON-based kommunikáció
+\end{itemize}
+
+\end{frame}
+
+% Slide 10
+\begin{frame}
+\frametitle{Összefoglalás és Jövőbeli Tervek}
+
+\textbf{Rendszer erősségei:}
+\begin{itemize}
+    \item \textbf{Moduláris architektúra} - Könnyen bővíthető
+    \item \textbf{Hatékony indexelés} - B+ fa optimalizációk
+    \item \textbf{Intelligens optimalizáló} - Költség-alapú döntések
+    \item \textbf{Skálázható design} - Nagy adatmennyiség kezelése
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Teljesítmény jellemzők:}
+\begin{itemize}
+    \item 10K+ rekord hatékony kezelése
+    \item Streaming aggregation
+    \item Memória-optimalizált buffer pool
+    \item Cython-accelerated index operations
+\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Fejlesztési irányok:}
+\begin{itemize}
+    \item Parallel query execution
+    \item Distributed query processing
+    \item Advanced caching strategies
+\end{itemize}
+
+\end{frame}
+
+\end{document}

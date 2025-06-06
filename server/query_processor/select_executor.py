@@ -2,7 +2,6 @@ import re
 import logging
 import traceback
 from query_processor.aggregate_executor import AggregateExecutor
-from parsers.condition_parser import ConditionParser
 
 
 class SelectExecutor:
@@ -20,7 +19,7 @@ class SelectExecutor:
         self.catalog_manager = catalog_manager
         self.join_executor = join_executor
         self.aggregate_executor = aggregate_executor
-        self.condition_parser = None  # Will be set by ExecutionEngine
+        self.condition_parser = None  # Deprecated - use SQLGlot instead
         self.execution_engine = None  # Will be set by ExecutionEngine
 
     def execute_select(self, plan):
@@ -113,13 +112,16 @@ class SelectExecutor:
         # Check for index usage
         index_info = None
         condition = plan.get("condition")
+        index_column = None
+        index_value = None
+        
         if condition and isinstance(condition, str):
             # Remove trailing semicolon if present
             if condition.endswith(';'):
                 condition = condition[:-1]
                 plan["condition"] = condition  # Update plan
 
-            # Only try to use index for simple conditions with equality
+            # Check for simple equality conditions
             if "=" in condition and not any(op in condition for op in ["<", ">", "AND", "OR"]):
                 parts = condition.split("=")
                 if len(parts) == 2:
@@ -132,10 +134,17 @@ class SelectExecutor:
                         val = val[1:-1]  # Clean value
 
                     logging.info("Checking for index on column: %s with value: %s", col, val)
-
-                    # We'll look up indexes after confirming the table exists with proper case
                     index_column = col
                     index_value = val
+            
+            # Check for range conditions (e.g., "age >= 25 AND age <= 30")
+            elif any(op in condition for op in [">=", "<=", "<", ">"]) and "AND" in condition:
+                # Parse range condition to extract column name
+                # Look for patterns like "age >= 25 AND age <= 30"
+                range_match = re.search(r'(\w+)\s*[><=]+\s*\d+\s*AND\s*\1\s*[><=]+\s*\d+', condition)
+                if range_match:
+                    index_column = range_match.group(1)
+                    logging.info("Detected range condition on column: %s", index_column)
 
         try:
             # Verify table exists - CASE INSENSITIVE COMPARISON
@@ -159,9 +168,10 @@ class SelectExecutor:
                 }
 
             # Check for index on specified column if condition is present
-            if condition and "index_column" in locals():
+            if condition and index_column:
                 # Get table indexes
                 indexes = self.catalog_manager.get_indexes_for_table(actual_table_name)
+                logging.info("DEBUG: condition=%s, index_column=%s, indexes=%s", condition, index_column, indexes)
                 for idx_name, idx_def in indexes.items():
                     if idx_def.get("column").lower() == index_column.lower():
                         index_info = {
@@ -169,9 +179,25 @@ class SelectExecutor:
                             "column": idx_def.get("column"),
                             "value": index_value
                         }
-                        logging.info("Will use index %s for condition %s=%s",
-                                    idx_name, index_column, index_value)
+                        # Determine scan type based on condition
+                        if "=" in condition and not any(op in condition for op in ["<", ">", "AND", "OR"]):
+                            plan["scan_type"] = "INDEX_SCAN"
+                        elif any(op in condition for op in [">=", "<=", "<", ">"]) and "AND" in condition:
+                            plan["scan_type"] = "INDEX_RANGE_SCAN"
+                        else:
+                            plan["scan_type"] = "INDEX_SCAN"
+                        
+                        logging.info("Will use index %s for condition %s with scan type: %s",
+                                    idx_name, index_column, plan.get("scan_type"))
                         break
+                else:
+                    # No index found for this condition, this will be a full table scan
+                    logging.info("DEBUG: Setting scan_type to FULL_SCAN (no index found)")
+                    plan["scan_type"] = "FULL_SCAN"
+            else:
+                # No condition or no indexable column, this will be a full table scan
+                logging.info("DEBUG: Setting scan_type to FULL_SCAN (no condition or index_column)")
+                plan["scan_type"] = "FULL_SCAN"
 
             # Check for B+ tree index in buffer pool before creating a new one
             # This step should be done by the execution engine when loading the table data
@@ -201,12 +227,14 @@ class SelectExecutor:
                 conditions = []
                 if condition:
                     logging.debug("Parsing condition: %s", condition)
-                    if hasattr(ConditionParser, "parse_condition_to_list"):
-                        conditions = ConditionParser.parse_condition_to_list(condition)
-                    elif self.condition_parser:
-                        conditions = self.condition_parser.parse_condition_to_list(condition)
-                    else:
-                        logging.warning("No condition parser available")
+                    # Use SQLGlot-based condition parsing
+                    try:
+                        from utils.sql_helpers import parse_condition_with_sqlglot
+                        conditions = parse_condition_with_sqlglot(condition)
+                    except ImportError:
+                        logging.warning("SQLGlot condition parsing not available, using fallback")
+                        from utils.sql_helpers import parse_simple_condition
+                        conditions = parse_simple_condition(condition)
 
                     # Handle string values correctly
                     for cond in conditions:
@@ -236,7 +264,7 @@ class SelectExecutor:
                     "rows": [],
                     "status": "success",
                     "type": "select_result",
-                    "scan_type": "INDEX_SCAN" if index_info else "FULL_SCAN",
+                    "scan_type": plan.get("scan_type", "INDEX_SCAN" if index_info else "FULL_SCAN"),
                     "index_used": index_info["name"] if index_info else None
                 }
 
@@ -375,7 +403,7 @@ class SelectExecutor:
                 "rows": result_rows,
                 "status": "success",
                 "type": "select_result",
-                "scan_type": "INDEX_SCAN" if index_info else "FULL_SCAN",
+                "scan_type": plan.get("scan_type", "INDEX_SCAN" if index_info else "FULL_SCAN"),
                 "index_used": index_info["name"] if index_info else None
             }
 

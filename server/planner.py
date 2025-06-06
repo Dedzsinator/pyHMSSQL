@@ -10,7 +10,6 @@ Returns:
 """
 
 import logging
-import re
 import copy
 
 
@@ -113,38 +112,6 @@ class Planner:
         logging.debug("Optimized plan: %s", optimized_plan)
 
         return optimized_plan
-
-    def plan_join_query(self, parsed_query):
-        """Plan a JOIN query."""
-        # Extract join info from the parsed query
-        join_info = parsed_query.get("join_info", {})
-
-        table1 = join_info.get("table1", "")
-        table2 = join_info.get("table2", "")
-        join_type = join_info.get("type", "INNER")
-        condition = join_info.get("condition", "")
-        join_algorithm = join_info.get("join_algorithm", "HASH")
-
-        # Extract columns to select
-        columns = parsed_query.get("columns", ["*"])
-        
-        # CRITICAL FIX: Extract WHERE conditions from parsed query
-        where_conditions = parsed_query.get("parsed_condition") or parsed_query.get("condition")
-
-        # Create plan
-        plan = {
-            "type": "JOIN",
-            "join_type": join_type,
-            "join_algorithm": join_algorithm,
-            "table1": table1,
-            "table2": table2,
-            "condition": condition,
-            "columns": columns,
-            "where_conditions": where_conditions  # Add WHERE conditions to plan
-        }
-
-        return plan
-
 
     def plan_query(self, parsed_query):
         """
@@ -469,51 +436,6 @@ class Planner:
         logging.info("No aggregate function detected in: '%s'", column_str)
         return (False, None, None)
 
-    def plan_aggregate(self, parsed_query):
-        """
-        Plan for aggregate queries (COUNT, SUM, AVG, MIN, MAX)
-        """
-        logging.error("Creating dedicated AGGREGATE plan")
-
-        # Get the first column which should contain the aggregate function
-        columns = parsed_query.get("columns", [])
-        if not columns:
-            raise ValueError("No columns found for aggregate query")
-
-        col_str = str(columns[0])
-
-        # Check for common aggregate functions with improved regex
-        for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD"]:
-            # Improved regex to properly extract just the column name
-            pattern = rf"{func_name}\s*\(\s*([^)]+)\s*\)"
-            match = re.search(pattern, col_str, re.IGNORECASE)
-            if match:
-                column_part = match.group(1).strip()
-                
-                # Handle special case for COUNT(*)
-                if column_part == "*":
-                    column_part = "*"
-                
-                logging.error(f"Direct match! Creating AGGREGATE plan for {func_name}({column_part})")
-                
-                # Get table from parsed query
-                tables = parsed_query.get("tables", [])
-                table = tables[0] if tables else None
-                
-                return {
-                    "type": "AGGREGATE",
-                    "function": func_name,
-                    "column": column_part,  # Use just the column name, not the full expression
-                    "table": table,
-                    "condition": parsed_query.get("condition"),
-                    "top": parsed_query.get("top"),
-                    "limit": parsed_query.get("limit"),
-                    "no_cache": True,
-                }
-
-        # If we get here, there's no valid aggregate function
-        return self.plan_select(parsed_query)  # Fallback to regular select
-
     def plan_select(self, parsed_query):
         """Plan for SELECT queries."""
         tables = parsed_query.get("tables", [])
@@ -528,11 +450,16 @@ class Planner:
         condition = parsed_query.get("condition")
 
         group_by = parsed_query.get("group_by")
+        columns = parsed_query.get("columns", [])
     
         # Check if this is a GROUP BY query with aggregates
         if group_by:
+            # Extract and fix ORDER BY clause
+            order_by = parsed_query.get("order_by")
+            limit = parsed_query.get("limit")
+            
             return {
-                "type": "AGGREGATE_GROUP",
+                "type": "GROUP_BY",
                 "table": table,
                 "columns": columns,
                 "group_by": group_by,
@@ -540,7 +467,7 @@ class Planner:
                 "order_by": order_by,
                 "limit": limit,
                 "tables": tables,
-                "operation": "AGGREGATE_GROUP"
+                "operation": "GROUP_BY"
             }
 
         # Extract and fix ORDER BY clause
@@ -623,6 +550,7 @@ class Planner:
                     "Potential aggregate function found: %s", col_str)
 
                 # Try all possible patterns for maximum compatibility
+                import re
                 patterns = [
                     r"(\w+)\(([^)]*)\)",  # Basic: COUNT(*)
                     r"(\w+)\s*\(\s*(.*?)\s*\)",  # With spaces: COUNT( * )
@@ -842,46 +770,13 @@ class Planner:
         """
         logging.debug("Planning DELETE query: %s", parsed_query)
         
-        # Extract the condition from either 'where' or 'condition' field
-        condition_str = parsed_query.get("where") or parsed_query.get("condition")
-        
-        # Parse the condition string into a structured format
-        parsed_condition = None
-        if condition_str:
-            # Remove trailing semicolon if present
-            if condition_str.endswith(';'):
-                condition_str = condition_str[:-1]
-                
-            # Parse simple condition (column op value)
-            parts = condition_str.split()
-            if len(parts) >= 3:
-                column = parts[0]
-                op = parts[1]
-                
-                # Handle the value part which might be quoted
-                value_str = ' '.join(parts[2:])
-                
-                # Try to convert to numeric if possible
-                try:
-                    if value_str.isdigit():
-                        value = int(value_str)
-                    elif value_str.replace('.', '', 1).isdigit():
-                        value = float(value_str)
-                    else:
-                        # Remove quotes if present
-                        if value_str.startswith(("'", '"')) and value_str.endswith(("'", '"')):
-                            value = value_str[1:-1]
-                        else:
-                            value = value_str
-                except Exception:
-                    value = value_str
-                    
-                parsed_condition = [{"column": column, "operator": op, "value": value}]
+        # Extract the condition
+        condition = parsed_query.get("condition")
         
         return {
             "type": "DELETE",
             "table": parsed_query["table"],
-            "condition": parsed_condition  # Use our parsed condition
+            "condition": condition
         }
 
     def plan_create_table(self, parsed_query):

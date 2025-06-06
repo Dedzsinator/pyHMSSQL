@@ -33,8 +33,23 @@ class TestQueryLifecycle:
         assert 1 in customer_ids  # John Doe (30)
         assert 3 in customer_ids  # Bob Johnson (40)
 
-    def test_insert_update_delete_lifecycle(self, parser, planner, optimizer, execution_engine):
+    def test_insert_update_delete_lifecycle(self, parser, planner, optimizer, execution_engine, schema_manager):
         """Test a full lifecycle with INSERT, UPDATE, and DELETE."""
+        # First create the customers table
+        create_table_plan = {
+            "type": "CREATE_TABLE",
+            "table": "customers",
+            "columns": [
+                "id INT NOT NULL PRIMARY KEY",
+                "name TEXT NOT NULL",
+                "email TEXT",
+                "age INT",
+            ],
+        }
+        
+        create_result = schema_manager.execute_create_table(create_table_plan)
+        assert create_result["status"] == "success"
+        
         # Parse and execute INSERT
         sql_insert = "INSERT INTO customers (id, name, email, age) VALUES (10, 'Test User', 'test@example.com', 28)"
         parsed_insert = parser.parse_sql(sql_insert)

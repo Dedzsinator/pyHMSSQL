@@ -7,6 +7,7 @@ from query_processor.join_executor import JoinExecutor
 from query_processor.aggregate_executor import AggregateExecutor
 from query_processor.select_executor import SelectExecutor
 from query_processor.dml_executor import DMLExecutor
+from query_processor.group_by_executor import GroupByExecutor
 from ddl_processor.schema_manager import SchemaManager
 from ddl_processor.view_manager import ViewManager
 from transaction.transaction_manager import TransactionManager
@@ -31,6 +32,7 @@ class ExecutionEngine:
         self.select_executor = SelectExecutor(
             catalog_manager, self.join_executor, self.aggregate_executor
         )
+        self.group_by_executor = GroupByExecutor(catalog_manager)
 
         # Set execution_engine reference only once (removing duplicate)
         self.select_executor.execution_engine = self
@@ -48,6 +50,7 @@ class ExecutionEngine:
         self.select_executor.condition_parser = self.condition_parser
         self.dml_executor.condition_parser = self.condition_parser
         self.join_executor.condition_parser = self.condition_parser
+        self.group_by_executor.condition_parser = self.condition_parser
 
     def execute_distinct(self, plan):
         """
@@ -431,6 +434,9 @@ class ExecutionEngine:
                 return self.execute_script(plan)
             elif plan_type == "AGGREGATE":
                 return self.aggregate_executor.execute_aggregate(plan)
+            elif plan_type == "GROUP_BY":
+                result = self.group_by_executor.execute_group_by(plan)
+                return result
             else:
                 return {"error": f"Unsupported plan type: {plan_type}", "status": "error"}
 

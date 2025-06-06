@@ -212,7 +212,7 @@ class DMLExecutor:
         
         if isinstance(result, str) and "records deleted" in result:
             count = result.split()[0]
-            return {"status": "success", "message": result, "rowCount": int(count)}
+            return {"status": "success", "message": result, "count": int(count)}
         else:
             return {"status": "error", "message": result}
 
@@ -428,7 +428,7 @@ class DMLExecutor:
             "status": "success",
             "message": f"Updated {updated_count} records",
             "type": "update_result",
-            "rowCount": updated_count
+            "count": updated_count
         }
 
     def _check_fk_constraints_for_update(self, db_name, table_name, pk_column, records_to_update):

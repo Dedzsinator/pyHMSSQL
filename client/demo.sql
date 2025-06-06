@@ -14,31 +14,32 @@ INSERT INTO products (name, price, stock) VALUES
 ('Phone', 499.99, 20),
 ('Tablet', 299.99, 15),
 ('Monitor', 249.99, 25),
-('Keyboard', 59.99, 50);
+('Keyboard', 59.99, 50),
+('Keyboard', 678.99, 100),
+('Keyboard', 123.99, 3),
+('Keyboard', 333.99, 45),
+('Keyboard', 222.99, 9);
 
 SELECT * FROM products;
 
 CREATE INDEX idx_product_name ON products(name);
 
-CREATE TABLE order_details (
-order_id INT IDENTITY(1,1) PRIMARY KEY,
-product_id INT,
-quantity INT,
-status VARCHAR(20),
-FOREIGN KEY (product_id) REFERENCES products(id)
-);
+CREATE TABLE order_details (order_id INT IDENTITY(1,1) PRIMARY KEY, product_id INT, quantity INT, status VARCHAR(20), FOREIGN KEY (product_id) REFERENCES products(id));
 
 INSERT INTO order_details (product_id, quantity, status) VALUES 
 (1, 2, 'Shipped'),
 (2, 1, 'Pending'),
 (3, 5, 'Delivered'),
 (4, 3, 'Cancelled'),
-(5, 4, 'Shipped');
+(5, 4, 'Shipped'),
+(6, 2, 'Pending'),
+(7, 1, 'Delivered'),
+(8, 3, 'Cancelled'),
+(9, 5, 'Shipped');
 
-SELECT * FROM order_details
-;
+SELECT * FROM order_details;
 
-SELECT products.product_id, products.category, order_details.quantity, order_details.status FROM products INNER JOIN order_details ON products.product_id = order_details.product_id WHERE products.category = 'Electronics' AND order_details.quantity > 2;
+SELECT products.id, products.name, order_details.quantity, order_details.status FROM products INNER JOIN order_details ON products.id = order_details.product_id WHERE products.name = 'Keyboard' AND order_details.quantity > 2 GROUP BY;
 
 SELECT * FROM products WHERE price > 300;
 
@@ -46,11 +47,11 @@ SELECT * FROM products ORDER BY price DESC;
 
 SELECT * FROM products ORDER BY price DESC LIMIT 3;
 
-SELECT AVG(price) FROM products;
+SELECT SUM(price) FROM products;
 
-SELECT name, COUNT(*) AS product_count FROM products GROUP BY name;
-
-SELECT category, COUNT(*) AS product_count FROM products GROUP BY category HAVING COUNT(*) > 5;
+SELECT name, AVG(price), SUM(stock)
+FROM products
+GROUP BY name;
 
 DELETE FROM products WHERE price < 100;
 
