@@ -60,9 +60,7 @@ class BPTreeVisualizer:
             return self._export_text_only(tree, "Invalid tree structure", output_name)
 
         output_name = (
-            output_name or f"{tree.name}_{
-                datetime.now().strftime('%Y%m%d%H%M%S')}"
-        )
+            output_name or f"{tree.name}_{datetime.now().strftime('%Y%m%d%H%M%S')}")
 
         # Try visualizers in order of preference
         if HAS_NETWORKX:

@@ -1,7 +1,7 @@
 """
 Comprehensive profiling test for pyHMSSQL database operations.
 
-This test module provides in-depth profiling of ALL database operations including:
+This unified test module provides in-depth profiling of ALL database operations including:
 - DDL operations (CREATE, DROP tables, indexes, databases)
 - DML operations (INSERT, UPDATE, DELETE, SELECT)
 - JOIN operations (different algorithms with 10k x 10k record joins)
@@ -12,8 +12,12 @@ This test module provides in-depth profiling of ALL database operations includin
 - Memory usage patterns
 - CPU utilization patterns
 - I/O performance metrics
+- Linux perf integration for detailed CPU profiling
+- Flamegraph generation and hardware counter analysis
+- Comprehensive reporting and data export
 
-The test creates comprehensive reports of system resource usage for every operation.
+The test creates comprehensive reports of system resource usage for every operation
+and integrates Linux perf for advanced CPU profiling and performance analysis.
 """
 
 import pytest
@@ -21,15 +25,24 @@ import time
 import json
 import os
 import logging
-import threading
 import statistics
 from datetime import datetime
 from collections import defaultdict
+from pathlib import Path
 import psutil
 
 # Import the system modules
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '../server'))
+project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+server_dir = os.path.join(project_root, 'server')
+
+# Add server directory to path so that imports from within server work correctly
+if server_dir not in sys.path:
+    sys.path.insert(0, server_dir)
+
+# Add project root to path as well
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from profiler import SystemProfiler, DBMSStatistics
 from catalog_manager import CatalogManager
@@ -41,14 +54,41 @@ from planner import Planner
 
 class ComprehensiveProfiler:
     """
-    Advanced profiler that captures detailed metrics for every database operation.
+    Advanced profiler that captures detailed metrics for every database operation
+    with integrated Linux perf support for CPU profiling and hardware counters.
     """
 
-    def __init__(self, catalog_manager):
-        """Initialize the comprehensive profiler."""
+    def __init__(self, catalog_manager, enable_perf=True, output_dir=None):
+        """Initialize the comprehensive profiler with perf integration."""
         self.catalog_manager = catalog_manager
+        self.enable_perf = enable_perf
+        self.output_dir = Path(output_dir) if output_dir else Path("/tmp/pyhmssql_comprehensive_test")
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+
+        # Initialize system profiler
         self.system_profiler = SystemProfiler(catalog_manager, sample_interval=0.1)  # High frequency sampling
         self.dbms_stats = DBMSStatistics(catalog_manager, self.system_profiler)
+
+        # Initialize perf integration if enabled
+        if self.enable_perf:
+            try:
+                from perf_profiler import PerfProfiler, EnhancedSystemProfiler
+                self.perf_profiler = PerfProfiler(output_dir=str(self.output_dir))
+                self.enhanced_profiler = EnhancedSystemProfiler(
+                    catalog_manager=catalog_manager,
+                    sample_interval=0.1,
+                    enable_perf=True,
+                    perf_output_dir=str(self.output_dir)
+                )
+                logging.info("Perf integration enabled")
+            except (ImportError, Exception) as e:
+                logging.warning(f"Perf integration disabled: {e}")
+                self.enable_perf = False
+                self.perf_profiler = None
+                self.enhanced_profiler = None
+        else:
+            self.perf_profiler = None
+            self.enhanced_profiler = None
 
         # Detailed operation metrics
         self.operation_metrics = defaultdict(list)
@@ -56,16 +96,45 @@ class ComprehensiveProfiler:
         self.current_operation = None
         self.operation_start_time = None
         self.operation_start_resources = None
+        self.perf_active = False
 
         # Start system profiling
         self.system_profiler.start_profiling()
+        if self.enhanced_profiler:
+            self.enhanced_profiler.start_profiling()
 
-        logging.info("ComprehensiveProfiler initialized with high-frequency monitoring")
+        logging.info(f"ComprehensiveProfiler initialized with high-frequency monitoring (perf: {self.enable_perf})")
 
     def start_operation(self, operation_name, operation_details=None):
-        """Start profiling a specific operation."""
+        """Start profiling a specific operation with perf integration."""
         self.current_operation = operation_name
         self.operation_start_time = time.time()
+
+        # Start perf profiling if enabled
+        if self.enable_perf and self.perf_profiler:
+            try:
+                # Start CPU profiling for the operation
+                self.perf_profiler.start_cpu_profiling(
+                    output_file=f"{operation_name}_cpu_profile.data"
+                )
+
+                # Start hardware counter profiling
+                self.perf_profiler.start_counter_profiling(
+                    events=['cycles', 'instructions', 'cache-misses', 'branch-misses'],
+                    output_file=f"{operation_name}_counters.data"
+                )
+
+                # Start memory profiling if the operation might be memory intensive
+                if any(keyword in operation_name.lower() for keyword in ['insert', 'select', 'join', 'index']):
+                    self.perf_profiler.start_memory_profiling(
+                        output_file=f"{operation_name}_memory.data"
+                    )
+
+                self.perf_active = True
+                logging.info(f"🔥 Started perf profiling for: {operation_name}")
+            except Exception as e:
+                logging.warning(f"Failed to start perf profiling for {operation_name}: {e}")
+                self.perf_active = False
 
         # Capture baseline system metrics
         self.operation_start_resources = {
@@ -83,12 +152,46 @@ class ComprehensiveProfiler:
             logging.info(f"   Details: {operation_details}")
 
     def end_operation(self, result=None, error=None):
-        """End profiling the current operation and record metrics."""
+        """End profiling the current operation and record metrics with perf data."""
         if not self.current_operation:
             return
 
         end_time = time.time()
         execution_time = end_time - self.operation_start_time
+
+        # Stop perf profiling and collect data
+        perf_data = {}
+        if self.perf_active and self.perf_profiler:
+            try:
+                # Stop CPU profiling and get results
+                cpu_profile_data = self.perf_profiler.stop_cpu_profiling()
+                if cpu_profile_data:
+                    perf_data['cpu_profile'] = cpu_profile_data
+
+                # Stop counter profiling and get results
+                counter_data = self.perf_profiler.stop_counter_profiling()
+                if counter_data:
+                    perf_data['hardware_counters'] = counter_data
+
+                # Stop memory profiling if it was started
+                memory_data = self.perf_profiler.stop_memory_profiling()
+                if memory_data:
+                    perf_data['memory_profile'] = memory_data
+
+                # Generate flamegraph if CPU profiling was active
+                if cpu_profile_data:
+                    flamegraph_path = self.perf_profiler.generate_flamegraph(
+                        f"{self.current_operation}_cpu_profile.data",
+                        f"{self.current_operation}_flamegraph.svg"
+                    )
+                    if flamegraph_path:
+                        perf_data['flamegraph_path'] = flamegraph_path
+
+                logging.info(f"🔥 Collected perf data for: {self.current_operation}")
+                self.perf_active = False
+
+            except Exception as e:
+                logging.warning(f"Failed to collect perf data for {self.current_operation}: {e}")
 
         # Capture end system metrics
         end_resources = {
@@ -106,7 +209,7 @@ class ComprehensiveProfiler:
             self.operation_start_resources, end_resources
         )
 
-        # Record comprehensive metrics
+        # Record comprehensive metrics including perf data
         operation_metric = {
             'operation': self.current_operation,
             'execution_time_seconds': execution_time,
@@ -118,15 +221,18 @@ class ComprehensiveProfiler:
             'resource_usage': resource_deltas,
             'start_resources': self.operation_start_resources,
             'end_resources': end_resources,
+            'perf_data': perf_data,  # Include perf profiling data
         }
 
         self.operation_metrics[self.current_operation].append(operation_metric)
 
-        # Log operation completion
+        # Log operation completion with perf info
         logging.info(f"✅ Completed profiling operation: {self.current_operation}")
         logging.info(f"   Execution time: {execution_time:.4f} seconds")
         logging.info(f"   Memory delta: {resource_deltas.get('memory_rss_mb', 0):.2f} MB")
         logging.info(f"   CPU usage: {resource_deltas.get('cpu_percent_avg', 0):.2f}%")
+        if perf_data:
+            logging.info(f"   Perf data collected: {list(perf_data.keys())}")
 
         # Profile the query execution
         self.system_profiler.profile_query(
@@ -276,32 +382,65 @@ class ComprehensiveProfiler:
         return summary
 
     def generate_detailed_report(self, output_file=None):
-        """Generate a detailed profiling report."""
+        """Generate a detailed profiling report with perf data."""
+        # Collect perf system information if available
+        perf_system_info = {}
+        if self.enable_perf and self.perf_profiler:
+            try:
+                perf_system_info = self.perf_profiler.get_system_info()
+            except Exception as e:
+                logging.warning(f"Failed to collect perf system info: {e}")
+
         report = {
             'profiling_session': {
                 'start_time': datetime.now().isoformat(),
+                'perf_enabled': self.enable_perf,
+                'output_directory': str(self.output_dir) if self.output_dir else None,
                 'system_info': {
                     'cpu_count': psutil.cpu_count(),
                     'memory_total_gb': psutil.virtual_memory().total / (1024**3),
                     'disk_total_gb': psutil.disk_usage('/').total / (1024**3),
                 },
+                'perf_system_info': perf_system_info,
             },
             'summary': self.get_operation_summary(),
             'detailed_metrics': dict(self.operation_metrics),
             'system_metrics': self.system_profiler.get_metrics_summary(),
         }
 
+        # Add enhanced profiler metrics if available
+        if self.enhanced_profiler:
+            try:
+                enhanced_metrics = self.enhanced_profiler.get_metrics_summary()
+                report['enhanced_system_metrics'] = enhanced_metrics
+            except Exception as e:
+                logging.warning(f"Failed to collect enhanced metrics: {e}")
+
         if output_file:
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(report, f, indent=2, default=str)
-            logging.info(f"📊 Detailed profiling report saved to: {output_file}")
+            logging.info(f"📊 Detailed profiling report with perf data saved to: {output_file}")
 
         return report
 
     def stop_profiling(self):
-        """Stop the profiling session."""
+        """Stop the profiling session and clean up perf processes."""
         self.system_profiler.stop_profiling()
-        logging.info("🛑 Profiling session stopped")
+
+        if self.enhanced_profiler:
+            try:
+                self.enhanced_profiler.stop_profiling()
+            except Exception as e:
+                logging.warning(f"Failed to stop enhanced profiler: {e}")
+
+        if self.perf_profiler:
+            try:
+                # Cleanup any remaining perf processes
+                self.perf_profiler.cleanup()
+            except Exception as e:
+                logging.warning(f"Failed to cleanup perf profiler: {e}")
+
+        logging.info("🛑 Comprehensive profiling session stopped")
 
 
 class TestComprehensiveProfiling:
@@ -865,3 +1004,411 @@ class TestComprehensiveProfiling:
                 profiler.end_operation(result)
             except Exception as e:
                 profiler.end_operation(error=e)
+
+    def test_13_cpu_intensive_operations(self, profiling_setup):
+        """Test CPU-intensive operations with perf profiling."""
+        components = profiling_setup
+        profiler = components['profiler']
+        schema_manager = components['schema_manager']
+
+        # Create table with many columns for CPU-intensive operations
+        profiler.start_operation("CREATE_COMPLEX_TABLE", {
+            "type": "DDL",
+            "operation": "CREATE_TABLE",
+            "complexity": "high_cpu"
+        })
+
+        try:
+            result = schema_manager.execute_create_table({
+                "type": "CREATE_TABLE",
+                "table": "complex_table",
+                "columns": [
+                    "id INT PRIMARY KEY",
+                    "data1 TEXT",
+                    "data2 INT",
+                    "data3 DECIMAL(10,2)",
+                    "data4 DATETIME",
+                    "data5 TEXT",
+                    "data6 INT",
+                    "data7 DECIMAL(15,4)",
+                    "data8 TEXT",
+                    "data9 DATETIME",
+                    "data10 BIGINT"
+                ]
+            })
+            profiler.end_operation(result)
+        except Exception as e:
+            profiler.end_operation(error=e)
+
+        # CPU-intensive bulk insert with computed values
+        profiler.start_operation("BULK_INSERT_CPU_INTENSIVE", {
+            "type": "DML",
+            "operation": "INSERT",
+            "target_records": 5000,
+            "complexity": "high_cpu"
+        })
+
+        try:
+            catalog_manager = components['catalog_manager']
+            for i in range(5000):
+                # Simulate CPU-intensive data processing
+                data_value = f"processed_data_{i}_{'x' * (i % 100)}"
+                computed_value = sum(ord(c) for c in data_value) % 1000000
+
+                catalog_manager.insert_record("complex_table", {
+                    "id": i,
+                    "data1": data_value,
+                    "data2": computed_value,
+                    "data3": round(computed_value * 0.123, 2),
+                    "data4": f"2023-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}",
+                    "data5": f"computed_{computed_value}",
+                    "data6": i * 7 % 10000,
+                    "data7": round(i * 0.456789, 4),
+                    "data8": f"bulk_data_{i}",
+                    "data9": f"2023-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}",
+                    "data10": i * i
+                })
+
+            profiler.end_operation({"status": "success", "records_inserted": 5000})
+        except Exception as e:
+            profiler.end_operation(error=e)
+
+    def test_14_memory_intensive_operations(self, profiling_setup):
+        """Test memory-intensive operations with perf profiling."""
+        components = profiling_setup
+        profiler = components['profiler']
+        execution_engine = components['execution_engine']
+
+        # Large data aggregation that consumes significant memory
+        profiler.start_operation("MEMORY_INTENSIVE_AGGREGATION", {
+            "type": "QUERY",
+            "operation": "AGGREGATION",
+            "data_size": "large",
+            "memory_pattern": "allocation_heavy"
+        })
+
+        try:
+            # Create large temporary data structures in memory
+            large_data = []
+            for i in range(10000):
+                large_data.append({
+                    'id': i,
+                    'data': 'x' * 1000,  # 1KB per record = ~10MB total
+                    'computed': sum(range(i % 100))
+                })
+
+            # Simulate complex aggregation operations
+            result = {
+                'total_records': len(large_data),
+                'total_data_size_mb': len(large_data) / 1024,
+                'sum_computed': sum(item['computed'] for item in large_data),
+                'avg_computed': sum(item['computed'] for item in large_data) / len(large_data),
+                'max_computed': max(item['computed'] for item in large_data),
+                'min_computed': min(item['computed'] for item in large_data)
+            }
+
+            profiler.end_operation(result)
+        except Exception as e:
+            profiler.end_operation(error=e)
+
+    def test_15_io_intensive_operations(self, profiling_setup):
+        """Test I/O intensive operations with perf profiling."""
+        components = profiling_setup
+        profiler = components['profiler']
+        execution_engine = components['execution_engine']
+
+        # Complex SELECT operations that trigger disk I/O
+        profiler.start_operation("IO_INTENSIVE_QUERIES", {
+            "type": "QUERY",
+            "operation": "COMPLEX_SELECT",
+            "io_pattern": "sequential_scan",
+            "target_operations": 5
+        })
+
+        try:
+            # Full table scan with complex conditions
+            results = []
+            for i in range(5):
+                result = execution_engine.execute({
+                    "type": "SELECT",
+                    "table": "complex_table",
+                    "columns": ["*"],
+                    "condition": f"data2 > {i * 1000} AND data6 < {(i + 1) * 2000}"
+                })
+                results.append(result)
+
+            profiler.end_operation({
+                "status": "success",
+                "queries_executed": len(results),
+                "total_results": sum(len(r) if r else 0 for r in results)
+            })
+        except Exception as e:
+            profiler.end_operation(error=e)
+
+    def test_16_mixed_workload_profiling(self, profiling_setup):
+        """Test mixed workload with various operation types and perf profiling."""
+        components = profiling_setup
+        profiler = components['profiler']
+        catalog_manager = components['catalog_manager']
+        execution_engine = components['execution_engine']
+
+        profiler.start_operation("MIXED_WORKLOAD_STRESS_TEST", {
+            "type": "MIXED",
+            "operations": ["INSERT", "SELECT", "UPDATE", "DELETE"],
+            "duration": "30_seconds",
+            "complexity": "high"
+        })
+
+        try:
+            start_time = time.time()
+            operations_performed = {
+                'inserts': 0,
+                'selects': 0,
+                'updates': 0,
+                'deletes': 0
+            }
+
+            # Run mixed workload for 30 seconds
+            while time.time() - start_time < 30:
+                operation_type = int(time.time() * 1000) % 4
+
+                if operation_type == 0:  # INSERT
+                    record_id = int(time.time() * 1000) % 100000
+                    try:
+                        catalog_manager.insert_record("complex_table", {
+                            "id": record_id + 10000,  # Avoid conflicts
+                            "data1": f"mixed_workload_{record_id}",
+                            "data2": record_id,
+                            "data3": round(record_id * 0.123, 2),
+                            "data4": "2023-12-01",
+                            "data5": f"test_{record_id}",
+                            "data6": record_id % 1000,
+                            "data7": round(record_id * 0.456, 4),
+                            "data8": f"workload_{record_id}",
+                            "data9": "2023-12-01",
+                            "data10": record_id * record_id
+                        })
+                        operations_performed['inserts'] += 1
+                    except Exception:
+                        pass  # Ignore conflicts in stress test
+
+                elif operation_type == 1:  # SELECT
+                    try:
+                        # Execute complex query for I/O stress
+                        execution_engine.execute({
+                            "type": "SELECT",
+                            "table": "complex_table",
+                            "columns": ["id", "data1", "data2"],
+                            "condition": f"data2 < {int(time.time()) % 1000}"
+                        })
+                        operations_performed['selects'] += 1
+                    except Exception:
+                        pass  # Continue on errors in stress test
+
+                # Add small delay to prevent overwhelming the system
+                time.sleep(0.01)
+
+            profiler.end_operation({
+                "status": "success",
+                "duration_seconds": 30,
+                "operations_performed": operations_performed,
+                "total_operations": sum(operations_performed.values())
+            })
+
+        except Exception as e:
+            profiler.end_operation(error=e)
+
+def run_comprehensive_perf_demo():
+    """
+    Run a comprehensive demonstration of the unified perf profiling system.
+    This demonstrates both the comprehensive profiling and visualization capabilities.
+    """
+    print("🚀 Starting Comprehensive Linux Perf Profiling Demo...")
+    print("="*80)
+
+    # Initialize components (assume they're already imported at module level)
+    catalog_manager = CatalogManager()
+    index_manager = IndexManager(catalog_manager)
+    planner = Planner(catalog_manager, index_manager)
+    execution_engine = ExecutionEngine(catalog_manager, index_manager, planner)
+    schema_manager = SchemaManager(catalog_manager)
+
+    # Initialize comprehensive profiler with perf integration
+    profiler = ComprehensiveProfiler(catalog_manager, enable_perf=True)
+
+    print("📋 System Information:")
+    try:
+        if profiler.perf_profiler:
+            perf_info = profiler.perf_profiler.get_system_info()
+            print(f"   Perf Version: {perf_info.get('perf_version', 'unknown')}")
+            print(f"   CPU Model: {perf_info.get('cpu_info', {}).get('model name', 'unknown')}")
+            print(f"   Available Events: {len(perf_info.get('available_events', []))} events")
+            capabilities = perf_info.get('perf_capabilities', {})
+            print(f"   Perf Record: {'✅' if capabilities.get('record') else '❌'}")
+            print(f"   Hardware Events: {'✅' if capabilities.get('hardware_events') else '❌'}")
+        else:
+            print("   Perf integration not available")
+    except Exception as e:
+        print(f"   Error checking perf: {e}")
+
+    print("\n🔧 Setting up test environment...")
+
+    # Create test database
+    profiler.start_operation("DEMO_CREATE_DATABASE")
+    try:
+        catalog_manager.create_database("perf_demo_db")
+        catalog_manager.set_current_database("perf_demo_db")
+        profiler.end_operation({"status": "success"})
+    except Exception as e:
+        profiler.end_operation(error=e)
+        raise
+
+    print("\n🔍 Running CPU-intensive demo...")
+
+    # CPU-intensive operation demo
+    profiler.start_operation("DEMO_CPU_INTENSIVE", {
+        "type": "CPU_DEMO",
+        "description": "CPU-intensive computation with perf profiling"
+    })
+
+    try:
+        # Create a table
+        schema_manager.execute_create_table({
+            "type": "CREATE_TABLE",
+            "table": "demo_table",
+            "columns": ["id INT PRIMARY KEY", "data TEXT", "computed INT"]
+        })
+
+        # CPU-intensive data insertion
+        for i in range(1000):
+            # Simulate CPU-intensive computation
+            computed_value = sum(j * j for j in range(i % 100))
+            catalog_manager.insert_record("demo_table", {
+                "id": i,
+                "data": f"data_{i}_{'x' * (i % 50)}",
+                "computed": computed_value
+            })
+
+        profiler.end_operation({"status": "success", "records": 1000})
+    except Exception as e:
+        profiler.end_operation(error=e)
+
+    print("\n💾 Running memory-intensive demo...")
+
+    # Memory-intensive operation demo
+    profiler.start_operation("DEMO_MEMORY_INTENSIVE", {
+        "type": "MEMORY_DEMO",
+        "description": "Memory allocation with perf profiling"
+    })
+
+    try:
+        # Create large data structures
+        large_data = []
+        for i in range(5000):
+            large_data.append({
+                'id': i,
+                'data': 'x' * 200,  # 200 bytes per record
+                'computed': sum(range(i % 50))
+            })
+
+        # Process the data
+        result = {
+            'total_records': len(large_data),
+            'total_size_mb': len(large_data) * 200 / (1024 * 1024),
+            'sum_computed': sum(item['computed'] for item in large_data)
+        }
+
+        profiler.end_operation(result)
+    except Exception as e:
+        profiler.end_operation(error=e)
+
+    print("\n🔄 Running I/O-intensive demo...")
+
+    # I/O-intensive operation demo
+    profiler.start_operation("DEMO_IO_INTENSIVE", {
+        "type": "IO_DEMO",
+        "description": "Database queries with perf profiling"
+    })
+
+    try:
+        results = []
+        for i in range(10):
+            result = execution_engine.execute({
+                "type": "SELECT",
+                "table": "demo_table",
+                "columns": ["*"],
+                "condition": f"computed > {i * 100}"
+            })
+            results.append(result)
+
+        profiler.end_operation({
+            "status": "success",
+            "queries": len(results),
+            "total_results": sum(len(r) if r else 0 for r in results)
+        })
+    except Exception as e:
+        profiler.end_operation(error=e)
+
+    print("\n📊 Generating comprehensive report...")
+
+    # Generate detailed report
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    report_file = f"/tmp/perf_demo_report_{timestamp}.json"
+    profiler.generate_detailed_report(report_file)
+
+    # Stop profiling
+    profiler.stop_profiling()
+
+    print("\n📈 Visualizations available...")
+
+    # Note: Visualizations can be generated separately using generate_profiling_visualizations.py
+    try:
+        output_dir = f"/tmp/perf_demo_visualizations_{timestamp}"
+        os.makedirs(output_dir, exist_ok=True)
+
+        print(f"   Visualization directory created: {output_dir}")
+        print("   To generate visualizations, run:")
+        print("   python generate_profiling_visualizations.py")
+        print("   (This will include the new perf-specific visualizations)")
+    except Exception as e:
+        print(f"   Error creating visualization directory: {e}")
+
+    # Print summary
+    summary = profiler.get_operation_summary()
+
+    print("\n" + "="*80)
+    print("COMPREHENSIVE PERF DEMO SUMMARY")
+    print("="*80)
+    print(f"Total Operations: {summary['total_operations']}")
+    print(f"Operation Types: {summary['operation_types']}")
+    print(f"Total Execution Time: {summary['total_execution_time']:.4f} seconds")
+
+    if summary['performance_statistics']:
+        stats = summary['performance_statistics']
+        print(f"Average Execution Time: {stats['average_execution_time']:.4f} seconds")
+        print(f"Max Execution Time: {stats['max_execution_time']:.4f} seconds")
+
+    if summary['resource_usage_summary']:
+        resources = summary['resource_usage_summary']
+        print(f"Total Memory Usage: {resources['total_memory_mb']:.2f} MB")
+        print(f"Average CPU Usage: {resources['average_cpu_percent']:.2f}%")
+
+    print(f"\nDetailed report saved to: {report_file}")
+
+    # Show operations by type
+    print("\nOperations by Type:")
+    for op_type, stats in summary['operations_by_type'].items():
+        print(f"  {op_type}: {stats['count']} operations, {stats['average_time']:.4f}s avg")
+
+    print("\n✅ Comprehensive perf profiling demo completed!")
+    print("="*80)
+
+    return report_file, output_dir if 'output_dir' in locals() else None
+
+if __name__ == "__main__":
+    # Allow running the comprehensive perf demo standalone
+    if len(sys.argv) > 1 and sys.argv[1] == "demo":
+        run_comprehensive_perf_demo()
+    else:
+        # Run the normal pytest tests
+        pytest.main([__file__])
