@@ -16,23 +16,22 @@ logger = logging.getLogger('benchmark')
 def run_benchmark(num_keys=100000, batch_size=10000, order=50):
     """Run a benchmark for the optimized B+ tree implementation"""
     logger.info(f"Starting benchmark with {num_keys} keys, batch_size {batch_size}, order {order}")
-    print("Setting up benchmark environment...")
     
     # Setup tree
     try:
         optimized_tree = BPlusTreeOptimized(order=order, name="optimized")
     except RuntimeError as e:
-        print(f"Error setting up tree: {e}")
+        logger.error(f"Error setting up tree: {e}")
         logger.exception("Failed to setup tree")
         return
     
     # Generate random keys
-    print("Generating random keys...")
+    logger.info("Generating random keys...")
     random.seed(42)  # For reproducibility
     keys = [random.randint(1, 1000000) for _ in range(num_keys)]
     
     # Benchmark insertion
-    print(f"Benchmarking insertion of {num_keys} keys...")
+    logger.info(f"Benchmarking insertion of {num_keys} keys...")
     insert_times = []
     insertion_rates = []
     
@@ -42,7 +41,6 @@ def run_benchmark(num_keys=100000, batch_size=10000, order=50):
         
         # Time insertion
         try:
-            print(f"Batch {i//batch_size + 1}/{(num_keys-1)//batch_size + 1}...")
             start = time.time()
             for key in batch:
                 optimized_tree.insert(key, f"value_{key}")
@@ -55,34 +53,30 @@ def run_benchmark(num_keys=100000, batch_size=10000, order=50):
             if batch_time > 0:
                 rate = batch_size_actual / batch_time
                 insertion_rates.append(rate)
-                print(f"  - Time: {batch_time:.3f}s ({rate:.0f} ops/s)")
+                logger.debug(f"Batch {i//batch_size + 1}: {batch_time:.3f}s ({rate:.0f} ops/s)")
             else:
-                print(f"  - Time: {batch_time:.3f}s (too fast to measure rate)")
                 insertion_rates.append(0)  # Avoid division by zero
         except RuntimeError as e:
-            print(f"Error during insertion: {e}")
+            logger.error(f"Error during insertion: {e}")
             logger.exception("Error in insertion")
-            traceback.print_exc()
             return
-            
-        print(f"Inserted {i + len(batch)}/{num_keys} keys")
     
     # Verify some keys
-    print("\nVerifying key lookups...")
+    logger.info("Verifying key lookups...")
     validation_keys = random.sample(keys, min(100, num_keys))
     all_valid = True
     for key in validation_keys:
         value = optimized_tree.search(key)
         expected = f"value_{key}"
         if value != expected:
-            print(f"WARNING: Invalid result for key {key}: got {value}, expected {expected}")
+            logger.warning(f"Invalid result for key {key}: got {value}, expected {expected}")
             all_valid = False
     
     if all_valid:
-        print("All validation keys returned correct values!")
+        logger.info("All validation keys returned correct values!")
     
     # Benchmark search
-    print(f"\nBenchmarking searches...")
+    logger.info("Benchmarking searches...")
     search_times = []
     search_keys = random.sample(keys, min(10000, num_keys // 10))
     
@@ -94,19 +88,19 @@ def run_benchmark(num_keys=100000, batch_size=10000, order=50):
         for key in batch:
             result = optimized_tree.search(key)
             if result is None:
-                print(f"Warning: Key {key} not found")
+                logger.warning(f"Key {key} not found")
         end = time.time()
         batch_time = end - start
         search_times.append(batch_time)
         if batch_time > 0:
             rate = len(batch) / batch_time
-            print(f"Search batch {i//search_batch_size + 1}: {batch_time:.3f}s ({rate:.0f} ops/s)")
+            logger.debug(f"Search batch {i//search_batch_size + 1}: {batch_time:.3f}s ({rate:.0f} ops/s)")
     
     total_search_time = sum(search_times)
     avg_search_rate = len(search_keys) / total_search_time if total_search_time > 0 else 0
     
     # Benchmark range queries
-    print(f"\nBenchmarking range queries...")
+    logger.info("Benchmarking range queries...")
     range_times = []
     ranges = []
     for _ in range(100):
@@ -128,29 +122,29 @@ def run_benchmark(num_keys=100000, batch_size=10000, order=50):
         range_times.append(batch_time)
         if batch_time > 0:
             rate = len(batch) / batch_time
-            print(f"Range query batch {i//range_batch_size + 1}: {batch_time:.3f}s ({rate:.0f} queries/s)")
-            print(f"  - Average results per query: {total_results/len(batch):.1f}")
+            logger.debug(f"Range query batch {i//range_batch_size + 1}: {batch_time:.3f}s ({rate:.0f} queries/s)")
+            logger.debug(f"Average results per query: {total_results/len(batch):.1f}")
     
     total_range_time = sum(range_times)
     avg_range_rate = len(ranges) / total_range_time if total_range_time > 0 else 0
     
-    # Print results
-    print("\n--- BENCHMARK RESULTS ---")
-    print(f"Tree order: {order}, Keys: {num_keys}")
+    # Log results
+    logger.info("=== BENCHMARK RESULTS ===")
+    logger.info(f"Tree order: {order}, Keys: {num_keys}")
     
-    print("\nInsertion Performance:")
-    print(f"Total time: {sum(insert_times):.3f} seconds")
-    print(f"Average rate: {num_keys/sum(insert_times):.0f} insertions/second")
+    logger.info("Insertion Performance:")
+    logger.info(f"Total time: {sum(insert_times):.3f} seconds")
+    logger.info(f"Average rate: {num_keys/sum(insert_times):.0f} insertions/second")
     
-    print("\nSearch Performance:")
-    print(f"Total time: {total_search_time:.3f} seconds")
-    print(f"Average rate: {avg_search_rate:.0f} searches/second")
+    logger.info("Search Performance:")
+    logger.info(f"Total time: {total_search_time:.3f} seconds")
+    logger.info(f"Average rate: {avg_search_rate:.0f} searches/second")
     
-    print("\nRange Query Performance:")
-    print(f"Total time: {total_range_time:.3f} seconds")
-    print(f"Average rate: {avg_range_rate:.0f} range queries/second")
+    logger.info("Range Query Performance:")
+    logger.info(f"Total time: {total_range_time:.3f} seconds")
+    logger.info(f"Average rate: {avg_range_rate:.0f} range queries/second")
     
-    print("\n--- END OF BENCHMARK ---")
+    logger.info("=== END OF BENCHMARK ===")
     
     # Plot insertion performance over time (batch number)
     try:
@@ -194,17 +188,18 @@ def run_benchmark(num_keys=100000, batch_size=10000, order=50):
         plt.tight_layout()
         plt.savefig('operation_rates.png')
         plt.close()
+        logger.info("Benchmark visualization plots saved successfully")
     except RuntimeError as e:
-        print(f"Error generating plot: {e}")
+        logger.error(f"Error generating plot: {e}")
         logger.exception("Error in plotting")
         
-    print("Benchmark completed successfully!")
+    logger.info("Benchmark completed successfully!")
     return
 
 if __name__ == "__main__":
     try:
         if len(sys.argv) != 4:
-            print("Usage: python optimized_benchmark.py <num_keys> <batch_size> <order>")
+            logger.error("Usage: python optimized_benchmark.py <num_keys> <batch_size> <order>")
             num_keys = int(input("Enter number of keys (default: 100000): ") or "100000")
             batch_size = int(input("Enter batch size (default: 10000): ") or "10000")
             order = int(input("Enter tree order (default: 50): ") or "50")
@@ -214,10 +209,10 @@ if __name__ == "__main__":
             order = int(sys.argv[3])
         
         run_benchmark(num_keys=num_keys, batch_size=batch_size, order=order)
-        print("Benchmark script executed successfully!")
+        logger.info("Benchmark script executed successfully!")
     except KeyboardInterrupt:
-        print("\nBenchmark interrupted by user!")
+        logger.warning("Benchmark interrupted by user!")
     except RuntimeError as e:
-        print(f"Unexpected error: {e}")
-        traceback.print_exc()
+        logger.error(f"Unexpected error: {e}")
+        logger.exception("Traceback for unexpected error")
     sys.exit(0)

@@ -78,7 +78,9 @@ class TestIndexScan:
         assert "scan_type" in plan
         assert plan["scan_type"] == "INDEX_SCAN"
 
-        return index_time
+        # Assert that query execution was fast (index should help performance)
+        # Just ensure it completes within reasonable time
+        assert index_time < 1.0, f"Index scan took too long: {index_time:.4f}s"
 
     def test_select_without_index(self, execution_engine, setup_index_table, cleanup_index_table):
         """Test SELECT performance without index."""
@@ -106,7 +108,8 @@ class TestIndexScan:
         assert "scan_type" in plan
         assert plan["scan_type"] == "FULL_SCAN"
 
-        return no_index_time
+        # Assert that query execution completes (no specific performance requirement for full scan)
+        assert no_index_time >= 0, "Query execution time should be non-negative"
 
     def test_index_range_scan(self, schema_manager, execution_engine, setup_index_table, cleanup_index_table):
         """Test index usage for range queries."""

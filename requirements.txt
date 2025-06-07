@@ -9,3 +9,4 @@ pytest-cov
 pytest-xdist
 pytest-mock
 faker
+pymongo
