@@ -130,6 +130,19 @@ class DMLExecutor:
                 result = self.catalog_manager.insert_record(table_name, record)
                 
                 if isinstance(result, dict) and result.get("status") == "success":
+                    # Check if this is part of a transaction and record the operation
+                    transaction_id = plan.get("transaction_id")
+                    if transaction_id and hasattr(self, 'transaction_manager') and self.transaction_manager:
+                        record_id = result.get("record_key")
+                        if record_id:
+                            operation = {
+                                "type": "INSERT",
+                                "table": table_name,
+                                "record_id": record_id
+                            }
+                            self.transaction_manager.record_operation(transaction_id, operation)
+                            logging.info(f"Recorded INSERT operation for transaction {transaction_id}: {table_name}.{record_id}")
+                    
                     return {
                         "message": f"Inserted 1 record into {table_name}",
                         "status": "success",

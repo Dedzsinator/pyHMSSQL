@@ -96,12 +96,6 @@ class DBMSServer:
         # Initialize statistics manager for cost-based optimization
         self.statistics_manager = TableStatistics(self.catalog_manager)
 
-        # Initialize execution engine with new components
-        self.execution_engine = ExecutionEngine(
-            self.catalog_manager,
-            self.index_manager
-        )
-
         # Initialize parser
         self.sql_parser = SQLParser(self.execution_engine)
 
@@ -110,6 +104,12 @@ class DBMSServer:
 
         # Initialize planner with optimizer
         self.planner = Planner(self.catalog_manager, self.index_manager)
+
+        self.execution_engine = ExecutionEngine(
+            self.catalog_manager,
+            self.index_manager,
+            self.planner
+        )
 
         # Initialize replication manager (start as primary)
         self.replication_manager = ReplicationManager(

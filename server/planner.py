@@ -11,6 +11,7 @@ Returns:
 
 import logging
 import copy
+import re
 
 
 class Planner:
@@ -628,14 +629,22 @@ class Planner:
         # CRITICAL FIX: Extract WHERE conditions properly
         where_conditions = parsed_query.get("parsed_condition") or parsed_query.get("condition")
         
+        # Choose the best join algorithm based on available indexes and table statistics
+        table1 = join_info.get("table1") or (tables[0] if len(tables) > 0 else "")
+        table2 = join_info.get("table2") or (tables[1] if len(tables) > 1 else "")
+        join_condition = join_info.get("condition") or condition
+        
+        # Let the planner choose the optimal join algorithm
+        chosen_algorithm = self._choose_join_algorithm([table1, table2], join_condition)
+        
         # Create the join plan with all necessary information
         plan = {
             "type": "JOIN",
             "join_type": join_type,
-            "join_algorithm": join_info.get("join_algorithm", "HASH"),
-            "table1": join_info.get("table1") or (tables[0] if len(tables) > 0 else ""),
-            "table2": join_info.get("table2") or (tables[1] if len(tables) > 1 else ""),
-            "condition": join_info.get("condition") or condition,
+            "join_algorithm": join_info.get("join_algorithm", chosen_algorithm),
+            "table1": table1,
+            "table2": table2,
+            "condition": join_condition,
             "columns": columns,
             "where_conditions": where_conditions,  # Add WHERE conditions
             "tables": tables

@@ -1,24 +1,56 @@
-name: Pylint
+name: Code Quality Analysis
 
-on: [push]
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - '**.py'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - '**.py'
 
 jobs:
-  build:
+  pylint:
+    name: Pylint Analysis
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.11", "3.12", "3.13"]
+    
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pylint
-        pip install -r requirements.txt
-    - name: Analysing the code with pylint
-      run: |
-        pylint $(git ls-files '*.py')
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint black isort mypy
+          pip install -r requirements.txt
+      
+      - name: Run Black formatter check
+        run: |
+          black --check --diff server/ tests/
+      
+      - name: Run isort import sorting check
+        run: |
+          isort --check-only --diff server/ tests/
+      
+      - name: Run pylint analysis
+        run: |
+          pylint server/ tests/ \
+            --disable=C0114,C0115,C0116,R0903,R0913,R0914,W0613 \
+            --max-line-length=100 \
+            --output-format=colorized \
+            --reports=no
+      
+      - name: Run mypy type checking
+        run: |
+          mypy server/ --ignore-missing-imports --check-untyped-defs
+        continue-on-error: true

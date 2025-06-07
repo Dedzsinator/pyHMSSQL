@@ -1,0 +1,73 @@
+# Configuration for automatic issue labeling
+# https://github.com/github/issue-labeler
+
+bug:
+  - "bug"
+  - "error"
+  - "crash"
+  - "fail"
+  - "broken"
+  - "issue"
+  - "problem"
+  - "exception"
+  - "traceback"
+
+enhancement:
+  - "feature"
+  - "enhancement"
+  - "improve"
+  - "add"
+  - "implement"
+  - "support"
+  - "request"
+
+documentation:
+  - "document"
+  - "readme"
+  - "doc"
+  - "guide"
+  - "tutorial"
+  - "example"
+
+question:
+  - "question"
+  - "help"
+  - "how"
+  - "why"
+  - "what"
+  - "usage"
+
+performance:
+  - "performance"
+  - "slow"
+  - "speed"
+  - "optimize"
+  - "memory"
+  - "cpu"
+  - "benchmark"
+
+database:
+  - "database"
+  - "catalog"
+  - "table"
+  - "schema"
+  - "sql"
+
+indexing:
+  - "index"
+  - "bptree"
+  - "search"
+  - "query"
+
+transactions:
+  - "transaction"
+  - "commit"
+  - "rollback"
+  - "acid"
+  - "concurrency"
+
+parser:
+  - "parser"
+  - "parsing"
+  - "syntax"
+  - "sqlglot"

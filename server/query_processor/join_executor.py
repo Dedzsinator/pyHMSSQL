@@ -39,13 +39,20 @@ class JoinExecutor:
         left_table_data = self._get_table_data(table1)
         right_table_data = self._get_table_data(table2)
 
+        # Debug the join algorithm choice
+        logging.info(f"🔧 Join algorithm chosen: {join_algorithm}")
+        logging.info(f"🔧 Join type: {join_type}")
+        logging.info(f"🔧 About to call join with left_table_data={len(left_table_data)} records, right_table_data={len(right_table_data)} records")
+        
         # Execute the join based on algorithm
         if join_algorithm == "HASH":
+            logging.info(f"🔧 Calling _execute_hash_join")
             results = self._execute_hash_join(
                 left_table_data, right_table_data,
                 left_column, right_column, table1, table2, join_type
             )
         else:
+            logging.info(f"🔧 Calling _execute_nested_loop_join")
             results = self._execute_nested_loop_join(
                 left_table_data, right_table_data,
                 left_column, right_column, table1, table2, join_type
@@ -99,7 +106,21 @@ class JoinExecutor:
         # CRITICAL FIX: Use the correct catalog manager method
         try:
             # Use query_with_condition to get all table data
-            return self.catalog_manager.query_with_condition(table_name, [], ["*"])
+            data = self.catalog_manager.query_with_condition(table_name, [], ["*"])
+            logging.info(f"📊 Fetched {len(data)} records from table '{table_name}'")
+            
+            # Special debug for customers table
+            if table_name == "customers":
+                customer_500 = [record for record in data if record.get('id') == 500]
+                if customer_500:
+                    logging.info(f"✅ Customer 500 found in fetched data: {customer_500[0]}")
+                else:
+                    logging.warning(f"❌ Customer 500 NOT found in fetched data")
+                    # Show all customer IDs for debugging
+                    customer_ids = [record.get('id') for record in data if record.get('id')]
+                    logging.info(f"Customer IDs in fetched data: {sorted(customer_ids)}")
+            
+            return data
         except Exception as e:
             logging.error(f"Error fetching table data for '{table_name}': {e}")
             return []
@@ -166,6 +187,30 @@ class JoinExecutor:
         
         logging.info(f"Hash join: {len(left_table_data)} left records, {len(right_table_data)} right records")
         logging.info(f"Join condition: {left_column} = {right_column}")
+        logging.info(f"Join type: {join_type}")
+        
+        # Debug: Check if customer 500 is in left_table_data
+        customer_500_in_left_data = None
+        for i, record in enumerate(left_table_data):
+            customer_id = self._get_column_value(record, left_column, left_alias)
+            if customer_id == 500:
+                customer_500_in_left_data = record
+                logging.info(f"🎯 Customer 500 found at index {i} in left_table_data: {record}")
+                break
+        
+        if customer_500_in_left_data is None:
+            logging.error(f"❌ Customer 500 NOT found in left_table_data!")
+            # Log a sample of customer IDs to see what we have
+            sample_ids = []
+            for i, record in enumerate(left_table_data[:5]):  # First 5
+                cid = self._get_column_value(record, left_column, left_alias)
+                sample_ids.append(f"[{i}]={cid}")
+            for i, record in enumerate(left_table_data[-5:], len(left_table_data)-5):  # Last 5
+                cid = self._get_column_value(record, left_column, left_alias)
+                sample_ids.append(f"[{i}]={cid}")
+            logging.info(f"Sample customer IDs in left_table_data: {', '.join(sample_ids)}")
+        else:
+            logging.info(f"✅ Customer 500 confirmed in left_table_data")
         
         # Build hash table from smaller table (right table in this case)
         hash_table = {}
@@ -179,26 +224,75 @@ class JoinExecutor:
                 hash_table[key_value].append(record)
 
         logging.info(f"Built hash table with {len(hash_table)} unique keys")
+        
+        # Debug: Log hash table keys
+        logging.info(f"Hash table keys: {sorted(list(hash_table.keys()))}")
+        
+        # Debug: Check for customer ID 500 specifically
+        customer_500_found = False
+        customer_500_records = []
+        for record in left_table_data:
+            customer_id = self._get_column_value(record, left_column, left_alias)
+            if customer_id == 500:
+                customer_500_found = True
+                customer_500_records.append(record)
+                logging.info(f"🔍 Found customer 500 in left table: {record}")
+                
+        if not customer_500_found:
+            logging.warning("⚠️ Customer 500 not found in left table data!")
+            # Log first few and last few records to debug
+            logging.info(f"First 3 left records: {left_table_data[:3]}")
+            logging.info(f"Last 3 left records: {left_table_data[-3:]}")
+            customer_ids = [self._get_column_value(record, left_column, left_alias) for record in left_table_data]
+            logging.info(f"All customer IDs in left table: {sorted([id for id in customer_ids if id is not None])}")
+        else:
+            logging.info(f"✅ Customer 500 found {len(customer_500_records)} times in left table")
 
         # Probe with left table
+        matched_left_records = 0
+        unmatched_left_records = 0
         for left_record in left_table_data:
             left_key_value = self._get_column_value(left_record, left_column, left_alias)
+            
+            # Special debugging for customer ID 500
+            if left_key_value == 500:
+                logging.info(f"🔍 Processing customer 500: {left_record}")
+                logging.info(f"🔍 Customer 500 key value: {left_key_value}")
+                logging.info(f"🔍 Key 500 in hash table: {500 in hash_table}")
+                logging.info(f"🔍 Join type: {join_type}")
+            
             logging.debug(f"Left record key {left_column}: {left_key_value}, record: {left_record}")
             
             if left_key_value is not None and left_key_value in hash_table:
                 # Found matching records
+                matched_left_records += 1
                 for right_record in hash_table[left_key_value]:
                     joined_record = self._create_joined_record(
                         left_record, right_record, left_alias, right_alias
                     )
                     results.append(joined_record)
                     logging.debug(f"Joined record created: {joined_record}")
+                    
+                    # Special debug for customer 500
+                    if left_key_value == 500:
+                        logging.info(f"🔍 Customer 500 matched with right record: {right_record}")
             elif join_type in ["LEFT", "FULL"]:
-                # Left join - include left record with null values for right
+                # Left/Full join - include left record with null values for right (no match found or left key is NULL)
+                unmatched_left_records += 1
+                
+                # Special debug for customer 500
+                if left_key_value == 500:
+                    logging.info(f"🔍 Customer 500 being added as unmatched LEFT JOIN record")
+                
+                logging.info(f"LEFT/FULL join: Adding unmatched left record {left_record} with key {left_key_value}")
                 joined_record = self._create_joined_record(
                     left_record, None, left_alias, right_alias
                 )
                 results.append(joined_record)
+                logging.debug(f"Added unmatched left record: {joined_record}")
+            # For INNER join, we don't include unmatched records
+
+        logging.info(f"LEFT JOIN stats: matched={matched_left_records}, unmatched={unmatched_left_records}, total_left={len(left_table_data)}")
 
         # Handle right join case
         if join_type in ["RIGHT", "FULL"]:

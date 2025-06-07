@@ -1,23 +1,77 @@
-name-template: "v$NEXT_PATCH_VERSION"
-tag-template: "v$NEXT_PATCH_VERSION"
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+
+version-resolver:
+  major:
+    labels: ['type: breaking', 'major']
+  minor:
+    labels: ['type: feature', 'feature', 'enhancement', 'minor']
+  patch:
+    labels: ['type: bug', 'bug', 'fix', 'patch', 'type: maintenance', 'chore']
+  default: patch
 
 categories:
   - title: 🚀 Features
-    labels: ["feature", "enhancement"]
+    labels: ['feature', 'enhancement', 'type: feature']
   - title: 🐛 Bug Fixes
-    labels: ["bug", "fix"]
-  - title: 🛠 Improvements
-    labels: ["refactor", "improvement"]
+    labels: ['bug', 'fix', 'type: bug']
+  - title: ⚡ Performance Improvements
+    labels: ['performance', 'optimization', 'type: performance']
+  - title: 🛠 Refactoring
+    labels: ['refactor', 'type: refactor']
+  - title: 📚 Documentation
+    labels: ['documentation', 'docs', 'type: docs']
+  - title: 🧪 Tests
+    labels: ['test', 'tests', 'type: test']
+  - title: 🔧 Build System
+    labels: ['build', 'type: build']
+  - title: ⚙️ CI/CD
+    labels: ['ci', 'workflow', 'type: ci']
   - title: 🧹 Maintenance
-    labels: ["chore", "dependencies"]
+    labels: ['chore', 'dependencies', 'type: maintenance']
 
-change-template: "- $TITLE (#$NUMBER) by @$AUTHOR"
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
 change-title-escapes: '\<\>&'
 
 template: |
-  ## Changes in $NEXT_PATCH_VERSION
+  ## What's Changed in $RESOLVED_VERSION
 
   $CHANGES
 
-  ### Contributors
+  ### 📊 Statistics
+  - **Contributors**: $CONTRIBUTORS
+  - **Commits**: $NUMBER_OF_COMMITS
+  - **Files Changed**: $NUMBER_OF_FILES_CHANGED
+
+  ### 🙏 Contributors
   $CONTRIBUTORS
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+exclude-labels:
+  - 'skip-changelog'
+  - 'duplicate'
+  - 'invalid'
+  - 'wontfix'
+
+autolabeler:
+  - label: 'server'
+    files:
+      - 'server/**/*'
+  - label: 'client'
+    files:
+      - 'client/**/*'
+  - label: 'tests'
+    files:
+      - 'tests/**/*'
+  - label: 'documentation'
+    files:
+      - '*.md'
+      - 'docs/**/*'
+  - label: 'dependencies'
+    files:
+      - 'requirements.txt'
+      - 'pyproject.toml'
+  - label: 'workflow'
+    files:
+      - '.github/**/*'

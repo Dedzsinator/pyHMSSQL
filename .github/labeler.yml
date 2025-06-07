@@ -1,23 +1,78 @@
 # Configuration for the GitHub Labeler Action
 # https://github.com/actions/labeler
 
+# Component labels
 client:
   - client/**/*
+  - client/**/*.py
 
 server:
   - server/**/*
+  - server/**/*.py
 
 shared:
   - shared/**/*
 
+tests:
+  - tests/**/*
+  - tests/**/*.py
+
+# Feature area labels
+database:
+  - server/catalog_manager.py
+  - server/**/catalog/**/*
+
+query-engine:
+  - server/execution_engine.py
+  - server/query_processor/**/*
+  - server/planner.py
+  - server/optimizer.py
+
+parser:
+  - server/parser.py
+  - server/sqlglot_parser.py
+  - server/**/parser/**/*
+
+indexing:
+  - server/index_manager.py
+  - server/bptree*.py
+  - server/**/index/**/*
+
+transactions:
+  - server/transaction/**/*
+  - tests/test_transactions/**/*
+
+storage:
+  - server/buffer_pool_manager.py
+  - server/bptree*.py
+
+# Type labels
 documentation:
   - "**/*.md"
+  - "*.md"
   - docs/**/*
 
-# Add 'workflow' label to any changes in workflow files
+# Workflow and config labels
 workflow:
   - .github/**/*
 
-# Add 'dependencies' label to any changes to requirements.txt
 dependencies:
   - requirements.txt
+  - pyproject.toml
+  - setup.py
+
+configuration:
+  - "*.yml"
+  - "*.yaml"
+  - "*.toml"
+  - "*.ini"
+  - ".gitignore"
+  - ".gitattributes"
+
+# Language labels
+python:
+  - "**/*.py"
+
+cython:
+  - "**/*.pyx"
+  - "**/*.c"

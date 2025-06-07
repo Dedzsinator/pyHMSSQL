@@ -20,9 +20,10 @@ import traceback
 class ExecutionEngine:
     """Main execution engine that coordinates between different modules"""
 
-    def __init__(self, catalog_manager, index_manager):
+    def __init__(self, catalog_manager, index_manager, planner):
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
+        self.planner = planner
         self.current_database = catalog_manager.get_current_database()
         self.preferences = self.catalog_manager.get_preferences()
 
@@ -51,6 +52,9 @@ class ExecutionEngine:
         self.dml_executor.condition_parser = self.condition_parser
         self.join_executor.condition_parser = self.condition_parser
         self.group_by_executor.condition_parser = self.condition_parser
+        
+        # Set the transaction manager for DML executor to enable transaction recording
+        self.dml_executor.transaction_manager = self.transaction_manager
 
     def execute_distinct(self, plan):
         """
@@ -398,20 +402,73 @@ class ExecutionEngine:
                 # Extract and clean table names from join_info
                 table1 = join_info.get("table1", "") or plan.get("table1", "")
                 table2 = join_info.get("table2", "") or plan.get("table2", "")
+                condition = join_info.get("condition") or plan.get("condition")
+                
+                # Use planner to choose the best join algorithm
+                join_algorithm = "HASH"  # Default
+                if self.planner and table1 and table2 and condition:
+                    try:
+                        join_algorithm = self.planner._choose_join_algorithm([table1, table2], condition)
+                    except Exception as e:
+                        logging.warning(f"Failed to determine join algorithm, using HASH: {e}")
+                        join_algorithm = "HASH"
                 
                 # Pass all necessary information to the join executor including WHERE conditions
                 join_plan = {
-                    "join_type": join_info.get("type", "INNER") or plan.get("join_type", "INNER"),
-                    "join_algorithm": join_info.get("join_algorithm", "HASH") or plan.get("join_algorithm", "HASH"),
+                    "join_type": plan.get("join_type", "INNER"),
+                    "join_algorithm": join_algorithm,
                     "table1": table1,
                     "table2": table2,
-                    "condition": join_info.get("condition") or plan.get("condition"),
+                    "condition": condition,
                     "where_conditions": where_conditions,  # Pass WHERE conditions properly
                     "join_info": join_info,
                     "columns": plan.get("columns", ["*"])  # Also pass requested columns
                 }
                 
-                return self.join_executor.execute_join(join_plan)
+                # Update the original plan with the join algorithm used
+                plan["join_algorithm"] = join_plan["join_algorithm"]
+                
+                # Execute the join and get the raw results
+                join_results = self.join_executor.execute_join(join_plan)
+                
+                # CRITICAL FIX: Format JOIN results to match expected dictionary format
+                if isinstance(join_results, list):
+                    if not join_results:
+                        # Empty result set
+                        return {
+                            "columns": [],
+                            "rows": [],
+                            "status": "success",
+                            "type": "join_result"
+                        }
+                    
+                    # Get all unique columns from all records
+                    all_columns = set()
+                    for record in join_results:
+                        if isinstance(record, dict):
+                            all_columns.update(record.keys())
+                    
+                    # Sort columns for consistent display
+                    columns = sorted(list(all_columns))
+                    
+                    # Convert list of dictionaries to rows format
+                    rows = []
+                    for record in join_results:
+                        if isinstance(record, dict):
+                            row = []
+                            for col in columns:
+                                row.append(record.get(col))
+                            rows.append(row)
+                    
+                    return {
+                        "columns": columns,
+                        "rows": rows,
+                        "status": "success",
+                        "type": "join_result"
+                    }
+                else:
+                    # If join_results is already in the correct format, return it
+                    return join_results
             elif plan_type == "VISUALIZE":
                 object_type = plan.get("object")
                 if object_type == "BPTREE":
@@ -423,11 +480,11 @@ class ExecutionEngine:
             elif plan_type in ["UNION", "INTERSECT", "EXCEPT"]:
                 return self.execute_set_operation(plan)
             elif plan_type == "BEGIN_TRANSACTION":
-                return self.transaction_manager.begin()
+                return self.transaction_manager.execute_transaction_operation("BEGIN_TRANSACTION")
             elif plan_type == "COMMIT":
-                return self.transaction_manager.commit()
+                return self.transaction_manager.execute_transaction_operation("COMMIT", plan.get("transaction_id"))
             elif plan_type == "ROLLBACK":
-                return self.transaction_manager.rollback()
+                return self.transaction_manager.execute_transaction_operation("ROLLBACK", plan.get("transaction_id"))
             elif plan_type == "SET_PREFERENCE":
                 return self.execute_set_preference(plan)
             elif plan_type == "SCRIPT":

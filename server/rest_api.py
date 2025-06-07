@@ -17,6 +17,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import database components
 from catalog_manager import CatalogManager
+from planner import Planner
 from ddl_processor.index_manager import IndexManager
 from execution_engine import ExecutionEngine
 from parser import SQLParser
@@ -40,7 +41,8 @@ logging.basicConfig(
 # Create database components
 catalog_manager = CatalogManager(data_dir="data")
 index_manager = IndexManager(catalog_manager)
-execution_engine = ExecutionEngine(catalog_manager, index_manager)
+planner = Planner(catalog_manager, index_manager)
+execution_engine = ExecutionEngine(catalog_manager, index_manager, planner)
 sql_parser = SQLParser(execution_engine)
 planner = Planner(catalog_manager, index_manager)
 optimizer = Optimizer(catalog_manager, index_manager)

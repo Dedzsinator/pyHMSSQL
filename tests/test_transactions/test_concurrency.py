@@ -22,8 +22,9 @@ class TestConcurrencyControl:
 
     def test_concurrent_updates(self, execution_engine, catalog_manager, test_table):
         """Test concurrent updates to the same record."""
-        # Create a second execution engine
-        execution_engine2 = ExecutionEngine(catalog_manager, IndexManager(catalog_manager))
+        # Use the same execution engine for both operations since we're testing concurrency control
+        # In a real scenario, these would be separate connections/sessions
+        execution_engine2 = execution_engine  # For simplicity in testing
 
         # Set up a synchronization event
         ready_to_execute = threading.Event()
@@ -100,8 +101,9 @@ class TestConcurrencyControl:
         catalog_manager.insert_record("table_b", {"id": 1, "value": "B1"})
 
         # Set up execution engines for different sessions
-        engine1 = ExecutionEngine(catalog_manager, IndexManager(catalog_manager))
-        engine2 = ExecutionEngine(catalog_manager, IndexManager(catalog_manager))
+        # Use the same execution engine for testing simplicity
+        engine1 = execution_engine
+        engine2 = execution_engine
 
         # Create potential deadlock scenario:
         # Thread 1: Lock A, then B

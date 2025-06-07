@@ -158,9 +158,13 @@ def optimizer(catalog_manager, index_manager):
     return Optimizer(catalog_manager, index_manager)
 
 @pytest.fixture
-def execution_engine(catalog_manager, index_manager):
+def execution_engine(catalog_manager, index_manager, planner, transaction_manager):
     """Create an execution engine for testing."""
-    return ExecutionEngine(catalog_manager, index_manager)
+    engine = ExecutionEngine(catalog_manager, index_manager, planner)
+    # Use the same transaction manager instance for consistency in tests
+    engine.transaction_manager = transaction_manager
+    engine.dml_executor.transaction_manager = transaction_manager
+    return engine
 
 @pytest.fixture
 def schema_manager(catalog_manager):

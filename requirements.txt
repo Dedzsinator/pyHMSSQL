@@ -3,3 +3,9 @@ graphviz
 networkx
 matplotlib
 cython
+sqlglot
+pytest
+pytest-cov
+pytest-xdist
+pytest-mock
+faker
