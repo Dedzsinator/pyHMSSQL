@@ -16,7 +16,13 @@ import cython
 # Create logger
 logger = logging.getLogger("bptree_opt")
 
-# Define structure for key-value pairs
+# Define structure for multidimensional keys
+cdef struct MultiDimKey:
+    double* dimensions  # Array of dimension values
+    int num_dimensions  # Number of dimensions
+    size_t value_ptr    # For leaf nodes
+
+# Define structure for key-value pairs (backward compatibility)
 cdef struct KeyValue:
     # For non-leaf nodes, value_ptr is unused (set to 0)
     double key
@@ -27,9 +33,72 @@ ctypedef struct BPNode:
     bint is_leaf
     int num_keys
     int capacity
-    KeyValue* keys
+    KeyValue* keys              # Single-dimensional keys (legacy)
+    MultiDimKey* multidim_keys  # Multi-dimensional keys
     BPNode** children
-    BPNode* next  # For leaf nodes' linked list
+    BPNode* next               # For leaf nodes' linked list
+    int dimensions             # Number of dimensions (0 for single-dim)
+
+# Multidimensional key comparison functions
+cdef int _compare_multidim_keys(double* key1, double* key2, int dimensions) nogil:
+    """
+    Compare two multidimensional keys lexicographically.
+    Returns: -1 if key1 < key2, 0 if equal, 1 if key1 > key2
+    """
+    cdef int i
+    cdef double epsilon = 1e-9
+    cdef double diff
+    
+    for i in range(dimensions):
+        diff = key1[i] - key2[i]
+        if diff < -epsilon:
+            return -1
+        elif diff > epsilon:
+            return 1
+    return 0
+
+cdef bint _multidim_key_in_range(double* key, double* start_key, double* end_key, int dimensions) nogil:
+    """
+    Check if a multidimensional key is within the given range.
+    Returns True if start_key <= key <= end_key
+    """
+    cdef int i
+    cdef double epsilon = 1e-9
+    
+    for i in range(dimensions):
+        if key[i] < start_key[i] - epsilon or key[i] > end_key[i] + epsilon:
+            return False
+    return True
+
+cdef void _free_multidim_key(MultiDimKey* key) noexcept nogil:
+    """Free memory allocated for a multidimensional key"""
+    if key != NULL:
+        if key.dimensions != NULL:
+            free(key.dimensions)
+        free(key)
+
+cdef MultiDimKey* _create_multidim_key(double* dimensions, int num_dimensions, size_t value_ptr) except? NULL:
+    """Create a new multidimensional key with allocated memory"""
+    cdef MultiDimKey* key
+    cdef int i
+    
+    key = <MultiDimKey*>malloc(sizeof(MultiDimKey))
+    if key == NULL:
+        return NULL
+    
+    key.dimensions = <double*>malloc(sizeof(double) * num_dimensions)
+    if key.dimensions == NULL:
+        free(key)
+        return NULL
+    
+    key.num_dimensions = num_dimensions
+    key.value_ptr = value_ptr
+    
+    # Copy dimension values
+    for i in range(num_dimensions):
+        key.dimensions[i] = dimensions[i]
+    
+    return key
 
 cdef class ValueHolder:
     """Lightweight class to hold values with optimized memory usage"""
@@ -134,6 +203,10 @@ cdef class BPlusTreeOptimized:
             free(node)
             raise MemoryError("Failed to allocate memory for keys")
         
+        # Initialize multidimensional keys to NULL
+        node.multidim_keys = NULL
+        node.dimensions = 0
+        
         # Initialize keys to zero
         for i in range(node.capacity):
             node.keys[i].key = 0.0
@@ -157,11 +230,21 @@ cdef class BPlusTreeOptimized:
 
     cdef void _free_node(self, BPNode* node) nogil:
         """Free memory allocated for a node"""
+        cdef int i
+        
         if node != NULL:
             if node.keys != NULL:
                 free(node.keys)
             if node.children != NULL:
                 free(node.children)
+            
+            # Free multidimensional keys if present
+            if node.multidim_keys != NULL:
+                for i in range(node.num_keys):
+                    if node.multidim_keys[i].dimensions != NULL:
+                        free(node.multidim_keys[i].dimensions)
+                free(node.multidim_keys)
+            
             free(node)
 
     cdef void _free_tree(self, BPNode* node) nogil:
@@ -195,6 +278,40 @@ cdef class BPlusTreeOptimized:
             if node.keys[mid].key == key:
                 return mid
             elif node.keys[mid].key > key:
+                high = mid - 1
+            else:
+                low = mid + 1
+                
+        return low
+
+    @cython.cdivision(True)
+    cdef int _binary_search_multidim(self, BPNode* node, double* key_dimensions, int dimensions) nogil:
+        """
+        Binary search for multidimensional keys in a node.
+        Returns the index where the key should be inserted.
+        """
+        cdef:
+            int low = 0
+            int high = node.num_keys - 1
+            int mid
+            int cmp_result
+        
+        # Handle empty node case
+        if node.num_keys == 0:
+            return 0
+        
+        # Handle dimension mismatch
+        if node.dimensions != dimensions:
+            return 0
+            
+        # Binary search using multidimensional comparison
+        while low <= high:
+            mid = (low + high) // 2
+            cmp_result = _compare_multidim_keys(node.multidim_keys[mid].dimensions, key_dimensions, dimensions)
+            
+            if cmp_result == 0:
+                return mid
+            elif cmp_result > 0:
                 high = mid - 1
             else:
                 low = mid + 1
@@ -326,93 +443,98 @@ cdef class BPlusTreeOptimized:
                     logger.warning(f"[{self.name}] Warning: Not enough keys to split internal node")
                 return
 
-    cdef bint _validate_node(self, BPNode* node, bint print_error=True) except -1 nogil:
-        """Validate a node to ensure it's properly initialized"""
-        if node == NULL:
-            if print_error:
-                with gil:
-                    logger.error(f"[{self.name}] Validation error: NULL node")
-            return False
+    cdef void _split_child_multidim(self, BPNode* parent, int index) except * nogil:
+        """Split a multidimensional child node when it's full"""
+        cdef:
+            BPNode* y
+            BPNode* z
+            int mid
+            int i, j
+            int dimensions
         
-        # Ensure capacity is valid
-        if node.capacity <= 0:
-            if print_error:
-                with gil:
-                    logger.error(f"[{self.name}] Validation error: Invalid capacity {node.capacity}")
-            return False
+        # Validate inputs
+        if parent == NULL or parent.children == NULL or index < 0 or index > parent.num_keys:
+            with gil:
+                logger.error(f"[{self.name}] Invalid parameters for multidimensional split")
+            return
         
-        # Check num_keys is in valid range
-        if node.num_keys < 0:
-            if print_error:
-                with gil:
-                    logger.error(f"[{self.name}] Validation error: Negative num_keys {node.num_keys}")
-            return False
-            
-        if node.num_keys > node.capacity:
-            if print_error:
-                with gil:
-                    logger.error(f"[{self.name}] Validation error: num_keys {node.num_keys} exceeds capacity {node.capacity}")
-            return False
+        y = parent.children[index]
+        if y == NULL:
+            with gil:
+                logger.error(f"[{self.name}] Child to split is NULL")
+            return
         
-        # Check keys array is valid
-        if node.keys == NULL:
-            if print_error:
-                with gil:
-                    logger.error(f"[{self.name}] Validation error: NULL keys array")
-            return False
+        dimensions = y.dimensions
+        if dimensions <= 0:
+            with gil:
+                logger.error(f"[{self.name}] Invalid dimensions for multidimensional split: {dimensions}")
+            return
         
-        # For internal nodes, check children array
-        if not node.is_leaf:
-            if node.children == NULL:
-                if print_error:
-                    with gil:
-                        logger.error(f"[{self.name}] Validation error: Internal node with NULL children array")
-                return False
+        # Create new node with same leaf status and dimensions
+        with gil:
+            z = self._create_multidim_node(y.is_leaf, dimensions)
         
-        return True
-
-    def insert(self, key, value):
-        """Insert a key-value pair into the B+ tree"""
-        # Convert key to double for consistent handling
-        cdef double k = float(key)
-        cdef BPNode* new_root
+        if z == NULL:
+            with gil:
+                logger.error(f"[{self.name}] Failed to create new node during multidimensional split")
+            return
         
-        # Store value and get its pointer
-        self.operation_counter += 1
-        cdef size_t value_ptr = self.next_value_id
-        self.value_store[value_ptr] = ValueHolder(value)
-        self.next_value_id += 1
+        # Calculate split point
+        mid = self.order - 1
         
-        # Log operation
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"[{self.name}][{self.operation_counter}] INSERT - key: {key}, value: {value}")
-        
-        # Check if root is NULL or invalid
-        if self.root == NULL or not self._validate_node(self.root):
-            # Root is invalid, create a new one
-            self.root = self._create_node(1)  # Create a new leaf root
-        
-        # Now insert
-        if self.root.num_keys >= self.root.capacity:
-            # Root is full, split it
-            new_root = self._create_node(0)  # Create new internal root
-            if new_root == NULL:
-                logger.error(f"[{self.name}] Failed to create new root node")
-                return
+        if y.is_leaf:
+            # For leaf nodes: copy second half of keys to new node
+            if mid < y.num_keys:
+                for i in range(mid, y.num_keys):
+                    if i - mid < z.capacity:
+                        # Copy multidimensional key
+                        z.multidim_keys[i - mid].dimensions = <double*>malloc(sizeof(double) * dimensions)
+                        if z.multidim_keys[i - mid].dimensions != NULL:
+                            for j in range(dimensions):
+                                z.multidim_keys[i - mid].dimensions[j] = y.multidim_keys[i].dimensions[j]
+                            z.multidim_keys[i - mid].num_dimensions = dimensions
+                            z.multidim_keys[i - mid].value_ptr = y.multidim_keys[i].value_ptr
+                            z.num_keys += 1
+                            
+                            # Free old key
+                            free(y.multidim_keys[i].dimensions)
+                            y.multidim_keys[i].dimensions = NULL
                 
-            # Make old root the first child of new root
-            new_root.children[0] = self.root
-            self.root = new_root
-            self._split_child(new_root, 0)
-        
-        # Finally insert into non-full root
-        self._insert_non_full(self.root, k, value_ptr)
-        
-        # Verify key was inserted
-        if logger.isEnabledFor(logging.DEBUG):
-            result = self.search(key)
-            if result != value:
-                logger.error(f"[{self.name}] Key {key} was not inserted correctly")
+                y.num_keys = mid
+                
+                # Link leaves for range queries
+                z.next = y.next
+                y.next = z
+                
+                # Add separator key to parent (use first key of new node)
+                if z.num_keys > 0 and parent.num_keys < parent.capacity:
+                    # Shift parent keys and children
+                    for i in range(parent.num_keys, index, -1):
+                        if parent.multidim_keys != NULL and parent.multidim_keys[i-1].dimensions != NULL:
+                            if parent.multidim_keys[i].dimensions != NULL:
+                                free(parent.multidim_keys[i].dimensions)
+                            parent.multidim_keys[i].dimensions = <double*>malloc(sizeof(double) * dimensions)
+                            if parent.multidim_keys[i].dimensions != NULL:
+                                for j in range(dimensions):
+                                    parent.multidim_keys[i].dimensions[j] = parent.multidim_keys[i-1].dimensions[j]
+                                parent.multidim_keys[i].num_dimensions = dimensions
+                                parent.multidim_keys[i].value_ptr = parent.multidim_keys[i-1].value_ptr
+                    
+                    for i in range(parent.num_keys + 1, index + 1, -1):
+                        parent.children[i] = parent.children[i-1]
+                    
+                    # Insert separator
+                    if parent.multidim_keys[index].dimensions != NULL:
+                        free(parent.multidim_keys[index].dimensions)
+                    parent.multidim_keys[index].dimensions = <double*>malloc(sizeof(double) * dimensions)
+                    if parent.multidim_keys[index].dimensions != NULL:
+                        for j in range(dimensions):
+                            parent.multidim_keys[index].dimensions[j] = z.multidim_keys[0].dimensions[j]
+                        parent.multidim_keys[index].num_dimensions = dimensions
+                        parent.multidim_keys[index].value_ptr = 0  # Internal node
+                    
+                    parent.children[index + 1] = z
+                    parent.num_keys += 1
 
     cdef void _insert_non_full(self, BPNode* node, double key, size_t value_ptr) except * nogil:
         """Insert into a non-full node with improved floating point comparison"""
@@ -522,6 +644,87 @@ cdef class BPlusTreeOptimized:
             # Recursively insert
             self._insert_non_full(node.children[pos], key, value_ptr)
 
+    cdef void _insert_non_full_multidim(self, BPNode* node, double* key_dimensions, int dimensions, size_t value_ptr) except * nogil:
+        """Insert multidimensional key into a non-full node"""
+        cdef:
+            int i, j
+            int pos
+        
+        if node == NULL or key_dimensions == NULL or dimensions <= 0:
+            with gil:
+                logger.error(f"[{self.name}] Invalid parameters for multidimensional insertion")
+            return
+        
+        if node.dimensions != dimensions:
+            with gil:
+                logger.error(f"[{self.name}] Dimension mismatch in insertion: node has {node.dimensions}, key has {dimensions}")
+            return
+        
+        if node.is_leaf:
+            # Find position using multidimensional binary search
+            pos = self._binary_search_multidim(node, key_dimensions, dimensions)
+            
+            # Check if key already exists
+            if pos < node.num_keys and _compare_multidim_keys(node.multidim_keys[pos].dimensions, key_dimensions, dimensions) == 0:
+                # Update existing key
+                with gil:
+                    old_ptr = node.multidim_keys[pos].value_ptr
+                    self.value_store[old_ptr] = self.value_store[value_ptr]
+                    del self.value_store[value_ptr]
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"[{self.name}] MULTIDIM UPDATE - dimensions: {[key_dimensions[i] for i in range(dimensions)]}")
+                return
+            
+            # Ensure capacity
+            if node.num_keys >= node.capacity:
+                with gil:
+                    logger.error(f"[{self.name}] Leaf node capacity exceeded in multidimensional insertion")
+                return
+            
+            # Shift keys to make room
+            for i in range(node.num_keys, pos, -1):
+                if i < node.capacity and i-1 >= 0:
+                    if node.multidim_keys[i].dimensions != NULL:
+                        free(node.multidim_keys[i].dimensions)
+                    
+                    node.multidim_keys[i].dimensions = <double*>malloc(sizeof(double) * dimensions)
+                    if node.multidim_keys[i].dimensions != NULL:
+                        for j in range(dimensions):
+                            node.multidim_keys[i].dimensions[j] = node.multidim_keys[i-1].dimensions[j]
+                        node.multidim_keys[i].num_dimensions = node.multidim_keys[i-1].num_dimensions
+                        node.multidim_keys[i].value_ptr = node.multidim_keys[i-1].value_ptr
+            
+            # Insert new key
+            if pos < node.capacity:
+                if node.multidim_keys[pos].dimensions != NULL:
+                    free(node.multidim_keys[pos].dimensions)
+                
+                node.multidim_keys[pos].dimensions = <double*>malloc(sizeof(double) * dimensions)
+                if node.multidim_keys[pos].dimensions != NULL:
+                    for j in range(dimensions):
+                        node.multidim_keys[pos].dimensions[j] = key_dimensions[j]
+                    node.multidim_keys[pos].num_dimensions = dimensions
+                    node.multidim_keys[pos].value_ptr = value_ptr
+                    node.num_keys += 1
+        else:
+            # Internal node: find child to insert into
+            pos = self._binary_search_multidim(node, key_dimensions, dimensions)
+            
+            if pos >= node.num_keys:
+                pos = node.num_keys
+            
+            # Check if child is full and split if necessary
+            if node.children[pos] != NULL and node.children[pos].num_keys >= node.children[pos].capacity:
+                self._split_child_multidim(node, pos)
+                
+                # After splitting, decide which child to go to
+                if pos < node.num_keys and _compare_multidim_keys(key_dimensions, node.multidim_keys[pos].dimensions, dimensions) > 0:
+                    pos += 1
+            
+            # Recursively insert
+            if node.children[pos] != NULL:
+                self._insert_non_full_multidim(node.children[pos], key_dimensions, dimensions, value_ptr)
+
     def search(self, key):
         """Search for a key and return its value"""
         self.operation_counter += 1
@@ -613,9 +816,9 @@ cdef class BPlusTreeOptimized:
         self.value_store[value_ptr] = ValueHolder(value)
         self.next_value_id += 1
         
-        # Check if root is NULL or invalid
-        if self.root == NULL or not self._validate_node(self.root):
-            # Root is invalid, create a new one
+        # Check if root is NULL
+        if self.root == NULL:
+            # Root is NULL, create a new one
             self.root = self._create_node(1)  # Create a new leaf root
             if self.root == NULL:
                 logger.error(f"[{self.name}] Failed to create new root node in _insert_single_value")
@@ -766,20 +969,31 @@ cdef class BPlusTreeOptimized:
     cdef void _collect_all_items(self, BPNode* node, list items) except *:
         """Helper to collect all items in the tree"""
         cdef:
-            int i
+            int i, j
             KeyValue kv
             object value  # Python object for the value
+            object key_tuple
         
         if node == NULL:
             return
             
         if node.is_leaf:
             # Collect items from leaf
-            for i in range(node.num_keys):
-                kv = node.keys[i]
-                value_holder = self.value_store.get(kv.value_ptr)
-                if value_holder is not None:
-                    items.append((kv.key, value_holder.value))
+            if node.dimensions > 0:
+                # Multidimensional keys
+                for i in range(node.num_keys):
+                    value_holder = self.value_store.get(node.multidim_keys[i].value_ptr)
+                    if value_holder is not None:
+                        # Convert dimensions to tuple
+                        key_tuple = tuple([node.multidim_keys[i].dimensions[j] for j in range(node.dimensions)])
+                        items.append((key_tuple, value_holder.value))
+            else:
+                # Single-dimensional keys (legacy)
+                for i in range(node.num_keys):
+                    kv = node.keys[i]
+                    value_holder = self.value_store.get(kv.value_ptr)
+                    if value_holder is not None:
+                        items.append((kv.key, value_holder.value))
                 
         else:
             # Visit children in order (for sorted output)
@@ -891,3 +1105,476 @@ cdef class BPlusTreeOptimized:
             node = node.children[pos]
         
         return node
+
+    cdef BPNode* _create_multidim_node(self, bint is_leaf, int dimensions) except? NULL:
+        """Create a new B+ tree node with multidimensional support"""
+        cdef:
+            BPNode* node
+            int i
+        
+        # Create base node
+        node = self._create_node(is_leaf)
+        if node == NULL:
+            return NULL
+        
+        # Set dimensions
+        node.dimensions = dimensions
+        
+        if dimensions > 0:
+            # Allocate multidimensional keys array
+            node.multidim_keys = <MultiDimKey*>malloc(sizeof(MultiDimKey) * node.capacity)
+            if node.multidim_keys == NULL:
+                self._free_node(node)
+                raise MemoryError("Failed to allocate memory for multidimensional keys")
+            
+            # Initialize multidimensional keys
+            for i in range(node.capacity):
+                node.multidim_keys[i].dimensions = NULL
+                node.multidim_keys[i].num_dimensions = 0
+                node.multidim_keys[i].value_ptr = 0
+        
+        return node
+
+    def insert_multidim(self, key_dimensions, value):
+        """
+        Insert a multidimensional key-value pair into the B+ tree.
+        
+        Args:
+            key_dimensions: List or tuple of dimension values (e.g., [x, y, z])
+            value: The value to store
+        """
+        if not isinstance(key_dimensions, (list, tuple)):
+            raise ValueError("key_dimensions must be a list or tuple")
+        
+        if len(key_dimensions) == 0:
+            raise ValueError("key_dimensions cannot be empty")
+        
+        cdef:
+            int dimensions = len(key_dimensions)
+            double* key_array = <double*>malloc(sizeof(double) * dimensions)
+            int i
+            BPNode* new_root
+            size_t value_ptr
+        
+        if key_array == NULL:
+            raise MemoryError("Failed to allocate memory for key dimensions")
+        
+        try:
+            # Convert and copy dimensions
+            for i in range(dimensions):
+                key_array[i] = float(key_dimensions[i])
+            
+            # Store value and get its pointer
+            self.operation_counter += 1
+            value_ptr = self.next_value_id
+            self.value_store[value_ptr] = ValueHolder(value)
+            self.next_value_id += 1
+            
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"[{self.name}][{self.operation_counter}] MULTIDIM INSERT - dimensions: {key_dimensions}, value: {value}")
+            
+            # Check if we need to convert to multidimensional or create new tree
+            if self.root == NULL or self.root.dimensions == 0:
+                # Convert to multidimensional or create new multidimensional tree
+                self._convert_to_multidim(dimensions)
+            elif self.root.dimensions != dimensions:
+                raise ValueError(f"Dimension mismatch: tree has {self.root.dimensions} dimensions, key has {dimensions}")
+            
+            # Insert the multidimensional key
+            if self.root.num_keys >= self.root.capacity:
+                # Root is full, split it
+                new_root = self._create_multidim_node(0, dimensions)  # Create new internal root
+                if new_root == NULL:
+                    logger.error(f"[{self.name}] Failed to create new multidimensional root node")
+                    return
+                    
+                # Make old root the first child of new root
+                new_root.children[0] = self.root
+                self.root = new_root
+                
+                # Split the old root
+                self._split_child_multidim(new_root, 0)
+            
+            # Insert into the non-full root
+            self._insert_non_full_multidim(self.root, key_array, dimensions, value_ptr)
+            
+        finally:
+            free(key_array)
+
+    cdef void _convert_to_multidim(self, int dimensions) except *:
+        """Convert existing single-dimensional tree to multidimensional"""
+        cdef:
+            BPNode* old_root = self.root
+            BPNode* new_root
+            int i, j
+            double* temp_dimensions
+        
+        if old_root == NULL:
+            # Create new multidimensional root
+            self.root = self._create_multidim_node(1, dimensions)  # Leaf root
+            return
+        
+        if old_root.dimensions > 0:
+            # Already multidimensional
+            return
+        
+        # If we have data in single-dimensional format, we need to migrate it
+        if old_root.num_keys > 0:
+            logger.warning(f"[{self.name}] Converting single-dimensional tree to {dimensions}-dimensional. Existing data will be converted using first dimension only.")
+            
+            # Create new multidimensional root
+            new_root = self._create_multidim_node(old_root.is_leaf, dimensions)
+            if new_root == NULL:
+                raise MemoryError("Failed to create new multidimensional root")
+            
+            # Migrate existing keys
+            temp_dimensions = <double*>malloc(sizeof(double) * dimensions)
+            if temp_dimensions == NULL:
+                self._free_node(new_root)
+                raise MemoryError("Failed to allocate temporary dimensions array")
+            
+            try:
+                for i in range(old_root.num_keys):
+                    # Use old key as first dimension, zeros for others
+                    temp_dimensions[0] = old_root.keys[i].key
+                    for j in range(1, dimensions):
+                        temp_dimensions[j] = 0.0
+                    
+                    # Create multidimensional key - new node should have NULL dimensions initially
+                    new_root.multidim_keys[i].dimensions = <double*>malloc(sizeof(double) * dimensions)
+                    if new_root.multidim_keys[i].dimensions == NULL:
+                        raise MemoryError("Failed to allocate dimensions for migrated key")
+                    
+                    for j in range(dimensions):
+                        new_root.multidim_keys[i].dimensions[j] = temp_dimensions[j]
+                    
+                    new_root.multidim_keys[i].num_dimensions = dimensions
+                    new_root.multidim_keys[i].value_ptr = old_root.keys[i].value_ptr
+                
+                # Set the correct number of keys after migration
+                new_root.num_keys = old_root.num_keys
+                
+                # Update pointers and free old root
+                if old_root.is_leaf and old_root.next != NULL:
+                    new_root.next = old_root.next
+                
+                self._free_node(old_root)
+                self.root = new_root
+                
+            finally:
+                free(temp_dimensions)
+        else:
+            # No data to migrate, just create new multidimensional root
+            self._free_node(old_root)
+            self.root = self._create_multidim_node(1, dimensions)  # Leaf root
+
+    def search_multidim(self, key_dimensions):
+        """
+        Search for a multidimensional key and return its value.
+        
+        Args:
+            key_dimensions: List or tuple of dimension values
+            
+        Returns:
+            The value associated with the key, or None if not found
+        """
+        if not isinstance(key_dimensions, (list, tuple)):
+            raise ValueError("key_dimensions must be a list or tuple")
+        
+        if len(key_dimensions) == 0:
+            raise ValueError("key_dimensions cannot be empty")
+        
+        cdef:
+            int dimensions = len(key_dimensions)
+            double* key_array = <double*>malloc(sizeof(double) * dimensions)
+            size_t result_ptr
+            int i
+        
+        if key_array == NULL:
+            raise MemoryError("Failed to allocate memory for key dimensions")
+        
+        try:
+            # Convert dimensions
+            for i in range(dimensions):
+                key_array[i] = float(key_dimensions[i])
+            
+            self.operation_counter += 1
+            
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"[{self.name}][{self.operation_counter}] MULTIDIM SEARCH - dimensions: {key_dimensions}")
+            
+            # Check dimension compatibility
+            if self.root == NULL or self.root.dimensions != dimensions:
+                return None
+            
+            result_ptr = self._search_multidim_internal(self.root, key_array, dimensions)
+            if result_ptr == 0:
+                return None
+            
+            value_holder = self.value_store.get(result_ptr)
+            return value_holder.value if value_holder else None
+            
+        finally:
+            free(key_array)
+
+    cdef size_t _search_multidim_internal(self, BPNode* node, double* key_dimensions, int dimensions) nogil:
+        """Internal multidimensional search function"""
+        cdef:
+            int pos
+            int i
+            int cmp_result
+        
+        if node == NULL or key_dimensions == NULL:
+            return 0
+        
+        if node.dimensions != dimensions:
+            return 0
+        
+        if node.is_leaf:
+            # Search in leaf node
+            pos = self._binary_search_multidim(node, key_dimensions, dimensions)
+            
+            # Check if found at position
+            if pos < node.num_keys:
+                cmp_result = _compare_multidim_keys(node.multidim_keys[pos].dimensions, key_dimensions, dimensions)
+                if cmp_result == 0:
+                    return node.multidim_keys[pos].value_ptr
+            
+            # Fallback to linear search
+            for i in range(node.num_keys):
+                cmp_result = _compare_multidim_keys(node.multidim_keys[i].dimensions, key_dimensions, dimensions)
+                if cmp_result == 0:
+                    return node.multidim_keys[i].value_ptr
+            
+            return 0
+        else:
+            # Internal node: find correct child
+            pos = self._binary_search_multidim(node, key_dimensions, dimensions)
+            
+            # Handle exact matches on separator keys
+            if pos < node.num_keys:
+                cmp_result = _compare_multidim_keys(node.multidim_keys[pos].dimensions, key_dimensions, dimensions)
+                if cmp_result == 0:
+                    pos += 1  # Go to right child for exact matches
+            
+            if pos > node.num_keys:
+                pos = node.num_keys
+            
+            # Safety check
+            if node.children == NULL or node.children[pos] == NULL:
+                return 0
+            
+            # Recursively search
+            return self._search_multidim_internal(node.children[pos], key_dimensions, dimensions)
+    
+    def range_query_multidim(self, start_key_dimensions, end_key_dimensions):
+        """
+        Perform a multidimensional range query.
+        
+        Args:
+            start_key_dimensions: List or tuple of start dimension values
+            end_key_dimensions: List or tuple of end dimension values
+            
+        Returns:
+            List of (key_dimensions, value) tuples within the range
+        """
+        if not isinstance(start_key_dimensions, (list, tuple)) or not isinstance(end_key_dimensions, (list, tuple)):
+            raise ValueError("Key dimensions must be lists or tuples")
+        
+        if len(start_key_dimensions) != len(end_key_dimensions):
+            raise ValueError("Start and end key dimensions must have the same length")
+        
+        if len(start_key_dimensions) == 0:
+            raise ValueError("Key dimensions cannot be empty")
+        
+        cdef:
+            int dimensions = len(start_key_dimensions)
+            double* start_array = <double*>malloc(sizeof(double) * dimensions)
+            double* end_array = <double*>malloc(sizeof(double) * dimensions)
+            list results = []
+            int i
+        
+        if start_array == NULL or end_array == NULL:
+            if start_array != NULL:
+                free(start_array)
+            if end_array != NULL:
+                free(end_array)
+            raise MemoryError("Failed to allocate memory for range query")
+        
+        try:
+            # Convert dimensions
+            for i in range(dimensions):
+                start_array[i] = float(start_key_dimensions[i])
+                end_array[i] = float(end_key_dimensions[i])
+            
+            self.operation_counter += 1
+            
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"[{self.name}][{self.operation_counter}] MULTIDIM RANGE QUERY - from {start_key_dimensions} to {end_key_dimensions}")
+            
+            # Check dimension compatibility
+            if self.root == NULL or self.root.dimensions != dimensions:
+                return results
+            
+            # Collect results
+            self._collect_range_multidim(self.root, start_array, end_array, dimensions, results)
+            
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"[{self.name}] MULTIDIM RANGE QUERY RESULT - found {len(results)} entries")
+            
+            return results
+            
+        finally:
+            free(start_array)
+            free(end_array)
+
+    cdef void _collect_range_multidim(self, BPNode* node, double* start_key, double* end_key, int dimensions, list results) except *:
+        """Collect multidimensional keys within the specified range"""
+        cdef:
+            int i, j
+            BPNode* leaf_node
+            object key_tuple
+            object value
+        
+        if node == NULL or dimensions <= 0:
+            return
+        
+        if node.dimensions != dimensions:
+            return
+        
+        # Find the leftmost leaf that might contain keys in range
+        leaf_node = self._find_leftmost_leaf(node)
+        
+        # Traverse the linked list of leaves
+        while leaf_node != NULL:
+            # Check each key in the leaf
+            for i in range(leaf_node.num_keys):
+                if i >= leaf_node.capacity:
+                    continue
+                
+                # Check if key is within range
+                if _multidim_key_in_range(leaf_node.multidim_keys[i].dimensions, start_key, end_key, dimensions):
+                    # Key is in range, add to results
+                    value_ptr = leaf_node.multidim_keys[i].value_ptr
+                    if value_ptr > 0:
+                        value_holder = self.value_store.get(value_ptr)
+                        if value_holder is not None:
+                            # Convert dimensions back to tuple
+                            key_tuple = tuple([leaf_node.multidim_keys[i].dimensions[j] for j in range(dimensions)])
+                            results.append((key_tuple, value_holder.value))
+            
+            # Move to next leaf
+            leaf_node = leaf_node.next
+
+    def is_multidimensional(self):
+        """Check if this tree is configured for multidimensional indexing"""
+        return self.root != NULL and self.root.dimensions > 0
+
+    def get_dimensions(self):
+        """Get the number of dimensions this tree supports"""
+        if self.root == NULL:
+            return 0
+        return self.root.dimensions
+
+    def insert_composite(self, *args, **kwargs):
+        """
+        Unified insert method that handles both single and multidimensional keys.
+        
+        For single-dimensional: insert_composite(key, value)
+        For multidimensional: insert_composite(key_dimensions, value) or insert_composite(dimensions=key_dimensions, value=value)
+        """
+        if 'dimensions' in kwargs:
+            # Explicit multidimensional insert
+            dimensions = kwargs['dimensions']
+            value = kwargs.get('value', args[0] if args else None)
+            if value is None:
+                raise ValueError("Value must be provided")
+            return self.insert_multidim(dimensions, value)
+        elif len(args) == 2:
+            key, value = args
+            if isinstance(key, (list, tuple)):
+                if len(key) > 1:
+                    # Multidimensional key
+                    return self.insert_multidim(key, value)
+                elif len(key) == 1:
+                    # Single-dimensional key in list format
+                    if self.is_multidimensional():
+                        # Convert to multidimensional with trailing zeros
+                        dimensions = self.get_dimensions()
+                        multidim_key = [float(key[0])] + [0.0] * (dimensions - 1)
+                        return self.insert_multidim(multidim_key, value)
+                    else:
+                        return self._insert_single_value(float(key[0]), value)
+                else:
+                    raise ValueError("Key cannot be empty")
+            else:
+                # Single-dimensional key (scalar)
+                if self.is_multidimensional():
+                    # Convert to multidimensional with trailing zeros
+                    dimensions = self.get_dimensions()
+                    multidim_key = [float(key)] + [0.0] * (dimensions - 1)
+                    return self.insert_multidim(multidim_key, value)
+                else:
+                    return self._insert_single_value(float(key), value)
+        else:
+            raise ValueError("Invalid arguments for composite insert")
+
+    def search_composite(self, key=None, dimensions=None):
+        """
+        Unified search method that handles both single and multidimensional keys.
+        
+        For single-dimensional: search_composite(key)
+        For multidimensional: search_composite(dimensions=key_dimensions) or search_composite(key_dimensions)
+        """
+        if dimensions is not None:
+            return self.search_multidim(dimensions)
+        elif key is not None:
+            if isinstance(key, (list, tuple)):
+                if len(key) > 1:
+                    # Multidimensional key
+                    return self.search_multidim(key)
+                elif len(key) == 1:
+                    # Single-dimensional key in list format
+                    if self.is_multidimensional():
+                        # Convert to multidimensional with trailing zeros
+                        dimensions = self.get_dimensions()
+                        multidim_key = [float(key[0])] + [0.0] * (dimensions - 1)
+                        return self.search_multidim(multidim_key)
+                    else:
+                        return self.search(key[0])
+                else:
+                    raise ValueError("Key cannot be empty")
+            else:
+                # Single-dimensional key (scalar)
+                if self.is_multidimensional():
+                    # Convert to multidimensional with trailing zeros
+                    dimensions = self.get_dimensions()
+                    multidim_key = [float(key)] + [0.0] * (dimensions - 1)
+                    return self.search_multidim(multidim_key)
+                else:
+                    return self.search(key)
+        else:
+            raise ValueError("Either key or dimensions must be provided")
+
+    def range_query_composite(self, start_key=None, end_key=None, start_dimensions=None, end_dimensions=None):
+        """
+        Unified range query method that handles both single and multidimensional keys.
+        
+        For single-dimensional: range_query_composite(start_key, end_key)
+        For multidimensional: range_query_composite(start_dimensions=start_dims, end_dimensions=end_dims)
+        """
+        if start_dimensions is not None and end_dimensions is not None:
+            return self.range_query_multidim(start_dimensions, end_dimensions)
+        elif start_key is not None and end_key is not None:
+            if isinstance(start_key, (list, tuple)) and isinstance(end_key, (list, tuple)):
+                # Multidimensional range
+                return self.range_query_multidim(start_key, end_key)
+            else:
+                # Single-dimensional range
+                return self.range_query(start_key, end_key)
+        else:
+            raise ValueError("Must provide either single-dimensional keys or multidimensional dimensions")
+    
+    def insert(self, key, value):
+        """Insert a single-dimensional key-value pair (legacy compatibility)"""
+        return self._insert_single_value(float(key), value)

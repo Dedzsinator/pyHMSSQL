@@ -316,9 +316,7 @@ class BPTreeVisualizer:
         if hasattr(node, "children"):
             for i, child in enumerate(node.children):
                 edge_label = (
-                    f"≤ {node.keys[i]}" if i < len(node.keys) else f"> {
-                        node.keys[-1]}"
-                )
+                    f"≤ {node.keys[i]}" if i < len(node.keys) else f"> {node.keys[-1]}")
                 self._add_nodes_to_graph(
                     dot, child, node_id, edge_label, node_counter)
 
