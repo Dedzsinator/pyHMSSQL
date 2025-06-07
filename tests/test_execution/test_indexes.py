@@ -44,7 +44,7 @@ class TestIndexScan:
         yield
         schema_manager.execute_drop_table({"type": "DROP_TABLE", "table": "users"})
 
-    def test_select_with_index(self, schema_manager, execution_engine, setup_index_table, cleanup_index_table):
+    def test_select_with_index(self, schema_manager, execution_engine, setup_index_table, cleanup_index_table):  # pylint: disable=unused-argument
         """Test that a SELECT query uses an index when available."""
         # Create an index on the age column
         schema_manager.execute_create_index({
@@ -82,7 +82,7 @@ class TestIndexScan:
         # Just ensure it completes within reasonable time
         assert index_time < 1.0, f"Index scan took too long: {index_time:.4f}s"
 
-    def test_select_without_index(self, execution_engine, setup_index_table, cleanup_index_table):
+    def test_select_without_index(self, execution_engine, setup_index_table, cleanup_index_table):  # pylint: disable=unused-argument
         """Test SELECT performance without index."""
         # Execute a query without an index
         plan = {
@@ -111,7 +111,7 @@ class TestIndexScan:
         # Assert that query execution completes (no specific performance requirement for full scan)
         assert no_index_time >= 0, "Query execution time should be non-negative"
 
-    def test_index_range_scan(self, schema_manager, execution_engine, setup_index_table, cleanup_index_table):
+    def test_index_range_scan(self, schema_manager, execution_engine, setup_index_table, cleanup_index_table):  # pylint: disable=unused-argument
         """Test index usage for range queries."""
         # Create an index on the age column
         schema_manager.execute_create_index({

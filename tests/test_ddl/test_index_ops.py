@@ -122,4 +122,3 @@ class TestDropIndex:
             "not found" in result["error"].lower()
             or "does not exist" in result["error"].lower()
         )
-

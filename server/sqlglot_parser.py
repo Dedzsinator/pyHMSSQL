@@ -3,21 +3,21 @@
 This         try:
             # Parse with SQLGlot
             parsed = parse_one(sql, dialect=self.dialect)
-            
+
             # Convert to our internal format
             result = self._convert_to_internal_format(parsed, sql)
-            
+
             logging.debug(f"Successfully parsed SQL: {sql[:50]}...")
             return result
-            
+
         except Exception as e:
             logging.error(f"SQLGlot parsing error: {e}")
-            
+
             # Try fallback parsing for certain constructs
             fallback_result = self._try_fallback_parsing(sql, str(e))
             if fallback_result:
                 return fallback_result
-                
+
             return {"error": f"Parse error: {str(e)}", "query": sql}es a unified SQL parsing interface using SQLGlot,
 replacing all custom regex-based parsing throughout the system.
 """
@@ -32,14 +32,14 @@ from typing import Dict, Any, List, Optional, Union
 class SQLGlotParser:
     """
     Unified SQL parser using SQLGlot for parsing, optimization, and transpilation.
-    
+
     This replaces all custom regex parsing and provides a standardized interface
     for SQL statement analysis and transformation.
     """
-    
+
     def __init__(self, dialect="mysql"):
         """Initialize the SQLGlot parser.
-        
+
         Args:
             dialect: SQL dialect to use for parsing (mysql, postgres, sqlite, etc.)
         """
@@ -48,10 +48,10 @@ class SQLGlotParser:
 
     def parse(self, sql: str) -> Dict[str, Any]:
         """Parse a SQL statement into a structured format.
-        
+
         Args:
             sql: The SQL statement to parse
-            
+
         Returns:
             A dictionary containing the parsed SQL statement structure
         """
@@ -60,36 +60,36 @@ class SQLGlotParser:
             sql = sql.strip()
             if not sql:
                 return {"error": "Empty query"}
-            
+
             # Remove trailing semicolon
             if sql.endswith(';'):
                 sql = sql[:-1]
-            
+
             # Parse with SQLGlot
             parsed = parse_one(sql, dialect=self.dialect)
-            
+
             # Convert to our internal format
             result = self._convert_to_internal_format(parsed, sql)
-            
+
             logging.debug(f"Successfully parsed SQL: {sql[:50]}...")
             return result
-            
+
         except Exception as e:
             logging.error(f"SQLGlot parsing error: {e}")
-            
+
             # Try fallback parsing for certain constructs
             fallback_result = self._try_fallback_parsing(sql, str(e))
             if fallback_result:
                 return fallback_result
-                
+
             return {"error": f"Parse error: {str(e)}", "query": sql}
 
     def optimize(self, sql: str) -> str:
         """Optimize a SQL query using SQLGlot's optimizer.
-        
+
         Args:
             sql: The SQL statement to optimize
-            
+
         Returns:
             The optimized SQL statement
         """
@@ -103,11 +103,11 @@ class SQLGlotParser:
 
     def transpile(self, sql: str, target_dialect: str) -> str:
         """Transpile SQL from one dialect to another.
-        
+
         Args:
             sql: The SQL statement to transpile
             target_dialect: Target SQL dialect
-            
+
         Returns:
             The transpiled SQL statement
         """
@@ -119,24 +119,24 @@ class SQLGlotParser:
 
     def _try_fallback_parsing(self, sql: str, error_msg: str) -> Optional[Dict[str, Any]]:
         """Try fallback parsing for SQL constructs that SQLGlot can't handle.
-        
+
         Args:
             sql: The SQL statement
             error_msg: The error message from SQLGlot
-            
+
         Returns:
             Parsed result if successful, None otherwise
         """
         import re
-        
+
         # Handle custom SCRIPT statement
         if sql.strip().upper().startswith("SCRIPT"):
             return self._parse_script(sql)
-        
+
         # Handle custom VISUALIZE statement
         if sql.strip().upper().startswith("VISUALIZE"):
             return self._parse_visualize(sql)
-        
+
         # Handle DELETE with ORDER BY/LIMIT (MySQL specific)
         if sql.strip().upper().startswith("DELETE") and "ORDER BY" in sql.upper():
             match = re.match(
@@ -149,41 +149,41 @@ class SQLGlotParser:
                 where_clause = match.group(2)
                 order_by = match.group(3)
                 limit = match.group(4)
-                
+
                 result = {
                     "type": "DELETE",
-                    "operation": "DELETE", 
+                    "operation": "DELETE",
                     "query": sql,
                     "table": table_name
                 }
-                
+
                 if where_clause:
                     # Simple condition parsing for WHERE clause
                     result["condition"] = self._parse_simple_condition(where_clause.strip())
                     result["where"] = where_clause.strip()
-                
+
                 if order_by:
                     result["order_by"] = order_by.strip()
-                    
+
                 if limit:
                     result["limit"] = int(limit)
-                
+
                 logging.info(f"✅ Fallback parsing successful for DELETE with ORDER BY/LIMIT")
                 return result
-        
+
         return None
 
     def _parse_simple_condition(self, condition_str: str) -> List[Dict[str, Any]]:
         """Parse simple WHERE conditions for fallback parsing.
-        
+
         Args:
             condition_str: The WHERE condition string
-            
+
         Returns:
             List of condition dictionaries
         """
         import re
-        
+
         # Handle simple conditions like "column = 'value'"
         match = re.match(r"(\w+)\s*=\s*'([^']+)'", condition_str.strip())
         if match:
@@ -192,31 +192,31 @@ class SQLGlotParser:
                 "operator": "=",
                 "value": match.group(2)
             }]
-        
+
         # Handle numeric conditions like "column = 123"
         match = re.match(r"(\w+)\s*=\s*(\d+)", condition_str.strip())
         if match:
             return [{
                 "column": match.group(1),
-                "operator": "=", 
+                "operator": "=",
                 "value": int(match.group(2))
             }]
-        
+
         # For complex conditions, return the original string
         return [{"raw": condition_str}]
 
     def _convert_to_internal_format(self, parsed: exp.Expression, original_sql: str) -> Dict[str, Any]:
         """Convert SQLGlot AST to our internal format.
-        
+
         Args:
             parsed: SQLGlot parsed expression
             original_sql: Original SQL string
-            
+
         Returns:
             Dictionary in our internal format
         """
         result = {"query": original_sql, "operation": None}
-        
+
         if isinstance(parsed, exp.Select):
             result.update(self._parse_select(parsed))
         elif isinstance(parsed, exp.Insert):
@@ -273,17 +273,17 @@ class SQLGlotParser:
                 result.update({"type": "ROLLBACK", "operation": "ROLLBACK"})
             else:
                 result["error"] = f"Unsupported statement type: {type(parsed).__name__}"
-        
+
         # Ensure operation is set
         if "type" in result and "operation" not in result:
             result["operation"] = result["type"]
-        
+
         return result
 
     def _parse_select(self, select: exp.Select) -> Dict[str, Any]:
         """Parse a SELECT statement."""
         result = {"type": "SELECT", "operation": "SELECT"}
-        
+
         # Extract columns
         if select.expressions:
             columns = []
@@ -301,21 +301,21 @@ class SQLGlotParser:
                 else:
                     columns.append(str(expr))
             result["columns"] = columns
-        
+
         # Check for DISTINCT (but don't change the type - keep as SELECT)
         if select.distinct:
             result["distinct"] = True
             # For compatibility, add column info for simple DISTINCT queries
             if len(result.get("columns", [])) == 1 and result["columns"][0] != "*":
                 result["column"] = result["columns"][0]
-        
+
         # Check for JOINs FIRST (before aggregates and tables)
         joins = list(select.find_all(exp.Join))
         if joins:
             # Handle joins - prioritize JOIN classification
             result.update(self._parse_join_select(select, joins))
             return result
-        
+
         # Extract tables if no JOINs
         if select.find(exp.From):
             from_clause = select.find(exp.From)
@@ -325,23 +325,23 @@ class SQLGlotParser:
                 if isinstance(from_expr, exp.Table):
                     tables.append(from_expr.name)
                 result["tables"] = tables
-        
+
         # Check for aggregates after JOIN check
         has_aggregates = self._check_aggregates(select, result)
-        
+
         # Extract WHERE clause
         where_clause = select.find(exp.Where)
         if where_clause:
             result["condition"] = str(where_clause.this)
             result["where"] = str(where_clause.this)
             result["parsed_condition"] = self._parse_condition(where_clause.this)
-        
+
         # Extract GROUP BY
         group_clause = select.find(exp.Group)
         if group_clause:
             group_by = [str(expr) for expr in group_clause.expressions]
             result["group_by"] = group_by
-        
+
         # Extract ORDER BY
         order_clause = select.find(exp.Order)
         if order_clause:
@@ -353,42 +353,42 @@ class SQLGlotParser:
                     order_items.append({"column": column, "direction": direction})
             if order_items:
                 result["order_by"] = order_items[0]  # For compatibility
-        
+
         # Extract LIMIT
         limit_clause = select.find(exp.Limit)
         if limit_clause:
             result["limit"] = int(str(limit_clause.expression))
-        
+
         # Extract OFFSET
         offset_clause = select.find(exp.Offset)
         if offset_clause:
             result["offset"] = int(str(offset_clause.expression))
-        
+
         return result
 
     def _parse_join_select(self, select: exp.Select, joins: List[exp.Join]) -> Dict[str, Any]:
         """Parse SELECT statement with JOIN operations."""
         result = {"type": "JOIN", "operation": "JOIN"}
-        
+
         # Extract tables
         tables = []
         left_table = None
         right_table = None
-        
+
         # Get left table from FROM clause
         from_clause = select.find(exp.From)
         if from_clause and isinstance(from_clause.this, exp.Table):
             left_table = from_clause.this.name
             tables.append(left_table)
-        
+
         # Get right table from first JOIN (we'll handle multiple JOINs later)
         join_expr = joins[0]
         if isinstance(join_expr.this, exp.Table):
             right_table = join_expr.this.name
             tables.append(right_table)
-        
+
         result["tables"] = tables
-        
+
         # Determine join type
         join_type = "INNER"
         if join_expr.side:
@@ -396,12 +396,12 @@ class SQLGlotParser:
         if join_expr.kind:
             if join_expr.kind.upper() == "CROSS":
                 join_type = "CROSS"
-        
+
         # Extract join condition
         join_condition = None
         if hasattr(join_expr, 'on') and join_expr.on:
             join_condition = str(join_expr.on)
-        
+
         # Store join info
         result["join_info"] = {
             "type": join_type,
@@ -410,7 +410,7 @@ class SQLGlotParser:
             "table2": right_table,
             "join_algorithm": "HASH"  # Default
         }
-        
+
         # Extract columns (if any)
         if select.expressions:
             columns = []
@@ -420,7 +420,7 @@ class SQLGlotParser:
                 else:
                     columns.append(str(expr))
             result["columns"] = columns
-        
+
         # Extract WHERE clause (separate from JOIN condition)
         where_clause = select.find(exp.Where)
         if where_clause:
@@ -428,12 +428,12 @@ class SQLGlotParser:
             result["where"] = str(where_clause.this)
             result["where_conditions"] = self._parse_condition(where_clause.this)
             result["parsed_condition"] = self._parse_condition(where_clause.this)
-        
+
         return result
 
     def _check_aggregates(self, select: exp.Select, result: Dict[str, Any]) -> bool:
         """Check for aggregate functions in SELECT.
-        
+
         Returns:
             True if aggregates were found and result was modified, False otherwise
         """
@@ -460,7 +460,7 @@ class SQLGlotParser:
         """Extract aggregate function name and column."""
         if isinstance(expr, exp.Alias):
             expr = expr.this
-        
+
         if isinstance(expr, exp.Count):
             column = "*" if expr.this.name == "*" else str(expr.this)
             return "COUNT", column
@@ -472,7 +472,7 @@ class SQLGlotParser:
             return "MIN", str(expr.this)
         elif isinstance(expr, exp.Max):
             return "MAX", str(expr.this)
-        
+
         return None, None
 
     def _parse_condition(self, condition: exp.Expression) -> List[Dict[str, Any]]:
@@ -520,7 +520,7 @@ class SQLGlotParser:
     def _parse_insert(self, insert: exp.Insert) -> Dict[str, Any]:
         """Parse INSERT statement."""
         result = {"type": "INSERT", "operation": "INSERT"}
-        
+
         # Extract table name - SQLGlot structure: insert.this.this.name
         table_name = None
         if insert.this:
@@ -535,10 +535,10 @@ class SQLGlotParser:
                 table_name = insert.table.name
             else:
                 table_name = str(insert.table)
-        
+
         if table_name:
             result["table"] = table_name
-        
+
         # Extract columns - handle different SQLGlot versions
         columns = []
         if hasattr(insert, 'columns') and insert.columns:
@@ -557,10 +557,10 @@ class SQLGlotParser:
             for expr in insert.expression.this.expressions:
                 if hasattr(expr, 'name'):
                     columns.append(expr.name)
-        
+
         if columns:
             result["columns"] = columns
-        
+
         # Extract values
         values = []
         if hasattr(insert, 'expression') and insert.expression:
@@ -573,20 +573,20 @@ class SQLGlotParser:
                 # Handle direct tuple insertion
                 row_values = [self._extract_value(expr) for expr in insert.expression.expressions]
                 values.append(row_values)
-        
+
         if values:
             result["values"] = values
-        
+
         return result
 
     def _parse_update(self, update: exp.Update) -> Dict[str, Any]:
         """Parse UPDATE statement."""
         result = {"type": "UPDATE", "operation": "UPDATE"}
-        
+
         # Extract table name
         if update.this:
             result["table"] = update.this.name
-        
+
         # Extract SET clause
         if update.expressions:
             set_pairs = {}
@@ -599,29 +599,29 @@ class SQLGlotParser:
                     updates.append((column, value))
             result["set"] = set_pairs
             result["updates"] = updates
-        
+
         # Extract WHERE clause
         where_clause = update.find(exp.Where)
         if where_clause:
             result["condition"] = self._parse_condition(where_clause.this)
             result["where"] = str(where_clause.this)
-        
+
         return result
 
     def _parse_delete(self, delete: exp.Delete) -> Dict[str, Any]:
         """Parse DELETE statement."""
         result = {"type": "DELETE", "operation": "DELETE"}
-        
+
         # Extract table name
         if delete.this:
             result["table"] = delete.this.name
-        
+
         # Extract WHERE clause
         where_clause = delete.find(exp.Where)
         if where_clause:
             result["condition"] = self._parse_condition(where_clause.this)
             result["where"] = str(where_clause.this)
-        
+
         return result
 
     def _parse_create(self, create: exp.Create) -> Dict[str, Any]:
@@ -630,11 +630,11 @@ class SQLGlotParser:
             # CREATE TABLE
             result = {"type": "CREATE_TABLE", "operation": "CREATE_TABLE"}
             result["table"] = create.this.this.name
-            
+
             # Extract columns
             columns = []
             constraints = []
-            
+
             if create.this.expressions:
                 for expr in create.this.expressions:
                     if isinstance(expr, exp.ColumnDef):
@@ -642,11 +642,11 @@ class SQLGlotParser:
                         columns.append(col_def)
                     else:
                         constraints.append(str(expr))
-            
+
             result["columns"] = columns
             result["constraints"] = constraints
             return result
-        
+
         elif hasattr(create, 'kind') and create.kind == "DATABASE":
             # CREATE DATABASE
             return {
@@ -654,7 +654,7 @@ class SQLGlotParser:
                 "operation": "CREATE_DATABASE",
                 "database": create.this.name
             }
-        
+
         elif hasattr(create, 'kind') and create.kind == "INDEX":
             # CREATE INDEX
             result = {"type": "CREATE_INDEX", "operation": "CREATE_INDEX"}
@@ -665,7 +665,7 @@ class SQLGlotParser:
                     result["index_name"] = create.this.name
                 else:
                     result["index_name"] = str(create.this)
-            
+
             # Extract table name - SQLGlot structure: create.this.table.name
             table_name = None
             if hasattr(create.this, 'table') and create.this.table:
@@ -680,10 +680,10 @@ class SQLGlotParser:
                 table_nodes = list(create.find_all(exp.Table))
                 if table_nodes:
                     table_name = table_nodes[0].name
-            
+
             if table_name:
                 result["table"] = table_name
-            
+
             # Extract columns from index parameters
             columns = []
             if hasattr(create.this, 'args') and create.this.args.get('params'):
@@ -700,18 +700,18 @@ class SQLGlotParser:
                             columns.append(col_expr.name)
                         else:
                             columns.append(str(col_expr))
-            
+
             # Fallback: use find_all for Column nodes
             if not columns:
                 col_nodes = list(create.find_all(exp.Column))
                 columns = [col.name for col in col_nodes]
-            
+
             if columns:
                 result["columns"] = columns
-            
+
             result["unique"] = create.args.get('unique', False)
             return result
-        
+
         return {"error": "Unsupported CREATE statement"}
 
     def _parse_drop(self, drop: exp.Drop) -> Dict[str, Any]:
@@ -724,28 +724,28 @@ class SQLGlotParser:
             }
         elif drop.kind == "DATABASE":
             return {
-                "type": "DROP_DATABASE", 
+                "type": "DROP_DATABASE",
                 "operation": "DROP_DATABASE",
                 "database": drop.this.name
             }
         elif drop.kind == "INDEX":
             result = {"type": "DROP_INDEX", "operation": "DROP_INDEX"}
             result["index_name"] = drop.this.name
-            
+
             # Extract table name from cluster argument
             if hasattr(drop, 'args') and drop.args.get('cluster'):
                 cluster = drop.args['cluster']
                 if hasattr(cluster, 'this') and hasattr(cluster.this, 'name'):
                     result["table"] = cluster.this.name
-            
+
             return result
-        
+
         return {"error": "Unsupported DROP statement"}
 
     def _parse_show(self, show: exp.Show) -> Dict[str, Any]:
         """Parse SHOW statement."""
         result = {"type": "SHOW", "operation": "SHOW"}
-        
+
         if hasattr(show, 'kind'):
             if show.kind == "DATABASES":
                 result["object"] = "DATABASES"
@@ -755,7 +755,7 @@ class SQLGlotParser:
                 result["object"] = "INDEXES"
                 if hasattr(show, 'this') and show.this:
                     result["table"] = show.this.name
-        
+
         return result
 
     def _parse_use(self, use: exp.Use) -> Dict[str, Any]:
@@ -779,7 +779,7 @@ class SQLGlotParser:
         """Parse INTERSECT statement."""
         return {
             "type": "INTERSECT",
-            "operation": "INTERSECT", 
+            "operation": "INTERSECT",
             "left": self._convert_to_internal_format(intersect.left, str(intersect.left)),
             "right": self._convert_to_internal_format(intersect.right, str(intersect.right))
         }
@@ -796,22 +796,22 @@ class SQLGlotParser:
     def _parse_merge(self, merge: exp.Merge) -> Dict[str, Any]:
         """Parse MERGE statement."""
         result = {"type": "MERGE", "operation": "MERGE"}
-        
+
         # Extract target table
         if hasattr(merge, 'this') and merge.this:
             result["target_table"] = merge.this.name
-        
+
         # Extract source table/query
         if hasattr(merge, 'using') and merge.using:
             if hasattr(merge.using, 'name'):
                 result["source_table"] = merge.using.name
             else:
                 result["source"] = str(merge.using)
-        
+
         # Extract join condition
         if hasattr(merge, 'on') and merge.on:
             result["on_condition"] = str(merge.on)
-        
+
         # Extract WHEN clauses
         when_clauses = []
         if hasattr(merge, 'expressions') and merge.expressions:
@@ -823,26 +823,26 @@ class SQLGlotParser:
                         "action": str(expr.then) if hasattr(expr, 'then') else None
                     }
                     when_clauses.append(when_clause)
-        
+
         if when_clauses:
             result["when_clauses"] = when_clauses
-        
+
         return result
 
     def _parse_replace(self, sql: str) -> Dict[str, Any]:
         """Parse REPLACE statement (MySQL-specific)."""
         result = {"type": "REPLACE", "operation": "REPLACE"}
-        
+
         import re
         # Parse REPLACE INTO table_name (columns) VALUES (values)
         match = re.match(r"REPLACE\s+INTO\s+(\w+)(?:\s*\(([^)]+)\))?\s+VALUES\s*\((.+)\)", sql.strip(), re.IGNORECASE | re.DOTALL)
         if match:
             result["table"] = match.group(1)
-            
+
             if match.group(2):  # columns specified
                 columns = [col.strip().strip("'\"") for col in match.group(2).split(',')]
                 result["columns"] = columns
-            
+
             # Parse values
             values_str = match.group(3)
             values = []
@@ -856,13 +856,13 @@ class SQLGlotParser:
                 else:
                     values.append(val)
             result["values"] = values
-        
+
         return result
 
     def _parse_truncate(self, truncate: exp.TruncateTable) -> Dict[str, Any]:
         """Parse TRUNCATE statement."""
         result = {"type": "TRUNCATE", "operation": "TRUNCATE"}
-        
+
         # Extract table name
         if hasattr(truncate, 'this') and truncate.this:
             if hasattr(truncate.this, 'name'):
@@ -879,7 +879,7 @@ class SQLGlotParser:
                     result["tables"] = tables
                 else:
                     result["table"] = str(truncate.this)
-        
+
         return result
 
     def _parse_script(self, sql: str) -> Dict[str, Any]:
@@ -899,10 +899,10 @@ class SQLGlotParser:
         """Parse VISUALIZE statement."""
         import re
         result = {"type": "VISUALIZE", "operation": "VISUALIZE"}
-        
+
         if "BPTREE" in sql.upper():
             result["object"] = "BPTREE"
-            
+
             match = re.search(r"VISUALIZE\s+BPTREE\s+(\w+)\s+ON\s+(\w+)", sql, re.IGNORECASE)
             if match:
                 result["index_name"] = match.group(1)
@@ -911,16 +911,16 @@ class SQLGlotParser:
                 match = re.search(r"VISUALIZE\s+BPTREE\s+ON\s+(\w+)", sql, re.IGNORECASE)
                 if match:
                     result["table"] = match.group(1)
-        
+
         return result
 
     def _parse_show_fallback(self, sql: str) -> Dict[str, Any]:
         """Parse SHOW statement using regex fallback."""
         import re
         result = {"type": "SHOW", "operation": "SHOW"}
-        
+
         sql_upper = sql.upper().strip()
-        
+
         if "SHOW DATABASES" in sql_upper:
             result["object"] = "DATABASES"
         elif "SHOW TABLES" in sql_upper:
@@ -944,26 +944,26 @@ class SQLGlotParser:
             result["object"] = "PROCESSLIST"
         else:
             result["object"] = "UNKNOWN"
-        
+
         return result
 
     def _parse_describe(self, describe: exp.Describe, original_sql: str) -> Dict[str, Any]:
         """Parse DESCRIBE/EXPLAIN statement."""
         result = {"type": "EXPLAIN", "operation": "EXPLAIN"}
-        
+
         # If it's EXPLAIN with a query, try to parse the inner query
         if hasattr(describe, 'this') and describe.this:
             if isinstance(describe.this, exp.Select):
                 result["explained_query"] = self._parse_select(describe.this)
             else:
                 result["explained_statement"] = str(describe.this)
-        
+
         return result
 
     def _parse_transaction(self, transaction: exp.Transaction, original_sql: str) -> Dict[str, Any]:
         """Parse transaction statement."""
         sql_upper = original_sql.upper().strip()
-        
+
         if "BEGIN" in sql_upper or "START" in sql_upper:
             return {"type": "BEGIN_TRANSACTION", "operation": "BEGIN_TRANSACTION"}
         elif "COMMIT" in sql_upper:
@@ -975,10 +975,10 @@ class SQLGlotParser:
 
     def parse_column_definition(self, col_def: str) -> Dict[str, Any]:
         """Parse a column definition string using SQLGlot instead of regex.
-        
+
         Args:
             col_def: Column definition string like "id INT PRIMARY KEY" or "name VARCHAR(50) NOT NULL"
-            
+
         Returns:
             Dictionary with parsed column information
         """
@@ -986,11 +986,11 @@ class SQLGlotParser:
             # Create a temporary CREATE TABLE statement to parse the column
             temp_sql = f"CREATE TABLE temp ({col_def})"
             parsed = parse_one(temp_sql, dialect=self.dialect)
-            
+
             if isinstance(parsed, exp.Create) and isinstance(parsed.this, exp.Schema):
                 if parsed.this.expressions:
                     col_expr = parsed.this.expressions[0]
-                    
+
                     if isinstance(col_expr, exp.ColumnDef):
                         column_info = {
                             "name": col_expr.this.name if hasattr(col_expr.this, 'name') else str(col_expr.this),
@@ -1000,7 +1000,7 @@ class SQLGlotParser:
                             "default": None,
                             "identity": False
                         }
-                        
+
                         # Check for constraints
                         if col_expr.constraints:
                             for constraint in col_expr.constraints:
@@ -1023,15 +1023,15 @@ class SQLGlotParser:
                                             column_info["identity_seed"] = int(start_match.group(1))
                                         if increment_match:
                                             column_info["identity_increment"] = int(increment_match.group(1))
-                        
+
                         return column_info
-            
+
         except Exception as e:
             logging.warning(f"SQLGlot column parsing failed for '{col_def}': {e}")
-        
+
         # Fallback to regex-based parsing
         import re
-        
+
         # Initialize result
         result = {
             "name": "",
@@ -1041,35 +1041,35 @@ class SQLGlotParser:
             "default": None,
             "identity": False
         }
-        
+
         # Extract column name (first word)
         parts = col_def.strip().split()
         if parts:
             result["name"] = parts[0]
-        
+
         # Extract data type
         type_match = re.search(r'\b(INT|INTEGER|VARCHAR|CHAR|TEXT|DECIMAL|FLOAT|DOUBLE|BOOLEAN|DATE|DATETIME|TIME|TIMESTAMP)\b(?:\(\d+(?:,\d+)?\))?', col_def, re.IGNORECASE)
         if type_match:
             result["type"] = type_match.group(0).upper()
-        
+
         # Check for constraints
         if re.search(r'\bPRIMARY\s+KEY\b', col_def, re.IGNORECASE):
             result["primary_key"] = True
             result["nullable"] = False
-        
+
         if re.search(r'\bNOT\s+NULL\b', col_def, re.IGNORECASE):
             result["nullable"] = False
-        
+
         # Extract default value
         default_match = re.search(r'\bDEFAULT\s+([^\s]+)', col_def, re.IGNORECASE)
         if default_match:
             result["default"] = default_match.group(1).strip("'\"")
-        
+
         # Check for IDENTITY
         identity_match = re.search(r'\bIDENTITY\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', col_def, re.IGNORECASE)
         if identity_match:
             result["identity"] = True
             result["identity_seed"] = int(identity_match.group(1))
             result["identity_increment"] = int(identity_match.group(2))
-        
+
         return result

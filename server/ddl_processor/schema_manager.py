@@ -186,12 +186,12 @@ class SchemaManager:
                 "rows": [[table] for table in tables],
                 "status": "success",
             }
-            
+
         elif object_type.upper() == "ALL_TABLES":
             # Show all tables across all databases
             logging.info("Executing SHOW ALL_TABLES command")
             all_tables = self.catalog_manager.get_all_tables()
-            
+
             return {
                 "columns": ["DATABASE_NAME", "TABLE_NAME"],
                 "rows": all_tables,
@@ -291,7 +291,7 @@ class SchemaManager:
                     col_type = col_info.get('type', '')
                     is_pk = col_info.get('primary_key', False)
                     is_nullable = not col_info.get('not_null', False)
-                    
+
                     rows.append([
                         col_name,
                         col_type,
@@ -346,7 +346,7 @@ class SchemaManager:
         for col_str in column_strings:
             # Skip table-level constraints (they start with constraint keywords)
             col_str_upper = col_str.upper().strip()
-            if (col_str_upper.startswith("FOREIGN KEY") or 
+            if (col_str_upper.startswith("FOREIGN KEY") or
                 col_str_upper.startswith("PRIMARY KEY") or
                 col_str_upper.startswith("UNIQUE") or
                 col_str_upper.startswith("CHECK") or
@@ -354,12 +354,12 @@ class SchemaManager:
                 # This is a table-level constraint, add to constraints list
                 final_constraints_for_catalog.append(col_str)
                 continue
-            
+
             # Basic parsing of column definition
             parts = col_str.split()
             col_name = parts[0]
             col_type = parts[1] if len(parts) > 1 else "UNKNOWN"
-            
+
             col_def = {"name": col_name, "type": col_type}
 
             # Extract attributes like PRIMARY KEY, NOT NULL, UNIQUE from col_str
@@ -377,11 +377,11 @@ class SchemaManager:
         try:
             # Pass the parsed column definitions and constraints
             result = self.catalog_manager.create_table(
-                table_name, 
-                parsed_column_definitions, 
+                table_name,
+                parsed_column_definitions,
                 final_constraints_for_catalog
             )
-            
+
             if result is True:
                 return {
                     "message": f"Table '{table_name}' created in database '{db_name}'",
@@ -465,7 +465,7 @@ class SchemaManager:
         """Create an index with compound column support."""
         index_name = plan.get("index_name")
         table_name = plan.get("table")
-        
+
         # Handle both old format (single column) and new format (multiple columns)
         columns = plan.get("columns", [])
         if not columns:
@@ -473,7 +473,7 @@ class SchemaManager:
             single_column = plan.get("column")
             if single_column:
                 columns = [single_column]
-        
+
         is_unique = plan.get("unique", False)
 
         if not index_name or not table_name or not columns:
@@ -495,7 +495,7 @@ class SchemaManager:
                 is_unique=is_unique,
                 columns=columns  # Pass original columns list
             )
-            
+
             if isinstance(result, dict) and result.get("status") == "success":
                 return {
                     "message": f"Index '{index_name}' created on {table_name}{index_display}",

@@ -308,7 +308,7 @@ class AggregateExecutor:
 
             # Group records by the specified columns
             groups = defaultdict(list)
-            
+
             for record in records:
                 # Create group key
                 group_key = []
@@ -317,7 +317,7 @@ class AggregateExecutor:
                         if col_name.lower() == group_col.lower():
                             group_key.append(str(record[col_name]))
                             break
-                
+
                 groups[tuple(group_key)].append(record)
 
             # Calculate aggregates for each group
@@ -334,7 +334,7 @@ class AggregateExecutor:
 
             for group_key, group_records in groups.items():
                 row = []
-                
+
                 col_index = 0
                 for col in columns:
                     if col in group_by_columns:
@@ -346,16 +346,16 @@ class AggregateExecutor:
                         # This is a simplified implementation
                         # In a real implementation, you'd parse the aggregate function
                         row.append(len(group_records))  # Default to count
-                    
+
                     col_index += 1
-                
+
                 result_rows.append(row)
 
             # Apply ORDER BY if specified
             if order_by and result_rows:
                 order_column = order_by.get("column") if isinstance(order_by, dict) else order_by
                 direction = order_by.get("direction", "ASC") if isinstance(order_by, dict) else "ASC"
-                
+
                 if order_column in result_columns:
                     col_index = result_columns.index(order_column)
                     reverse = direction.upper() == "DESC"

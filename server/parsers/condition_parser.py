@@ -10,20 +10,20 @@ class ConditionParser:
     Deprecated: Compatibility wrapper for the old ConditionParser.
     All functionality has been moved to SQLGlotParser.
     """
-    
+
     def __init__(self):
         self.sqlglot_parser = SQLGlotParser()
-    
+
     def parse_condition(self, condition_str):
         """Parse condition using SQLGlot."""
         # Create a dummy SELECT to parse the WHERE condition
         temp_sql = f"SELECT * FROM dummy WHERE {condition_str}"
         result = self.sqlglot_parser.parse(temp_sql)
-        
+
         if "parsed_condition" in result:
             return result["parsed_condition"]
         return []
-    
+
     def evaluate_condition(self, condition, record):
         """Evaluate condition against a record."""
         # This is a simplified implementation for compatibility
@@ -33,10 +33,10 @@ class ConditionParser:
                     column = cond.get("column")
                     operator = cond.get("operator")
                     value = cond.get("value")
-                    
+
                     if column in record:
                         record_val = record[column]
-                        
+
                         if operator == "=":
                             return record_val == value
                         elif operator == "!=":
@@ -57,7 +57,7 @@ class ConditionParser:
                             if isinstance(value, list):
                                 return record_val in value
                             return False
-        
+
         return True  # Default to true for compatibility
 
 

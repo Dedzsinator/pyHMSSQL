@@ -13,13 +13,13 @@ from ddl_processor.schema_manager import SchemaManager
 def test_data_verification():
     """Test data insertion and retrieval in the profiling test database."""
     print("=== Data Verification Test ===")
-    
+
     # Initialize components
     catalog_manager = CatalogManager()
     schema_manager = SchemaManager(catalog_manager)
-    
+
     print(f"Initial current database: {catalog_manager.get_current_database()}")
-    
+
     # Create test database
     try:
         catalog_manager.create_database("verification_test_db")
@@ -28,7 +28,7 @@ def test_data_verification():
     except Exception as e:
         print(f"Database creation error: {e}")
         return
-    
+
     # Create test table
     try:
         result = schema_manager.execute_create_table({
@@ -46,9 +46,9 @@ def test_data_verification():
     except Exception as e:
         print(f"Table creation error: {e}")
         return
-    
+
     print(f"Current database after table creation: {catalog_manager.get_current_database()}")
-    
+
     # Insert test records
     print("Inserting test records...")
     records_inserted = 0
@@ -66,14 +66,14 @@ def test_data_verification():
     except Exception as e:
         print(f"Insert error after {records_inserted} records: {e}")
         return
-    
+
     print(f"Current database after insertions: {catalog_manager.get_current_database()}")
-    
+
     # Query the records back
     try:
         results = catalog_manager.query_with_condition("test_products")
         print(f"Query returned {len(results) if results else 0} records")
-        
+
         if results and len(results) > 0:
             print("Sample of retrieved records:")
             for i, record in enumerate(results[:3]):  # Show first 3 records
@@ -82,7 +82,7 @@ def test_data_verification():
             print("No records retrieved!")
     except Exception as e:
         print(f"Query error: {e}")
-    
+
     print(f"Final current database: {catalog_manager.get_current_database()}")
     print("=== Test Complete ===")
 

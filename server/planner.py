@@ -313,7 +313,7 @@ class Planner:
             plan["error"] = f"Unknown visualization object: {object_type}"
 
         return plan
-    
+
     def plan_script(self, parsed_query):
         """Plan for SCRIPT execution."""
         logging.debug("Planning SCRIPT query: %s", parsed_query)
@@ -367,7 +367,7 @@ class Planner:
 
         index_name = parsed_query.get("index_name")
         table_name = parsed_query.get("table")
-        
+
         # Handle both old format (single column) and new format (multiple columns)
         columns = parsed_query.get("columns", [])
         if not columns:
@@ -375,7 +375,7 @@ class Planner:
             single_column = parsed_query.get("column")
             if single_column:
                 columns = [single_column]
-        
+
         is_unique = parsed_query.get("unique", False)
 
         return {
@@ -452,13 +452,13 @@ class Planner:
 
         group_by = parsed_query.get("group_by")
         columns = parsed_query.get("columns", [])
-    
+
         # Check if this is a GROUP BY query with aggregates
         if group_by:
             # Extract and fix ORDER BY clause
             order_by = parsed_query.get("order_by")
             limit = parsed_query.get("limit")
-            
+
             return {
                 "type": "GROUP_BY",
                 "table": table,
@@ -625,18 +625,18 @@ class Planner:
         # Get join-specific information if available
         join_info = parsed_query.get("join_info", {})
         join_type = join_info.get("type", "INNER").upper()
-        
+
         # CRITICAL FIX: Extract WHERE conditions properly
         where_conditions = parsed_query.get("parsed_condition") or parsed_query.get("condition")
-        
+
         # Choose the best join algorithm based on available indexes and table statistics
         table1 = join_info.get("table1") or (tables[0] if len(tables) > 0 else "")
         table2 = join_info.get("table2") or (tables[1] if len(tables) > 1 else "")
         join_condition = join_info.get("condition") or condition
-        
+
         # Let the planner choose the optimal join algorithm
         chosen_algorithm = self._choose_join_algorithm([table1, table2], join_condition)
-        
+
         # Create the join plan with all necessary information
         plan = {
             "type": "JOIN",
@@ -649,7 +649,7 @@ class Planner:
             "where_conditions": where_conditions,  # Add WHERE conditions
             "tables": tables
         }
-        
+
         return plan
 
     def _choose_join_algorithm(self, tables, join_condition):
@@ -778,10 +778,10 @@ class Planner:
         Example: DELETE FROM table1 WHERE id = 1
         """
         logging.debug("Planning DELETE query: %s", parsed_query)
-        
+
         # Extract the condition
         condition = parsed_query.get("condition")
-        
+
         return {
             "type": "DELETE",
             "table": parsed_query["table"],

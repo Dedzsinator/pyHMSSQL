@@ -1,17 +1,16 @@
-import sys
-import os
-import curses
-import threading
-import socket
-import json
-import time
-import socket
-import json
-import getpass
 import cmd
-import textwrap
+import curses
+import getpass
+import json
+import os
 import re
 import readline
+import socket
+import subprocess
+import sys
+import textwrap
+import threading
+import time
 
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,6 +31,7 @@ class ServerDiscoverer:
         self.discovery_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.discovery_socket.bind(('', DISCOVERY_PORT))
         self.running = False
+        self.discovery_thread = None
 
     def start_discovery(self):
         """Start listening for server broadcasts"""
@@ -50,7 +50,7 @@ class ServerDiscoverer:
 
         while self.running:
             try:
-                data, addr = self.discovery_socket.recvfrom(4096)
+                data, _ = self.discovery_socket.recvfrom(4096)
                 try:
                     server_info = json.loads(data.decode('utf-8'))
                     if server_info.get('service') == 'HMSSQL':
@@ -206,33 +206,33 @@ class DBMSClient(cmd.Cmd):
         if line.strip().startswith("query ") and not line.strip().endswith(';'):
             # Extract the SQL part after 'query '
             sql_part = line[6:].strip()  # Remove 'query ' prefix
-            
+
             # Build complete query until semicolon
             complete_sql = sql_part
-            
+
             while not complete_sql.endswith(';'):
                 try:
                     print("... ", end="", flush=True)
                     additional_line = input()
-                    
+
                     # If user just types semicolon, add it and break
                     if additional_line.strip() == ';':
                         complete_sql += ';'
                         break
-                    
+
                     # Add the line to the complete SQL
                     complete_sql += " " + additional_line.strip()
-                    
+
                 except (EOFError, KeyboardInterrupt):
                     print("\nCommand cancelled.")
                     return False
-            
+
             # Remove semicolon and call do_query - clean up any extra whitespace
             if complete_sql.endswith(';'):
                 complete_sql = complete_sql[:-1].strip()
-            
+
             return self.do_query(complete_sql)
-        
+
         # For other commands, use the default implementation
         return super().onecmd(line)
 
@@ -372,6 +372,8 @@ class DBMSClient(cmd.Cmd):
             # Stop discovery when done
             discoverer.stop_discovery()
 
+        return False
+
     def do_login(self, username):
         """
         Log in to the database.
@@ -435,7 +437,7 @@ class DBMSClient(cmd.Cmd):
         # Handle response
         print(response)
 
-    def do_logout(self, arg):
+    def do_logout(self, _):
         """
         Log out from the current session.
         Usage: logout
@@ -483,7 +485,7 @@ class DBMSClient(cmd.Cmd):
         else:
             print(response)
 
-    def do_exit(self, arg):
+    def do_exit(self, _):
         """
         Exit the CLI client.
         Usage: exit
@@ -495,7 +497,7 @@ class DBMSClient(cmd.Cmd):
         print("Goodbye!")
         return True
 
-    def do_status(self, arg):
+    def do_status(self, _):
         """
         Display current connection status.
         Usage: status
@@ -547,7 +549,7 @@ class DBMSClient(cmd.Cmd):
         if isinstance(result, dict) and result.get("status") == "error" and "error" in result:
             print(f"Error: {result['error']}")
             return
-            
+
         # Handle simple string response
         if isinstance(result, str):
             print(result)
@@ -557,11 +559,11 @@ class DBMSClient(cmd.Cmd):
         if isinstance(result, dict) and "message" in result and "rows" in result and "columns" in result:
             # Print the message but continue to display the table
             print(f"{result['message']}")
-            
+
             # Display the table data (don't return after printing the message)
             columns = result["columns"]
             rows = result["rows"]
-            
+
             if not rows:
                 print("Query returned no rows.")
                 return
@@ -583,7 +585,7 @@ class DBMSClient(cmd.Cmd):
             # Print rows
             for row in rows:
                 row_str = " | ".join(
-                    (str(cell) if cell is not None else "NULL").ljust(col_widths[i]) 
+                    (str(cell) if cell is not None else "NULL").ljust(col_widths[i])
                     if i < len(col_widths) else (str(cell) if cell is not None else "NULL")
                     for i, cell in enumerate(row)
                 )
@@ -592,33 +594,33 @@ class DBMSClient(cmd.Cmd):
             print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
             print(f"\nTotal: {len(rows)} row(s) returned")
             return
-        
+
         # Standard message handling (no tabular data)
-        elif isinstance(result, dict) and "message" in result:
+        if isinstance(result, dict) and "message" in result:
             print(result["message"])
-            
+
             # Check for script execution results containing SELECT data
             if "results" in result and isinstance(result["results"], list):
                 print("\n--- Script Execution Details ---")
-                
+
                 for i, stmt_result in enumerate(result["results"]):
                     sql = stmt_result.get("sql", "")
                     status = stmt_result.get("status", "unknown")
-                    
+
                     # Print statement header
                     print(f"\nStatement {stmt_result.get('statement', i+1)}:")
                     print(f"SQL: {sql}")
-                    
+
                     if status == "success":
                         # Check if this is a data result (from SELECT)
                         if "data" in stmt_result and isinstance(stmt_result["data"], dict):
                             data_result = stmt_result["data"]
-                            
+
                             # If it has columns and rows, it's a SELECT result
                             if data_result.get("type") == "data" and "columns" in data_result and "rows" in data_result:
                                 columns = data_result["columns"]
                                 rows = data_result["rows"]
-                                
+
                                 # Display the SELECT results in a formatted table
                                 print("\nResults:")
                                 if not rows:
@@ -631,22 +633,22 @@ class DBMSClient(cmd.Cmd):
                                             if i < len(col_widths):
                                                 cell_str = str(cell) if cell is not None else "NULL"
                                                 col_widths[i] = max(col_widths[i], len(cell_str))
-                                    
+
                                     # Print header
                                     print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
                                     header = " | ".join(str(col).ljust(col_widths[i]) for i, col in enumerate(columns))
                                     print(header)
                                     print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
-                                    
+
                                     # Print rows
                                     for row in rows:
                                         row_str = " | ".join(
-                                            (str(cell) if cell is not None else "NULL").ljust(col_widths[i]) 
+                                            (str(cell) if cell is not None else "NULL").ljust(col_widths[i])
                                             if i < len(col_widths) else (str(cell) if cell is not None else "NULL")
                                             for i, cell in enumerate(row)
                                         )
                                         print(row_str)
-                                    
+
                                     print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
                                     print(f"Total: {len(rows)} row(s) returned")
                             elif "message" in data_result:
@@ -656,15 +658,15 @@ class DBMSClient(cmd.Cmd):
                     else:
                         # Print errors
                         print(f"Error: {stmt_result.get('error', 'Unknown error')}")
-                
+
                 print("\n--- End of Script Results ---")
             return
-            
+
         # Handle table data (most SELECT results)
         if isinstance(result, dict) and "rows" in result and "columns" in result:
             columns = result["columns"]
             rows = result["rows"]
-            
+
             # If no rows, show a message instead of empty table
             if not rows:
                 print("Query executed successfully. No results to display.")
@@ -687,7 +689,7 @@ class DBMSClient(cmd.Cmd):
             # Print rows
             for row in rows:
                 row_str = " | ".join(
-                    (str(cell) if cell is not None else "NULL").ljust(col_widths[i]) 
+                    (str(cell) if cell is not None else "NULL").ljust(col_widths[i])
                     if i < len(col_widths) else (str(cell) if cell is not None else "NULL")
                     for i, cell in enumerate(row)
                 )
@@ -696,35 +698,35 @@ class DBMSClient(cmd.Cmd):
             print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
             print(f"\nTotal: {len(rows)} row(s) returned")
             return
-            
+
         # Handle insert/update/delete success with row count
         if isinstance(result, dict) and "rows_affected" in result:
             operation = result.get("operation", "Operation")
             print(f"{operation} completed successfully. {result['rows_affected']} row(s) affected.")
             return
-            
+
         # Handle list of dictionaries (unpacked results)
         if isinstance(result, list) and result and isinstance(result[0], dict):
             # Get all unique columns
             columns = set()
             for item in result:
                 columns.update(item.keys())
-                
+
             columns = sorted(list(columns))
-            
+
             # Calculate column widths
             col_widths = [len(col) for col in columns]
             for item in result:
                 for i, col in enumerate(columns):
                     value = str(item.get(col, "NULL"))
                     col_widths[i] = max(col_widths[i], len(value))
-            
+
             # Print header
             print("\n" + "-" * (sum(col_widths) + (3 * len(columns)) - 3))
             header = " | ".join(col.ljust(col_widths[i]) for i, col in enumerate(columns))
             print(header)
             print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
-            
+
             # Print rows
             for item in result:
                 row_str = " | ".join(
@@ -732,18 +734,18 @@ class DBMSClient(cmd.Cmd):
                     for i, col in enumerate(columns)
                 )
                 print(row_str)
-                
+
             print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
             print(f"\nTotal: {len(result)} row(s) returned")
             return
-            
+
         # Handle any other dictionary format by printing key-values
         if isinstance(result, dict):
             for key, value in result.items():
                 if key not in ["status", "type", "_duration"]:  # Skip metadata fields
                     print(f"{key}: {value}")
             return
-            
+
         # Final fallback - just print the raw result
         print(result)
 
@@ -766,11 +768,11 @@ class DBMSClient(cmd.Cmd):
         table_match = re.search(r'\bFROM\s+(\w+)', sql_query, re.IGNORECASE)
         if table_match and table_match.group(1) not in self.columns_cache:
             self.refresh_columns_cache(table_match.group(1))
-        
+
         # Prepare request
         request = {
             "action": "query",
-            "session_id": self.session_id, 
+            "session_id": self.session_id,
             "query": sql_query
         }
 
@@ -794,7 +796,7 @@ class DBMSClient(cmd.Cmd):
         open_parens = 0
         close_parens = 0
 
-        for i, line in enumerate(lines, 1):
+        for _, line in enumerate(lines, 1):
             # Skip empty lines and comments
             line = line.strip()
             if not line or line.startswith('--') or line.startswith('#'):
@@ -947,7 +949,7 @@ class DBMSClient(cmd.Cmd):
         else:
             print("Error: Invalid syntax. Use 'REPLICATE AS REPLICA OF host port' or 'REPLICATE STATUS'")
 
-    def do_PROMOTE(self, arg):
+    def do_PROMOTE(self, _):
         """
         Promote this node to primary (use in case primary fails)
         Usage: PROMOTE
@@ -1020,15 +1022,13 @@ class DBMSClient(cmd.Cmd):
 
                 # On Windows, try to open the image
                 if os.name == "nt" and response["visualization_path"].endswith(".png"):
-                    import subprocess
-
                     try:
-                        subprocess.Popen(
+                        with subprocess.Popen(
                             ["start", response["visualization_path"]], shell=True
-                        )
-                        print(
-                            f"Opening visualization file: {response['visualization_path']}"
-                        )
+                        ):
+                            print(
+                                f"Opening visualization file: {response['visualization_path']}"
+                            )
                     except RuntimeError as e:
                         print(f"Error opening visualization: {str(e)}")
 

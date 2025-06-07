@@ -16,9 +16,7 @@ import json
 import socket
 import sys
 import os
-from concurrent.futures import ThreadPoolExecutor
 import argparse  # Make sure argparse is imported at the top level
-import hashlib
 
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,7 +25,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Local imports - these need the path modification above
 from parser import SQLParser  # noqa: E402
-from shared.utils import receive_data, send_data  # noqa: E402
 from shared.constants import SERVER_HOST, SERVER_PORT  # noqa: E402
 from optimizer import Optimizer, TableStatistics  # noqa: E402
 from execution_engine import ExecutionEngine  # noqa: E402
@@ -96,9 +93,6 @@ class DBMSServer:
         # Initialize statistics manager for cost-based optimization
         self.statistics_manager = TableStatistics(self.catalog_manager)
 
-        # Initialize parser
-        self.sql_parser = SQLParser(self.execution_engine)
-
         # Initialize enhanced optimizer with statistics
         self.optimizer = Optimizer(self.catalog_manager, self.index_manager)
 
@@ -110,6 +104,9 @@ class DBMSServer:
             self.index_manager,
             self.planner
         )
+
+        # Initialize parser
+        self.sql_parser = SQLParser(self.execution_engine)
 
         # Initialize replication manager (start as primary)
         self.replication_manager = ReplicationManager(
@@ -285,7 +282,7 @@ class DBMSServer:
             # Process the request based on action
             if request_type == "login":
                 return self.handle_login(data)
-            elif request_type == "query":
+            if request_type == "query":
                 # Get user from session if available
                 user = None
                 if session_id in self.sessions:
@@ -297,21 +294,21 @@ class DBMSServer:
 
                 # Pass the extracted query string instead of the whole data dictionary
                 return self.handle_query(query, session_id, user)
-            elif request_type == "register":
+            if request_type == "register":
                 return self.handle_register(data)
-            elif request_type == "visualize":
+            if request_type == "visualize":
                 return self.handle_visualize(data)
-            elif request_type == "logout":
+            if request_type == "logout":
                 return self.handle_logout(data)
-            elif request_type == "node":
+            if request_type == "node":
                 # New handler for node management commands
                 return self.handle_node_command(data)
-            else:
-                logging.error("Unknown request type: %s", request_type)
-                return {
-                    "error": f"Unknown request type: {request_type}",
-                    "status": "error",
-                }
+            
+            logging.error("Unknown request type: %s", request_type)
+            return {
+                "error": f"Unknown request type: {request_type}",
+                "status": "error",
+            }
         except (TypeError, ValueError, KeyError, AttributeError, RuntimeError) as e:
             logging.error("Error handling request: %s", str(e))
             logging.error(traceback.format_exc())
@@ -614,7 +611,7 @@ class DBMSServer:
             username = user
         else:
             username = "anonymous"
-        
+
         logging.info("Query from %s: %s", username, query)
 
         # Log to audit trail
@@ -713,15 +710,15 @@ class DBMSServer:
                 # This is a JOIN result or similar list of records
                 if not result:
                     return {"rows": [], "columns": [], "status": "success"}
-                
+
                 # Get all unique columns from all records
                 all_columns = set()
                 for record in result:
                     all_columns.update(record.keys())
-                
+
                 # Sort columns for consistent display
                 columns = sorted(list(all_columns))
-                
+
                 # Convert records to rows format
                 rows = []
                 for record in result:
@@ -734,15 +731,15 @@ class DBMSServer:
                         else:
                             row.append(str(value))
                     rows.append(row)
-                
+
                 return {
                     "rows": rows,
                     "columns": columns,
                     "status": "success"
                 }
-            
+
             return result
-            
+
         except Exception as e:
             logging.error(f"Error handling query: {str(e)}")
             return {"error": f"Query execution failed: {str(e)}", "status": "error"}
@@ -750,11 +747,11 @@ class DBMSServer:
     def _handle_script_execution(self, query, user=None):
         """
         Handle SQL script execution commands.
-        
+
         Args:
             query: The script command (e.g., "SCRIPT filename.sql")
             user: The user executing the command
-            
+
         Returns:
             dict: Result of script execution
         """
@@ -763,19 +760,19 @@ class DBMSServer:
             parts = query.strip().split(None, 1)  # Split at first whitespace
             if len(parts) < 2:
                 return {"error": "Invalid SCRIPT command. Usage: SCRIPT filename.sql", "status": "error"}
-            
+
             filename = parts[1].strip().rstrip(';')  # Remove semicolon if present
             logging.info(f"Executing script: {filename}")
-            
+
             # Create a simple plan for script execution
             script_plan = {
                 "type": "SCRIPT",
                 "filename": filename
             }
-            
+
             # Use the existing method to execute the script
             return self._execute_script_plan(script_plan, user)
-            
+
         except Exception as e:
             logging.error(f"Error handling script execution: {str(e)}")
             logging.error(traceback.format_exc())
@@ -787,10 +784,10 @@ class DBMSServer:
         clean_filename = filename
         if filename.startswith('./'):
             clean_filename = filename[2:]
-        
+
         # Get the current working directory (where client was started)
         client_cwd = os.getcwd()
-        
+
         potential_paths = [
             # Relative to client's current working directory (most common)
             os.path.join(client_cwd, filename),
@@ -813,20 +810,20 @@ class DBMSServer:
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", filename),
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", clean_filename),
         ]
-        
+
         # Filter out None values
         potential_paths = [path for path in potential_paths if path is not None]
-        
+
         for path in potential_paths:
             if os.path.exists(path):
                 logging.info(f"Found script file at: {path}")
                 return path
-        
+
         # Log all attempted paths for debugging
         logging.warning(f"Script file '{filename}' not found in any of these locations:")
         for path in potential_paths:
             logging.warning(f"  - {path}")
-        
+
         return None
 
     def _execute_script_plan(self, plan, user=None):
@@ -835,24 +832,24 @@ class DBMSServer:
             filename = plan.get("filename")
             if not filename:
                 return {"error": "No filename specified in SCRIPT command", "status": "error"}
-            
+
             # Find the script file
             script_path = self._find_script_file(filename)
             if not script_path:
                 return {"error": f"Script file '{filename}' not found", "status": "error"}
-            
+
             logging.info(f"Executing script file: {script_path}")
-            
+
             # Read the script file
             try:
                 with open(script_path, 'r', encoding='utf-8') as f:
                     script_content = f.read()
             except IOError as e:
                 return {"error": f"Failed to read script file '{filename}': {str(e)}", "status": "error"}
-            
+
             # Execute the script
             results = self._execute_sql_script(script_content, user)
-            
+
             # Format results for display
             formatted_results = []
             for result in results:
@@ -880,9 +877,9 @@ class DBMSServer:
                         "status": "error",
                         "error": result["error"]
                     })
-            
+
             successful_count = sum(1 for r in results if r["status"] == "success")
-            
+
             return {
                 "status": "success",
                 "message": f"Script '{filename}' executed: {successful_count}/{len(results)} statements successful",
@@ -891,7 +888,7 @@ class DBMSServer:
                 "successful_statements": successful_count,
                 "results": formatted_results
             }
-            
+
         except Exception as e:
             logging.error(f"Error executing script plan: {str(e)}")
             return {"error": f"Script execution failed: {str(e)}", "status": "error"}
@@ -901,38 +898,38 @@ class DBMSServer:
         # Split script into individual statements
         statements = []
         current_statement = ""
-        
+
         for line in script_content.split('\n'):
             line = line.strip()
-            
+
             # Skip empty lines and comments
             if not line or line.startswith('--'):
                 continue
-            
+
             current_statement += line + "\n"
-            
+
             # Check if statement is complete (ends with semicolon)
             if line.endswith(';'):
                 statements.append(current_statement.strip())
                 current_statement = ""
-        
+
         # Add any remaining statement
         if current_statement.strip():
             statements.append(current_statement.strip())
-        
+
         results = []
         successful_statements = 0
-        
+
         for i, statement in enumerate(statements, 1):
             if not statement:
                 continue
-            
+
             logging.info(f"Executing statement {i}: {statement[:50]}...")
-            
+
             try:
                 # Execute the statement
                 result = self.handle_query(statement, user=user)
-                
+
                 # Format result for display
                 if isinstance(result, dict):
                     if result.get("status") == "error":
@@ -945,7 +942,7 @@ class DBMSServer:
                         })
                     else:
                         logging.info(f"Statement {i} executed successfully")
-                        
+
                         # Create a user-friendly result
                         formatted_result = self._format_script_result(statement, result)
                         results.append({
@@ -965,7 +962,7 @@ class DBMSServer:
                         "result": formatted_result
                     })
                     successful_statements += 1
-                    
+
             except Exception as e:
                 error_msg = f"Execution error: {str(e)}"
                 logging.warning(f"Statement {i} failed: {error_msg}")
@@ -975,14 +972,14 @@ class DBMSServer:
                     "status": "error",
                     "error": error_msg
                 })
-        
+
         logging.info(f"Script execution completed: {successful_statements}/{len(statements)} statements successful")
         return results
 
     def _format_script_result(self, statement, result):
         """Format query result for script output."""
         stmt_type = statement.strip().upper().split()[0]
-        
+
         if stmt_type in ['SELECT', 'SHOW']:
             # For SELECT and SHOW statements, return the data
             if isinstance(result, dict):
@@ -1000,12 +997,12 @@ class DBMSServer:
                     }
             elif isinstance(result, list):
                 return {
-                    "type": "data", 
+                    "type": "data",
                     "rows": result,
                     "row_count": len(result)
                 }
             return {"type": "data", "message": "Query executed successfully"}
-            
+
         elif stmt_type in ['INSERT']:
             # For INSERT statements
             if isinstance(result, dict) and 'rows_affected' in result:
@@ -1013,21 +1010,21 @@ class DBMSServer:
             elif isinstance(result, dict) and result.get('status') == 'success':
                 return {"type": "message", "message": "Insert completed successfully"}
             return {"type": "message", "message": "Insert executed"}
-            
+
         elif stmt_type in ['UPDATE']:
             if isinstance(result, dict) and 'rows_affected' in result:
                 return {"type": "message", "message": f"Updated {result['rows_affected']} rows"}
             elif isinstance(result, dict) and result.get('status') == 'success':
                 return {"type": "message", "message": "Update completed successfully"}
             return {"type": "message", "message": "Update executed"}
-            
+
         elif stmt_type in ['DELETE']:
             if isinstance(result, dict) and 'rows_affected' in result:
                 return {"type": "message", "message": f"Deleted {result['rows_affected']} rows"}
             elif isinstance(result, dict) and result.get('status') == 'success':
                 return {"type": "message", "message": "Delete completed successfully"}
             return {"type": "message", "message": "Delete executed"}
-            
+
         elif stmt_type == 'CREATE':
             if 'TABLE' in statement.upper():
                 return {"type": "message", "message": "Table created successfully"}
@@ -1036,16 +1033,16 @@ class DBMSServer:
             elif 'INDEX' in statement.upper():
                 return {"type": "message", "message": "Index created successfully"}
             return {"type": "message", "message": "Create operation completed"}
-            
+
         elif stmt_type == 'DROP':
             return {"type": "message", "message": "Drop operation completed"}
-            
+
         elif stmt_type in ['BEGIN', 'COMMIT', 'ROLLBACK']:
             return {"type": "message", "message": f"{stmt_type} transaction executed"}
-            
+
         elif stmt_type == 'USE':
             return {"type": "message", "message": "Database changed successfully"}
-            
+
         else:
             return {"type": "message", "message": "Statement executed successfully"}
 
@@ -1089,15 +1086,15 @@ class DBMSServer:
             if not result:
                 print("0 row(s) returned")
                 return
-            
+
             # Get all unique columns from all records
             all_columns = set()
             for record in result:
                 all_columns.update(record.keys())
-            
+
             # Sort columns for consistent display
             columns = sorted(list(all_columns))
-            
+
             # Prepare rows data
             rows = []
             for record in result:
@@ -1110,7 +1107,7 @@ class DBMSServer:
                     else:
                         row.append(str(value))
                 rows.append(row)
-        
+
         # Then check for rows and columns (table data) - this should be the main path now
         elif isinstance(result, dict) and "rows" in result and "columns" in result:
             columns = result["columns"]
@@ -1161,15 +1158,6 @@ class DBMSServer:
         print(f"\n{len(rows)} row(s) returned")
 def start_server(server_name=None, replication_mode=ReplicationMode.SEMI_SYNC, sync_replicas=1):
     """Start the DBMS server with the specified configuration."""
-    # Make sure sqlparse is installed
-    try:
-        import sqlparse
-    except ImportError:
-        logging.critical("Error: sqlparse library is required but not installed.")
-        print("Error: sqlparse library is required but not installed.")
-        print("Please install it using: pip install sqlparse")
-        sys.exit(1)
-
     server = DBMSServer(data_dir="data", server_name=server_name)
 
     # Configure replication manager

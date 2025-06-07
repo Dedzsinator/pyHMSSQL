@@ -60,25 +60,25 @@ class DMLExecutor:
 
             table_schema = self.catalog_manager.tables[table_id]
             table_columns_dict = table_schema.get("columns", {})
-            
+
             if not table_columns_dict:
                 return {"error": f"Table '{table_name}' has no columns defined", "status": "error"}
-            
+
             # Get ordered list of NON-IDENTITY columns from schema
             all_table_columns = []
             identity_columns = []
-            
+
             for col_name, col_info in table_columns_dict.items():
                 if not isinstance(col_info, dict):
                     logging.warning(f"Column info for {col_name} is not a dict: {type(col_info)} - {col_info}")
                     all_table_columns.append(col_name)
                     continue
-                    
+
                 if col_info.get("identity"):
                     identity_columns.append(col_name)
                 else:
                     all_table_columns.append(col_name)
-            
+
             # If no columns specified, use non-identity columns in order
             if specified_columns is None:
                 columns = all_table_columns
@@ -96,7 +96,7 @@ class DMLExecutor:
             # CRITICAL OPTIMIZATION: Use batch insert for multiple records
             if len(values_list) > 1:
                 logging.info(f"Using batch insert for {len(values_list)} records")
-                
+
                 # Convert values to record dictionaries
                 records = []
                 for row_values in values_list:
@@ -105,10 +105,10 @@ class DMLExecutor:
                         if i < len(row_values):
                             record[column] = row_values[i]
                     records.append(record)
-                
+
                 # Use batch insert method
                 result = self.catalog_manager.insert_records_batch(table_name, records)
-                
+
                 if result.get("status") == "success":
                     inserted_count = result.get("inserted_count", 0)
                     return {
@@ -128,7 +128,7 @@ class DMLExecutor:
 
                 # Insert the record
                 result = self.catalog_manager.insert_record(table_name, record)
-                
+
                 if isinstance(result, dict) and result.get("status") == "success":
                     # Check if this is part of a transaction and record the operation
                     transaction_id = plan.get("transaction_id")
@@ -142,7 +142,7 @@ class DMLExecutor:
                             }
                             self.transaction_manager.record_operation(transaction_id, operation)
                             logging.info(f"Recorded INSERT operation for transaction {transaction_id}: {table_name}.{record_id}")
-                    
+
                     return {
                         "message": f"Inserted 1 record into {table_name}",
                         "status": "success",
@@ -160,10 +160,10 @@ class DMLExecutor:
         """Parse condition string into a list of conditions."""
         if not condition_str:
             return []
-        
+
         # This is a simplified parser - you might want to use a more robust one
         conditions = []
-        
+
         # Basic parsing for simple conditions like "column = value"
         if "=" in condition_str:
             parts = condition_str.split("=")
@@ -178,17 +178,17 @@ class DMLExecutor:
                     "operator": "=",
                     "value": value
                 })
-        
+
         return conditions
 
     def execute_delete(self, plan):
         """Execute a DELETE operation."""
         table_name = plan.get("table")
         condition = plan.get("condition")
-        
+
         # Log the condition for debugging
         logging.info(f"DELETE from {table_name} with condition: {condition}")
-        
+
         # Make sure we have a valid condition format
         parsed_conditions = []
         if condition:
@@ -204,7 +204,7 @@ class DMLExecutor:
                             column = parts[0]
                             op = parts[1]
                             value_str = ' '.join(parts[2:]).strip(';')
-                            
+
                             # Try to convert value to appropriate type
                             try:
                                 if value_str.isdigit():
@@ -215,14 +215,14 @@ class DMLExecutor:
                                     value = value_str
                             except:
                                 value = value_str
-                                
+
                             parsed_conditions = [{"column": column, "operator": op, "value": value}]
                 except Exception as e:
                     logging.error(f"Error parsing delete condition: {str(e)}")
-        
+
         # Call catalog manager with parsed conditions
         result = self.catalog_manager.delete_records(table_name, parsed_conditions)
-        
+
         if isinstance(result, str) and "records deleted" in result:
             count = result.split()[0]
             return {"status": "success", "message": result, "count": int(count)}

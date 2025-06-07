@@ -17,11 +17,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import database components
 from catalog_manager import CatalogManager
-from planner import Planner
 from ddl_processor.index_manager import IndexManager
 from execution_engine import ExecutionEngine
-from parser import SQLParser
 from optimizer import Optimizer
+from parser import SQLParser
 from planner import Planner
 
 # Create Flask app
@@ -53,7 +52,7 @@ sessions = {}
 def require_auth(f):
     """Decorator to require authentication for API endpoints."""
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*func_args, **kwargs):
         # Get token from Authorization header
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
@@ -66,7 +65,7 @@ def require_auth(f):
         # Store user in Flask's g object for use in the view function
         g.user = sessions[session_id]
         g.session_id = session_id
-        return f(*args, **kwargs)
+        return f(*func_args, **kwargs)
     return decorated_function
 
 @app.route("/api/login", methods=["POST"])
@@ -93,9 +92,9 @@ def login():
             "status": "success",
             "message": f"Login successful as {username} ({user['role']})"
         })
-    else:
-        logging.warning(f"Failed login attempt for user: {username}")
-        return jsonify({"error": "Invalid username or password.", "status": "error"}), 401
+
+    logging.warning(f"Failed login attempt for user: {username}")
+    return jsonify({"error": "Invalid username or password.", "status": "error"}), 401
 
 @app.route("/api/register", methods=["POST"])
 def register():
@@ -118,11 +117,11 @@ def register():
             "message": f"User {username} registered successfully as {role}",
             "status": "success"
         })
-    else:
-        logging.warning(f"Failed registration for user {username}: {result}")
-        if isinstance(result, str):
-            return jsonify({"error": result, "status": "error"}), 400
-        return jsonify(result), 400
+
+    logging.warning(f"Failed registration for user {username}: {result}")
+    if isinstance(result, str):
+        return jsonify({"error": result, "status": "error"}), 400
+    return jsonify(result), 400
 
 @app.route("/api/logout", methods=["POST"])
 @require_auth
@@ -277,23 +276,23 @@ def get_indexes():
                 "rows": rows,
                 "status": "success"
             })
-        else:
-            # Get all indexes in the current database
-            all_indexes = []
-            for index_id, index_info in catalog_manager.indexes.items():
-                if index_id.startswith(f"{db_name}."):
-                    parts = index_id.split(".")
-                    if len(parts) >= 3:
-                        table = parts[1]
-                        column = index_info.get("column", "")
-                        index_name = parts[2]
-                        index_type = index_info.get("type", "BTREE")
-                        all_indexes.append([
-                            table,
-                            column,
-                            f"{index_name}",
-                            index_type
-                        ])
+
+        # Get all indexes in the current database
+        all_indexes = []
+        for index_id, index_info in catalog_manager.indexes.items():
+            if index_id.startswith(f"{db_name}."):
+                parts = index_id.split(".")
+                if len(parts) >= 3:
+                    table = parts[1]
+                    column = index_info.get("column", "")
+                    index_name = parts[2]
+                    index_type = index_info.get("type", "BTREE")
+                    all_indexes.append([
+                        table,
+                        column,
+                        f"{index_name}",
+                        index_type
+                    ])
 
             return jsonify({
                 "columns": ["Table", "Column", "Index Name", "Type"],

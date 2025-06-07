@@ -42,7 +42,7 @@ class IndexManager:
             table_name, index_name, column, index_def.get(
                 "unique", False), db_name
         )
-    
+
     def rebuild_index(self, index_id):
         """Rebuild an index from scratch"""
         try:
@@ -51,18 +51,18 @@ class IndexManager:
             if len(parts) != 2:
                 self.logger.error(f"Invalid index ID format: {index_id}")
                 return False
-                
+
             table_name, index_name = parts
-            
+
             # Get index definition from catalog - FIX THE LOOKUP
             indexes = self.catalog_manager.get_indexes_for_table(table_name)
             if not indexes:
                 self.logger.error(f"No indexes found for table {table_name}")
                 return False
-            
+
             # Find the specific index - FIX THE SEARCH
             index_def = None
-            
+
             # Try direct lookup first
             if index_name in indexes:
                 index_def = indexes[index_name]
@@ -72,11 +72,11 @@ class IndexManager:
                     if idx_key == index_name or idx_key.endswith(f".{index_name}"):
                         index_def = idx_info
                         break
-            
+
             if not index_def:
                 self.logger.error(f"Index definition not found for {index_name}. Available indexes: {list(indexes.keys())}")
                 return False
-            
+
             # Get the column name - handle both single and multiple columns
             columns = index_def.get("columns", [])
             if not columns:
@@ -84,30 +84,30 @@ class IndexManager:
                 column = index_def.get("column")
                 if column:
                     columns = [column]
-            
+
             if not columns:
                 self.logger.error(f"No columns found for index {index_name}")
                 return False
-            
+
             # Use first column for file naming (for backward compatibility)
             main_column = columns[0]
             is_unique = index_def.get("unique", False)
-            
+
             # Remove old index from cache
             full_index_name = f"{table_name}.{index_name}"
             if full_index_name in self.indexes:
                 del self.indexes[full_index_name]
-            
+
             # Rebuild the index
             rebuilt_index = self.build_index(table_name, index_name, main_column, is_unique)
-            
+
             if rebuilt_index:
                 self.logger.info(f"Successfully rebuilt index {index_id}")
                 return True
             else:
                 self.logger.error(f"Failed to rebuild index {index_id}")
                 return False
-            
+
         except Exception as e:
             self.logger.error(f"Error rebuilding index {index_id}: {str(e)}")
             return False

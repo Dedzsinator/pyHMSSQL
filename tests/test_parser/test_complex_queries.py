@@ -64,9 +64,9 @@ class TestJoinQueries:
     def test_multiple_joins(self, parser):
         """Test parsing multiple JOINs."""
         query = """
-        SELECT u.name, o.amount, p.name 
-        FROM users u 
-        INNER JOIN orders o ON u.id = o.user_id 
+        SELECT u.name, o.amount, p.name
+        FROM users u
+        INNER JOIN orders o ON u.id = o.user_id
         INNER JOIN order_items oi ON o.id = oi.order_id
         INNER JOIN products p ON oi.product_id = p.id
         """
@@ -78,9 +78,9 @@ class TestJoinQueries:
     def test_join_with_where(self, parser):
         """Test JOIN with WHERE clause."""
         query = """
-        SELECT u.name, o.amount 
-        FROM users u 
-        INNER JOIN orders o ON u.id = o.user_id 
+        SELECT u.name, o.amount
+        FROM users u
+        INNER JOIN orders o ON u.id = o.user_id
         WHERE o.amount > 100 AND u.status = 'active'
         """
         parsed = parser.parse_sql(query)
@@ -94,7 +94,7 @@ class TestSubqueries:
     def test_subquery_in_where(self, parser):
         """Test subquery in WHERE clause."""
         query = """
-        SELECT name FROM users 
+        SELECT name FROM users
         WHERE id IN (SELECT user_id FROM orders WHERE amount > 1000)
         """
         parsed = parser.parse_sql(query)
@@ -107,7 +107,7 @@ class TestSubqueries:
         query = """
         SELECT name FROM users u1
         WHERE EXISTS (
-            SELECT 1 FROM orders o 
+            SELECT 1 FROM orders o
             WHERE o.user_id = u1.id AND o.amount > 500
         )
         """
@@ -158,9 +158,9 @@ class TestAggregateQueries:
     def test_group_by_having(self, parser):
         """Test GROUP BY with HAVING clause."""
         query = """
-        SELECT user_id, COUNT(*), AVG(amount) 
-        FROM orders 
-        GROUP BY user_id 
+        SELECT user_id, COUNT(*), AVG(amount)
+        FROM orders
+        GROUP BY user_id
         HAVING COUNT(*) > 5 AND AVG(amount) > 100
         """
         parsed = parser.parse_sql(query)
@@ -264,9 +264,9 @@ class TestObscureQueries:
             SELECT employee_id, name, manager_id, 1 as level
             FROM employees
             WHERE manager_id IS NULL
-            
+
             UNION ALL
-            
+
             SELECT e.employee_id, e.name, e.manager_id, eh.level + 1
             FROM employees e
             INNER JOIN employee_hierarchy eh ON e.manager_id = eh.employee_id
@@ -282,7 +282,7 @@ class TestObscureQueries:
         """Test CASE WHEN expressions."""
         query = """
         SELECT name,
-               CASE 
+               CASE
                    WHEN age < 18 THEN 'Minor'
                    WHEN age < 65 THEN 'Adult'
                    ELSE 'Senior'
@@ -300,9 +300,9 @@ class TestObscureQueries:
         SELECT u.name, recent_orders.amount
         FROM users u
         CROSS JOIN LATERAL (
-            SELECT amount FROM orders o 
-            WHERE o.user_id = u.id 
-            ORDER BY created_at DESC 
+            SELECT amount FROM orders o
+            WHERE o.user_id = u.id
+            ORDER BY created_at DESC
             LIMIT 1
         ) as recent_orders
         """
@@ -314,7 +314,7 @@ class TestObscureQueries:
     def test_values_clause(self, parser):
         """Test VALUES clause."""
         query = """
-        SELECT * FROM (VALUES 
+        SELECT * FROM (VALUES
             (1, 'Alice', 25),
             (2, 'Bob', 30),
             (3, 'Charlie', 35)
@@ -327,7 +327,7 @@ class TestObscureQueries:
     def test_pivot_like_query(self, parser):
         """Test pivot-like query with conditional aggregation."""
         query = """
-        SELECT 
+        SELECT
             user_id,
             SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) as completed_total,
             SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_total,
@@ -365,7 +365,7 @@ class TestSpecialStatements:
             "SHOW INDEXES FROM users",
             "SHOW CREATE TABLE users"
         ]
-        
+
         for query in queries:
             parsed = parser.parse_sql(query)
             assert parsed["type"] == "SHOW" or "SHOW" in str(parsed)
@@ -396,7 +396,7 @@ class TestSpecialStatements:
             "COMMIT TRANSACTION",
             "ROLLBACK TRANSACTION"
         ]
-        
+
         for query in queries:
             parsed = parser.parse_sql(query)
             assert "type" in parsed
@@ -415,7 +415,7 @@ class TestSpecialStatements:
             "VISUALIZE BPTREE ON users",
             "VISUALIZE BPTREE idx_name ON users"
         ]
-        
+
         for query in queries:
             parsed = parser.parse_sql(query)
             assert parsed["type"] == "VISUALIZE"

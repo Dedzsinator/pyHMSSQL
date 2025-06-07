@@ -27,11 +27,11 @@ class TransactionManager:
 
     def record_operation(self, transaction_id, operation):
         """Record an operation in the transaction log.
-        
+
         Args:
             transaction_id: The ID of the transaction
             operation: Dictionary with operation details (type, table, etc.)
-            
+
         Returns:
             bool: True if operation was recorded
         """
@@ -61,22 +61,22 @@ class TransactionManager:
                             self.table_snapshots[transaction_id] = {}
                         if table_name not in self.table_snapshots[transaction_id]:
                             self.table_snapshots[transaction_id][table_name] = {}
-                        
+
                         # Store a copy of the original record
                         self.table_snapshots[transaction_id][table_name][record_id] = record.copy()
                         self.logger.info(f"Stored snapshot for {table_name}.{record_id} in transaction {transaction_id}")
-            
+
         # Add the operation to the transaction log
         self.transactions[transaction_id]["operations"].append(operation)
         return True
 
     def execute_transaction_operation(self, operation_type, transaction_id=None):
         """Execute a transaction operation (BEGIN, COMMIT, ROLLBACK).
-        
+
         Args:
             operation_type: Type of operation (BEGIN_TRANSACTION, COMMIT, ROLLBACK)
             transaction_id: ID of existing transaction (for COMMIT/ROLLBACK)
-            
+
         Returns:
             dict: Result of operation
         """
@@ -98,12 +98,12 @@ class TransactionManager:
         elif operation_type == "ROLLBACK":
             # Add comprehensive logging for debugging
             self.logger.info(f"Attempting to rollback transaction: {transaction_id}")
-            
+
             # Check if transaction exists
             if not transaction_id:
                 self.logger.error("No transaction ID provided for rollback")
                 return {"status": "error", "error": "No transaction ID provided"}
-                
+
             if transaction_id not in self.transactions:
                 self.logger.error(f"Transaction {transaction_id} not found. Available transactions: {list(self.transactions.keys())}")
                 return {"status": "error", "error": f"Transaction {transaction_id} not found"}
@@ -139,7 +139,7 @@ class TransactionManager:
                             if not result:
                                 rollback_success = False
                                 self.logger.error(f"Failed to restore original values: {table_name}.{record_id}")
-                    
+
                     # Clear the snapshots for this transaction
                     del self.table_snapshots[transaction_id]
 
@@ -162,7 +162,7 @@ class TransactionManager:
 
             # Mark transaction as rolled back
             self.transactions[transaction_id]["status"] = "rolled_back"
-            
+
             # Clean up transaction data
             if rollback_success:
                 # Keep transaction in history but clean up
@@ -179,14 +179,14 @@ class TransactionManager:
             if not transaction_id:
                 self.logger.error("No transaction ID provided for commit")
                 return {"status": "error", "error": "No transaction ID provided"}
-                
+
             if transaction_id in self.transactions:
                 self.transactions[transaction_id]["status"] = "committed"
-                
+
                 # Clean up snapshots when committing
                 if transaction_id in self.table_snapshots:
                     del self.table_snapshots[transaction_id]
-                
+
                 self.logger.info(f"Transaction {transaction_id} committed successfully")
                 return {"status": "success", "message": "Transaction committed"}
             else:
@@ -249,27 +249,27 @@ class TransactionManager:
                 return False
 
         return False  # Unknown operation type
-    
+
     def get_transaction_status(self, transaction_id):
         """Get the status of a transaction."""
         if transaction_id in self.transactions:
             return self.transactions[transaction_id]["status"]
         return None
-    
+
     def cleanup_old_transactions(self, max_age_hours=24):
         """Clean up old transactions to prevent memory leaks."""
         current_time = time.time()
         to_remove = []
-        
+
         for tx_id, tx_data in self.transactions.items():
             # Keep active transactions
             if tx_data["status"] == "active":
                 continue
-                
+
             # Remove old completed transactions
             if current_time - tx_data["start_time"] > max_age_hours * 3600:
                 to_remove.append(tx_id)
-                
+
         # Remove old transactions
         for tx_id in to_remove:
             del self.transactions[tx_id]

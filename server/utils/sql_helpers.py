@@ -2,7 +2,7 @@
 
 def parse_simple_condition(condition):
     """Parse a simple condition string in format "column = value" or "condition1 AND condition2".
-    
+
     DEPRECATED: This function is now deprecated in favor of SQLGlot parsing.
     Use sqlglot_parser.SQLGlotParser._parse_condition() instead.
 
@@ -14,7 +14,7 @@ def parse_simple_condition(condition):
     """
     import logging
     logging.warning("parse_simple_condition() is deprecated. Use SQLGlot parsing instead.")
-    
+
     conditions = []
     if not condition:
         return conditions
@@ -70,10 +70,10 @@ def check_database_selected(catalog_manager):
 
 def parse_condition_with_sqlglot(condition_string):
     """Parse a condition string using SQLGlot.
-    
+
     Args:
         condition_string: SQL condition string
-        
+
     Returns:
         List of parsed condition dictionaries
     """
@@ -81,7 +81,7 @@ def parse_condition_with_sqlglot(condition_string):
         from sqlglot_parser import SQLGlotParser
         import sqlglot
         from sqlglot import exp
-        
+
         # Parse as a WHERE clause
         parsed = sqlglot.parse_one(f"SELECT * FROM dummy WHERE {condition_string}")
         if parsed and parsed.find(exp.Where):
@@ -92,5 +92,5 @@ def parse_condition_with_sqlglot(condition_string):
         import logging
         logging.warning(f"SQLGlot condition parsing failed: {e}, falling back to simple parsing")
         return parse_simple_condition(condition_string)
-    
+
     return []

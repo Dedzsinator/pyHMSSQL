@@ -15,21 +15,21 @@ except ImportError:
 class SQLParser:
     """
     Main SQL Parser class that wraps SQLGlot functionality.
-    
+
     This replaces all previous parsing implementations with a unified
     SQLGlot-based approach for better SQL compatibility and optimization.
     """
 
     def __init__(self, engine=None, dialect="mysql"):
         """Initialize the SQL parser.
-        
+
         Args:
             engine: Database engine instance (for compatibility)
             dialect: SQL dialect to use for parsing
         """
         self.engine = engine
         self.dialect = dialect
-        
+
         # Initialize SQLGlot parser
         try:
             self.sqlglot_parser = SQLGlotParser(dialect=dialect)
@@ -41,25 +41,25 @@ class SQLParser:
     def parse_sql(self, sql):
         """
         Parse SQL query into a structured format using SQLGlot.
-        
+
         Args:
             sql: The SQL statement to parse
-            
+
         Returns:
             A dictionary containing the parsed SQL statement structure
         """
         if not sql or not sql.strip():
             return {"error": "Empty query"}
-        
+
         try:
             # Use SQLGlot parser for all SQL parsing
             result = self.sqlglot_parser.parse(sql)
-            
+
             # Log successful parsing
             logging.debug(f"✅ Successfully parsed SQL with SQLGlot: {sql[:50]}...")
-            
+
             return result
-            
+
         except Exception as e:
             logging.error(f"❌ SQLGlot parsing failed for query: {sql[:50]}... Error: {e}")
             return {"error": f"Parse error: {str(e)}", "query": sql}

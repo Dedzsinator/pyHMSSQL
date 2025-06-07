@@ -199,7 +199,7 @@ class TestIndexJoins:
                     if value not in customers_found:
                         customers_found[value] = []
                     customers_found[value].append((row_idx, col_idx, row))
-        
+
         for customer_id, locations in customers_found.items():
             print(f"  Customer {customer_id}: found in {len(locations)} locations")
             for row_idx, col_idx, row in locations[:2]:  # Show first 2 occurrences
@@ -215,32 +215,32 @@ class TestIndexJoins:
                 if value == 500:
                     customer_500_records.append((i, j, row))
                     break  # Found it in this row, move to next row
-                    
+
         print(f"🔍 Found {len(customer_500_records)} records with customer_id=500")
         if customer_500_records:
             row_idx, col_idx, record = customer_500_records[0]
             col_name = columns[col_idx] if col_idx < len(columns) else f"col_{col_idx}"
             print(f"🔍 Customer 500 record at row {row_idx}, col {col_idx} ({col_name}): {record}")
-        
+
         # Verify results
         assert len(customer_500_records) == 1, f"Expected 1 customer 500 record, got {len(customer_500_records)}"
-        
+
         # Get the actual customer 500 record and find which column has the customer ID
         row_idx, col_idx, customer_500_row = customer_500_records[0]
-        
+
         # The join should include NULL values for the orders columns
         # We need to verify that the orders columns are NULL for customer 500
         # First, let's find where orders.id would be (should be None for customer 500)
         print(f"🔍 Customer 500 full record: {customer_500_row}")
         print(f"🔍 Checking for NULL orders data...")
-        
+
         # Look for None values in the row (these should be the orders columns)
         none_positions = [i for i, val in enumerate(customer_500_row) if val is None]
         print(f"🔍 None values found at positions: {none_positions}")
-        
+
         # For LEFT JOIN, customer 500 should have at least some None values for orders columns
         assert len(none_positions) > 0, f"Expected some None values for customer 500 (no orders), but found none. Row: {customer_500_row}"
-        
+
         # Verify the query plan uses index join
         assert "join_algorithm" in plan
         assert plan["join_algorithm"] == "INDEX"

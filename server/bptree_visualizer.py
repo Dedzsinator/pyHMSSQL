@@ -210,7 +210,7 @@ class BPTreeVisualizer:
         if is_leaf:
             # Format key-value pairs for leaf nodes
             node_text = ", ".join(
-                [f"{k}:{v}" if isinstance(k, tuple) else str(k) 
+                [f"{k}:{v}" if isinstance(k, tuple) else str(k)
                  for k in node.keys]
             )
         else:

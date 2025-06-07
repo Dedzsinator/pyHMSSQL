@@ -114,7 +114,7 @@ class SelectExecutor:
         condition = plan.get("condition")
         index_column = None
         index_value = None
-        
+
         if condition and isinstance(condition, str):
             # Remove trailing semicolon if present
             if condition.endswith(';'):
@@ -136,7 +136,7 @@ class SelectExecutor:
                     logging.info("Checking for index on column: %s with value: %s", col, val)
                     index_column = col
                     index_value = val
-            
+
             # Check for range conditions (e.g., "age >= 25 AND age <= 30")
             elif any(op in condition for op in [">=", "<=", "<", ">"]) and "AND" in condition:
                 # Parse range condition to extract column name
@@ -186,7 +186,7 @@ class SelectExecutor:
                             plan["scan_type"] = "INDEX_RANGE_SCAN"
                         else:
                             plan["scan_type"] = "INDEX_SCAN"
-                        
+
                         logging.info("Will use index %s for condition %s with scan type: %s",
                                     idx_name, index_column, plan.get("scan_type"))
                         break

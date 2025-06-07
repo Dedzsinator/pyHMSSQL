@@ -18,7 +18,7 @@ def parser():
     """Create a parser instance for testing."""
     return SQLParser()
 
-@pytest.fixture(scope="session") 
+@pytest.fixture(scope="session")
 def sample_queries():
     """Provide sample queries for testing."""
     return {
@@ -47,7 +47,7 @@ def sample_queries():
             SELECT * FROM employee_hierarchy ORDER BY level, name
         """,
         "window_functions": """
-            SELECT 
+            SELECT
                 name,
                 salary,
                 department,
@@ -58,7 +58,7 @@ def sample_queries():
             WHERE hire_date >= '2020-01-01'
         """,
         "pivot_query": """
-            SELECT 
+            SELECT
                 user_id,
                 SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 1 THEN amount ELSE 0 END) as jan_total,
                 SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 2 THEN amount ELSE 0 END) as feb_total,

@@ -137,7 +137,7 @@ class BPlusTree:
         if node.leaf:
             # Find the correct position to insert the key
             i = len(node.keys) - 1
-            
+
             # Search backward for the right position
             while i >= 0 and key < node.keys[i][0]:
                 i -= 1
@@ -156,24 +156,24 @@ class BPlusTree:
             # Insert the new key-value pair
             node.keys.insert(i + 1, (key, value))
             bptree_logger.debug(
-                "[%s] INSERT LEAF - key: %s, value: %s, position: %s", 
+                "[%s] INSERT LEAF - key: %s, value: %s, position: %s",
                 self.name, key, value, i + 1
             )
         else:
             # Find the child which will have the new key
             i = len(node.keys) - 1
-            
+
             # Search backward for the right position
             while i >= 0 and key < node.keys[i]:
                 i -= 1
-                
+
             # Move to the child that should contain the key
             i += 1
-            
+
             # Check if i is within bounds
             if i >= len(node.children):
                 i = len(node.children) - 1
-                
+
             bptree_logger.debug(
                 "[%s] INSERT INTERNAL - traversing to child at index %s",
                 self.name, i
@@ -187,15 +187,15 @@ class BPlusTree:
                 )
                 # Split the child
                 self._split_child(node, i)
-                
+
                 # After splitting, decide which child to go to
                 if i < len(node.keys) and key > node.keys[i]:
                     i += 1
                     bptree_logger.debug(
-                        "[%s] After split, moving to child at index %s", 
+                        "[%s] After split, moving to child at index %s",
                         self.name, i
                     )
-                    
+
                 # Ensure i is within bounds after potentially incrementing
                 if i >= len(node.children):
                     i = len(node.children) - 1
@@ -220,11 +220,11 @@ class BPlusTree:
 
     def _search(self, node, key):
         """Search for a key in a node recursively.
-        
+
         Args:
             node: The node to search in
             key: The key to search for
-        
+
         Returns:
             The associated value or None if key is not found
         """
@@ -242,7 +242,7 @@ class BPlusTree:
             # For internal nodes, determine which child to go to
             while i < len(node.keys) and key > node.keys[i]:
                 i += 1
-            
+
             # If key is less than key at position i, go to child i
             # If key is greater than all keys in node, go to rightmost child
             if i == len(node.keys) or key < node.keys[i]:
@@ -306,7 +306,7 @@ class BPlusTree:
 
     def _range_query(self, node, start_key, end_key, result):
         """Find all key-value pairs with key between start_key and end_key.
-        
+
         Args:
             node: The node to search in
             start_key: The lower bound (inclusive)
@@ -331,7 +331,7 @@ class BPlusTree:
             # Recurse to this child
             if i < len(node.children):
                 self._range_query(node.children[i], start_key, end_key, result)
-            
+
             # Continue to next children if needed
             i = 0
             while i < len(node.keys) and node.keys[i] <= end_key:

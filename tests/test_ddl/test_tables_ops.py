@@ -92,4 +92,3 @@ class TestDropTable:
 
         assert result["status"] == "error"
         assert "does not exist" in result["error"]
-

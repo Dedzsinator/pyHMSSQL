@@ -297,9 +297,9 @@ class TestUpdateParser:
     def test_update_with_join(self, parser):
         """Test UPDATE with JOIN (MySQL style)."""
         query = """
-        UPDATE orders o 
-        JOIN users u ON o.user_id = u.id 
-        SET o.discount = 0.1 
+        UPDATE orders o
+        JOIN users u ON o.user_id = u.id
+        SET o.discount = 0.1
         WHERE u.premium = true
         """
         parsed = parser.parse_sql(query)
@@ -351,7 +351,7 @@ class TestDeleteParser:
     def test_delete_with_subquery(self, parser):
         """Test DELETE with subquery in WHERE clause."""
         query = """
-        DELETE FROM orders 
+        DELETE FROM orders
         WHERE user_id IN (SELECT id FROM users WHERE status = 'inactive')
         """
         parsed = parser.parse_sql(query)
@@ -390,8 +390,8 @@ class TestAdvancedDMLFeatures:
     def test_upsert_mysql(self, parser):
         """Test MySQL UPSERT (INSERT ... ON DUPLICATE KEY UPDATE)."""
         query = """
-        INSERT INTO users (id, name, email) 
-        VALUES (1, 'John', 'john@example.com') 
+        INSERT INTO users (id, name, email)
+        VALUES (1, 'John', 'john@example.com')
         ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email)
         """
         parsed = parser.parse_sql(query)
@@ -402,8 +402,8 @@ class TestAdvancedDMLFeatures:
     def test_upsert_postgres(self, parser):
         """Test PostgreSQL UPSERT (INSERT ... ON CONFLICT)."""
         query = """
-        INSERT INTO users (id, name, email) 
-        VALUES (1, 'John', 'john@example.com') 
+        INSERT INTO users (id, name, email)
+        VALUES (1, 'John', 'john@example.com')
         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email
         """
         parsed = parser.parse_sql(query)
@@ -460,7 +460,7 @@ class TestDataTypeHandling:
     def test_update_with_functions(self, parser):
         """Test UPDATE with SQL functions."""
         query = """
-        UPDATE users SET 
+        UPDATE users SET
             updated_at = NOW(),
             age = YEAR(CURDATE()) - YEAR(birth_date),
             full_name = CONCAT(first_name, ' ', last_name)

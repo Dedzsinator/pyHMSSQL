@@ -52,7 +52,7 @@ class ExecutionEngine:
         self.dml_executor.condition_parser = self.condition_parser
         self.join_executor.condition_parser = self.condition_parser
         self.group_by_executor.condition_parser = self.condition_parser
-        
+
         # Set the transaction manager for DML executor to enable transaction recording
         self.dml_executor.transaction_manager = self.transaction_manager
 
@@ -152,7 +152,7 @@ class ExecutionEngine:
 
         try:
             return self.visualizer.visualize_bptree(table_name, index_name)
-                
+
         except Exception as e:
             return {"error": f"Failed to visualize B+ tree: {str(e)}", "status": "error"}
 
@@ -343,7 +343,7 @@ class ExecutionEngine:
             return record_value in value
 
         return False
-    
+
     def execute_aggregate_with_groupby(self, plan):
         """Execute an aggregate query with GROUP BY clause."""
         table_name = plan.get("table")
@@ -361,7 +361,7 @@ class ExecutionEngine:
             return {"error": "Invalid query plan", "status": "error"}
 
         plan_type = plan["type"]
-        
+
         # Log the plan execution
         logging.info("🔍 Executing %s plan", plan_type)
 
@@ -396,14 +396,14 @@ class ExecutionEngine:
                 # Fix: Properly extract and pass WHERE conditions for JOIN queries
                 where_conditions = plan.get("where_conditions") or plan.get("parsed_condition")
                 join_info = plan.get("join_info", {})
-                
+
                 logging.info("🔍 Executing JOIN plan with WHERE conditions: %s", where_conditions)
-                
+
                 # Extract and clean table names from join_info
                 table1 = join_info.get("table1", "") or plan.get("table1", "")
                 table2 = join_info.get("table2", "") or plan.get("table2", "")
                 condition = join_info.get("condition") or plan.get("condition")
-                
+
                 # Use planner to choose the best join algorithm
                 join_algorithm = "HASH"  # Default
                 if self.planner and table1 and table2 and condition:
@@ -412,7 +412,7 @@ class ExecutionEngine:
                     except Exception as e:
                         logging.warning(f"Failed to determine join algorithm, using HASH: {e}")
                         join_algorithm = "HASH"
-                
+
                 # Pass all necessary information to the join executor including WHERE conditions
                 join_plan = {
                     "join_type": plan.get("join_type", "INNER"),
@@ -424,13 +424,13 @@ class ExecutionEngine:
                     "join_info": join_info,
                     "columns": plan.get("columns", ["*"])  # Also pass requested columns
                 }
-                
+
                 # Update the original plan with the join algorithm used
                 plan["join_algorithm"] = join_plan["join_algorithm"]
-                
+
                 # Execute the join and get the raw results
                 join_results = self.join_executor.execute_join(join_plan)
-                
+
                 # CRITICAL FIX: Format JOIN results to match expected dictionary format
                 if isinstance(join_results, list):
                     if not join_results:
@@ -441,16 +441,16 @@ class ExecutionEngine:
                             "status": "success",
                             "type": "join_result"
                         }
-                    
+
                     # Get all unique columns from all records
                     all_columns = set()
                     for record in join_results:
                         if isinstance(record, dict):
                             all_columns.update(record.keys())
-                    
+
                     # Sort columns for consistent display
                     columns = sorted(list(all_columns))
-                    
+
                     # Convert list of dictionaries to rows format
                     rows = []
                     for record in join_results:
@@ -459,7 +459,7 @@ class ExecutionEngine:
                             for col in columns:
                                 row.append(record.get(col))
                             rows.append(row)
-                    
+
                     return {
                         "columns": columns,
                         "rows": rows,

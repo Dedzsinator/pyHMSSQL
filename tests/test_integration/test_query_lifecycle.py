@@ -46,10 +46,10 @@ class TestQueryLifecycle:
                 "age INT",
             ],
         }
-        
+
         create_result = schema_manager.execute_create_table(create_table_plan)
         assert create_result["status"] == "success"
-        
+
         # Parse and execute INSERT
         sql_insert = "INSERT INTO customers (id, name, email, age) VALUES (10, 'Test User', 'test@example.com', 28)"
         parsed_insert = parser.parse_sql(sql_insert)

@@ -404,12 +404,12 @@ class QueryResultCache:
                 result = self._get_cached_result(query_hash)
                 if result:
                     return result
-                    
+
             # Try looking for pattern matches (for queries with pagination/sorting variations)
             # This is a simple approach - in a real system, you'd use a more sophisticated method
             base_hash = query_hash.split("_limit:")[0] if "_limit:" in query_hash else query_hash
             base_hash = base_hash.split("_orderby:")[0] if "_orderby:" in base_hash else base_hash
-            
+
             # Just to avoid full iteration in most cases
             if base_hash != query_hash:
                 for cached_key in list(self.cache.keys()):
@@ -418,10 +418,10 @@ class QueryResultCache:
                         cached_result = self._get_cached_result(cached_key)
                         if cached_result:
                             return cached_result
-                            
+
             self.stats["misses"] += 1
             return None
-            
+
     def _get_cached_result(self, query_hash):
         """Internal helper to get and validate a cached result."""
         if query_hash in self.cache:
@@ -448,7 +448,7 @@ class QueryResultCache:
             self.cache.move_to_end(query_hash)
             self.stats["hits"] += 1
             return result
-            
+
         return None
 
     def update_table_version(self, table_name):
@@ -468,18 +468,18 @@ class QueryResultCache:
         with self.lock:
             # Normalize table name for case-insensitive matching
             normalized_table = table_name.lower()
-            
+
             # Update the version to invalidate queries using this table
             self.update_table_version(normalized_table)
-            
+
             # Find all queries that could be affected by this table
             queries_to_invalidate = set()
-            
+
             # Add queries directly associated with this table
             for cached_table in list(self.table_queries.keys()):
                 if cached_table.lower() == normalized_table:
                     queries_to_invalidate.update(self.table_queries[cached_table])
-            
+
             # Also invalidate any query that might reference this table
             # This is more aggressive but ensures cache consistency
             for query_hash, (result, _, affected_tables, _) in list(self.cache.items()):
@@ -491,13 +491,13 @@ class QueryResultCache:
                     raw_query = result["query"].lower()
                     if normalized_table in raw_query or f"{normalized_table}." in raw_query or f"from {normalized_table}" in raw_query:
                         queries_to_invalidate.add(query_hash)
-            
+
             # Remove each invalid cache entry
             for query_hash in queries_to_invalidate:
                 if query_hash in self.cache:
                     self._remove_entry(query_hash)
                     count += 1
-                    
+
             self.stats["invalidations"] += count
             logging.info(f"Invalidated {count} cache entries for table {table_name}")
             return count
@@ -514,15 +514,15 @@ class QueryResultCache:
         # We should identify these in the query hash to avoid reusing incorrect results
         has_pagination = False
         has_sorting = False
-        
+
         if isinstance(result, dict):
             # Check if result has pagination or sorting metadata
             if result.get("limit") is not None or result.get("offset") is not None:
                 has_pagination = True
-                
+
             if result.get("order_by") is not None:
                 has_sorting = True
-                
+
             # Enhance the hash with pagination/sorting info to avoid incorrect cache hits
             if has_pagination or has_sorting:
                 pagination_info = f"_limit:{result.get('limit')}_offset:{result.get('offset')}"

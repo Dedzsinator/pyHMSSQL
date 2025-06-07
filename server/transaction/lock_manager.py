@@ -168,4 +168,3 @@ class LockManager:
                         del self._lock_owners[lock_key]
 
         return released
-

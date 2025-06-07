@@ -509,14 +509,14 @@ class Optimizer:
         # Generate plan type safely
         plan_type = plan_type or plan.get("type", "UNKNOWN")
         logging.info(f"Starting plan optimization for plan type: {plan_type}")
-            
+
         # DISABLE ALL CACHING - Always treat every plan as new
         # Skip all caching mechanisms completely
         logging.info("✅ Optimized query plan")
-        
+
         # Mark the plan as no_cache to ensure other components don't cache it
         plan["no_cache"] = True
-        
+
         # Return the original plan without caching
         return plan
 
