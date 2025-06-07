@@ -44,7 +44,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y graphviz graphviz-dev gcc
+          sudo apt-get install -y graphviz graphviz-dev gcc build-essential
 
       - name: Install Python dependencies
         run: |
@@ -52,13 +52,14 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-xdist pytest-mock sqlglot
 
-      - name: Build Cython extensions
+      - name: Build Cython extensions (optional)
         run: |
           cd server
           if [ -f "build_bptree.sh" ]; then
             chmod +x build_bptree.sh
             ./build_bptree.sh || echo "Cython build failed, continuing with fallback"
           fi
+        continue-on-error: true
 
       - name: Run tests with coverage
         run: |
@@ -71,6 +72,8 @@ jobs:
             -v \
             --tb=short \
             --maxfail=5
+        env:
+          PYTHONPATH: ${{ github.workspace }}
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

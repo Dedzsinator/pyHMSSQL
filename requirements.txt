@@ -2,6 +2,7 @@ sqlparse
 graphviz
 networkx
 matplotlib
+psutil
 cython
 sqlglot
 pytest

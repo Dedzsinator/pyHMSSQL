@@ -30,15 +30,31 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz graphviz-dev gcc build-essential
+
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip build wheel setuptools
           pip install -r requirements.txt
 
+      - name: Build Cython extensions (optional)
+        run: |
+          cd server
+          if [ -f "build_bptree.sh" ]; then
+            chmod +x build_bptree.sh
+            ./build_bptree.sh || echo "Cython build failed, continuing with Python fallback"
+          fi
+        continue-on-error: true
+
       - name: Run tests before release
         run: |
-          pip install pytest pytest-cov
-          pytest tests/ --tb=short
+          pip install pytest pytest-cov pytest-xdist pytest-mock sqlglot
+          pytest tests/ --tb=short --maxfail=3 -x
+        env:
+          PYTHONPATH: ${{ github.workspace }}
 
       - name: Build package
         run: python -m build
