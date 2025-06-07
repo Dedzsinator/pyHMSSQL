@@ -3,32 +3,32 @@ tag-template: "v$RESOLVED_VERSION"
 
 version-resolver:
   major:
-    labels: ['type: breaking', 'major']
+    labels: ["type: breaking", "major"]
   minor:
-    labels: ['type: feature', 'feature', 'enhancement', 'minor']
+    labels: ["type: feature", "feature", "enhancement", "minor"]
   patch:
-    labels: ['type: bug', 'bug', 'fix', 'patch', 'type: maintenance', 'chore']
+    labels: ["type: bug", "bug", "fix", "patch", "type: maintenance", "chore"]
   default: patch
 
 categories:
   - title: 🚀 Features
-    labels: ['feature', 'enhancement', 'type: feature']
+    labels: ["feature", "enhancement", "type: feature"]
   - title: 🐛 Bug Fixes
-    labels: ['bug', 'fix', 'type: bug']
+    labels: ["bug", "fix", "type: bug"]
   - title: ⚡ Performance Improvements
-    labels: ['performance', 'optimization', 'type: performance']
+    labels: ["performance", "optimization", "type: performance"]
   - title: 🛠 Refactoring
-    labels: ['refactor', 'type: refactor']
+    labels: ["refactor", "type: refactor"]
   - title: 📚 Documentation
-    labels: ['documentation', 'docs', 'type: docs']
+    labels: ["documentation", "docs", "type: docs"]
   - title: 🧪 Tests
-    labels: ['test', 'tests', 'type: test']
+    labels: ["test", "tests", "type: test"]
   - title: 🔧 Build System
-    labels: ['build', 'type: build']
+    labels: ["build", "type: build"]
   - title: ⚙️ CI/CD
-    labels: ['ci', 'workflow', 'type: ci']
+    labels: ["ci", "workflow", "type: ci"]
   - title: 🧹 Maintenance
-    labels: ['chore', 'dependencies', 'type: maintenance']
+    labels: ["chore", "dependencies", "type: maintenance"]
 
 change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
 change-title-escapes: '\<\>&'
@@ -49,29 +49,29 @@ template: |
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
 
 exclude-labels:
-  - 'skip-changelog'
-  - 'duplicate'
-  - 'invalid'
-  - 'wontfix'
+  - "skip-changelog"
+  - "duplicate"
+  - "invalid"
+  - "wontfix"
 
 autolabeler:
-  - label: 'server'
+  - label: "server"
     files:
-      - 'server/**/*'
-  - label: 'client'
+      - "server/**/*"
+  - label: "client"
     files:
-      - 'client/**/*'
-  - label: 'tests'
+      - "client/**/*"
+  - label: "tests"
     files:
-      - 'tests/**/*'
-  - label: 'documentation'
+      - "tests/**/*"
+  - label: "documentation"
     files:
-      - '*.md'
-      - 'docs/**/*'
-  - label: 'dependencies'
+      - "*.md"
+      - "docs/**/*"
+  - label: "dependencies"
     files:
-      - 'requirements.txt'
-      - 'pyproject.toml'
-  - label: 'workflow'
+      - "requirements.txt"
+      - "pyproject.toml"
+  - label: "workflow"
     files:
-      - '.github/**/*'
+      - ".github/**/*"

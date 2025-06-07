@@ -61,9 +61,9 @@ jobs:
             This pull request has been automatically marked as stale because it has not had 
             recent activity. It will be closed if no further activity occurs. 
             Thank you for your contributions.
-          stale-issue-label: 'status: stale'
-          stale-pr-label: 'status: stale'
+          stale-issue-label: "status: stale"
+          stale-pr-label: "status: stale"
           days-before-stale: 60
           days-before-close: 7
-          exempt-issue-labels: 'priority: high,status: in-progress,type: bug'
-          exempt-pr-labels: 'priority: high,status: in-progress'
+          exempt-issue-labels: "priority: high,status: in-progress,type: bug"
+          exempt-pr-labels: "priority: high,status: in-progress"
