@@ -31,7 +31,6 @@ import logging
 import tempfile
 import os
 import heapq
-import mmap
 import pickle
 from typing import List, Any, Callable, Optional, Union, Tuple
 from libc.stdlib cimport malloc, free, qsort
@@ -182,7 +181,7 @@ cdef class HyperoptimizedSorter:
         Guarantees O(n log n) worst-case performance
         """
         cdef int n = len(records)
-        cdef int max_depth = int(log2(n)) * 2
+        cdef int max_depth = int(log2(n)) * 2 if n > 1 else 0
         
         return self._introsort_util(records, 0, n - 1, max_depth, key_column, reverse)
     
@@ -199,66 +198,113 @@ cdef class HyperoptimizedSorter:
             pivot_idx = self._median_of_three_pivot(records, low, high, key_column, reverse)
             pivot_idx = self._partition_hoare(records, low, high, pivot_idx, key_column, reverse)
             
-            # Tail recursion optimization
-            if pivot_idx - low < high - pivot_idx:
+            # Recursively sort partitions
+            if pivot_idx > low:
                 self._introsort_util(records, low, pivot_idx - 1, depth_limit - 1, key_column, reverse)
+            if pivot_idx < high:
                 self._introsort_util(records, pivot_idx + 1, high, depth_limit - 1, key_column, reverse)
-            else:
-                self._introsort_util(records, pivot_idx + 1, high, depth_limit - 1, key_column, reverse)
-                self._introsort_util(records, low, pivot_idx - 1, depth_limit - 1, key_column, reverse)
                 
         return records
 
     cdef int _median_of_three_pivot(self, list records, int low, int high, str key_column, bint reverse):
-        """Select pivot using median-of-three for better partitioning"""
+        """Select median-of-three pivot for better QuickSort performance"""
         cdef int mid = low + (high - low) // 2
         
-        # Branchless median selection
         cdef object low_key = self._extract_sort_key(records[low], key_column)
         cdef object mid_key = self._extract_sort_key(records[mid], key_column)
         cdef object high_key = self._extract_sort_key(records[high], key_column)
         
+        # Find median using branchless comparisons
         if self._compare_keys(low_key, mid_key, reverse) > 0:
             records[low], records[mid] = records[mid], records[low]
-        if self._compare_keys(records[mid], records[high], reverse) > 0:
+        if self._compare_keys(low_key, high_key, reverse) > 0:
+            records[low], records[high] = records[high], records[low]
+        if self._compare_keys(mid_key, high_key, reverse) > 0:
             records[mid], records[high] = records[high], records[mid]
-        if self._compare_keys(records[low], records[mid], reverse) > 0:
-            records[low], records[mid] = records[mid], records[low]
             
         return mid
 
     cdef int _partition_hoare(self, list records, int low, int high, int pivot_idx, str key_column, bint reverse):
-        """
-        Hoare partition scheme with optimizations
-        Better cache performance than Lomuto partition
-        """
+        """Hoare partition scheme with optimizations"""
         # Move pivot to end
         records[pivot_idx], records[high] = records[high], records[pivot_idx]
+        
         cdef object pivot_key = self._extract_sort_key(records[high], key_column)
-        
         cdef int i = low - 1
-        cdef int j = high
+        cdef int j
         
-        while True:
-            # Find element from left that should be on right
-            i += 1
-            while i < high and self._compare_keys(self._extract_sort_key(records[i], key_column), pivot_key, reverse) < 0:
+        for j in range(low, high):
+            if self._compare_keys(self._extract_sort_key(records[j], key_column), pivot_key, reverse) <= 0:
                 i += 1
+                records[i], records[j] = records[j], records[i]
                 
-            # Find element from right that should be on left
-            j -= 1
-            while j > low and self._compare_keys(self._extract_sort_key(records[j], key_column), pivot_key, reverse) > 0:
+        records[i + 1], records[high] = records[high], records[i + 1]
+        return i + 1
+
+    cdef list _insertion_sort_range(self, list records, int low, int high, str key_column, bint reverse):
+        """Insertion sort for a specific range"""
+        cdef int i, j
+        cdef object current_record, current_key, compare_key
+        
+        for i in range(low + 1, high + 1):
+            current_record = records[i]
+            current_key = self._extract_sort_key(current_record, key_column)
+            j = i - 1
+            
+            while j >= low:
+                compare_key = self._extract_sort_key(records[j], key_column)
+                if self._compare_keys(current_key, compare_key, reverse) >= 0:
+                    break
+                records[j + 1] = records[j]
                 j -= 1
                 
-            if i >= j:
-                break
-                
-            # Swap elements
-            records[i], records[j] = records[j], records[i]
+            records[j + 1] = current_record
             
-        # Place pivot in correct position
-        records[i], records[high] = records[high], records[i]
-        return i
+        return records
+
+    cdef list _heapsort_range(self, list records, int low, int high, str key_column, bint reverse):
+        """Heapsort implementation for worst-case guarantee"""
+        cdef int n = high - low + 1
+        cdef int i
+        
+        # Build max heap
+        for i in range(n // 2 - 1, -1, -1):
+            self._heapify(records, low, high, low + i, key_column, reverse)
+            
+        # Extract elements one by one
+        for i in range(high, low, -1):
+            records[low], records[i] = records[i], records[low]
+            self._heapify(records, low, i - 1, low, key_column, reverse)
+            
+        return records
+
+    cdef void _heapify(self, list records, int low, int high, int root, str key_column, bint reverse):
+        """Heapify operation for heapsort"""
+        cdef int largest = root
+        cdef int left = 2 * (root - low) + 1 + low
+        cdef int right = 2 * (root - low) + 2 + low
+        
+        # Find largest among root, left child and right child
+        if (left <= high and 
+            self._compare_keys(
+                self._extract_sort_key(records[left], key_column),
+                self._extract_sort_key(records[largest], key_column),
+                reverse
+            ) > 0):
+            largest = left
+            
+        if (right <= high and 
+            self._compare_keys(
+                self._extract_sort_key(records[right], key_column),
+                self._extract_sort_key(records[largest], key_column),
+                reverse
+            ) > 0):
+            largest = right
+            
+        # If largest is not root
+        if largest != root:
+            records[root], records[largest] = records[largest], records[root]
+            self._heapify(records, low, high, largest, key_column, reverse)
 
     def _radix_sort_records(self, list records, str key_column, bint reverse):
         """
@@ -536,159 +582,6 @@ cdef class HyperoptimizedSorter:
             result = -result
             
         return result
-
-    def _introsort_records(self, list records, str key_column, bint reverse):
-        """
-        Introspective sort: QuickSort with fallback to HeapSort
-        Guarantees O(n log n) worst-case performance
-        """
-        cdef int n = len(records)
-        cdef int max_depth = int(log2(n)) * 2 if n > 1 else 0
-        
-        return self._introsort_util(records, 0, n - 1, max_depth, key_column, reverse)
-    
-    cdef list _introsort_util(self, list records, int low, int high, int depth_limit, str key_column, bint reverse):
-        """Introspective sort utility with depth limiting"""
-        cdef int size = high - low + 1
-        
-        if size < INSERTION_SORT_THRESHOLD:
-            return self._insertion_sort_range(records, low, high, key_column, reverse)
-        elif depth_limit == 0:
-            return self._heapsort_range(records, low, high, key_column, reverse)
-        else:
-            # Hyperoptimized quicksort with median-of-three pivot selection
-            pivot_idx = self._median_of_three_pivot(records, low, high, key_column, reverse)
-            pivot_idx = self._partition_hoare(records, low, high, pivot_idx, key_column, reverse)
-            
-            # Recursively sort partitions
-            if pivot_idx > low:
-                self._introsort_util(records, low, pivot_idx - 1, depth_limit - 1, key_column, reverse)
-            if pivot_idx < high:
-                self._introsort_util(records, pivot_idx + 1, high, depth_limit - 1, key_column, reverse)
-                
-        return records
-
-    cdef int _median_of_three_pivot(self, list records, int low, int high, str key_column, bint reverse):
-        """Select median-of-three pivot for better QuickSort performance"""
-        cdef int mid = low + (high - low) // 2
-        
-        cdef object low_key = self._extract_sort_key(records[low], key_column)
-        cdef object mid_key = self._extract_sort_key(records[mid], key_column)
-        cdef object high_key = self._extract_sort_key(records[high], key_column)
-        
-        # Find median using branchless comparisons
-        if self._compare_keys(low_key, mid_key, reverse) > 0:
-            records[low], records[mid] = records[mid], records[low]
-        if self._compare_keys(low_key, high_key, reverse) > 0:
-            records[low], records[high] = records[high], records[low]
-        if self._compare_keys(mid_key, high_key, reverse) > 0:
-            records[mid], records[high] = records[high], records[mid]
-            
-        return mid
-
-    cdef int _partition_hoare(self, list records, int low, int high, int pivot_idx, str key_column, bint reverse):
-        """Hoare partition scheme with optimizations"""
-        # Move pivot to end
-        records[pivot_idx], records[high] = records[high], records[pivot_idx]
-        
-        cdef object pivot_key = self._extract_sort_key(records[high], key_column)
-        cdef int i = low - 1
-        cdef int j
-        
-        for j in range(low, high):
-            if self._compare_keys(self._extract_sort_key(records[j], key_column), pivot_key, reverse) <= 0:
-                i += 1
-                records[i], records[j] = records[j], records[i]
-                
-        records[i + 1], records[high] = records[high], records[i + 1]
-        return i + 1
-
-    cdef list _heapsort_range(self, list records, int low, int high, str key_column, bint reverse):
-        """Heapsort implementation for worst-case guarantee"""
-        cdef int n = high - low + 1
-        cdef int i
-        
-        # Build max heap
-        for i in range(n // 2 - 1, -1, -1):
-            self._heapify(records, low, high, low + i, key_column, reverse)
-            
-        # Extract elements one by one
-        for i in range(high, low, -1):
-            records[low], records[i] = records[i], records[low]
-            self._heapify(records, low, i - 1, low, key_column, reverse)
-            
-        return records
-
-    cdef void _heapify(self, list records, int low, int high, int root, str key_column, bint reverse):
-        """Heapify operation for heapsort"""
-        cdef int largest = root
-        cdef int left = 2 * (root - low) + 1 + low
-        cdef int right = 2 * (root - low) + 2 + low
-        
-        # Find largest among root, left child and right child
-        if (left <= high and 
-            self._compare_keys(
-                self._extract_sort_key(records[left], key_column),
-                self._extract_sort_key(records[largest], key_column),
-                reverse
-            ) > 0):
-            largest = left
-            
-        if (right <= high and 
-            self._compare_keys(
-                self._extract_sort_key(records[right], key_column),
-                self._extract_sort_key(records[largest], key_column),
-                reverse
-            ) > 0):
-            largest = right
-            
-        # If largest is not root
-        if largest != root:
-            records[root], records[largest] = records[largest], records[root]
-            self._heapify(records, low, high, largest, key_column, reverse)
-
-    cdef list _insertion_sort_range(self, list records, int low, int high, str key_column, bint reverse):
-        """Insertion sort for a specific range"""
-        cdef int i, j
-        cdef object current_record, current_key, compare_key
-        
-        for i in range(low + 1, high + 1):
-            current_record = records[i]
-            current_key = self._extract_sort_key(current_record, key_column)
-            j = i - 1
-            
-            while j >= low:
-                compare_key = self._extract_sort_key(records[j], key_column)
-                if self._compare_keys(current_key, compare_key, reverse) >= 0:
-                    break
-                records[j + 1] = records[j]
-                j -= 1
-                
-            records[j + 1] = current_record
-            
-        return records
-
-    def select_algorithm(self, cnp.ndarray data):
-        """
-        Select the best sorting algorithm based on data characteristics
-        
-        Args:
-            data: Input array to analyze
-            
-        Returns:
-            String name of selected algorithm
-        """
-        cdef int n = len(data)
-        self.record_count = n
-        
-        if n < INSERTION_SORT_THRESHOLD:
-            return "insertion"
-        elif n > EXTERNAL_SORT_THRESHOLD:
-            return "external"
-        elif data.dtype in [np.int32, np.int64, np.uint32, np.uint64] and n > RADIX_SORT_THRESHOLD:
-            return "radix"
-        else:
-            return "introsort"
 
     def get_algorithm_info(self):
         """

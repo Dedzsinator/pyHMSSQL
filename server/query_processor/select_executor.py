@@ -313,7 +313,21 @@ class SelectExecutor:
                     # Sort with proper direction
                     reverse = direction == "DESC"
                     logging.info(f"Sorting by {order_column} {direction}, reverse={reverse}")
-                    results.sort(key=get_sort_key, reverse=reverse)
+                    
+                    # Try hyperoptimized sorting first
+                    try:
+                        import sys
+                        import os
+                        server_path = os.path.join(os.path.dirname(__file__), '..')
+                        if os.path.exists(server_path) and server_path not in sys.path:
+                            sys.path.insert(0, server_path)
+                        
+                        from hyperopt_integration import hyperopt_list_sort
+                        hyperopt_list_sort(results, key_func=get_sort_key, reverse=reverse)
+                    except Exception:
+                        # Fallback to built-in sorting
+                        results.sort(key=get_sort_key, reverse=reverse)
+                    
                     logging.info(f"Results sorted by {order_column} {direction}")
 
             # Apply LIMIT if specified - ensure it happens after ORDER BY

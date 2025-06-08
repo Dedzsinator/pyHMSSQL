@@ -1924,10 +1924,21 @@ class CatalogManager:
             if column:
                 try:
                     reverse_order = direction.upper() == "DESC"
-                    records.sort(
-                        key=lambda x: self._get_sortable_value(x.get(column)),
-                        reverse=reverse_order
-                    )
+                    
+                    # Try hyperoptimized sorting first
+                    try:
+                        from hyperopt_integration import hyperopt_list_sort
+                        hyperopt_list_sort(
+                            records,
+                            key_func=lambda x: self._get_sortable_value(x.get(column)),
+                            reverse=reverse_order
+                        )
+                    except Exception:
+                        # Fallback to built-in sorting
+                        records.sort(
+                            key=lambda x: self._get_sortable_value(x.get(column)),
+                            reverse=reverse_order
+                        )
                 except Exception as e:
                     logging.warning(f"Error sorting by {column}: {str(e)}")
 

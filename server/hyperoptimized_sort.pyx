@@ -110,6 +110,10 @@ cdef class HyperoptimizedSorter:
                 except:
                     pass
             self.temp_files.clear()
+    
+    def cleanup_temp_files(self):
+        """Public method to clean up temporary files"""
+        self._cleanup_temp_files()
         
     def sort_records(self, records: List[dict], key_column: str, reverse: bool = False) -> List[dict]:
         """
@@ -140,18 +144,21 @@ cdef class HyperoptimizedSorter:
             return self._introsort_records(records, key_column, reverse)
     
     cdef bint _is_numeric_sortable(self, list records, str key_column):
-        """Check if the data is suitable for radix sort"""
+        """Check if the data is suitable for radix sort (integers only)"""
         cdef int sample_size = min(100, len(records))
-        cdef int numeric_count = 0
+        cdef int integer_count = 0
         
         for i in range(sample_size):
             record = records[i]
             if key_column in record:
                 value = record[key_column]
-                if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    numeric_count += 1
+                # Only integers are suitable for radix sort, not floats
+                # Check for regular int and NumPy integer types
+                if (isinstance(value, int) and not isinstance(value, bool)) or \
+                   (hasattr(value, 'dtype') and 'int' in str(value.dtype)):
+                    integer_count += 1
                     
-        return numeric_count >= sample_size * 0.9  # 90% numeric threshold
+        return integer_count >= sample_size * 0.9  # 90% integer threshold
 
     def _insertion_sort_records(self, list records, str key_column, bint reverse):
         """
@@ -170,7 +177,7 @@ cdef class HyperoptimizedSorter:
             # Branchless comparison with early termination
             while j >= 0:
                 compare_key = self._extract_sort_key(records[j], key_column)
-                if not self._should_swap(current_key, compare_key, reverse):
+                if not self._should_swap(compare_key, current_key, reverse):
                     break
                 records[j + 1] = records[j]
                 j -= 1
@@ -323,7 +330,10 @@ cdef class HyperoptimizedSorter:
         
         for i, record in enumerate(records):
             key_value = self._extract_sort_key(record, key_column)
-            if isinstance(key_value, (int, float)):
+            # Only integers for radix sort, as verified by _is_numeric_sortable
+            # Check for regular int and NumPy integer types
+            if (isinstance(key_value, int) and not isinstance(key_value, bool)) or \
+               (hasattr(key_value, 'dtype') and 'int' in str(key_value.dtype)):
                 numeric_records.append((key_value, i, record))
         
         if not numeric_records:
@@ -338,8 +348,8 @@ cdef class HyperoptimizedSorter:
 
     cdef list _radix_sort_numeric(self, list numeric_records, bint reverse):
         """
-        LSD (Least Significant Digit) radix sort for floating point numbers
-        Uses bit manipulation for IEEE 754 compliance
+        LSD (Least Significant Digit) radix sort for integers with negative number support
+        Separates negative and positive numbers, sorts separately, then combines
         """
         if not numeric_records:
             return numeric_records
@@ -350,40 +360,166 @@ cdef class HyperoptimizedSorter:
         # Convert to integer representation for bit manipulation
         cdef list int_records = []
         for value, idx, record in numeric_records:
-            if isinstance(value, float):
-                # IEEE 754 bit manipulation
-                int_val = self._float_to_sortable_int(value)
+            # Since _is_numeric_sortable() ensures only integers reach here,
+            # we shouldn't have any floats
+            # Check for regular int and NumPy integer types
+            if not ((isinstance(value, int) and not isinstance(value, bool)) or \
+                   (hasattr(value, 'dtype') and 'int' in str(value.dtype))):
+                raise ValueError(f"Radix sort received non-integer value: {type(value)}")
+            int_records.append((value, idx, record))
+        
+        # Separate negative and positive numbers
+        cdef list negative_records = []
+        cdef list positive_records = []
+        
+        for value, idx, record in int_records:
+            if value < 0:
+                negative_records.append((value, idx, record))
             else:
-                int_val = value
-            int_records.append((int_val, idx, record))
+                positive_records.append((value, idx, record))
         
-        # Perform radix sort on integer representation
-        cdef int max_val = max(abs(item[0]) for item in int_records)
-        cdef int exp = 1
+        # Sort positive numbers normally
+        if positive_records:
+            positive_records = self._radix_sort_positive(positive_records, radix)
         
+        # Sort negative numbers by their absolute value, then reverse
+        if negative_records:
+            negative_records = self._radix_sort_negative(negative_records, radix)
+        
+        # Combine results based on reverse flag
+        cdef list result = []
+        if reverse:
+            # For reverse order: positive numbers first (largest to smallest), then negative (closest to zero first)
+            # Reverse the positive numbers to get largest first
+            positive_records.reverse()
+            result.extend(positive_records)
+            # Negative numbers are already in correct order from _radix_sort_negative (closest to zero first)
+            result.extend(negative_records)
+        else:
+            # For normal order: negative numbers first (furthest from zero first), then positive (smallest to largest)
+            result.extend(negative_records)
+            result.extend(positive_records)
+            
+        return result
+
+    cdef list _radix_sort_positive(self, list positive_records, int radix):
+        """Radix sort for positive integers"""
+        if not positive_records:
+            return positive_records
+            
+        # Find maximum value
+        cdef long long max_val = 0
+        for value, idx, record in positive_records:
+            if value > max_val:
+                max_val = value
+        
+        cdef long long exp = 1
         while max_val // exp > 0:
-            int_records = self._counting_sort_by_digit(int_records, exp, radix)
+            positive_records = self._counting_sort_by_digit_positive(positive_records, exp, radix)
             exp *= radix
             
-        if reverse:
-            int_records.reverse()
+        return positive_records
+    
+    cdef list _radix_sort_negative(self, list negative_records, int radix):
+        """Radix sort for negative integers (by absolute value, then reverse)"""
+        if not negative_records:
+            return negative_records
             
-        return int_records
+        # Find maximum absolute value
+        cdef long long max_val = 0
+        cdef long long abs_val
+        for value, idx, record in negative_records:
+            abs_val = -value  # value is negative, so -value is positive
+            if abs_val > max_val:
+                max_val = abs_val
+        
+        cdef long long exp = 1
+        while max_val // exp > 0:
+            negative_records = self._counting_sort_by_digit_negative(negative_records, exp, radix)
+            exp *= radix
+            
+        # Reverse the order so that -1 comes after -2 (closer to zero)
+        negative_records.reverse()
+        return negative_records
 
     cdef long long _float_to_sortable_int(self, double value):
         """Convert float to integer preserving sort order (IEEE 754 trick)"""
-        cdef long long int_bits = <long long>&value
-        cdef long long mask = <long long>((int_bits >> 63) & 0x7FFFFFFFFFFFFFFF)
-        return int_bits ^ mask
+        # Use struct module for safe bit conversion instead of unsafe pointer casting
+        import struct
+        int_bits = struct.unpack('!Q', struct.pack('!d', value))[0]
+        # Handle sign bit for proper sorting
+        if int_bits & 0x8000000000000000:
+            int_bits ^= 0x7FFFFFFFFFFFFFFF
+        else:
+            int_bits ^= 0x8000000000000000
+        return int_bits
 
-    cdef list _counting_sort_by_digit(self, list records, int exp, int radix):
+    cdef list _counting_sort_by_digit_positive(self, list records, long long exp, int radix):
         """
-        Counting sort by specific digit with cache optimization
-        Uses prefetching and memory-friendly access patterns
+        Counting sort by specific digit for positive numbers
         """
         cdef int n = len(records)
         cdef list output = [None] * n
         cdef list count = [0] * radix
+        cdef long long digit
+        
+        # Count occurrences of each digit
+        for i in range(n):
+            digit = (records[i][0] // exp) % radix
+            count[digit] += 1
+            
+        # Cumulative count
+        for i in range(1, radix):
+            count[i] += count[i - 1]
+            
+        # Build output array
+        for i in range(n - 1, -1, -1):
+            digit = (records[i][0] // exp) % radix
+            output[count[digit] - 1] = records[i]
+            count[digit] -= 1
+            
+        return output
+    
+    cdef list _counting_sort_by_digit_negative(self, list records, long long exp, int radix):
+        """
+        Counting sort by specific digit for negative numbers (using absolute values)
+        """
+        cdef int n = len(records)
+        cdef list output = [None] * n
+        cdef list count = [0] * radix
+        cdef long long digit
+        cdef long long abs_value
+        
+        # Count occurrences of each digit (using absolute value)
+        for i in range(n):
+            abs_value = -records[i][0]  # records[i][0] is negative, so -records[i][0] is positive
+            digit = (abs_value // exp) % radix
+            count[digit] += 1
+            
+        # Cumulative count
+        for i in range(1, radix):
+            count[i] += count[i - 1]
+            
+        # Build output array
+        for i in range(n - 1, -1, -1):
+            abs_value = -records[i][0]  # records[i][0] is negative, so -records[i][0] is positive
+            digit = (abs_value // exp) % radix
+            output[count[digit] - 1] = records[i]
+            count[digit] -= 1
+            
+        return output
+
+    cdef list _counting_sort_by_digit(self, list records, long long exp, int radix):
+        """
+        DEPRECATED: Legacy counting sort by specific digit
+        Use _counting_sort_by_digit_positive or _counting_sort_by_digit_negative instead
+        """
+        # This method is kept for backwards compatibility but should not be used
+        # for mixed positive/negative numbers
+        cdef int n = len(records)
+        cdef list output = [None] * n
+        cdef list count = [0] * radix
+        cdef long long digit
         
         # Count occurrences of each digit
         for i in range(n):
@@ -527,14 +663,16 @@ cdef class HyperoptimizedSorter:
                     return int(value)
             except (ValueError, TypeError):
                 return value.lower()  # Case-insensitive string comparison
-        elif isinstance(value, (int, float)):
-            return float(value)
+        elif isinstance(value, (int, float)) or hasattr(value, 'dtype'):
+            # Handle regular numbers and NumPy numeric types
+            return value  # Keep original type
         else:
             return str(value).lower()
 
     cdef double _get_numeric_key(self, object key):
         """Convert key to numeric value for heap operations"""
-        if isinstance(key, (int, float)):
+        if isinstance(key, (int, float)) or hasattr(key, 'dtype'):
+            # Handle regular numbers and NumPy numeric types
             return float(key)
         elif isinstance(key, str):
             # Hash string to numeric value for consistent ordering
@@ -549,7 +687,7 @@ cdef class HyperoptimizedSorter:
 
     cdef int _compare_keys(self, object key1, object key2, bint reverse):
         """
-        Optimized key comparison with type-aware logic
+        Optimized key comparison with type-aware logic and special float handling
         Returns: < 0 if key1 < key2, 0 if equal, > 0 if key1 > key2
         """
         cdef int result
@@ -561,8 +699,33 @@ cdef class HyperoptimizedSorter:
             return -1
         elif key2 is None:
             return 1
+        
+        # Handle special float values (NaN, inf, -inf)
+        if isinstance(key1, float) and isinstance(key2, float):
+            import math
             
-        # Type-safe comparison
+            # Handle NaN values - NaN should come last
+            if math.isnan(key1) and math.isnan(key2):
+                return 0
+            elif math.isnan(key1):
+                return 1  # NaN is "greater" (comes last)
+            elif math.isnan(key2):
+                return -1  # NaN is "greater" (comes last)
+            
+            # Handle infinity values
+            if math.isinf(key1) and math.isinf(key2):
+                if key1 == key2:  # Both +inf or both -inf
+                    return 0
+                elif key1 > key2:  # key1 is +inf, key2 is -inf
+                    return 1
+                else:  # key1 is -inf, key2 is +inf
+                    return -1
+            elif math.isinf(key1):
+                return 1 if key1 > 0 else -1  # +inf > everything, -inf < everything
+            elif math.isinf(key2):
+                return -1 if key2 > 0 else 1  # +inf > everything, -inf < everything
+            
+        # Type-safe comparison for normal values
         try:
             if key1 < key2:
                 result = -1
@@ -587,28 +750,46 @@ cdef class HyperoptimizedSorter:
             
         return result
 
-    def sort(self, data):
+    def sort(self, data, reverse=False):
         """
         Sort method compatible with the test suite
         Handles both arrays and dictionaries
+        For NumPy arrays, sorts in-place for compatibility with tests
+        
+        Args:
+            data: Data to sort (NumPy array, list, or list of dicts)  
+            reverse: If True, sort in descending order
         """
         if len(data) == 0:
             return data
             
+        # Check if it's a NumPy array - sort in-place for test compatibility
+        if isinstance(data, np.ndarray):
+            # Convert to list, sort, then copy back to original array
+            original_data = data.tolist()
+            dict_data = [{'value': item} for item in original_data]
+            sorted_dict = self.sort_records(dict_data, 'value', reverse)
+            sorted_values = [item['value'] for item in sorted_dict]
+            
+            # Copy sorted values back to original array in-place
+            for i, value in enumerate(sorted_values):
+                data[i] = value
+            return data
+            
         # Check if it's an array of primitives or dictionaries
-        if isinstance(data[0], dict):
+        elif isinstance(data[0], dict):
             # For dictionary records, use a default key or assume 'value' key
             if 'value' in data[0]:
-                return self.sort_records(data, 'value', False)
+                return self.sort_records(data, 'value', reverse)
             else:
                 # Convert to dict format for sorting
                 dict_data = [{'value': item, 'index': i} for i, item in enumerate(data)]
-                sorted_dict = self.sort_records(dict_data, 'value', False)
+                sorted_dict = self.sort_records(dict_data, 'value', reverse)
                 return [item['value'] for item in sorted_dict]
         else:
             # Convert primitive array to dict format for sorting
             dict_data = [{'value': item} for item in data]
-            sorted_dict = self.sort_records(dict_data, 'value', False)
+            sorted_dict = self.sort_records(dict_data, 'value', reverse)
             return [item['value'] for item in sorted_dict]
 
     def select_algorithm(self, data):
@@ -698,7 +879,7 @@ def hyperopt_sort(data, key_column: str = 'value', reverse: bool = False,
             sorted_records = sorter.sort_records(records, key_column, reverse)
             return [item['value'] for item in sorted_records]
         finally:
-            sorter._cleanup_temp_files()
+            sorter.cleanup_temp_files()
     else:
         # Handle dictionary records
         sorter = create_optimized_sorter(memory_limit_mb, temp_dir)
@@ -706,7 +887,7 @@ def hyperopt_sort(data, key_column: str = 'value', reverse: bool = False,
             return sorter.sort_records(data, key_column, reverse)
         finally:
             # Ensure cleanup
-            sorter._cleanup_temp_files()
+            sorter.cleanup_temp_files()
 
 
 # Additional convenience function with index tracking
@@ -731,7 +912,7 @@ def hyperopt_sort_with_indices(data, key_column: str = 'value', reverse: bool = 
         indexed_records = [{'__orig_idx__': i, 'value': value} for i, value in enumerate(data)]
         
         # Sort with index tracking
-        sorted_records = hyperopt_sort(indexed_records, '__orig_idx__', reverse)
+        sorted_records = hyperopt_sort(indexed_records, key_column, reverse)
         
         # Extract results
         result_values = []

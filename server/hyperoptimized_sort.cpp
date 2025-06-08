@@ -1770,7 +1770,6 @@ static CYTHON_INLINE __pyx_t_long_double_complex __pyx_t_long_double_complex_fro
 /*--- Type declarations ---*/
 struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter;
 struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr;
-struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr;
 struct __pyx_t_19hyperoptimized_sort_SortRecord;
 typedef struct __pyx_t_19hyperoptimized_sort_SortRecord __pyx_t_19hyperoptimized_sort_SortRecord;
 struct __pyx_t_19hyperoptimized_sort_ChunkInfo;
@@ -1825,30 +1824,14 @@ struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter {
 };
 
 
-/* "hyperoptimized_sort.pyx":361
- * 
- *         # Perform radix sort on integer representation
- *         cdef int max_val = max(abs(item[0]) for item in int_records)             # <<<<<<<<<<<<<<
- *         cdef int exp = 1
- * 
-*/
-struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr {
-  PyObject_HEAD
-  PyObject *__pyx_genexpr_arg_0;
-  PyObject *__pyx_v_item;
-  PyObject *__pyx_t_0;
-  Py_ssize_t __pyx_t_1;
-};
-
-
-/* "hyperoptimized_sort.pyx":634
+/* "hyperoptimized_sort.pyx":815
  *             if data.dtype in [np.int32, np.int64, np.uint32, np.uint64] and n > RADIX_SORT_THRESHOLD:
  *                 return "radix"
  *         elif all(isinstance(x, (int, float)) for x in data[:min(100, len(data))]):             # <<<<<<<<<<<<<<
  *             if n > RADIX_SORT_THRESHOLD:
  *                 return "radix"
 */
-struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr {
+struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr {
   PyObject_HEAD
   PyObject *__pyx_genexpr_arg_0;
   PyObject *__pyx_v_x;
@@ -1874,8 +1857,12 @@ struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter {
   PyObject *(*_heapsort_range)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int, int, PyObject *, int);
   void (*_heapify)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int, int, int, PyObject *, int);
   PyObject *(*_radix_sort_numeric)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int);
+  PyObject *(*_radix_sort_positive)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int);
+  PyObject *(*_radix_sort_negative)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int);
   PY_LONG_LONG (*_float_to_sortable_int)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, double);
-  PyObject *(*_counting_sort_by_digit)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int, int);
+  PyObject *(*_counting_sort_by_digit_positive)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, PY_LONG_LONG, int);
+  PyObject *(*_counting_sort_by_digit_negative)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, PY_LONG_LONG, int);
+  PyObject *(*_counting_sort_by_digit)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, PY_LONG_LONG, int);
   PyObject *(*_sort_and_write_chunks)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int, PyObject *, int);
   void (*_write_chunk_to_file)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, PyObject *);
   PyObject *(*_read_chunk_from_file)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *);
@@ -2280,6 +2267,9 @@ static void __Pyx_WriteUnraisable(const char *name, int clineno,
 static PyObject *__Pyx_PyObject_FastCallMethod(PyObject *name, PyObject *const *args, size_t nargsf);
 #endif
 
+/* RejectKeywords.proto */
+static void __Pyx_RejectKeywords(const char* function_name, PyObject *kwds);
+
 /* ArgTypeTest.proto */
 #define __Pyx_ArgTypeTest(obj, type, none_allowed, name, exact)\
     ((likely(__Pyx_IS_TYPE(obj, type) | (none_allowed && (obj == Py_None)))) ? 1 :\
@@ -2302,6 +2292,23 @@ static PyObject *__Pyx_PyDict_GetItem(PyObject *d, PyObject* key);
 #define __Pyx_PyDict_GetItem(d, key) PyObject_GetItem(d, key)
 #define __Pyx_PyObject_Dict_GetItem(obj, name)  PyObject_GetItem(obj, name)
 #endif
+
+/* HasAttr.proto */
+#if __PYX_LIMITED_VERSION_HEX >= 0x030d0000
+#define __Pyx_HasAttr(o, n)  PyObject_HasAttrWithError(o, n)
+#else
+static CYTHON_INLINE int __Pyx_HasAttr(PyObject *, PyObject *);
+#endif
+
+/* PyObject_Unicode.proto */
+#define __Pyx_PyObject_Unicode(obj)\
+    (likely(PyUnicode_CheckExact(obj)) ? __Pyx_NewRef(obj) : PyObject_Str(obj))
+
+/* PyUnicodeContains.proto */
+static CYTHON_INLINE int __Pyx_PyUnicode_ContainsTF(PyObject* substring, PyObject* text, int eq) {
+    int result = PyUnicode_Contains(text, substring);
+    return unlikely(result < 0) ? result : (result == (eq == Py_EQ));
+}
 
 /* SetItemInt.proto */
 #define __Pyx_SetItemInt(o, i, v, type, is_signed, to_py_func, is_list, wraparound, boundscheck)\
@@ -2408,23 +2415,6 @@ static PyObject *__Pyx_GetItemInt_Generic(PyObject *o, PyObject* j);
 static CYTHON_INLINE PyObject *__Pyx_GetItemInt_Fast(PyObject *o, Py_ssize_t i,
                                                      int is_list, int wraparound, int boundscheck);
 
-/* RaiseUnboundLocalError.proto */
-static void __Pyx_RaiseUnboundLocalError(const char *varname);
-
-/* py_abs.proto */
-#if CYTHON_USE_PYLONG_INTERNALS
-static PyObject *__Pyx_PyLong_AbsNeg(PyObject *num);
-#define __Pyx_PyNumber_Absolute(x)\
-    ((likely(PyLong_CheckExact(x))) ?\
-         (likely(__Pyx_PyLong_IsNonNeg(x)) ? (Py_INCREF(x), (x)) : __Pyx_PyLong_AbsNeg(x)) :\
-         PyNumber_Absolute(x))
-#else
-#define __Pyx_PyNumber_Absolute(x)  PyNumber_Absolute(x)
-#endif
-
-/* pep479.proto */
-static void __Pyx_Generator_Replace_StopIteration(int in_async_gen);
-
 /* RaiseTooManyValuesToUnpack.proto */
 static CYTHON_INLINE void __Pyx_RaiseTooManyValuesError(Py_ssize_t expected);
 
@@ -2437,6 +2427,45 @@ static CYTHON_INLINE int __Pyx_IterFinish(void);
 /* UnpackItemEndCheck.proto */
 static int __Pyx_IternextUnpackEndCheck(PyObject *retval, Py_ssize_t expected);
 
+/* PyObjectFormatSimple.proto */
+#if CYTHON_COMPILING_IN_PYPY
+    #define __Pyx_PyObject_FormatSimple(s, f) (\
+        likely(PyUnicode_CheckExact(s)) ? (Py_INCREF(s), s) :\
+        PyObject_Format(s, f))
+#elif CYTHON_USE_TYPE_SLOTS
+    #define __Pyx_PyObject_FormatSimple(s, f) (\
+        likely(PyUnicode_CheckExact(s)) ? (Py_INCREF(s), s) :\
+        likely(PyLong_CheckExact(s)) ? PyLong_Type.tp_repr(s) :\
+        likely(PyFloat_CheckExact(s)) ? PyFloat_Type.tp_repr(s) :\
+        PyObject_Format(s, f))
+#else
+    #define __Pyx_PyObject_FormatSimple(s, f) (\
+        likely(PyUnicode_CheckExact(s)) ? (Py_INCREF(s), s) :\
+        PyObject_Format(s, f))
+#endif
+
+/* ListExtend.proto */
+static CYTHON_INLINE int __Pyx_PyList_Extend(PyObject* L, PyObject* v) {
+#if !CYTHON_COMPILING_IN_LIMITED_API && PY_VERSION_HEX >= 0x030d00a2
+    return PyList_Extend(L, v);
+#elif CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX < 0x030d0000
+    PyObject* none = _PyList_Extend((PyListObject*)L, v);
+    if (unlikely(!none))
+        return -1;
+    Py_DECREF(none);
+    return 0;
+#else
+    return PyList_SetSlice(L, PY_SSIZE_T_MAX, PY_SSIZE_T_MAX, v);
+#endif
+}
+
+/* Import.proto */
+static PyObject *__Pyx_Import(PyObject *name, PyObject *from_list, int level);
+
+/* ImportDottedModule.proto */
+static PyObject *__Pyx_ImportDottedModule(PyObject *name, PyObject *parts_tuple);
+static PyObject *__Pyx_ImportDottedModule_WalkParts(PyObject *module, PyObject *name, PyObject *parts_tuple);
+
 /* PyLongBinop.proto */
 #if !CYTHON_COMPILING_IN_PYPY
 static CYTHON_INLINE PyObject* __Pyx_PyLong_AddObjC(PyObject *op1, PyObject *op2, long intval, int inplace, int zerodivision_check);
@@ -2445,22 +2474,23 @@ static CYTHON_INLINE PyObject* __Pyx_PyLong_AddObjC(PyObject *op1, PyObject *op2
     (inplace ? PyNumber_InPlaceAdd(op1, op2) : PyNumber_Add(op1, op2))
 #endif
 
-/* PyObjectCallOneArg.proto */
-static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg);
-
-/* ObjectGetItem.proto */
-#if CYTHON_USE_TYPE_SLOTS
-static CYTHON_INLINE PyObject *__Pyx_PyObject_GetItem(PyObject *obj, PyObject *key);
-#else
-#define __Pyx_PyObject_GetItem(obj, key)  PyObject_GetItem(obj, key)
-#endif
-
 /* PyLongBinop.proto */
 #if !CYTHON_COMPILING_IN_PYPY
 static CYTHON_INLINE PyObject* __Pyx_PyLong_SubtractObjC(PyObject *op1, PyObject *op2, long intval, int inplace, int zerodivision_check);
 #else
 #define __Pyx_PyLong_SubtractObjC(op1, op2, intval, inplace, zerodivision_check)\
     (inplace ? PyNumber_InPlaceSubtract(op1, op2) : PyNumber_Subtract(op1, op2))
+#endif
+
+/* py_abs.proto */
+#if CYTHON_USE_PYLONG_INTERNALS
+static PyObject *__Pyx_PyLong_AbsNeg(PyObject *num);
+#define __Pyx_PyNumber_Absolute(x)\
+    ((likely(PyLong_CheckExact(x))) ?\
+         (likely(__Pyx_PyLong_IsNonNeg(x)) ? (Py_INCREF(x), (x)) : __Pyx_PyLong_AbsNeg(x)) :\
+         PyNumber_Absolute(x))
+#else
+#define __Pyx_PyNumber_Absolute(x)  PyNumber_Absolute(x)
 #endif
 
 /* SliceTupleAndList.proto */
@@ -2706,9 +2736,8 @@ static CYTHON_INLINE int __Pyx_PyErr_GivenExceptionMatches2(PyObject *err, PyObj
   #define __Pyx_PyBaseException_Check(obj) __Pyx_TypeCheck(obj, PyExc_BaseException)
 #endif
 
-/* PyObject_Unicode.proto */
-#define __Pyx_PyObject_Unicode(obj)\
-    (likely(PyUnicode_CheckExact(obj)) ? __Pyx_NewRef(obj) : PyObject_Str(obj))
+/* PyObjectCallOneArg.proto */
+static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg);
 
 /* pyobject_as_double.proto */
 static double __Pyx__PyObject_AsDouble(PyObject* obj);
@@ -2724,14 +2753,17 @@ static double __Pyx__PyObject_AsDouble(PyObject* obj);
  PyLong_AsDouble(obj) : __Pyx__PyObject_AsDouble(obj))
 #endif
 
+/* RaiseUnboundLocalError.proto */
+static void __Pyx_RaiseUnboundLocalError(const char *varname);
+
+/* pep479.proto */
+static void __Pyx_Generator_Replace_StopIteration(int in_async_gen);
+
 /* SliceObject.proto */
 static CYTHON_INLINE PyObject* __Pyx_PyObject_GetSlice(
         PyObject* obj, Py_ssize_t cstart, Py_ssize_t cstop,
         PyObject** py_start, PyObject** py_stop, PyObject** py_slice,
         int has_cstart, int has_cstop, int wraparound);
-
-/* RejectKeywords.proto */
-static void __Pyx_RejectKeywords(const char* function_name, PyObject *kwds);
 
 /* GetAttr3.proto */
 static CYTHON_INLINE PyObject *__Pyx_GetAttr3(PyObject *, PyObject *, PyObject *);
@@ -2747,18 +2779,8 @@ static CYTHON_INLINE void __Pyx_ExceptionSwap(PyObject **type, PyObject **value,
 /* RaiseMappingExpected.proto */
 static void __Pyx_RaiseMappingExpectedError(PyObject* arg);
 
-/* Import.proto */
-static PyObject *__Pyx_Import(PyObject *name, PyObject *from_list, int level);
-
 /* ImportFrom.proto */
 static PyObject* __Pyx_ImportFrom(PyObject* module, PyObject* name);
-
-/* HasAttr.proto */
-#if __PYX_LIMITED_VERSION_HEX >= 0x030d0000
-#define __Pyx_HasAttr(o, n)  PyObject_HasAttrWithError(o, n)
-#else
-static CYTHON_INLINE int __Pyx_HasAttr(PyObject *, PyObject *);
-#endif
 
 /* CallTypeTraverse.proto */
 #if !CYTHON_USE_TYPE_SPECS || (!CYTHON_COMPILING_IN_LIMITED_API && PY_VERSION_HEX < 0x03090000)
@@ -2830,10 +2852,6 @@ enum __Pyx_ImportType_CheckSize_3_1_0 {
 };
 static PyTypeObject *__Pyx_ImportType_3_1_0(PyObject* module, const char *module_name, const char *class_name, size_t size, size_t alignment, enum __Pyx_ImportType_CheckSize_3_1_0 check_size);
 #endif
-
-/* ImportDottedModule.proto */
-static PyObject *__Pyx_ImportDottedModule(PyObject *name, PyObject *parts_tuple);
-static PyObject *__Pyx_ImportDottedModule_WalkParts(PyObject *module, PyObject *name, PyObject *parts_tuple);
 
 /* ListPack.proto */
 static PyObject *__Pyx_PyList_Pack(Py_ssize_t n, ...);
@@ -3225,8 +3243,12 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
 static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapsort_range(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, int __pyx_v_low, int __pyx_v_high, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto*/
 static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, int __pyx_v_low, int __pyx_v_high, int __pyx_v_root, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto*/
 static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sort_numeric(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_numeric_records, int __pyx_v_reverse); /* proto*/
+static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sort_positive(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_positive_records, int __pyx_v_radix); /* proto*/
+static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sort_negative(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_negative_records, int __pyx_v_radix); /* proto*/
 static PY_LONG_LONG __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__float_to_sortable_int(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, double __pyx_v_value); /* proto*/
-static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, int __pyx_v_exp, int __pyx_v_radix); /* proto*/
+static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit_positive(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PY_LONG_LONG __pyx_v_exp, int __pyx_v_radix); /* proto*/
+static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit_negative(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PY_LONG_LONG __pyx_v_exp, int __pyx_v_radix); /* proto*/
+static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PY_LONG_LONG __pyx_v_exp, int __pyx_v_radix); /* proto*/
 static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_write_chunks(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, int __pyx_v_chunk_size, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto*/
 static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to_file(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_chunk, PyObject *__pyx_v_filename); /* proto*/
 static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chunk_from_file(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_filename); /* proto*/
@@ -3277,18 +3299,18 @@ int __pyx_module_is_main_hyperoptimized_sort = 0;
 /* #### Code section: global_var ### */
 static PyObject *__pyx_builtin_range;
 static PyObject *__pyx_builtin_enumerate;
-static PyObject *__pyx_builtin_max;
+static PyObject *__pyx_builtin_ValueError;
 static PyObject *__pyx_builtin_open;
 static PyObject *__pyx_builtin_StopIteration;
-static PyObject *__pyx_builtin_ValueError;
 static PyObject *__pyx_builtin_TypeError;
 static PyObject *__pyx_builtin_ImportError;
 /* #### Code section: string_decls ### */
 static const char __pyx_k_[] = ".";
 static const char __pyx_k_1[] = "\2301";
+static const char __pyx_k_Q[] = "!Q";
+static const char __pyx_k_d[] = "!d";
 static const char __pyx_k_x[] = "x";
 static const char __pyx_k__2[] = "?";
-static const char __pyx_k__3[] = "\240!";
 static const char __pyx_k_gc[] = "gc";
 static const char __pyx_k_np[] = "np";
 static const char __pyx_k_os[] = "os";
@@ -3296,7 +3318,7 @@ static const char __pyx_k_rb[] = "rb";
 static const char __pyx_k_wb[] = "wb";
 static const char __pyx_k_Any[] = "Any";
 static const char __pyx_k_inf[] = "-inf";
-static const char __pyx_k_max[] = "max";
+static const char __pyx_k_int[] = "int";
 static const char __pyx_k_new[] = "__new__";
 static const char __pyx_k_pop[] = "pop";
 static const char __pyx_k_tmp[] = ".tmp";
@@ -3306,7 +3328,6 @@ static const char __pyx_k_dict[] = "__dict__";
 static const char __pyx_k_dump[] = "dump";
 static const char __pyx_k_exit[] = "__exit__";
 static const char __pyx_k_info[] = "info";
-static const char __pyx_k_item[] = "item";
 static const char __pyx_k_join[] = "join";
 static const char __pyx_k_load[] = "load";
 static const char __pyx_k_main[] = "__main__";
@@ -3314,6 +3335,7 @@ static const char __pyx_k_math[] = "math";
 static const char __pyx_k_name[] = "__name__";
 static const char __pyx_k_next[] = "next";
 static const char __pyx_k_open[] = "open";
+static const char __pyx_k_pack[] = "pack";
 static const char __pyx_k_path[] = "path";
 static const char __pyx_k_send[] = "send";
 static const char __pyx_k_spec[] = "__spec__";
@@ -3328,6 +3350,8 @@ static const char __pyx_k_heapq[] = "heapq";
 static const char __pyx_k_index[] = "index";
 static const char __pyx_k_int32[] = "int32";
 static const char __pyx_k_int64[] = "int64";
+static const char __pyx_k_isinf[] = "isinf";
+static const char __pyx_k_isnan[] = "isnan";
 static const char __pyx_k_lower[] = "lower";
 static const char __pyx_k_numpy[] = "numpy";
 static const char __pyx_k_radix[] = "radix";
@@ -3340,9 +3364,12 @@ static const char __pyx_k_module[] = "__module__";
 static const char __pyx_k_pickle[] = "pickle";
 static const char __pyx_k_reduce[] = "__reduce__";
 static const char __pyx_k_remove[] = "remove";
+static const char __pyx_k_struct[] = "struct";
+static const char __pyx_k_tolist[] = "tolist";
 static const char __pyx_k_typing[] = "typing";
 static const char __pyx_k_uint32[] = "uint32";
 static const char __pyx_k_uint64[] = "uint64";
+static const char __pyx_k_unpack[] = "unpack";
 static const char __pyx_k_update[] = "update";
 static const char __pyx_k_Merging[] = "Merging ";
 static const char __pyx_k_disable[] = "disable";
@@ -3388,7 +3415,6 @@ static const char __pyx_k_initializing[] = "_initializing";
 static const char __pyx_k_pyx_checksum[] = "__pyx_checksum";
 static const char __pyx_k_sort_records[] = "sort_records";
 static const char __pyx_k_StopIteration[] = "StopIteration";
-static const char __pyx_k_class_getitem[] = "__class_getitem__";
 static const char __pyx_k_hyperopt_sort[] = "hyperopt_sort";
 static const char __pyx_k_reduce_cython[] = "__reduce_cython__";
 static const char __pyx_k_sorted_chunks[] = " sorted chunks";
@@ -3399,7 +3425,7 @@ static const char __pyx_k_numeric_records[] = " numeric records";
 static const char __pyx_k_setstate_cython[] = "__setstate_cython__";
 static const char __pyx_k_HIGHEST_PROTOCOL[] = "HIGHEST_PROTOCOL";
 static const char __pyx_k_introsort_records[] = "_introsort_records";
-static const char __pyx_k_cleanup_temp_files[] = "_cleanup_temp_files";
+static const char __pyx_k_cleanup_temp_files[] = "cleanup_temp_files";
 static const char __pyx_k_cline_in_traceback[] = "cline_in_traceback";
 static const char __pyx_k_k_way_merge_chunks[] = "_k_way_merge_chunks";
 static const char __pyx_k_radix_sort_records[] = "_radix_sort_records";
@@ -3415,8 +3441,8 @@ static const char __pyx_k_external_merge_sort_records[] = "_external_merge_sort_
 static const char __pyx_k_Using_external_merge_sort_for[] = "Using external merge sort for ";
 static const char __pyx_k_pyx_unpickle_HyperoptimizedSor[] = "__pyx_unpickle_HyperoptimizedSorter";
 static const char __pyx_k_Hyperoptimized_Sorting_Engine_f[] = "\nHyperoptimized Sorting Engine for pyHMSSQL Database\n===================================================\n\nThis module implements multiple high-performance sorting algorithms:\n1. Hyperoptimized QuickSort with register-level optimizations\n2. External Merge Sort for large datasets\n3. Hybrid RadixSort for numeric data\n4. Branchless comparison operations\n5. SIMD-inspired vectorized operations\n6. Instruction-level parallelism optimizations\n\nFeatures:\n- O(n log n) worst-case guarantee with IntroSort\n- O(n) for special cases (nearly sorted, identical elements)\n- External sorting for datasets larger than memory\n- Cache-friendly memory access patterns\n- Branch prediction optimizations\n- Register-level data manipulation\n";
+static const char __pyx_k_Radix_sort_received_non_integer[] = "Radix sort received non-integer value: ";
 static const char __pyx_k_select_algorithm_locals_genexpr[] = "select_algorithm.<locals>.genexpr";
-static const char __pyx_k_HyperoptimizedSorter__radix_sort[] = "HyperoptimizedSorter._radix_sort_numeric.<locals>.genexpr";
 static const char __pyx_k_Incompatible_checksums_0x_x_vs_0[] = "Incompatible checksums (0x%x vs (0xd3f3d5a, 0x96a58c3, 0x0f23551) = (enable_parallel, enable_simd, logger, memory_limit_mb, record_count, temp_dir, temp_files, use_external_sort))";
 static const char __pyx_k_Introspective_Sort_QuickSort_Hea[] = "Introspective Sort (QuickSort + HeapSort)";
 static const char __pyx_k_Note_that_Cython_is_deliberately[] = "Note that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.";
@@ -3425,26 +3451,25 @@ static const char __pyx_k_numpy__core_umath_failed_to_impo[] = "numpy._core.umat
 /* #### Code section: decls ### */
 static int __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter___init__(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_memory_limit_mb, PyObject *__pyx_v_temp_dir, PyObject *__pyx_v_enable_simd, PyObject *__pyx_v_enable_parallel); /* proto */
 static void __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_2__dealloc__(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, PyObject *__pyx_v_reverse); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_insertion_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_introsort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_19_radix_sort_numeric_genexpr(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_genexpr_arg_0); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_external_merge_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_merge_chunks(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_chunk_files, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16sort(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_data); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4cleanup_temp_files(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, PyObject *__pyx_v_reverse); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_insertion_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_introsort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_radix_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_external_merge_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16_k_way_merge_chunks(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_chunk_files, PyObject *__pyx_v_key_column, int __pyx_v_reverse); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18sort(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_data, PyObject *__pyx_v_reverse); /* proto */
 static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_genexpr(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_genexpr_arg_0); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_algorithm(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_data); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_algorithm_info(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_22__reduce_cython__(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_24__setstate_cython__(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v___pyx_state); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20select_algorithm(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_data); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_22get_algorithm_info(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_24__reduce_cython__(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_26__setstate_cython__(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v___pyx_state); /* proto */
 static PyObject *__pyx_pf_19hyperoptimized_sort_create_optimized_sorter(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_memory_limit_mb, PyObject *__pyx_v_temp_dir, PyObject *__pyx_v_enable_simd, PyObject *__pyx_v_enable_parallel); /* proto */
 static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_data, PyObject *__pyx_v_key_column, PyObject *__pyx_v_reverse, PyObject *__pyx_v_memory_limit_mb, PyObject *__pyx_v_temp_dir); /* proto */
 static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_data, PyObject *__pyx_v_key_column, PyObject *__pyx_v_reverse); /* proto */
 static PyObject *__pyx_pf_19hyperoptimized_sort_6__pyx_unpickle_HyperoptimizedSorter(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v___pyx_type, long __pyx_v___pyx_checksum, PyObject *__pyx_v___pyx_state); /* proto */
 static PyObject *__pyx_tp_new_19hyperoptimized_sort_HyperoptimizedSorter(PyTypeObject *t, PyObject *a, PyObject *k); /*proto*/
 static PyObject *__pyx_tp_new_19hyperoptimized_sort___pyx_scope_struct__genexpr(PyTypeObject *t, PyObject *a, PyObject *k); /*proto*/
-static PyObject *__pyx_tp_new_19hyperoptimized_sort___pyx_scope_struct_1_genexpr(PyTypeObject *t, PyObject *a, PyObject *k); /*proto*/
 /* #### Code section: late_includes ### */
 /* #### Code section: module_state ### */
 /* SmallCodeConfig */
@@ -3501,14 +3526,12 @@ typedef struct {
   PyTypeObject *__pyx_ptype_5numpy_ufunc;
   PyObject *__pyx_type_19hyperoptimized_sort_HyperoptimizedSorter;
   PyObject *__pyx_type_19hyperoptimized_sort___pyx_scope_struct__genexpr;
-  PyObject *__pyx_type_19hyperoptimized_sort___pyx_scope_struct_1_genexpr;
   PyTypeObject *__pyx_ptype_19hyperoptimized_sort_HyperoptimizedSorter;
   PyTypeObject *__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr;
-  PyTypeObject *__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr;
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_pop;
   PyObject *__pyx_tuple[2];
-  PyObject *__pyx_codeobj_tab[2];
-  PyObject *__pyx_string_tab[135];
+  PyObject *__pyx_codeobj_tab[1];
+  PyObject *__pyx_string_tab[141];
   PyObject *__pyx_int_0;
   PyObject *__pyx_int_1;
   PyObject *__pyx_int_2;
@@ -3517,6 +3540,7 @@ typedef struct {
   PyObject *__pyx_int_157964483;
   PyObject *__pyx_int_222248282;
   PyObject *__pyx_int_0x7fffffffffffffff;
+  PyObject *__pyx_int_0x8000000000000000;
 /* #### Code section: module_state_contents ### */
 /* IterNextPlain.module_state_decls */
 #if CYTHON_COMPILING_IN_LIMITED_API && __PYX_LIMITED_VERSION_HEX < 0x030A0000
@@ -3527,11 +3551,6 @@ PyObject *__Pyx_GetBuiltinNext_LimitedAPI_cache;
 #if CYTHON_USE_FREELISTS
 struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *__pyx_freelist_19hyperoptimized_sort___pyx_scope_struct__genexpr[8];
 int __pyx_freecount_19hyperoptimized_sort___pyx_scope_struct__genexpr;
-#endif
-
-#if CYTHON_USE_FREELISTS
-struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *__pyx_freelist_19hyperoptimized_sort___pyx_scope_struct_1_genexpr[8];
-int __pyx_freecount_19hyperoptimized_sort___pyx_scope_struct_1_genexpr;
 #endif
 /* CodeObjectCache.module_state_decls */
 struct __Pyx_CodeObjectCache __pyx_code_cache;
@@ -3567,135 +3586,141 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_kp_u_External_Merge_Sort __pyx_string_tab[3]
 #define __pyx_n_u_HIGHEST_PROTOCOL __pyx_string_tab[4]
 #define __pyx_n_u_HyperoptimizedSorter __pyx_string_tab[5]
-#define __pyx_n_u_HyperoptimizedSorter__radix_sort __pyx_string_tab[6]
-#define __pyx_n_u_ImportError __pyx_string_tab[7]
-#define __pyx_kp_u_Incompatible_checksums_0x_x_vs_0 __pyx_string_tab[8]
-#define __pyx_kp_u_Insertion_Sort __pyx_string_tab[9]
-#define __pyx_kp_u_Introspective_Sort_QuickSort_Hea __pyx_string_tab[10]
-#define __pyx_n_u_List __pyx_string_tab[11]
-#define __pyx_kp_u_Merging __pyx_string_tab[12]
-#define __pyx_kp_u_Note_that_Cython_is_deliberately __pyx_string_tab[13]
-#define __pyx_n_u_Optional __pyx_string_tab[14]
-#define __pyx_n_u_PickleError __pyx_string_tab[15]
-#define __pyx_n_u_StopIteration __pyx_string_tab[16]
-#define __pyx_n_u_Tuple __pyx_string_tab[17]
-#define __pyx_n_u_TypeError __pyx_string_tab[18]
-#define __pyx_n_u_Union __pyx_string_tab[19]
-#define __pyx_kp_u_Using_external_merge_sort_for __pyx_string_tab[20]
-#define __pyx_kp_u_Using_radix_sort_for __pyx_string_tab[21]
-#define __pyx_n_u_ValueError __pyx_string_tab[22]
-#define __pyx_kp_u__2 __pyx_string_tab[23]
-#define __pyx_kp_u_add_note __pyx_string_tab[24]
-#define __pyx_n_u_chunk_files __pyx_string_tab[25]
-#define __pyx_n_u_class_getitem __pyx_string_tab[26]
+#define __pyx_n_u_ImportError __pyx_string_tab[6]
+#define __pyx_kp_u_Incompatible_checksums_0x_x_vs_0 __pyx_string_tab[7]
+#define __pyx_kp_u_Insertion_Sort __pyx_string_tab[8]
+#define __pyx_kp_u_Introspective_Sort_QuickSort_Hea __pyx_string_tab[9]
+#define __pyx_n_u_List __pyx_string_tab[10]
+#define __pyx_kp_u_Merging __pyx_string_tab[11]
+#define __pyx_kp_u_Note_that_Cython_is_deliberately __pyx_string_tab[12]
+#define __pyx_n_u_Optional __pyx_string_tab[13]
+#define __pyx_n_u_PickleError __pyx_string_tab[14]
+#define __pyx_kp_u_Q __pyx_string_tab[15]
+#define __pyx_kp_u_Radix_sort_received_non_integer __pyx_string_tab[16]
+#define __pyx_n_u_StopIteration __pyx_string_tab[17]
+#define __pyx_n_u_Tuple __pyx_string_tab[18]
+#define __pyx_n_u_TypeError __pyx_string_tab[19]
+#define __pyx_n_u_Union __pyx_string_tab[20]
+#define __pyx_kp_u_Using_external_merge_sort_for __pyx_string_tab[21]
+#define __pyx_kp_u_Using_radix_sort_for __pyx_string_tab[22]
+#define __pyx_n_u_ValueError __pyx_string_tab[23]
+#define __pyx_kp_u__2 __pyx_string_tab[24]
+#define __pyx_kp_u_add_note __pyx_string_tab[25]
+#define __pyx_n_u_chunk_files __pyx_string_tab[26]
 #define __pyx_n_u_cleanup_temp_files __pyx_string_tab[27]
 #define __pyx_n_u_clear __pyx_string_tab[28]
 #define __pyx_n_u_cline_in_traceback __pyx_string_tab[29]
 #define __pyx_n_u_close __pyx_string_tab[30]
 #define __pyx_n_u_create_optimized_sorter __pyx_string_tab[31]
-#define __pyx_n_u_data __pyx_string_tab[32]
-#define __pyx_n_u_dict __pyx_string_tab[33]
-#define __pyx_kp_u_disable __pyx_string_tab[34]
-#define __pyx_n_u_dtype __pyx_string_tab[35]
-#define __pyx_n_u_dump __pyx_string_tab[36]
-#define __pyx_kp_u_enable __pyx_string_tab[37]
-#define __pyx_n_u_enable_parallel __pyx_string_tab[38]
-#define __pyx_n_u_enable_simd __pyx_string_tab[39]
-#define __pyx_n_u_enter __pyx_string_tab[40]
-#define __pyx_n_u_enumerate __pyx_string_tab[41]
-#define __pyx_n_u_exists __pyx_string_tab[42]
-#define __pyx_n_u_exit __pyx_string_tab[43]
-#define __pyx_n_u_external __pyx_string_tab[44]
-#define __pyx_n_u_external_merge_sort_records __pyx_string_tab[45]
-#define __pyx_kp_u_gc __pyx_string_tab[46]
-#define __pyx_n_u_genexpr __pyx_string_tab[47]
-#define __pyx_n_u_getLogger __pyx_string_tab[48]
-#define __pyx_n_u_getstate __pyx_string_tab[49]
-#define __pyx_n_u_gettempdir __pyx_string_tab[50]
-#define __pyx_n_u_heappop __pyx_string_tab[51]
-#define __pyx_n_u_heappush __pyx_string_tab[52]
-#define __pyx_n_u_heapq __pyx_string_tab[53]
-#define __pyx_n_u_hyperopt_sort __pyx_string_tab[54]
-#define __pyx_n_u_hyperopt_sort_with_indices __pyx_string_tab[55]
-#define __pyx_n_u_hyperoptimized_sort __pyx_string_tab[56]
-#define __pyx_kp_u_hyperoptimized_sort_pyx __pyx_string_tab[57]
-#define __pyx_n_u_index __pyx_string_tab[58]
-#define __pyx_kp_u_inf __pyx_string_tab[59]
-#define __pyx_n_u_info __pyx_string_tab[60]
-#define __pyx_n_u_initializing __pyx_string_tab[61]
-#define __pyx_n_u_insertion __pyx_string_tab[62]
-#define __pyx_n_u_insertion_sort_records __pyx_string_tab[63]
-#define __pyx_n_u_int32 __pyx_string_tab[64]
-#define __pyx_n_u_int64 __pyx_string_tab[65]
-#define __pyx_n_u_introsort __pyx_string_tab[66]
-#define __pyx_n_u_introsort_records __pyx_string_tab[67]
-#define __pyx_kp_u_isenabled __pyx_string_tab[68]
-#define __pyx_n_u_item __pyx_string_tab[69]
-#define __pyx_n_u_join __pyx_string_tab[70]
-#define __pyx_n_u_k_way_merge_chunks __pyx_string_tab[71]
-#define __pyx_n_u_key_column __pyx_string_tab[72]
-#define __pyx_n_u_load __pyx_string_tab[73]
-#define __pyx_n_u_logging __pyx_string_tab[74]
-#define __pyx_n_u_lower __pyx_string_tab[75]
-#define __pyx_n_u_main __pyx_string_tab[76]
-#define __pyx_n_u_math __pyx_string_tab[77]
-#define __pyx_n_u_max __pyx_string_tab[78]
-#define __pyx_n_u_memory_limit_mb __pyx_string_tab[79]
-#define __pyx_n_u_module __pyx_string_tab[80]
-#define __pyx_n_u_name __pyx_string_tab[81]
-#define __pyx_n_u_ndarray __pyx_string_tab[82]
-#define __pyx_n_u_new __pyx_string_tab[83]
-#define __pyx_n_u_next __pyx_string_tab[84]
-#define __pyx_n_u_np __pyx_string_tab[85]
-#define __pyx_kp_u_numeric_records __pyx_string_tab[86]
-#define __pyx_n_u_numpy __pyx_string_tab[87]
-#define __pyx_kp_u_numpy__core_multiarray_failed_to __pyx_string_tab[88]
-#define __pyx_kp_u_numpy__core_umath_failed_to_impo __pyx_string_tab[89]
-#define __pyx_n_u_open __pyx_string_tab[90]
-#define __pyx_n_u_orig_idx __pyx_string_tab[91]
-#define __pyx_n_u_os __pyx_string_tab[92]
-#define __pyx_n_u_path __pyx_string_tab[93]
-#define __pyx_n_u_pickle __pyx_string_tab[94]
-#define __pyx_n_u_pop __pyx_string_tab[95]
-#define __pyx_n_u_protocol __pyx_string_tab[96]
-#define __pyx_n_u_pyx_checksum __pyx_string_tab[97]
-#define __pyx_n_u_pyx_state __pyx_string_tab[98]
-#define __pyx_n_u_pyx_type __pyx_string_tab[99]
-#define __pyx_n_u_pyx_unpickle_HyperoptimizedSor __pyx_string_tab[100]
-#define __pyx_n_u_pyx_vtable __pyx_string_tab[101]
-#define __pyx_n_u_qualname __pyx_string_tab[102]
-#define __pyx_n_u_radix __pyx_string_tab[103]
-#define __pyx_n_u_radix_sort_records __pyx_string_tab[104]
-#define __pyx_n_u_range __pyx_string_tab[105]
-#define __pyx_n_u_rb __pyx_string_tab[106]
-#define __pyx_n_u_records __pyx_string_tab[107]
-#define __pyx_kp_u_records_2 __pyx_string_tab[108]
-#define __pyx_n_u_reduce __pyx_string_tab[109]
-#define __pyx_n_u_reduce_cython __pyx_string_tab[110]
-#define __pyx_n_u_reduce_ex __pyx_string_tab[111]
-#define __pyx_n_u_remove __pyx_string_tab[112]
-#define __pyx_n_u_reverse __pyx_string_tab[113]
-#define __pyx_n_u_select_algorithm_locals_genexpr __pyx_string_tab[114]
-#define __pyx_n_u_send __pyx_string_tab[115]
-#define __pyx_n_u_set_name __pyx_string_tab[116]
-#define __pyx_n_u_setstate __pyx_string_tab[117]
-#define __pyx_n_u_setstate_cython __pyx_string_tab[118]
-#define __pyx_n_u_sort_chunk __pyx_string_tab[119]
-#define __pyx_n_u_sort_records __pyx_string_tab[120]
-#define __pyx_kp_u_sorted_chunks __pyx_string_tab[121]
-#define __pyx_n_u_spec __pyx_string_tab[122]
-#define __pyx_n_u_temp_dir __pyx_string_tab[123]
-#define __pyx_n_u_tempfile __pyx_string_tab[124]
-#define __pyx_n_u_test __pyx_string_tab[125]
-#define __pyx_n_u_throw __pyx_string_tab[126]
-#define __pyx_kp_u_tmp __pyx_string_tab[127]
-#define __pyx_n_u_typing __pyx_string_tab[128]
-#define __pyx_n_u_uint32 __pyx_string_tab[129]
-#define __pyx_n_u_uint64 __pyx_string_tab[130]
-#define __pyx_n_u_update __pyx_string_tab[131]
-#define __pyx_n_u_value __pyx_string_tab[132]
-#define __pyx_n_u_wb __pyx_string_tab[133]
-#define __pyx_n_u_x __pyx_string_tab[134]
+#define __pyx_kp_u_d __pyx_string_tab[32]
+#define __pyx_n_u_data __pyx_string_tab[33]
+#define __pyx_n_u_dict __pyx_string_tab[34]
+#define __pyx_kp_u_disable __pyx_string_tab[35]
+#define __pyx_n_u_dtype __pyx_string_tab[36]
+#define __pyx_n_u_dump __pyx_string_tab[37]
+#define __pyx_kp_u_enable __pyx_string_tab[38]
+#define __pyx_n_u_enable_parallel __pyx_string_tab[39]
+#define __pyx_n_u_enable_simd __pyx_string_tab[40]
+#define __pyx_n_u_enter __pyx_string_tab[41]
+#define __pyx_n_u_enumerate __pyx_string_tab[42]
+#define __pyx_n_u_exists __pyx_string_tab[43]
+#define __pyx_n_u_exit __pyx_string_tab[44]
+#define __pyx_n_u_external __pyx_string_tab[45]
+#define __pyx_n_u_external_merge_sort_records __pyx_string_tab[46]
+#define __pyx_kp_u_gc __pyx_string_tab[47]
+#define __pyx_n_u_genexpr __pyx_string_tab[48]
+#define __pyx_n_u_getLogger __pyx_string_tab[49]
+#define __pyx_n_u_getstate __pyx_string_tab[50]
+#define __pyx_n_u_gettempdir __pyx_string_tab[51]
+#define __pyx_n_u_heappop __pyx_string_tab[52]
+#define __pyx_n_u_heappush __pyx_string_tab[53]
+#define __pyx_n_u_heapq __pyx_string_tab[54]
+#define __pyx_n_u_hyperopt_sort __pyx_string_tab[55]
+#define __pyx_n_u_hyperopt_sort_with_indices __pyx_string_tab[56]
+#define __pyx_n_u_hyperoptimized_sort __pyx_string_tab[57]
+#define __pyx_kp_u_hyperoptimized_sort_pyx __pyx_string_tab[58]
+#define __pyx_n_u_index __pyx_string_tab[59]
+#define __pyx_kp_u_inf __pyx_string_tab[60]
+#define __pyx_n_u_info __pyx_string_tab[61]
+#define __pyx_n_u_initializing __pyx_string_tab[62]
+#define __pyx_n_u_insertion __pyx_string_tab[63]
+#define __pyx_n_u_insertion_sort_records __pyx_string_tab[64]
+#define __pyx_n_u_int __pyx_string_tab[65]
+#define __pyx_n_u_int32 __pyx_string_tab[66]
+#define __pyx_n_u_int64 __pyx_string_tab[67]
+#define __pyx_n_u_introsort __pyx_string_tab[68]
+#define __pyx_n_u_introsort_records __pyx_string_tab[69]
+#define __pyx_kp_u_isenabled __pyx_string_tab[70]
+#define __pyx_n_u_isinf __pyx_string_tab[71]
+#define __pyx_n_u_isnan __pyx_string_tab[72]
+#define __pyx_n_u_join __pyx_string_tab[73]
+#define __pyx_n_u_k_way_merge_chunks __pyx_string_tab[74]
+#define __pyx_n_u_key_column __pyx_string_tab[75]
+#define __pyx_n_u_load __pyx_string_tab[76]
+#define __pyx_n_u_logging __pyx_string_tab[77]
+#define __pyx_n_u_lower __pyx_string_tab[78]
+#define __pyx_n_u_main __pyx_string_tab[79]
+#define __pyx_n_u_math __pyx_string_tab[80]
+#define __pyx_n_u_memory_limit_mb __pyx_string_tab[81]
+#define __pyx_n_u_module __pyx_string_tab[82]
+#define __pyx_n_u_name __pyx_string_tab[83]
+#define __pyx_n_u_ndarray __pyx_string_tab[84]
+#define __pyx_n_u_new __pyx_string_tab[85]
+#define __pyx_n_u_next __pyx_string_tab[86]
+#define __pyx_n_u_np __pyx_string_tab[87]
+#define __pyx_kp_u_numeric_records __pyx_string_tab[88]
+#define __pyx_n_u_numpy __pyx_string_tab[89]
+#define __pyx_kp_u_numpy__core_multiarray_failed_to __pyx_string_tab[90]
+#define __pyx_kp_u_numpy__core_umath_failed_to_impo __pyx_string_tab[91]
+#define __pyx_n_u_open __pyx_string_tab[92]
+#define __pyx_n_u_orig_idx __pyx_string_tab[93]
+#define __pyx_n_u_os __pyx_string_tab[94]
+#define __pyx_n_u_pack __pyx_string_tab[95]
+#define __pyx_n_u_path __pyx_string_tab[96]
+#define __pyx_n_u_pickle __pyx_string_tab[97]
+#define __pyx_n_u_pop __pyx_string_tab[98]
+#define __pyx_n_u_protocol __pyx_string_tab[99]
+#define __pyx_n_u_pyx_checksum __pyx_string_tab[100]
+#define __pyx_n_u_pyx_state __pyx_string_tab[101]
+#define __pyx_n_u_pyx_type __pyx_string_tab[102]
+#define __pyx_n_u_pyx_unpickle_HyperoptimizedSor __pyx_string_tab[103]
+#define __pyx_n_u_pyx_vtable __pyx_string_tab[104]
+#define __pyx_n_u_qualname __pyx_string_tab[105]
+#define __pyx_n_u_radix __pyx_string_tab[106]
+#define __pyx_n_u_radix_sort_records __pyx_string_tab[107]
+#define __pyx_n_u_range __pyx_string_tab[108]
+#define __pyx_n_u_rb __pyx_string_tab[109]
+#define __pyx_n_u_records __pyx_string_tab[110]
+#define __pyx_kp_u_records_2 __pyx_string_tab[111]
+#define __pyx_n_u_reduce __pyx_string_tab[112]
+#define __pyx_n_u_reduce_cython __pyx_string_tab[113]
+#define __pyx_n_u_reduce_ex __pyx_string_tab[114]
+#define __pyx_n_u_remove __pyx_string_tab[115]
+#define __pyx_n_u_reverse __pyx_string_tab[116]
+#define __pyx_n_u_select_algorithm_locals_genexpr __pyx_string_tab[117]
+#define __pyx_n_u_send __pyx_string_tab[118]
+#define __pyx_n_u_set_name __pyx_string_tab[119]
+#define __pyx_n_u_setstate __pyx_string_tab[120]
+#define __pyx_n_u_setstate_cython __pyx_string_tab[121]
+#define __pyx_n_u_sort_chunk __pyx_string_tab[122]
+#define __pyx_n_u_sort_records __pyx_string_tab[123]
+#define __pyx_kp_u_sorted_chunks __pyx_string_tab[124]
+#define __pyx_n_u_spec __pyx_string_tab[125]
+#define __pyx_n_u_struct __pyx_string_tab[126]
+#define __pyx_n_u_temp_dir __pyx_string_tab[127]
+#define __pyx_n_u_tempfile __pyx_string_tab[128]
+#define __pyx_n_u_test __pyx_string_tab[129]
+#define __pyx_n_u_throw __pyx_string_tab[130]
+#define __pyx_kp_u_tmp __pyx_string_tab[131]
+#define __pyx_n_u_tolist __pyx_string_tab[132]
+#define __pyx_n_u_typing __pyx_string_tab[133]
+#define __pyx_n_u_uint32 __pyx_string_tab[134]
+#define __pyx_n_u_uint64 __pyx_string_tab[135]
+#define __pyx_n_u_unpack __pyx_string_tab[136]
+#define __pyx_n_u_update __pyx_string_tab[137]
+#define __pyx_n_u_value __pyx_string_tab[138]
+#define __pyx_n_u_wb __pyx_string_tab[139]
+#define __pyx_n_u_x __pyx_string_tab[140]
 /* #### Code section: module_state_clear ### */
 #if CYTHON_USE_MODULE_STATE
 static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
@@ -3736,11 +3761,9 @@ static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_type_19hyperoptimized_sort_HyperoptimizedSorter);
   Py_CLEAR(clear_module_state->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr);
   Py_CLEAR(clear_module_state->__pyx_type_19hyperoptimized_sort___pyx_scope_struct__genexpr);
-  Py_CLEAR(clear_module_state->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr);
-  Py_CLEAR(clear_module_state->__pyx_type_19hyperoptimized_sort___pyx_scope_struct_1_genexpr);
   for (int i=0; i<2; ++i) { Py_CLEAR(clear_module_state->__pyx_tuple[i]); }
-  for (int i=0; i<2; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<135; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<1; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
+  for (int i=0; i<141; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
   Py_CLEAR(clear_module_state->__pyx_int_0);
   Py_CLEAR(clear_module_state->__pyx_int_1);
   Py_CLEAR(clear_module_state->__pyx_int_2);
@@ -3749,6 +3772,7 @@ static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_int_157964483);
   Py_CLEAR(clear_module_state->__pyx_int_222248282);
   Py_CLEAR(clear_module_state->__pyx_int_0x7fffffffffffffff);
+  Py_CLEAR(clear_module_state->__pyx_int_0x8000000000000000);
   return 0;
 }
 #endif
@@ -3789,11 +3813,9 @@ static CYTHON_SMALL_CODE int __pyx_m_traverse(PyObject *m, visitproc visit, void
   Py_VISIT(traverse_module_state->__pyx_type_19hyperoptimized_sort_HyperoptimizedSorter);
   Py_VISIT(traverse_module_state->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr);
   Py_VISIT(traverse_module_state->__pyx_type_19hyperoptimized_sort___pyx_scope_struct__genexpr);
-  Py_VISIT(traverse_module_state->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr);
-  Py_VISIT(traverse_module_state->__pyx_type_19hyperoptimized_sort___pyx_scope_struct_1_genexpr);
   for (int i=0; i<2; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_tuple[i]); }
-  for (int i=0; i<2; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<135; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<1; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
+  for (int i=0; i<141; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_0);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_1);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_2);
@@ -3802,6 +3824,7 @@ static CYTHON_SMALL_CODE int __pyx_m_traverse(PyObject *m, visitproc visit, void
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_157964483);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_222248282);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_0x7fffffffffffffff);
+  __Pyx_VISIT_CONST(traverse_module_state->__pyx_int_0x8000000000000000);
   return 0;
 }
 #endif
@@ -6112,7 +6135,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__cleanup_temp_f
  *                     pass
  *             self.temp_files.clear()             # <<<<<<<<<<<<<<
  * 
- *     def sort_records(self, records: List[dict], key_column: str, reverse: bool = False) -> List[dict]:
+ *     def cleanup_temp_files(self):
 */
     __pyx_t_4 = __pyx_v_self->temp_files;
     __Pyx_INCREF(__pyx_t_4);
@@ -6160,21 +6183,108 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__cleanup_temp_f
 /* "hyperoptimized_sort.pyx":114
  *             self.temp_files.clear()
  * 
- *     def sort_records(self, records: List[dict], key_column: str, reverse: bool = False) -> List[dict]:             # <<<<<<<<<<<<<<
- *         """
- *         Main entry point for record sorting with automatic algorithm selection
+ *     def cleanup_temp_files(self):             # <<<<<<<<<<<<<<
+ *         """Public method to clean up temporary files"""
+ *         self._cleanup_temp_files()
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_5sort_records(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_5cleanup_temp_files(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_records, "\n        Main entry point for record sorting with automatic algorithm selection\n        \n        Args:\n            records: List of record dictionaries\n            key_column: Column name to sort by\n            reverse: True for descending order\n            \n        Returns:\n            Sorted list of records\n        ");
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_5sort_records(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_4cleanup_temp_files, "Public method to clean up temporary files");
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_5cleanup_temp_files(PyObject *__pyx_v_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+) {
+  #if !CYTHON_METH_FASTCALL
+  CYTHON_UNUSED Py_ssize_t __pyx_nargs;
+  #endif
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("cleanup_temp_files (wrapper)", 0);
+  #if !CYTHON_METH_FASTCALL
+  #if CYTHON_ASSUME_SAFE_SIZE
+  __pyx_nargs = PyTuple_GET_SIZE(__pyx_args);
+  #else
+  __pyx_nargs = PyTuple_Size(__pyx_args); if (unlikely(__pyx_nargs < 0)) return NULL;
+  #endif
+  #endif
+  __pyx_kwvalues = __Pyx_KwValues_FASTCALL(__pyx_args, __pyx_nargs);
+  if (unlikely(__pyx_nargs > 0)) { __Pyx_RaiseArgtupleInvalid("cleanup_temp_files", 1, 0, 0, __pyx_nargs); return NULL; }
+  const Py_ssize_t __pyx_kwds_len = unlikely(__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
+  if (unlikely(__pyx_kwds_len < 0)) return NULL;
+  if (unlikely(__pyx_kwds_len > 0)) {__Pyx_RejectKeywords("cleanup_temp_files", __pyx_kwds); return NULL;}
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4cleanup_temp_files(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4cleanup_temp_files(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("cleanup_temp_files", 0);
+
+  /* "hyperoptimized_sort.pyx":116
+ *     def cleanup_temp_files(self):
+ *         """Public method to clean up temporary files"""
+ *         self._cleanup_temp_files()             # <<<<<<<<<<<<<<
+ * 
+ *     def sort_records(self, records: List[dict], key_column: str, reverse: bool = False) -> List[dict]:
+*/
+  ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_cleanup_temp_files(__pyx_v_self); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 116, __pyx_L1_error)
+
+  /* "hyperoptimized_sort.pyx":114
+ *             self.temp_files.clear()
+ * 
+ *     def cleanup_temp_files(self):             # <<<<<<<<<<<<<<
+ *         """Public method to clean up temporary files"""
+ *         self._cleanup_temp_files()
+*/
+
+  /* function exit code */
+  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter.cleanup_temp_files", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "hyperoptimized_sort.pyx":118
+ *         self._cleanup_temp_files()
+ * 
+ *     def sort_records(self, records: List[dict], key_column: str, reverse: bool = False) -> List[dict]:             # <<<<<<<<<<<<<<
+ *         """
+ *         Main entry point for record sorting with automatic algorithm selection
+*/
+
+/* Python wrapper */
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_7sort_records(PyObject *__pyx_v_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+); /*proto*/
+PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_6sort_records, "\n        Main entry point for record sorting with automatic algorithm selection\n        \n        Args:\n            records: List of record dictionaries\n            key_column: Column name to sort by\n            reverse: True for descending order\n            \n        Returns:\n            Sorted list of records\n        ");
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_7sort_records(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -6206,41 +6316,41 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_records,&__pyx_mstate_global->__pyx_n_u_key_column,&__pyx_mstate_global->__pyx_n_u_reverse,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 114, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 118, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 114, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 118, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 114, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 118, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 114, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 118, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "sort_records", 0) < 0) __PYX_ERR(0, 114, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "sort_records", 0) < 0) __PYX_ERR(0, 118, __pyx_L3_error)
       if (!values[2]) values[2] = __Pyx_NewRef(((PyObject *)Py_False));
       for (Py_ssize_t i = __pyx_nargs; i < 2; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("sort_records", 0, 2, 3, i); __PYX_ERR(0, 114, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("sort_records", 0, 2, 3, i); __PYX_ERR(0, 118, __pyx_L3_error) }
       }
     } else {
       switch (__pyx_nargs) {
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 114, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 118, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 114, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 118, __pyx_L3_error)
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 114, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 118, __pyx_L3_error)
         break;
         default: goto __pyx_L5_argtuple_error;
       }
@@ -6252,7 +6362,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("sort_records", 0, 2, 3, __pyx_nargs); __PYX_ERR(0, 114, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("sort_records", 0, 2, 3, __pyx_nargs); __PYX_ERR(0, 118, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -6263,9 +6373,9 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_records), (&PyList_Type), 0, "records", 2))) __PYX_ERR(0, 114, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 0, "key_column", 2))) __PYX_ERR(0, 114, __pyx_L1_error)
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_records(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse);
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_records), (&PyList_Type), 0, "records", 2))) __PYX_ERR(0, 118, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 0, "key_column", 2))) __PYX_ERR(0, 118, __pyx_L1_error)
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6sort_records(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse);
 
   /* function exit code */
   goto __pyx_L0;
@@ -6284,7 +6394,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, PyObject *__pyx_v_reverse) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, PyObject *__pyx_v_reverse) {
   int __pyx_v_n;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
@@ -6299,7 +6409,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("sort_records", 0);
 
-  /* "hyperoptimized_sort.pyx":126
+  /* "hyperoptimized_sort.pyx":130
  *             Sorted list of records
  *         """
  *         if not records:             # <<<<<<<<<<<<<<
@@ -6307,11 +6417,11 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
  * 
 */
   __pyx_t_1 = (__Pyx_PyList_GET_SIZE(__pyx_v_records) != 0);
-  if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_1 < 0))) __PYX_ERR(0, 126, __pyx_L1_error)
+  if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_1 < 0))) __PYX_ERR(0, 130, __pyx_L1_error)
   __pyx_t_2 = (!__pyx_t_1);
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":127
+    /* "hyperoptimized_sort.pyx":131
  *         """
  *         if not records:
  *             return records             # <<<<<<<<<<<<<<
@@ -6323,7 +6433,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
     __pyx_r = __pyx_v_records;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":126
+    /* "hyperoptimized_sort.pyx":130
  *             Sorted list of records
  *         """
  *         if not records:             # <<<<<<<<<<<<<<
@@ -6332,17 +6442,17 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
 */
   }
 
-  /* "hyperoptimized_sort.pyx":129
+  /* "hyperoptimized_sort.pyx":133
  *             return records
  * 
  *         cdef int n = len(records)             # <<<<<<<<<<<<<<
  *         self.record_count = n
  * 
 */
-  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 129, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 133, __pyx_L1_error)
   __pyx_v_n = __pyx_t_3;
 
-  /* "hyperoptimized_sort.pyx":130
+  /* "hyperoptimized_sort.pyx":134
  * 
  *         cdef int n = len(records)
  *         self.record_count = n             # <<<<<<<<<<<<<<
@@ -6351,7 +6461,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
 */
   __pyx_v_self->record_count = __pyx_v_n;
 
-  /* "hyperoptimized_sort.pyx":133
+  /* "hyperoptimized_sort.pyx":137
  * 
  *         # Algorithm selection based on data characteristics
  *         if n < INSERTION_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -6361,7 +6471,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
   __pyx_t_2 = (__pyx_v_n < __pyx_v_19hyperoptimized_sort_INSERTION_SORT_THRESHOLD);
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":134
+    /* "hyperoptimized_sort.pyx":138
  *         # Algorithm selection based on data characteristics
  *         if n < INSERTION_SORT_THRESHOLD:
  *             return self._insertion_sort_records(records, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -6376,15 +6486,15 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
       PyObject *__pyx_callargs[4] = {__pyx_t_5, __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse};
       __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_insertion_sort_records, __pyx_callargs+__pyx_t_6, (4-__pyx_t_6) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 134, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 138, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
     }
-    if (!(likely(PyList_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_4))) __PYX_ERR(0, 134, __pyx_L1_error)
+    if (!(likely(PyList_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_4))) __PYX_ERR(0, 138, __pyx_L1_error)
     __pyx_r = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":133
+    /* "hyperoptimized_sort.pyx":137
  * 
  *         # Algorithm selection based on data characteristics
  *         if n < INSERTION_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -6393,7 +6503,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
 */
   }
 
-  /* "hyperoptimized_sort.pyx":135
+  /* "hyperoptimized_sort.pyx":139
  *         if n < INSERTION_SORT_THRESHOLD:
  *             return self._insertion_sort_records(records, key_column, reverse)
  *         elif n > EXTERNAL_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -6403,7 +6513,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
   __pyx_t_2 = (__pyx_v_n > __pyx_v_19hyperoptimized_sort_EXTERNAL_SORT_THRESHOLD);
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":136
+    /* "hyperoptimized_sort.pyx":140
  *             return self._insertion_sort_records(records, key_column, reverse)
  *         elif n > EXTERNAL_SORT_THRESHOLD:
  *             return self._external_merge_sort_records(records, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -6418,15 +6528,15 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
       PyObject *__pyx_callargs[4] = {__pyx_t_5, __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse};
       __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_external_merge_sort_records, __pyx_callargs+__pyx_t_6, (4-__pyx_t_6) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 136, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 140, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
     }
-    if (!(likely(PyList_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_4))) __PYX_ERR(0, 136, __pyx_L1_error)
+    if (!(likely(PyList_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_4))) __PYX_ERR(0, 140, __pyx_L1_error)
     __pyx_r = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":135
+    /* "hyperoptimized_sort.pyx":139
  *         if n < INSERTION_SORT_THRESHOLD:
  *             return self._insertion_sort_records(records, key_column, reverse)
  *         elif n > EXTERNAL_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -6435,17 +6545,17 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
 */
   }
 
-  /* "hyperoptimized_sort.pyx":137
+  /* "hyperoptimized_sort.pyx":141
  *         elif n > EXTERNAL_SORT_THRESHOLD:
  *             return self._external_merge_sort_records(records, key_column, reverse)
  *         elif self._is_numeric_sortable(records, key_column):             # <<<<<<<<<<<<<<
  *             return self._radix_sort_records(records, key_column, reverse)
  *         else:
 */
-  __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_is_numeric_sortable(__pyx_v_self, __pyx_v_records, __pyx_v_key_column); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 137, __pyx_L1_error)
+  __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_is_numeric_sortable(__pyx_v_self, __pyx_v_records, __pyx_v_key_column); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 141, __pyx_L1_error)
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":138
+    /* "hyperoptimized_sort.pyx":142
  *             return self._external_merge_sort_records(records, key_column, reverse)
  *         elif self._is_numeric_sortable(records, key_column):
  *             return self._radix_sort_records(records, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -6460,15 +6570,15 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
       PyObject *__pyx_callargs[4] = {__pyx_t_5, __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse};
       __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_radix_sort_records, __pyx_callargs+__pyx_t_6, (4-__pyx_t_6) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 138, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 142, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
     }
-    if (!(likely(PyList_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_4))) __PYX_ERR(0, 138, __pyx_L1_error)
+    if (!(likely(PyList_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_4))) __PYX_ERR(0, 142, __pyx_L1_error)
     __pyx_r = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":137
+    /* "hyperoptimized_sort.pyx":141
  *         elif n > EXTERNAL_SORT_THRESHOLD:
  *             return self._external_merge_sort_records(records, key_column, reverse)
  *         elif self._is_numeric_sortable(records, key_column):             # <<<<<<<<<<<<<<
@@ -6477,7 +6587,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
 */
   }
 
-  /* "hyperoptimized_sort.pyx":140
+  /* "hyperoptimized_sort.pyx":144
  *             return self._radix_sort_records(records, key_column, reverse)
  *         else:
  *             return self._introsort_records(records, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -6493,17 +6603,17 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
       PyObject *__pyx_callargs[4] = {__pyx_t_5, __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse};
       __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_introsort_records, __pyx_callargs+__pyx_t_6, (4-__pyx_t_6) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 140, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 144, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
     }
-    if (!(likely(PyList_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_4))) __PYX_ERR(0, 140, __pyx_L1_error)
+    if (!(likely(PyList_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_4))) __PYX_ERR(0, 144, __pyx_L1_error)
     __pyx_r = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
     goto __pyx_L0;
   }
 
-  /* "hyperoptimized_sort.pyx":114
- *             self.temp_files.clear()
+  /* "hyperoptimized_sort.pyx":118
+ *         self._cleanup_temp_files()
  * 
  *     def sort_records(self, records: List[dict], key_column: str, reverse: bool = False) -> List[dict]:             # <<<<<<<<<<<<<<
  *         """
@@ -6522,17 +6632,17 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_rec
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":142
+/* "hyperoptimized_sort.pyx":146
  *             return self._introsort_records(records, key_column, reverse)
  * 
  *     cdef bint _is_numeric_sortable(self, list records, str key_column):             # <<<<<<<<<<<<<<
- *         """Check if the data is suitable for radix sort"""
+ *         """Check if the data is suitable for radix sort (integers only)"""
  *         cdef int sample_size = min(100, len(records))
 */
 
 static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__is_numeric_sortable(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column) {
   int __pyx_v_sample_size;
-  int __pyx_v_numeric_count;
+  int __pyx_v_integer_count;
   int __pyx_v_i;
   PyObject *__pyx_v_record = NULL;
   PyObject *__pyx_v_value = NULL;
@@ -6548,23 +6658,24 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__is_numeric_sort
   PyObject *__pyx_t_8 = NULL;
   int __pyx_t_9;
   int __pyx_t_10;
+  PyObject *__pyx_t_11 = NULL;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_is_numeric_sortable", 0);
 
-  /* "hyperoptimized_sort.pyx":144
+  /* "hyperoptimized_sort.pyx":148
  *     cdef bint _is_numeric_sortable(self, list records, str key_column):
- *         """Check if the data is suitable for radix sort"""
+ *         """Check if the data is suitable for radix sort (integers only)"""
  *         cdef int sample_size = min(100, len(records))             # <<<<<<<<<<<<<<
- *         cdef int numeric_count = 0
+ *         cdef int integer_count = 0
  * 
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 144, __pyx_L1_error)
+    __PYX_ERR(0, 148, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 144, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 148, __pyx_L1_error)
   __pyx_t_2 = 0x64;
   __pyx_t_4 = (__pyx_t_1 < __pyx_t_2);
   if (__pyx_t_4) {
@@ -6574,17 +6685,17 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__is_numeric_sort
   }
   __pyx_v_sample_size = __pyx_t_3;
 
-  /* "hyperoptimized_sort.pyx":145
- *         """Check if the data is suitable for radix sort"""
+  /* "hyperoptimized_sort.pyx":149
+ *         """Check if the data is suitable for radix sort (integers only)"""
  *         cdef int sample_size = min(100, len(records))
- *         cdef int numeric_count = 0             # <<<<<<<<<<<<<<
+ *         cdef int integer_count = 0             # <<<<<<<<<<<<<<
  * 
  *         for i in range(sample_size):
 */
-  __pyx_v_numeric_count = 0;
+  __pyx_v_integer_count = 0;
 
-  /* "hyperoptimized_sort.pyx":147
- *         cdef int numeric_count = 0
+  /* "hyperoptimized_sort.pyx":151
+ *         cdef int integer_count = 0
  * 
  *         for i in range(sample_size):             # <<<<<<<<<<<<<<
  *             record = records[i]
@@ -6595,7 +6706,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__is_numeric_sort
   for (__pyx_t_7 = 0; __pyx_t_7 < __pyx_t_6; __pyx_t_7+=1) {
     __pyx_v_i = __pyx_t_7;
 
-    /* "hyperoptimized_sort.pyx":148
+    /* "hyperoptimized_sort.pyx":152
  * 
  *         for i in range(sample_size):
  *             record = records[i]             # <<<<<<<<<<<<<<
@@ -6604,114 +6715,141 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__is_numeric_sort
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 148, __pyx_L1_error)
+      __PYX_ERR(0, 152, __pyx_L1_error)
     }
     __pyx_t_8 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i);
     __Pyx_INCREF(__pyx_t_8);
     __Pyx_XDECREF_SET(__pyx_v_record, __pyx_t_8);
     __pyx_t_8 = 0;
 
-    /* "hyperoptimized_sort.pyx":149
+    /* "hyperoptimized_sort.pyx":153
  *         for i in range(sample_size):
  *             record = records[i]
  *             if key_column in record:             # <<<<<<<<<<<<<<
  *                 value = record[key_column]
- *                 if isinstance(value, (int, float)) and not isinstance(value, bool):
+ *                 # Only integers are suitable for radix sort, not floats
 */
-    __pyx_t_4 = (__Pyx_PySequence_ContainsTF(__pyx_v_key_column, __pyx_v_record, Py_EQ)); if (unlikely((__pyx_t_4 < 0))) __PYX_ERR(0, 149, __pyx_L1_error)
+    __pyx_t_4 = (__Pyx_PySequence_ContainsTF(__pyx_v_key_column, __pyx_v_record, Py_EQ)); if (unlikely((__pyx_t_4 < 0))) __PYX_ERR(0, 153, __pyx_L1_error)
     if (__pyx_t_4) {
 
-      /* "hyperoptimized_sort.pyx":150
+      /* "hyperoptimized_sort.pyx":154
  *             record = records[i]
  *             if key_column in record:
  *                 value = record[key_column]             # <<<<<<<<<<<<<<
- *                 if isinstance(value, (int, float)) and not isinstance(value, bool):
- *                     numeric_count += 1
+ *                 # Only integers are suitable for radix sort, not floats
+ *                 # Check for regular int and NumPy integer types
 */
-      __pyx_t_8 = __Pyx_PyObject_Dict_GetItem(__pyx_v_record, __pyx_v_key_column); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 150, __pyx_L1_error)
+      __pyx_t_8 = __Pyx_PyObject_Dict_GetItem(__pyx_v_record, __pyx_v_key_column); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 154, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_8);
       __Pyx_XDECREF_SET(__pyx_v_value, __pyx_t_8);
       __pyx_t_8 = 0;
 
-      /* "hyperoptimized_sort.pyx":151
- *             if key_column in record:
- *                 value = record[key_column]
- *                 if isinstance(value, (int, float)) and not isinstance(value, bool):             # <<<<<<<<<<<<<<
- *                     numeric_count += 1
- * 
+      /* "hyperoptimized_sort.pyx":157
+ *                 # Only integers are suitable for radix sort, not floats
+ *                 # Check for regular int and NumPy integer types
+ *                 if (isinstance(value, int) and not isinstance(value, bool)) or \             # <<<<<<<<<<<<<<
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype)):
+ *                     integer_count += 1
 */
-      __pyx_t_10 = PyLong_Check(__pyx_v_value); 
-      if (!__pyx_t_10) {
+      __pyx_t_9 = PyLong_Check(__pyx_v_value); 
+      if (!__pyx_t_9) {
+        goto __pyx_L8_next_or;
       } else {
-        __pyx_t_9 = __pyx_t_10;
-        goto __pyx_L9_bool_binop_done;
-      }
-      __pyx_t_10 = PyFloat_Check(__pyx_v_value); 
-      __pyx_t_9 = __pyx_t_10;
-      __pyx_L9_bool_binop_done:;
-      if (__pyx_t_9) {
-      } else {
-        __pyx_t_4 = __pyx_t_9;
-        goto __pyx_L7_bool_binop_done;
       }
       __pyx_t_8 = ((PyObject*)&PyBool_Type);
       __Pyx_INCREF(__pyx_t_8);
-      __pyx_t_9 = PyObject_IsInstance(__pyx_v_value, __pyx_t_8); if (unlikely(__pyx_t_9 == ((int)-1))) __PYX_ERR(0, 151, __pyx_L1_error)
+      __pyx_t_9 = PyObject_IsInstance(__pyx_v_value, __pyx_t_8); if (unlikely(__pyx_t_9 == ((int)-1))) __PYX_ERR(0, 157, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
       __pyx_t_10 = (!__pyx_t_9);
+      if (!__pyx_t_10) {
+      } else {
+        __pyx_t_4 = __pyx_t_10;
+        goto __pyx_L7_bool_binop_done;
+      }
+      __pyx_L8_next_or:;
+
+      /* "hyperoptimized_sort.pyx":158
+ *                 # Check for regular int and NumPy integer types
+ *                 if (isinstance(value, int) and not isinstance(value, bool)) or \
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype)):             # <<<<<<<<<<<<<<
+ *                     integer_count += 1
+ * 
+*/
+      __pyx_t_10 = __Pyx_HasAttr(__pyx_v_value, __pyx_mstate_global->__pyx_n_u_dtype); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 158, __pyx_L1_error)
+      if (__pyx_t_10) {
+      } else {
+        __pyx_t_4 = __pyx_t_10;
+        goto __pyx_L7_bool_binop_done;
+      }
+      __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_value, __pyx_mstate_global->__pyx_n_u_dtype); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 158, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_8);
+      __pyx_t_11 = __Pyx_PyObject_Unicode(__pyx_t_8); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 158, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+      __pyx_t_10 = (__Pyx_PyUnicode_ContainsTF(__pyx_mstate_global->__pyx_n_u_int, __pyx_t_11, Py_EQ)); if (unlikely((__pyx_t_10 < 0))) __PYX_ERR(0, 158, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
       __pyx_t_4 = __pyx_t_10;
       __pyx_L7_bool_binop_done:;
+
+      /* "hyperoptimized_sort.pyx":157
+ *                 # Only integers are suitable for radix sort, not floats
+ *                 # Check for regular int and NumPy integer types
+ *                 if (isinstance(value, int) and not isinstance(value, bool)) or \             # <<<<<<<<<<<<<<
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype)):
+ *                     integer_count += 1
+*/
       if (__pyx_t_4) {
 
-        /* "hyperoptimized_sort.pyx":152
- *                 value = record[key_column]
- *                 if isinstance(value, (int, float)) and not isinstance(value, bool):
- *                     numeric_count += 1             # <<<<<<<<<<<<<<
+        /* "hyperoptimized_sort.pyx":159
+ *                 if (isinstance(value, int) and not isinstance(value, bool)) or \
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype)):
+ *                     integer_count += 1             # <<<<<<<<<<<<<<
  * 
- *         return numeric_count >= sample_size * 0.9  # 90% numeric threshold
+ *         return integer_count >= sample_size * 0.9  # 90% integer threshold
 */
-        __pyx_v_numeric_count = (__pyx_v_numeric_count + 1);
+        __pyx_v_integer_count = (__pyx_v_integer_count + 1);
 
-        /* "hyperoptimized_sort.pyx":151
- *             if key_column in record:
- *                 value = record[key_column]
- *                 if isinstance(value, (int, float)) and not isinstance(value, bool):             # <<<<<<<<<<<<<<
- *                     numeric_count += 1
- * 
+        /* "hyperoptimized_sort.pyx":157
+ *                 # Only integers are suitable for radix sort, not floats
+ *                 # Check for regular int and NumPy integer types
+ *                 if (isinstance(value, int) and not isinstance(value, bool)) or \             # <<<<<<<<<<<<<<
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype)):
+ *                     integer_count += 1
 */
       }
 
-      /* "hyperoptimized_sort.pyx":149
+      /* "hyperoptimized_sort.pyx":153
  *         for i in range(sample_size):
  *             record = records[i]
  *             if key_column in record:             # <<<<<<<<<<<<<<
  *                 value = record[key_column]
- *                 if isinstance(value, (int, float)) and not isinstance(value, bool):
+ *                 # Only integers are suitable for radix sort, not floats
 */
     }
   }
 
-  /* "hyperoptimized_sort.pyx":154
- *                     numeric_count += 1
+  /* "hyperoptimized_sort.pyx":161
+ *                     integer_count += 1
  * 
- *         return numeric_count >= sample_size * 0.9  # 90% numeric threshold             # <<<<<<<<<<<<<<
+ *         return integer_count >= sample_size * 0.9  # 90% integer threshold             # <<<<<<<<<<<<<<
  * 
  *     def _insertion_sort_records(self, list records, str key_column, bint reverse):
 */
-  __pyx_r = (__pyx_v_numeric_count >= (__pyx_v_sample_size * 0.9));
+  __pyx_r = (__pyx_v_integer_count >= (__pyx_v_sample_size * 0.9));
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":142
+  /* "hyperoptimized_sort.pyx":146
  *             return self._introsort_records(records, key_column, reverse)
  * 
  *     cdef bint _is_numeric_sortable(self, list records, str key_column):             # <<<<<<<<<<<<<<
- *         """Check if the data is suitable for radix sort"""
+ *         """Check if the data is suitable for radix sort (integers only)"""
  *         cdef int sample_size = min(100, len(records))
 */
 
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_8);
+  __Pyx_XDECREF(__pyx_t_11);
   __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._is_numeric_sortable", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = 0;
   __pyx_L0:;
@@ -6721,8 +6859,8 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__is_numeric_sort
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":156
- *         return numeric_count >= sample_size * 0.9  # 90% numeric threshold
+/* "hyperoptimized_sort.pyx":163
+ *         return integer_count >= sample_size * 0.9  # 90% integer threshold
  * 
  *     def _insertion_sort_records(self, list records, str key_column, bint reverse):             # <<<<<<<<<<<<<<
  *         """
@@ -6730,15 +6868,15 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__is_numeric_sort
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_7_insertion_sort_records(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_9_insertion_sort_records(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_6_insertion_sort_records, "\n        Hyperoptimized insertion sort for small datasets\n        Uses register-friendly operations and minimal branches\n        ");
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_7_insertion_sort_records(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_8_insertion_sort_records, "\n        Hyperoptimized insertion sort for small datasets\n        Uses register-friendly operations and minimal branches\n        ");
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_9_insertion_sort_records(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -6770,46 +6908,46 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_records,&__pyx_mstate_global->__pyx_n_u_key_column,&__pyx_mstate_global->__pyx_n_u_reverse,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 156, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 163, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 156, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 163, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 156, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 163, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 156, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 163, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_insertion_sort_records", 0) < 0) __PYX_ERR(0, 156, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_insertion_sort_records", 0) < 0) __PYX_ERR(0, 163, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 3; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_insertion_sort_records", 1, 3, 3, i); __PYX_ERR(0, 156, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_insertion_sort_records", 1, 3, 3, i); __PYX_ERR(0, 163, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 3)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 156, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 163, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 156, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 163, __pyx_L3_error)
       values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 156, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 163, __pyx_L3_error)
     }
     __pyx_v_records = ((PyObject*)values[0]);
     __pyx_v_key_column = ((PyObject*)values[1]);
-    __pyx_v_reverse = __Pyx_PyObject_IsTrue(values[2]); if (unlikely((__pyx_v_reverse == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 156, __pyx_L3_error)
+    __pyx_v_reverse = __Pyx_PyObject_IsTrue(values[2]); if (unlikely((__pyx_v_reverse == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 163, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("_insertion_sort_records", 1, 3, 3, __pyx_nargs); __PYX_ERR(0, 156, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("_insertion_sort_records", 1, 3, 3, __pyx_nargs); __PYX_ERR(0, 163, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -6820,9 +6958,9 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_records), (&PyList_Type), 1, "records", 1))) __PYX_ERR(0, 156, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 1, "key_column", 1))) __PYX_ERR(0, 156, __pyx_L1_error)
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_insertion_sort_records(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse);
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_records), (&PyList_Type), 1, "records", 1))) __PYX_ERR(0, 163, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 1, "key_column", 1))) __PYX_ERR(0, 163, __pyx_L1_error)
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_insertion_sort_records(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse);
 
   /* function exit code */
   goto __pyx_L0;
@@ -6841,7 +6979,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_insertion_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_insertion_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse) {
   int __pyx_v_n;
   int __pyx_v_i;
   int __pyx_v_j;
@@ -6864,7 +7002,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_insertion_sort_records", 0);
 
-  /* "hyperoptimized_sort.pyx":161
+  /* "hyperoptimized_sort.pyx":168
  *         Uses register-friendly operations and minimal branches
  *         """
  *         cdef int n = len(records)             # <<<<<<<<<<<<<<
@@ -6873,12 +7011,12 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 161, __pyx_L1_error)
+    __PYX_ERR(0, 168, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 161, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 168, __pyx_L1_error)
   __pyx_v_n = __pyx_t_1;
 
-  /* "hyperoptimized_sort.pyx":165
+  /* "hyperoptimized_sort.pyx":172
  *         cdef object current_record, current_key, compare_key
  * 
  *         for i in range(1, n):             # <<<<<<<<<<<<<<
@@ -6890,7 +7028,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
   for (__pyx_t_4 = 1; __pyx_t_4 < __pyx_t_3; __pyx_t_4+=1) {
     __pyx_v_i = __pyx_t_4;
 
-    /* "hyperoptimized_sort.pyx":166
+    /* "hyperoptimized_sort.pyx":173
  * 
  *         for i in range(1, n):
  *             current_record = records[i]             # <<<<<<<<<<<<<<
@@ -6899,27 +7037,27 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 166, __pyx_L1_error)
+      __PYX_ERR(0, 173, __pyx_L1_error)
     }
     __pyx_t_5 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i);
     __Pyx_INCREF(__pyx_t_5);
     __Pyx_XDECREF_SET(__pyx_v_current_record, __pyx_t_5);
     __pyx_t_5 = 0;
 
-    /* "hyperoptimized_sort.pyx":167
+    /* "hyperoptimized_sort.pyx":174
  *         for i in range(1, n):
  *             current_record = records[i]
  *             current_key = self._extract_sort_key(current_record, key_column)             # <<<<<<<<<<<<<<
  *             j = i - 1
  * 
 */
-    if (!(likely(PyDict_CheckExact(__pyx_v_current_record))||((__pyx_v_current_record) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_v_current_record))) __PYX_ERR(0, 167, __pyx_L1_error)
-    __pyx_t_5 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_v_current_record), __pyx_v_key_column); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 167, __pyx_L1_error)
+    if (!(likely(PyDict_CheckExact(__pyx_v_current_record))||((__pyx_v_current_record) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_v_current_record))) __PYX_ERR(0, 174, __pyx_L1_error)
+    __pyx_t_5 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_v_current_record), __pyx_v_key_column); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 174, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __Pyx_XDECREF_SET(__pyx_v_current_key, __pyx_t_5);
     __pyx_t_5 = 0;
 
-    /* "hyperoptimized_sort.pyx":168
+    /* "hyperoptimized_sort.pyx":175
  *             current_record = records[i]
  *             current_key = self._extract_sort_key(current_record, key_column)
  *             j = i - 1             # <<<<<<<<<<<<<<
@@ -6928,68 +7066,68 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
 */
     __pyx_v_j = (__pyx_v_i - 1);
 
-    /* "hyperoptimized_sort.pyx":171
+    /* "hyperoptimized_sort.pyx":178
  * 
  *             # Branchless comparison with early termination
  *             while j >= 0:             # <<<<<<<<<<<<<<
  *                 compare_key = self._extract_sort_key(records[j], key_column)
- *                 if not self._should_swap(current_key, compare_key, reverse):
+ *                 if not self._should_swap(compare_key, current_key, reverse):
 */
     while (1) {
       __pyx_t_6 = (__pyx_v_j >= 0);
       if (!__pyx_t_6) break;
 
-      /* "hyperoptimized_sort.pyx":172
+      /* "hyperoptimized_sort.pyx":179
  *             # Branchless comparison with early termination
  *             while j >= 0:
  *                 compare_key = self._extract_sort_key(records[j], key_column)             # <<<<<<<<<<<<<<
- *                 if not self._should_swap(current_key, compare_key, reverse):
+ *                 if not self._should_swap(compare_key, current_key, reverse):
  *                     break
 */
       if (unlikely(__pyx_v_records == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 172, __pyx_L1_error)
+        __PYX_ERR(0, 179, __pyx_L1_error)
       }
       __pyx_t_5 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_5);
-      if (!(likely(PyDict_CheckExact(__pyx_t_5))||((__pyx_t_5) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_5))) __PYX_ERR(0, 172, __pyx_L1_error)
-      __pyx_t_7 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_5), __pyx_v_key_column); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 172, __pyx_L1_error)
+      if (!(likely(PyDict_CheckExact(__pyx_t_5))||((__pyx_t_5) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_5))) __PYX_ERR(0, 179, __pyx_L1_error)
+      __pyx_t_7 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_5), __pyx_v_key_column); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 179, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_7);
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
       __Pyx_XDECREF_SET(__pyx_v_compare_key, __pyx_t_7);
       __pyx_t_7 = 0;
 
-      /* "hyperoptimized_sort.pyx":173
+      /* "hyperoptimized_sort.pyx":180
  *             while j >= 0:
  *                 compare_key = self._extract_sort_key(records[j], key_column)
- *                 if not self._should_swap(current_key, compare_key, reverse):             # <<<<<<<<<<<<<<
+ *                 if not self._should_swap(compare_key, current_key, reverse):             # <<<<<<<<<<<<<<
  *                     break
  *                 records[j + 1] = records[j]
 */
-      __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_should_swap(__pyx_v_self, __pyx_v_current_key, __pyx_v_compare_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 173, __pyx_L1_error)
+      __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_should_swap(__pyx_v_self, __pyx_v_compare_key, __pyx_v_current_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 180, __pyx_L1_error)
       __pyx_t_8 = (!__pyx_t_6);
       if (__pyx_t_8) {
 
-        /* "hyperoptimized_sort.pyx":174
+        /* "hyperoptimized_sort.pyx":181
  *                 compare_key = self._extract_sort_key(records[j], key_column)
- *                 if not self._should_swap(current_key, compare_key, reverse):
+ *                 if not self._should_swap(compare_key, current_key, reverse):
  *                     break             # <<<<<<<<<<<<<<
  *                 records[j + 1] = records[j]
  *                 j -= 1
 */
         goto __pyx_L6_break;
 
-        /* "hyperoptimized_sort.pyx":173
+        /* "hyperoptimized_sort.pyx":180
  *             while j >= 0:
  *                 compare_key = self._extract_sort_key(records[j], key_column)
- *                 if not self._should_swap(current_key, compare_key, reverse):             # <<<<<<<<<<<<<<
+ *                 if not self._should_swap(compare_key, current_key, reverse):             # <<<<<<<<<<<<<<
  *                     break
  *                 records[j + 1] = records[j]
 */
       }
 
-      /* "hyperoptimized_sort.pyx":175
- *                 if not self._should_swap(current_key, compare_key, reverse):
+      /* "hyperoptimized_sort.pyx":182
+ *                 if not self._should_swap(compare_key, current_key, reverse):
  *                     break
  *                 records[j + 1] = records[j]             # <<<<<<<<<<<<<<
  *                 j -= 1
@@ -6997,19 +7135,19 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
 */
       if (unlikely(__pyx_v_records == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 175, __pyx_L1_error)
+        __PYX_ERR(0, 182, __pyx_L1_error)
       }
       __pyx_t_7 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_7);
       if (unlikely(__pyx_v_records == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 175, __pyx_L1_error)
+        __PYX_ERR(0, 182, __pyx_L1_error)
       }
       __pyx_t_9 = (__pyx_v_j + 1);
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_t_9, __pyx_t_7, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 175, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_t_9, __pyx_t_7, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 182, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-      /* "hyperoptimized_sort.pyx":176
+      /* "hyperoptimized_sort.pyx":183
  *                     break
  *                 records[j + 1] = records[j]
  *                 j -= 1             # <<<<<<<<<<<<<<
@@ -7020,7 +7158,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
     }
     __pyx_L6_break:;
 
-    /* "hyperoptimized_sort.pyx":178
+    /* "hyperoptimized_sort.pyx":185
  *                 j -= 1
  * 
  *             records[j + 1] = current_record             # <<<<<<<<<<<<<<
@@ -7029,13 +7167,13 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 178, __pyx_L1_error)
+      __PYX_ERR(0, 185, __pyx_L1_error)
     }
     __pyx_t_9 = (__pyx_v_j + 1);
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_t_9, __pyx_v_current_record, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 178, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_t_9, __pyx_v_current_record, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 185, __pyx_L1_error)
   }
 
-  /* "hyperoptimized_sort.pyx":180
+  /* "hyperoptimized_sort.pyx":187
  *             records[j + 1] = current_record
  * 
  *         return records             # <<<<<<<<<<<<<<
@@ -7047,8 +7185,8 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
   __pyx_r = __pyx_v_records;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":156
- *         return numeric_count >= sample_size * 0.9  # 90% numeric threshold
+  /* "hyperoptimized_sort.pyx":163
+ *         return integer_count >= sample_size * 0.9  # 90% integer threshold
  * 
  *     def _insertion_sort_records(self, list records, str key_column, bint reverse):             # <<<<<<<<<<<<<<
  *         """
@@ -7070,7 +7208,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":182
+/* "hyperoptimized_sort.pyx":189
  *         return records
  * 
  *     def _introsort_records(self, list records, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -7079,15 +7217,15 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_6_inserti
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_9_introsort_records(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_11_introsort_records(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_8_introsort_records, "\n        Introspective sort: QuickSort with fallback to HeapSort\n        Guarantees O(n log n) worst-case performance\n        ");
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_9_introsort_records(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_10_introsort_records, "\n        Introspective sort: QuickSort with fallback to HeapSort\n        Guarantees O(n log n) worst-case performance\n        ");
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_11_introsort_records(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -7119,46 +7257,46 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_records,&__pyx_mstate_global->__pyx_n_u_key_column,&__pyx_mstate_global->__pyx_n_u_reverse,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 182, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 189, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 182, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 189, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 182, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 189, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 182, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 189, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_introsort_records", 0) < 0) __PYX_ERR(0, 182, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_introsort_records", 0) < 0) __PYX_ERR(0, 189, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 3; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_introsort_records", 1, 3, 3, i); __PYX_ERR(0, 182, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_introsort_records", 1, 3, 3, i); __PYX_ERR(0, 189, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 3)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 182, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 189, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 182, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 189, __pyx_L3_error)
       values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 182, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 189, __pyx_L3_error)
     }
     __pyx_v_records = ((PyObject*)values[0]);
     __pyx_v_key_column = ((PyObject*)values[1]);
-    __pyx_v_reverse = __Pyx_PyObject_IsTrue(values[2]); if (unlikely((__pyx_v_reverse == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 182, __pyx_L3_error)
+    __pyx_v_reverse = __Pyx_PyObject_IsTrue(values[2]); if (unlikely((__pyx_v_reverse == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 189, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("_introsort_records", 1, 3, 3, __pyx_nargs); __PYX_ERR(0, 182, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("_introsort_records", 1, 3, 3, __pyx_nargs); __PYX_ERR(0, 189, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -7169,9 +7307,9 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_records), (&PyList_Type), 1, "records", 1))) __PYX_ERR(0, 182, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 1, "key_column", 1))) __PYX_ERR(0, 182, __pyx_L1_error)
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_introsort_records(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse);
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_records), (&PyList_Type), 1, "records", 1))) __PYX_ERR(0, 189, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 1, "key_column", 1))) __PYX_ERR(0, 189, __pyx_L1_error)
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_introsort_records(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse);
 
   /* function exit code */
   goto __pyx_L0;
@@ -7190,7 +7328,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_introsort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_introsort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse) {
   int __pyx_v_n;
   int __pyx_v_max_depth;
   PyObject *__pyx_r = NULL;
@@ -7206,7 +7344,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_introso
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_introsort_records", 0);
 
-  /* "hyperoptimized_sort.pyx":187
+  /* "hyperoptimized_sort.pyx":194
  *         Guarantees O(n log n) worst-case performance
  *         """
  *         cdef int n = len(records)             # <<<<<<<<<<<<<<
@@ -7215,12 +7353,12 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_introso
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 187, __pyx_L1_error)
+    __PYX_ERR(0, 194, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 187, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 194, __pyx_L1_error)
   __pyx_v_n = __pyx_t_1;
 
-  /* "hyperoptimized_sort.pyx":188
+  /* "hyperoptimized_sort.pyx":195
  *         """
  *         cdef int n = len(records)
  *         cdef int max_depth = int(log2(n)) * 2 if n > 1 else 0             # <<<<<<<<<<<<<<
@@ -7229,12 +7367,12 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_introso
 */
   __pyx_t_3 = (__pyx_v_n > 1);
   if (__pyx_t_3) {
-    __pyx_t_4 = PyLong_FromDouble(log2(__pyx_v_n)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 188, __pyx_L1_error)
+    __pyx_t_4 = PyLong_FromDouble(log2(__pyx_v_n)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 195, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_5 = __Pyx_PyLong_MultiplyObjC(__pyx_t_4, __pyx_mstate_global->__pyx_int_2, 2, 0, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 188, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyLong_MultiplyObjC(__pyx_t_4, __pyx_mstate_global->__pyx_int_2, 2, 0, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 195, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_6 = __Pyx_PyLong_As_int(__pyx_t_5); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 188, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyLong_As_int(__pyx_t_5); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 195, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __pyx_t_2 = __pyx_t_6;
   } else {
@@ -7242,7 +7380,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_introso
   }
   __pyx_v_max_depth = __pyx_t_2;
 
-  /* "hyperoptimized_sort.pyx":190
+  /* "hyperoptimized_sort.pyx":197
  *         cdef int max_depth = int(log2(n)) * 2 if n > 1 else 0
  * 
  *         return self._introsort_util(records, 0, n - 1, max_depth, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -7250,13 +7388,13 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_introso
  *     cdef list _introsort_util(self, list records, int low, int high, int depth_limit, str key_column, bint reverse):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_5 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_introsort_util(__pyx_v_self, __pyx_v_records, 0, (__pyx_v_n - 1), __pyx_v_max_depth, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 190, __pyx_L1_error)
+  __pyx_t_5 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_introsort_util(__pyx_v_self, __pyx_v_records, 0, (__pyx_v_n - 1), __pyx_v_max_depth, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 197, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __pyx_r = __pyx_t_5;
   __pyx_t_5 = 0;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":182
+  /* "hyperoptimized_sort.pyx":189
  *         return records
  * 
  *     def _introsort_records(self, list records, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -7276,7 +7414,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_8_introso
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":192
+/* "hyperoptimized_sort.pyx":199
  *         return self._introsort_util(records, 0, n - 1, max_depth, key_column, reverse)
  * 
  *     cdef list _introsort_util(self, list records, int low, int high, int depth_limit, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -7297,7 +7435,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_introsort_util", 0);
 
-  /* "hyperoptimized_sort.pyx":194
+  /* "hyperoptimized_sort.pyx":201
  *     cdef list _introsort_util(self, list records, int low, int high, int depth_limit, str key_column, bint reverse):
  *         """Introspective sort utility with depth limiting"""
  *         cdef int size = high - low + 1             # <<<<<<<<<<<<<<
@@ -7306,7 +7444,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
 */
   __pyx_v_size = ((__pyx_v_high - __pyx_v_low) + 1);
 
-  /* "hyperoptimized_sort.pyx":196
+  /* "hyperoptimized_sort.pyx":203
  *         cdef int size = high - low + 1
  * 
  *         if size < INSERTION_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -7316,7 +7454,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
   __pyx_t_1 = (__pyx_v_size < __pyx_v_19hyperoptimized_sort_INSERTION_SORT_THRESHOLD);
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":197
+    /* "hyperoptimized_sort.pyx":204
  * 
  *         if size < INSERTION_SORT_THRESHOLD:
  *             return self._insertion_sort_range(records, low, high, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -7324,13 +7462,13 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
  *             return self._heapsort_range(records, low, high, key_column, reverse)
 */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_insertion_sort_range(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 197, __pyx_L1_error)
+    __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_insertion_sort_range(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 204, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
     __pyx_r = ((PyObject*)__pyx_t_2);
     __pyx_t_2 = 0;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":196
+    /* "hyperoptimized_sort.pyx":203
  *         cdef int size = high - low + 1
  * 
  *         if size < INSERTION_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -7339,7 +7477,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
 */
   }
 
-  /* "hyperoptimized_sort.pyx":198
+  /* "hyperoptimized_sort.pyx":205
  *         if size < INSERTION_SORT_THRESHOLD:
  *             return self._insertion_sort_range(records, low, high, key_column, reverse)
  *         elif depth_limit == 0:             # <<<<<<<<<<<<<<
@@ -7349,7 +7487,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
   __pyx_t_1 = (__pyx_v_depth_limit == 0);
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":199
+    /* "hyperoptimized_sort.pyx":206
  *             return self._insertion_sort_range(records, low, high, key_column, reverse)
  *         elif depth_limit == 0:
  *             return self._heapsort_range(records, low, high, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -7357,13 +7495,13 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
  *             # Hyperoptimized quicksort with median-of-three pivot selection
 */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_heapsort_range(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 199, __pyx_L1_error)
+    __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_heapsort_range(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 206, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
     __pyx_r = ((PyObject*)__pyx_t_2);
     __pyx_t_2 = 0;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":198
+    /* "hyperoptimized_sort.pyx":205
  *         if size < INSERTION_SORT_THRESHOLD:
  *             return self._insertion_sort_range(records, low, high, key_column, reverse)
  *         elif depth_limit == 0:             # <<<<<<<<<<<<<<
@@ -7372,7 +7510,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
 */
   }
 
-  /* "hyperoptimized_sort.pyx":202
+  /* "hyperoptimized_sort.pyx":209
  *         else:
  *             # Hyperoptimized quicksort with median-of-three pivot selection
  *             pivot_idx = self._median_of_three_pivot(records, low, high, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -7380,20 +7518,20 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
  * 
 */
   /*else*/ {
-    __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_median_of_three_pivot(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 202, __pyx_L1_error)
+    __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_median_of_three_pivot(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 209, __pyx_L1_error)
     __pyx_v_pivot_idx = __pyx_t_3;
 
-    /* "hyperoptimized_sort.pyx":203
+    /* "hyperoptimized_sort.pyx":210
  *             # Hyperoptimized quicksort with median-of-three pivot selection
  *             pivot_idx = self._median_of_three_pivot(records, low, high, key_column, reverse)
  *             pivot_idx = self._partition_hoare(records, low, high, pivot_idx, key_column, reverse)             # <<<<<<<<<<<<<<
  * 
  *             # Recursively sort partitions
 */
-    __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_partition_hoare(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, __pyx_v_pivot_idx, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 203, __pyx_L1_error)
+    __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_partition_hoare(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, __pyx_v_pivot_idx, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 210, __pyx_L1_error)
     __pyx_v_pivot_idx = __pyx_t_3;
 
-    /* "hyperoptimized_sort.pyx":206
+    /* "hyperoptimized_sort.pyx":213
  * 
  *             # Recursively sort partitions
  *             if pivot_idx > low:             # <<<<<<<<<<<<<<
@@ -7403,18 +7541,18 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
     __pyx_t_1 = (__pyx_v_pivot_idx > __pyx_v_low);
     if (__pyx_t_1) {
 
-      /* "hyperoptimized_sort.pyx":207
+      /* "hyperoptimized_sort.pyx":214
  *             # Recursively sort partitions
  *             if pivot_idx > low:
  *                 self._introsort_util(records, low, pivot_idx - 1, depth_limit - 1, key_column, reverse)             # <<<<<<<<<<<<<<
  *             if pivot_idx < high:
  *                 self._introsort_util(records, pivot_idx + 1, high, depth_limit - 1, key_column, reverse)
 */
-      __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_introsort_util(__pyx_v_self, __pyx_v_records, __pyx_v_low, (__pyx_v_pivot_idx - 1), (__pyx_v_depth_limit - 1), __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 207, __pyx_L1_error)
+      __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_introsort_util(__pyx_v_self, __pyx_v_records, __pyx_v_low, (__pyx_v_pivot_idx - 1), (__pyx_v_depth_limit - 1), __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 214, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-      /* "hyperoptimized_sort.pyx":206
+      /* "hyperoptimized_sort.pyx":213
  * 
  *             # Recursively sort partitions
  *             if pivot_idx > low:             # <<<<<<<<<<<<<<
@@ -7423,7 +7561,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
 */
     }
 
-    /* "hyperoptimized_sort.pyx":208
+    /* "hyperoptimized_sort.pyx":215
  *             if pivot_idx > low:
  *                 self._introsort_util(records, low, pivot_idx - 1, depth_limit - 1, key_column, reverse)
  *             if pivot_idx < high:             # <<<<<<<<<<<<<<
@@ -7433,18 +7571,18 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
     __pyx_t_1 = (__pyx_v_pivot_idx < __pyx_v_high);
     if (__pyx_t_1) {
 
-      /* "hyperoptimized_sort.pyx":209
+      /* "hyperoptimized_sort.pyx":216
  *                 self._introsort_util(records, low, pivot_idx - 1, depth_limit - 1, key_column, reverse)
  *             if pivot_idx < high:
  *                 self._introsort_util(records, pivot_idx + 1, high, depth_limit - 1, key_column, reverse)             # <<<<<<<<<<<<<<
  * 
  *         return records
 */
-      __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_introsort_util(__pyx_v_self, __pyx_v_records, (__pyx_v_pivot_idx + 1), __pyx_v_high, (__pyx_v_depth_limit - 1), __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 209, __pyx_L1_error)
+      __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_introsort_util(__pyx_v_self, __pyx_v_records, (__pyx_v_pivot_idx + 1), __pyx_v_high, (__pyx_v_depth_limit - 1), __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 216, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-      /* "hyperoptimized_sort.pyx":208
+      /* "hyperoptimized_sort.pyx":215
  *             if pivot_idx > low:
  *                 self._introsort_util(records, low, pivot_idx - 1, depth_limit - 1, key_column, reverse)
  *             if pivot_idx < high:             # <<<<<<<<<<<<<<
@@ -7454,7 +7592,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
     }
   }
 
-  /* "hyperoptimized_sort.pyx":211
+  /* "hyperoptimized_sort.pyx":218
  *                 self._introsort_util(records, pivot_idx + 1, high, depth_limit - 1, key_column, reverse)
  * 
  *         return records             # <<<<<<<<<<<<<<
@@ -7466,7 +7604,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
   __pyx_r = __pyx_v_records;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":192
+  /* "hyperoptimized_sort.pyx":199
  *         return self._introsort_util(records, 0, n - 1, max_depth, key_column, reverse)
  * 
  *     cdef list _introsort_util(self, list records, int low, int high, int depth_limit, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -7485,7 +7623,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__introsort
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":213
+/* "hyperoptimized_sort.pyx":220
  *         return records
  * 
  *     cdef int _median_of_three_pivot(self, list records, int low, int high, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -7509,7 +7647,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_median_of_three_pivot", 0);
 
-  /* "hyperoptimized_sort.pyx":215
+  /* "hyperoptimized_sort.pyx":222
  *     cdef int _median_of_three_pivot(self, list records, int low, int high, str key_column, bint reverse):
  *         """Select median-of-three pivot for better QuickSort performance"""
  *         cdef int mid = low + (high - low) // 2             # <<<<<<<<<<<<<<
@@ -7518,7 +7656,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
 */
   __pyx_v_mid = (__pyx_v_low + ((__pyx_v_high - __pyx_v_low) / 2));
 
-  /* "hyperoptimized_sort.pyx":217
+  /* "hyperoptimized_sort.pyx":224
  *         cdef int mid = low + (high - low) // 2
  * 
  *         cdef object low_key = self._extract_sort_key(records[low], key_column)             # <<<<<<<<<<<<<<
@@ -7527,18 +7665,18 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 217, __pyx_L1_error)
+    __PYX_ERR(0, 224, __pyx_L1_error)
   }
   __pyx_t_1 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_low);
   __Pyx_INCREF(__pyx_t_1);
-  if (!(likely(PyDict_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_1))) __PYX_ERR(0, 217, __pyx_L1_error)
-  __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_1), __pyx_v_key_column); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 217, __pyx_L1_error)
+  if (!(likely(PyDict_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_1))) __PYX_ERR(0, 224, __pyx_L1_error)
+  __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_1), __pyx_v_key_column); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 224, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_low_key = __pyx_t_2;
   __pyx_t_2 = 0;
 
-  /* "hyperoptimized_sort.pyx":218
+  /* "hyperoptimized_sort.pyx":225
  * 
  *         cdef object low_key = self._extract_sort_key(records[low], key_column)
  *         cdef object mid_key = self._extract_sort_key(records[mid], key_column)             # <<<<<<<<<<<<<<
@@ -7547,18 +7685,18 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 218, __pyx_L1_error)
+    __PYX_ERR(0, 225, __pyx_L1_error)
   }
   __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_mid);
   __Pyx_INCREF(__pyx_t_2);
-  if (!(likely(PyDict_CheckExact(__pyx_t_2))||((__pyx_t_2) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_2))) __PYX_ERR(0, 218, __pyx_L1_error)
-  __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_2), __pyx_v_key_column); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 218, __pyx_L1_error)
+  if (!(likely(PyDict_CheckExact(__pyx_t_2))||((__pyx_t_2) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_2))) __PYX_ERR(0, 225, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_2), __pyx_v_key_column); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 225, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_v_mid_key = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":219
+  /* "hyperoptimized_sort.pyx":226
  *         cdef object low_key = self._extract_sort_key(records[low], key_column)
  *         cdef object mid_key = self._extract_sort_key(records[mid], key_column)
  *         cdef object high_key = self._extract_sort_key(records[high], key_column)             # <<<<<<<<<<<<<<
@@ -7567,29 +7705,29 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 219, __pyx_L1_error)
+    __PYX_ERR(0, 226, __pyx_L1_error)
   }
   __pyx_t_1 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_high);
   __Pyx_INCREF(__pyx_t_1);
-  if (!(likely(PyDict_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_1))) __PYX_ERR(0, 219, __pyx_L1_error)
-  __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_1), __pyx_v_key_column); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 219, __pyx_L1_error)
+  if (!(likely(PyDict_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_1))) __PYX_ERR(0, 226, __pyx_L1_error)
+  __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_1), __pyx_v_key_column); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 226, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_high_key = __pyx_t_2;
   __pyx_t_2 = 0;
 
-  /* "hyperoptimized_sort.pyx":222
+  /* "hyperoptimized_sort.pyx":229
  * 
  *         # Find median using branchless comparisons
  *         if self._compare_keys(low_key, mid_key, reverse) > 0:             # <<<<<<<<<<<<<<
  *             records[low], records[mid] = records[mid], records[low]
  *         if self._compare_keys(low_key, high_key, reverse) > 0:
 */
-  __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_v_low_key, __pyx_v_mid_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 222, __pyx_L1_error)
+  __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_v_low_key, __pyx_v_mid_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 229, __pyx_L1_error)
   __pyx_t_4 = (__pyx_t_3 > 0);
   if (__pyx_t_4) {
 
-    /* "hyperoptimized_sort.pyx":223
+    /* "hyperoptimized_sort.pyx":230
  *         # Find median using branchless comparisons
  *         if self._compare_keys(low_key, mid_key, reverse) > 0:
  *             records[low], records[mid] = records[mid], records[low]             # <<<<<<<<<<<<<<
@@ -7598,30 +7736,30 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 223, __pyx_L1_error)
+      __PYX_ERR(0, 230, __pyx_L1_error)
     }
     __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_mid);
     __Pyx_INCREF(__pyx_t_2);
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 223, __pyx_L1_error)
+      __PYX_ERR(0, 230, __pyx_L1_error)
     }
     __pyx_t_1 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_low);
     __Pyx_INCREF(__pyx_t_1);
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 223, __pyx_L1_error)
+      __PYX_ERR(0, 230, __pyx_L1_error)
     }
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_low, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 223, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_low, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 230, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 223, __pyx_L1_error)
+      __PYX_ERR(0, 230, __pyx_L1_error)
     }
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_mid, __pyx_t_1, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 223, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_mid, __pyx_t_1, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 230, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-    /* "hyperoptimized_sort.pyx":222
+    /* "hyperoptimized_sort.pyx":229
  * 
  *         # Find median using branchless comparisons
  *         if self._compare_keys(low_key, mid_key, reverse) > 0:             # <<<<<<<<<<<<<<
@@ -7630,18 +7768,18 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
 */
   }
 
-  /* "hyperoptimized_sort.pyx":224
+  /* "hyperoptimized_sort.pyx":231
  *         if self._compare_keys(low_key, mid_key, reverse) > 0:
  *             records[low], records[mid] = records[mid], records[low]
  *         if self._compare_keys(low_key, high_key, reverse) > 0:             # <<<<<<<<<<<<<<
  *             records[low], records[high] = records[high], records[low]
  *         if self._compare_keys(mid_key, high_key, reverse) > 0:
 */
-  __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_v_low_key, __pyx_v_high_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 224, __pyx_L1_error)
+  __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_v_low_key, __pyx_v_high_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 231, __pyx_L1_error)
   __pyx_t_4 = (__pyx_t_3 > 0);
   if (__pyx_t_4) {
 
-    /* "hyperoptimized_sort.pyx":225
+    /* "hyperoptimized_sort.pyx":232
  *             records[low], records[mid] = records[mid], records[low]
  *         if self._compare_keys(low_key, high_key, reverse) > 0:
  *             records[low], records[high] = records[high], records[low]             # <<<<<<<<<<<<<<
@@ -7650,30 +7788,30 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 225, __pyx_L1_error)
+      __PYX_ERR(0, 232, __pyx_L1_error)
     }
     __pyx_t_1 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_high);
     __Pyx_INCREF(__pyx_t_1);
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 225, __pyx_L1_error)
+      __PYX_ERR(0, 232, __pyx_L1_error)
     }
     __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_low);
     __Pyx_INCREF(__pyx_t_2);
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 225, __pyx_L1_error)
+      __PYX_ERR(0, 232, __pyx_L1_error)
     }
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_low, __pyx_t_1, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 225, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_low, __pyx_t_1, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 232, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 225, __pyx_L1_error)
+      __PYX_ERR(0, 232, __pyx_L1_error)
     }
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_high, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 225, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_high, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 232, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-    /* "hyperoptimized_sort.pyx":224
+    /* "hyperoptimized_sort.pyx":231
  *         if self._compare_keys(low_key, mid_key, reverse) > 0:
  *             records[low], records[mid] = records[mid], records[low]
  *         if self._compare_keys(low_key, high_key, reverse) > 0:             # <<<<<<<<<<<<<<
@@ -7682,18 +7820,18 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
 */
   }
 
-  /* "hyperoptimized_sort.pyx":226
+  /* "hyperoptimized_sort.pyx":233
  *         if self._compare_keys(low_key, high_key, reverse) > 0:
  *             records[low], records[high] = records[high], records[low]
  *         if self._compare_keys(mid_key, high_key, reverse) > 0:             # <<<<<<<<<<<<<<
  *             records[mid], records[high] = records[high], records[mid]
  * 
 */
-  __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_v_mid_key, __pyx_v_high_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 226, __pyx_L1_error)
+  __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_v_mid_key, __pyx_v_high_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 233, __pyx_L1_error)
   __pyx_t_4 = (__pyx_t_3 > 0);
   if (__pyx_t_4) {
 
-    /* "hyperoptimized_sort.pyx":227
+    /* "hyperoptimized_sort.pyx":234
  *             records[low], records[high] = records[high], records[low]
  *         if self._compare_keys(mid_key, high_key, reverse) > 0:
  *             records[mid], records[high] = records[high], records[mid]             # <<<<<<<<<<<<<<
@@ -7702,30 +7840,30 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 227, __pyx_L1_error)
+      __PYX_ERR(0, 234, __pyx_L1_error)
     }
     __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_high);
     __Pyx_INCREF(__pyx_t_2);
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 227, __pyx_L1_error)
+      __PYX_ERR(0, 234, __pyx_L1_error)
     }
     __pyx_t_1 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_mid);
     __Pyx_INCREF(__pyx_t_1);
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 227, __pyx_L1_error)
+      __PYX_ERR(0, 234, __pyx_L1_error)
     }
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_mid, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 227, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_mid, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 234, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 227, __pyx_L1_error)
+      __PYX_ERR(0, 234, __pyx_L1_error)
     }
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_high, __pyx_t_1, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 227, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_high, __pyx_t_1, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 234, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-    /* "hyperoptimized_sort.pyx":226
+    /* "hyperoptimized_sort.pyx":233
  *         if self._compare_keys(low_key, high_key, reverse) > 0:
  *             records[low], records[high] = records[high], records[low]
  *         if self._compare_keys(mid_key, high_key, reverse) > 0:             # <<<<<<<<<<<<<<
@@ -7734,7 +7872,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
 */
   }
 
-  /* "hyperoptimized_sort.pyx":229
+  /* "hyperoptimized_sort.pyx":236
  *             records[mid], records[high] = records[high], records[mid]
  * 
  *         return mid             # <<<<<<<<<<<<<<
@@ -7744,7 +7882,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
   __pyx_r = __pyx_v_mid;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":213
+  /* "hyperoptimized_sort.pyx":220
  *         return records
  * 
  *     cdef int _median_of_three_pivot(self, list records, int low, int high, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -7766,7 +7904,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__median_of_three
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":231
+/* "hyperoptimized_sort.pyx":238
  *         return mid
  * 
  *     cdef int _partition_hoare(self, list records, int low, int high, int pivot_idx, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -7793,7 +7931,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_partition_hoare", 0);
 
-  /* "hyperoptimized_sort.pyx":234
+  /* "hyperoptimized_sort.pyx":241
  *         """Hoare partition scheme with optimizations"""
  *         # Move pivot to end
  *         records[pivot_idx], records[high] = records[high], records[pivot_idx]             # <<<<<<<<<<<<<<
@@ -7802,30 +7940,30 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 234, __pyx_L1_error)
+    __PYX_ERR(0, 241, __pyx_L1_error)
   }
   __pyx_t_1 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_high);
   __Pyx_INCREF(__pyx_t_1);
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 234, __pyx_L1_error)
+    __PYX_ERR(0, 241, __pyx_L1_error)
   }
   __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_pivot_idx);
   __Pyx_INCREF(__pyx_t_2);
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 234, __pyx_L1_error)
+    __PYX_ERR(0, 241, __pyx_L1_error)
   }
-  if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_pivot_idx, __pyx_t_1, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 234, __pyx_L1_error)
+  if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_pivot_idx, __pyx_t_1, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 241, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 234, __pyx_L1_error)
+    __PYX_ERR(0, 241, __pyx_L1_error)
   }
-  if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_high, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 234, __pyx_L1_error)
+  if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_high, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 241, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "hyperoptimized_sort.pyx":236
+  /* "hyperoptimized_sort.pyx":243
  *         records[pivot_idx], records[high] = records[high], records[pivot_idx]
  * 
  *         cdef object pivot_key = self._extract_sort_key(records[high], key_column)             # <<<<<<<<<<<<<<
@@ -7834,18 +7972,18 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 236, __pyx_L1_error)
+    __PYX_ERR(0, 243, __pyx_L1_error)
   }
   __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_high);
   __Pyx_INCREF(__pyx_t_2);
-  if (!(likely(PyDict_CheckExact(__pyx_t_2))||((__pyx_t_2) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_2))) __PYX_ERR(0, 236, __pyx_L1_error)
-  __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_2), __pyx_v_key_column); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 236, __pyx_L1_error)
+  if (!(likely(PyDict_CheckExact(__pyx_t_2))||((__pyx_t_2) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_2))) __PYX_ERR(0, 243, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_2), __pyx_v_key_column); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 243, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_v_pivot_key = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":237
+  /* "hyperoptimized_sort.pyx":244
  * 
  *         cdef object pivot_key = self._extract_sort_key(records[high], key_column)
  *         cdef int i = low - 1             # <<<<<<<<<<<<<<
@@ -7854,7 +7992,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
 */
   __pyx_v_i = (__pyx_v_low - 1);
 
-  /* "hyperoptimized_sort.pyx":240
+  /* "hyperoptimized_sort.pyx":247
  *         cdef int j
  * 
  *         for j in range(low, high):             # <<<<<<<<<<<<<<
@@ -7866,7 +8004,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
   for (__pyx_t_5 = __pyx_v_low; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
     __pyx_v_j = __pyx_t_5;
 
-    /* "hyperoptimized_sort.pyx":241
+    /* "hyperoptimized_sort.pyx":248
  * 
  *         for j in range(low, high):
  *             if self._compare_keys(self._extract_sort_key(records[j], key_column), pivot_key, reverse) <= 0:             # <<<<<<<<<<<<<<
@@ -7875,20 +8013,20 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 241, __pyx_L1_error)
+      __PYX_ERR(0, 248, __pyx_L1_error)
     }
     __pyx_t_1 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_j);
     __Pyx_INCREF(__pyx_t_1);
-    if (!(likely(PyDict_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_1))) __PYX_ERR(0, 241, __pyx_L1_error)
-    __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_1), __pyx_v_key_column); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 241, __pyx_L1_error)
+    if (!(likely(PyDict_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_1))) __PYX_ERR(0, 248, __pyx_L1_error)
+    __pyx_t_2 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_1), __pyx_v_key_column); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 248, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_t_2, __pyx_v_pivot_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 241, __pyx_L1_error)
+    __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_t_2, __pyx_v_pivot_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 248, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     __pyx_t_7 = (__pyx_t_6 <= 0);
     if (__pyx_t_7) {
 
-      /* "hyperoptimized_sort.pyx":242
+      /* "hyperoptimized_sort.pyx":249
  *         for j in range(low, high):
  *             if self._compare_keys(self._extract_sort_key(records[j], key_column), pivot_key, reverse) <= 0:
  *                 i += 1             # <<<<<<<<<<<<<<
@@ -7897,7 +8035,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
 */
       __pyx_v_i = (__pyx_v_i + 1);
 
-      /* "hyperoptimized_sort.pyx":243
+      /* "hyperoptimized_sort.pyx":250
  *             if self._compare_keys(self._extract_sort_key(records[j], key_column), pivot_key, reverse) <= 0:
  *                 i += 1
  *                 records[i], records[j] = records[j], records[i]             # <<<<<<<<<<<<<<
@@ -7906,30 +8044,30 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
 */
       if (unlikely(__pyx_v_records == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 243, __pyx_L1_error)
+        __PYX_ERR(0, 250, __pyx_L1_error)
       }
       __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_2);
       if (unlikely(__pyx_v_records == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 243, __pyx_L1_error)
+        __PYX_ERR(0, 250, __pyx_L1_error)
       }
       __pyx_t_1 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i);
       __Pyx_INCREF(__pyx_t_1);
       if (unlikely(__pyx_v_records == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 243, __pyx_L1_error)
+        __PYX_ERR(0, 250, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_i, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 243, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_i, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 250, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
       if (unlikely(__pyx_v_records == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 243, __pyx_L1_error)
+        __PYX_ERR(0, 250, __pyx_L1_error)
       }
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_j, __pyx_t_1, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 243, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_j, __pyx_t_1, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 250, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-      /* "hyperoptimized_sort.pyx":241
+      /* "hyperoptimized_sort.pyx":248
  * 
  *         for j in range(low, high):
  *             if self._compare_keys(self._extract_sort_key(records[j], key_column), pivot_key, reverse) <= 0:             # <<<<<<<<<<<<<<
@@ -7939,7 +8077,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
     }
   }
 
-  /* "hyperoptimized_sort.pyx":245
+  /* "hyperoptimized_sort.pyx":252
  *                 records[i], records[j] = records[j], records[i]
  * 
  *         records[i + 1], records[high] = records[high], records[i + 1]             # <<<<<<<<<<<<<<
@@ -7948,32 +8086,32 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 245, __pyx_L1_error)
+    __PYX_ERR(0, 252, __pyx_L1_error)
   }
   __pyx_t_1 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_high);
   __Pyx_INCREF(__pyx_t_1);
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 245, __pyx_L1_error)
+    __PYX_ERR(0, 252, __pyx_L1_error)
   }
   __pyx_t_8 = (__pyx_v_i + 1);
   __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_t_8);
   __Pyx_INCREF(__pyx_t_2);
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 245, __pyx_L1_error)
+    __PYX_ERR(0, 252, __pyx_L1_error)
   }
   __pyx_t_8 = (__pyx_v_i + 1);
-  if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_t_8, __pyx_t_1, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 245, __pyx_L1_error)
+  if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_t_8, __pyx_t_1, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 252, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 245, __pyx_L1_error)
+    __PYX_ERR(0, 252, __pyx_L1_error)
   }
-  if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_high, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 245, __pyx_L1_error)
+  if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_high, __pyx_t_2, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 252, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "hyperoptimized_sort.pyx":246
+  /* "hyperoptimized_sort.pyx":253
  * 
  *         records[i + 1], records[high] = records[high], records[i + 1]
  *         return i + 1             # <<<<<<<<<<<<<<
@@ -7983,7 +8121,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
   __pyx_r = (__pyx_v_i + 1);
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":231
+  /* "hyperoptimized_sort.pyx":238
  *         return mid
  * 
  *     cdef int _partition_hoare(self, list records, int low, int high, int pivot_idx, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -8003,7 +8141,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__partition_hoare
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":248
+/* "hyperoptimized_sort.pyx":255
  *         return i + 1
  * 
  *     cdef list _insertion_sort_range(self, list records, int low, int high, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -8032,7 +8170,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_insertion_sort_range", 0);
 
-  /* "hyperoptimized_sort.pyx":253
+  /* "hyperoptimized_sort.pyx":260
  *         cdef object current_record, current_key, compare_key
  * 
  *         for i in range(low + 1, high + 1):             # <<<<<<<<<<<<<<
@@ -8044,7 +8182,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
   for (__pyx_t_3 = (__pyx_v_low + 1); __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
     __pyx_v_i = __pyx_t_3;
 
-    /* "hyperoptimized_sort.pyx":254
+    /* "hyperoptimized_sort.pyx":261
  * 
  *         for i in range(low + 1, high + 1):
  *             current_record = records[i]             # <<<<<<<<<<<<<<
@@ -8053,27 +8191,27 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 254, __pyx_L1_error)
+      __PYX_ERR(0, 261, __pyx_L1_error)
     }
     __pyx_t_4 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i);
     __Pyx_INCREF(__pyx_t_4);
     __Pyx_XDECREF_SET(__pyx_v_current_record, __pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":255
+    /* "hyperoptimized_sort.pyx":262
  *         for i in range(low + 1, high + 1):
  *             current_record = records[i]
  *             current_key = self._extract_sort_key(current_record, key_column)             # <<<<<<<<<<<<<<
  *             j = i - 1
  * 
 */
-    if (!(likely(PyDict_CheckExact(__pyx_v_current_record))||((__pyx_v_current_record) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_v_current_record))) __PYX_ERR(0, 255, __pyx_L1_error)
-    __pyx_t_4 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_v_current_record), __pyx_v_key_column); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 255, __pyx_L1_error)
+    if (!(likely(PyDict_CheckExact(__pyx_v_current_record))||((__pyx_v_current_record) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_v_current_record))) __PYX_ERR(0, 262, __pyx_L1_error)
+    __pyx_t_4 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_v_current_record), __pyx_v_key_column); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 262, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_XDECREF_SET(__pyx_v_current_key, __pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":256
+    /* "hyperoptimized_sort.pyx":263
  *             current_record = records[i]
  *             current_key = self._extract_sort_key(current_record, key_column)
  *             j = i - 1             # <<<<<<<<<<<<<<
@@ -8082,7 +8220,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
 */
     __pyx_v_j = (__pyx_v_i - 1);
 
-    /* "hyperoptimized_sort.pyx":258
+    /* "hyperoptimized_sort.pyx":265
  *             j = i - 1
  * 
  *             while j >= low:             # <<<<<<<<<<<<<<
@@ -8093,7 +8231,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
       __pyx_t_5 = (__pyx_v_j >= __pyx_v_low);
       if (!__pyx_t_5) break;
 
-      /* "hyperoptimized_sort.pyx":259
+      /* "hyperoptimized_sort.pyx":266
  * 
  *             while j >= low:
  *                 compare_key = self._extract_sort_key(records[j], key_column)             # <<<<<<<<<<<<<<
@@ -8102,29 +8240,29 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
 */
       if (unlikely(__pyx_v_records == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 259, __pyx_L1_error)
+        __PYX_ERR(0, 266, __pyx_L1_error)
       }
       __pyx_t_4 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_4);
-      if (!(likely(PyDict_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_4))) __PYX_ERR(0, 259, __pyx_L1_error)
-      __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_4), __pyx_v_key_column); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 259, __pyx_L1_error)
+      if (!(likely(PyDict_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_4))) __PYX_ERR(0, 266, __pyx_L1_error)
+      __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_4), __pyx_v_key_column); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 266, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       __Pyx_XDECREF_SET(__pyx_v_compare_key, __pyx_t_6);
       __pyx_t_6 = 0;
 
-      /* "hyperoptimized_sort.pyx":260
+      /* "hyperoptimized_sort.pyx":267
  *             while j >= low:
  *                 compare_key = self._extract_sort_key(records[j], key_column)
  *                 if self._compare_keys(current_key, compare_key, reverse) >= 0:             # <<<<<<<<<<<<<<
  *                     break
  *                 records[j + 1] = records[j]
 */
-      __pyx_t_7 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_v_current_key, __pyx_v_compare_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 260, __pyx_L1_error)
+      __pyx_t_7 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_v_current_key, __pyx_v_compare_key, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 267, __pyx_L1_error)
       __pyx_t_5 = (__pyx_t_7 >= 0);
       if (__pyx_t_5) {
 
-        /* "hyperoptimized_sort.pyx":261
+        /* "hyperoptimized_sort.pyx":268
  *                 compare_key = self._extract_sort_key(records[j], key_column)
  *                 if self._compare_keys(current_key, compare_key, reverse) >= 0:
  *                     break             # <<<<<<<<<<<<<<
@@ -8133,7 +8271,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
 */
         goto __pyx_L6_break;
 
-        /* "hyperoptimized_sort.pyx":260
+        /* "hyperoptimized_sort.pyx":267
  *             while j >= low:
  *                 compare_key = self._extract_sort_key(records[j], key_column)
  *                 if self._compare_keys(current_key, compare_key, reverse) >= 0:             # <<<<<<<<<<<<<<
@@ -8142,7 +8280,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
 */
       }
 
-      /* "hyperoptimized_sort.pyx":262
+      /* "hyperoptimized_sort.pyx":269
  *                 if self._compare_keys(current_key, compare_key, reverse) >= 0:
  *                     break
  *                 records[j + 1] = records[j]             # <<<<<<<<<<<<<<
@@ -8151,19 +8289,19 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
 */
       if (unlikely(__pyx_v_records == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 262, __pyx_L1_error)
+        __PYX_ERR(0, 269, __pyx_L1_error)
       }
       __pyx_t_6 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_j);
       __Pyx_INCREF(__pyx_t_6);
       if (unlikely(__pyx_v_records == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 262, __pyx_L1_error)
+        __PYX_ERR(0, 269, __pyx_L1_error)
       }
       __pyx_t_8 = (__pyx_v_j + 1);
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_t_8, __pyx_t_6, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 262, __pyx_L1_error)
+      if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_t_8, __pyx_t_6, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 269, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
 
-      /* "hyperoptimized_sort.pyx":263
+      /* "hyperoptimized_sort.pyx":270
  *                     break
  *                 records[j + 1] = records[j]
  *                 j -= 1             # <<<<<<<<<<<<<<
@@ -8174,7 +8312,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
     }
     __pyx_L6_break:;
 
-    /* "hyperoptimized_sort.pyx":265
+    /* "hyperoptimized_sort.pyx":272
  *                 j -= 1
  * 
  *             records[j + 1] = current_record             # <<<<<<<<<<<<<<
@@ -8183,13 +8321,13 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 265, __pyx_L1_error)
+      __PYX_ERR(0, 272, __pyx_L1_error)
     }
     __pyx_t_8 = (__pyx_v_j + 1);
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_t_8, __pyx_v_current_record, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 265, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_t_8, __pyx_v_current_record, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 272, __pyx_L1_error)
   }
 
-  /* "hyperoptimized_sort.pyx":267
+  /* "hyperoptimized_sort.pyx":274
  *             records[j + 1] = current_record
  * 
  *         return records             # <<<<<<<<<<<<<<
@@ -8201,7 +8339,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
   __pyx_r = __pyx_v_records;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":248
+  /* "hyperoptimized_sort.pyx":255
  *         return i + 1
  * 
  *     cdef list _insertion_sort_range(self, list records, int low, int high, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -8224,7 +8362,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__insertion
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":269
+/* "hyperoptimized_sort.pyx":276
  *         return records
  * 
  *     cdef list _heapsort_range(self, list records, int low, int high, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -8247,7 +8385,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapsort_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_heapsort_range", 0);
 
-  /* "hyperoptimized_sort.pyx":271
+  /* "hyperoptimized_sort.pyx":278
  *     cdef list _heapsort_range(self, list records, int low, int high, str key_column, bint reverse):
  *         """Heapsort implementation for worst-case guarantee"""
  *         cdef int n = high - low + 1             # <<<<<<<<<<<<<<
@@ -8256,7 +8394,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapsort_
 */
   __pyx_v_n = ((__pyx_v_high - __pyx_v_low) + 1);
 
-  /* "hyperoptimized_sort.pyx":275
+  /* "hyperoptimized_sort.pyx":282
  * 
  *         # Build max heap
  *         for i in range(n // 2 - 1, -1, -1):             # <<<<<<<<<<<<<<
@@ -8266,17 +8404,17 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapsort_
   for (__pyx_t_1 = ((__pyx_v_n / 2) - 1); __pyx_t_1 > -1; __pyx_t_1-=1) {
     __pyx_v_i = __pyx_t_1;
 
-    /* "hyperoptimized_sort.pyx":276
+    /* "hyperoptimized_sort.pyx":283
  *         # Build max heap
  *         for i in range(n // 2 - 1, -1, -1):
  *             self._heapify(records, low, high, low + i, key_column, reverse)             # <<<<<<<<<<<<<<
  * 
  *         # Extract elements one by one
 */
-    ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_heapify(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, (__pyx_v_low + __pyx_v_i), __pyx_v_key_column, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 276, __pyx_L1_error)
+    ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_heapify(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, (__pyx_v_low + __pyx_v_i), __pyx_v_key_column, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 283, __pyx_L1_error)
   }
 
-  /* "hyperoptimized_sort.pyx":279
+  /* "hyperoptimized_sort.pyx":286
  * 
  *         # Extract elements one by one
  *         for i in range(high, low, -1):             # <<<<<<<<<<<<<<
@@ -8288,7 +8426,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapsort_
   for (__pyx_t_3 = __pyx_v_high; __pyx_t_3 > __pyx_t_2; __pyx_t_3-=1) {
     __pyx_v_i = __pyx_t_3;
 
-    /* "hyperoptimized_sort.pyx":280
+    /* "hyperoptimized_sort.pyx":287
  *         # Extract elements one by one
  *         for i in range(high, low, -1):
  *             records[low], records[i] = records[i], records[low]             # <<<<<<<<<<<<<<
@@ -8297,40 +8435,40 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapsort_
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 280, __pyx_L1_error)
+      __PYX_ERR(0, 287, __pyx_L1_error)
     }
     __pyx_t_4 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i);
     __Pyx_INCREF(__pyx_t_4);
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 280, __pyx_L1_error)
+      __PYX_ERR(0, 287, __pyx_L1_error)
     }
     __pyx_t_5 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_low);
     __Pyx_INCREF(__pyx_t_5);
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 280, __pyx_L1_error)
+      __PYX_ERR(0, 287, __pyx_L1_error)
     }
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_low, __pyx_t_4, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 280, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_low, __pyx_t_4, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 287, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 280, __pyx_L1_error)
+      __PYX_ERR(0, 287, __pyx_L1_error)
     }
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_i, __pyx_t_5, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 280, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_i, __pyx_t_5, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 287, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
-    /* "hyperoptimized_sort.pyx":281
+    /* "hyperoptimized_sort.pyx":288
  *         for i in range(high, low, -1):
  *             records[low], records[i] = records[i], records[low]
  *             self._heapify(records, low, i - 1, low, key_column, reverse)             # <<<<<<<<<<<<<<
  * 
  *         return records
 */
-    ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_heapify(__pyx_v_self, __pyx_v_records, __pyx_v_low, (__pyx_v_i - 1), __pyx_v_low, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 281, __pyx_L1_error)
+    ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_heapify(__pyx_v_self, __pyx_v_records, __pyx_v_low, (__pyx_v_i - 1), __pyx_v_low, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 288, __pyx_L1_error)
   }
 
-  /* "hyperoptimized_sort.pyx":283
+  /* "hyperoptimized_sort.pyx":290
  *             self._heapify(records, low, i - 1, low, key_column, reverse)
  * 
  *         return records             # <<<<<<<<<<<<<<
@@ -8342,7 +8480,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapsort_
   __pyx_r = __pyx_v_records;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":269
+  /* "hyperoptimized_sort.pyx":276
  *         return records
  * 
  *     cdef list _heapsort_range(self, list records, int low, int high, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -8362,7 +8500,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapsort_
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":285
+/* "hyperoptimized_sort.pyx":292
  *         return records
  * 
  *     cdef void _heapify(self, list records, int low, int high, int root, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -8386,7 +8524,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_heapify", 0);
 
-  /* "hyperoptimized_sort.pyx":287
+  /* "hyperoptimized_sort.pyx":294
  *     cdef void _heapify(self, list records, int low, int high, int root, str key_column, bint reverse):
  *         """Heapify operation for heapsort"""
  *         cdef int largest = root             # <<<<<<<<<<<<<<
@@ -8395,7 +8533,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   __pyx_v_largest = __pyx_v_root;
 
-  /* "hyperoptimized_sort.pyx":288
+  /* "hyperoptimized_sort.pyx":295
  *         """Heapify operation for heapsort"""
  *         cdef int largest = root
  *         cdef int left = 2 * (root - low) + 1 + low             # <<<<<<<<<<<<<<
@@ -8404,7 +8542,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   __pyx_v_left = (((2 * (__pyx_v_root - __pyx_v_low)) + 1) + __pyx_v_low);
 
-  /* "hyperoptimized_sort.pyx":289
+  /* "hyperoptimized_sort.pyx":296
  *         cdef int largest = root
  *         cdef int left = 2 * (root - low) + 1 + low
  *         cdef int right = 2 * (root - low) + 2 + low             # <<<<<<<<<<<<<<
@@ -8413,7 +8551,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   __pyx_v_right = (((2 * (__pyx_v_root - __pyx_v_low)) + 2) + __pyx_v_low);
 
-  /* "hyperoptimized_sort.pyx":292
+  /* "hyperoptimized_sort.pyx":299
  * 
  *         # Find largest among root, left child and right child
  *         if (left <= high and             # <<<<<<<<<<<<<<
@@ -8427,7 +8565,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
     goto __pyx_L4_bool_binop_done;
   }
 
-  /* "hyperoptimized_sort.pyx":294
+  /* "hyperoptimized_sort.pyx":301
  *         if (left <= high and
  *             self._compare_keys(
  *                 self._extract_sort_key(records[left], key_column),             # <<<<<<<<<<<<<<
@@ -8436,16 +8574,16 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 294, __pyx_L1_error)
+    __PYX_ERR(0, 301, __pyx_L1_error)
   }
   __pyx_t_3 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_left);
   __Pyx_INCREF(__pyx_t_3);
-  if (!(likely(PyDict_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_3))) __PYX_ERR(0, 294, __pyx_L1_error)
-  __pyx_t_4 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_3), __pyx_v_key_column); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 294, __pyx_L1_error)
+  if (!(likely(PyDict_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_3))) __PYX_ERR(0, 301, __pyx_L1_error)
+  __pyx_t_4 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_3), __pyx_v_key_column); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 301, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "hyperoptimized_sort.pyx":295
+  /* "hyperoptimized_sort.pyx":302
  *             self._compare_keys(
  *                 self._extract_sort_key(records[left], key_column),
  *                 self._extract_sort_key(records[largest], key_column),             # <<<<<<<<<<<<<<
@@ -8454,27 +8592,27 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 295, __pyx_L1_error)
+    __PYX_ERR(0, 302, __pyx_L1_error)
   }
   __pyx_t_3 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_largest);
   __Pyx_INCREF(__pyx_t_3);
-  if (!(likely(PyDict_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_3))) __PYX_ERR(0, 295, __pyx_L1_error)
-  __pyx_t_5 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_3), __pyx_v_key_column); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 295, __pyx_L1_error)
+  if (!(likely(PyDict_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_3))) __PYX_ERR(0, 302, __pyx_L1_error)
+  __pyx_t_5 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_3), __pyx_v_key_column); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 302, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "hyperoptimized_sort.pyx":293
+  /* "hyperoptimized_sort.pyx":300
  *         # Find largest among root, left child and right child
  *         if (left <= high and
  *             self._compare_keys(             # <<<<<<<<<<<<<<
  *                 self._extract_sort_key(records[left], key_column),
  *                 self._extract_sort_key(records[largest], key_column),
 */
-  __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_t_4, __pyx_t_5, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 293, __pyx_L1_error)
+  __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_t_4, __pyx_t_5, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 300, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
-  /* "hyperoptimized_sort.pyx":297
+  /* "hyperoptimized_sort.pyx":304
  *                 self._extract_sort_key(records[largest], key_column),
  *                 reverse
  *             ) > 0):             # <<<<<<<<<<<<<<
@@ -8485,7 +8623,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
   __pyx_t_1 = __pyx_t_2;
   __pyx_L4_bool_binop_done:;
 
-  /* "hyperoptimized_sort.pyx":292
+  /* "hyperoptimized_sort.pyx":299
  * 
  *         # Find largest among root, left child and right child
  *         if (left <= high and             # <<<<<<<<<<<<<<
@@ -8494,7 +8632,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":298
+    /* "hyperoptimized_sort.pyx":305
  *                 reverse
  *             ) > 0):
  *             largest = left             # <<<<<<<<<<<<<<
@@ -8503,7 +8641,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
     __pyx_v_largest = __pyx_v_left;
 
-    /* "hyperoptimized_sort.pyx":292
+    /* "hyperoptimized_sort.pyx":299
  * 
  *         # Find largest among root, left child and right child
  *         if (left <= high and             # <<<<<<<<<<<<<<
@@ -8512,7 +8650,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   }
 
-  /* "hyperoptimized_sort.pyx":300
+  /* "hyperoptimized_sort.pyx":307
  *             largest = left
  * 
  *         if (right <= high and             # <<<<<<<<<<<<<<
@@ -8526,7 +8664,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
     goto __pyx_L7_bool_binop_done;
   }
 
-  /* "hyperoptimized_sort.pyx":302
+  /* "hyperoptimized_sort.pyx":309
  *         if (right <= high and
  *             self._compare_keys(
  *                 self._extract_sort_key(records[right], key_column),             # <<<<<<<<<<<<<<
@@ -8535,16 +8673,16 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 302, __pyx_L1_error)
+    __PYX_ERR(0, 309, __pyx_L1_error)
   }
   __pyx_t_5 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_right);
   __Pyx_INCREF(__pyx_t_5);
-  if (!(likely(PyDict_CheckExact(__pyx_t_5))||((__pyx_t_5) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_5))) __PYX_ERR(0, 302, __pyx_L1_error)
-  __pyx_t_4 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_5), __pyx_v_key_column); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 302, __pyx_L1_error)
+  if (!(likely(PyDict_CheckExact(__pyx_t_5))||((__pyx_t_5) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_5))) __PYX_ERR(0, 309, __pyx_L1_error)
+  __pyx_t_4 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_5), __pyx_v_key_column); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 309, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
-  /* "hyperoptimized_sort.pyx":303
+  /* "hyperoptimized_sort.pyx":310
  *             self._compare_keys(
  *                 self._extract_sort_key(records[right], key_column),
  *                 self._extract_sort_key(records[largest], key_column),             # <<<<<<<<<<<<<<
@@ -8553,27 +8691,27 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 303, __pyx_L1_error)
+    __PYX_ERR(0, 310, __pyx_L1_error)
   }
   __pyx_t_5 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_largest);
   __Pyx_INCREF(__pyx_t_5);
-  if (!(likely(PyDict_CheckExact(__pyx_t_5))||((__pyx_t_5) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_5))) __PYX_ERR(0, 303, __pyx_L1_error)
-  __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_5), __pyx_v_key_column); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 303, __pyx_L1_error)
+  if (!(likely(PyDict_CheckExact(__pyx_t_5))||((__pyx_t_5) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_t_5))) __PYX_ERR(0, 310, __pyx_L1_error)
+  __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_t_5), __pyx_v_key_column); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 310, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
-  /* "hyperoptimized_sort.pyx":301
+  /* "hyperoptimized_sort.pyx":308
  * 
  *         if (right <= high and
  *             self._compare_keys(             # <<<<<<<<<<<<<<
  *                 self._extract_sort_key(records[right], key_column),
  *                 self._extract_sort_key(records[largest], key_column),
 */
-  __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_t_4, __pyx_t_3, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 301, __pyx_L1_error)
+  __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_t_4, __pyx_t_3, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 308, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "hyperoptimized_sort.pyx":305
+  /* "hyperoptimized_sort.pyx":312
  *                 self._extract_sort_key(records[largest], key_column),
  *                 reverse
  *             ) > 0):             # <<<<<<<<<<<<<<
@@ -8584,7 +8722,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
   __pyx_t_1 = __pyx_t_2;
   __pyx_L7_bool_binop_done:;
 
-  /* "hyperoptimized_sort.pyx":300
+  /* "hyperoptimized_sort.pyx":307
  *             largest = left
  * 
  *         if (right <= high and             # <<<<<<<<<<<<<<
@@ -8593,7 +8731,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":306
+    /* "hyperoptimized_sort.pyx":313
  *                 reverse
  *             ) > 0):
  *             largest = right             # <<<<<<<<<<<<<<
@@ -8602,7 +8740,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
     __pyx_v_largest = __pyx_v_right;
 
-    /* "hyperoptimized_sort.pyx":300
+    /* "hyperoptimized_sort.pyx":307
  *             largest = left
  * 
  *         if (right <= high and             # <<<<<<<<<<<<<<
@@ -8611,7 +8749,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   }
 
-  /* "hyperoptimized_sort.pyx":309
+  /* "hyperoptimized_sort.pyx":316
  * 
  *         # If largest is not root
  *         if largest != root:             # <<<<<<<<<<<<<<
@@ -8621,7 +8759,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
   __pyx_t_1 = (__pyx_v_largest != __pyx_v_root);
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":310
+    /* "hyperoptimized_sort.pyx":317
  *         # If largest is not root
  *         if largest != root:
  *             records[root], records[largest] = records[largest], records[root]             # <<<<<<<<<<<<<<
@@ -8630,39 +8768,39 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 310, __pyx_L1_error)
+      __PYX_ERR(0, 317, __pyx_L1_error)
     }
     __pyx_t_3 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_largest);
     __Pyx_INCREF(__pyx_t_3);
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 310, __pyx_L1_error)
+      __PYX_ERR(0, 317, __pyx_L1_error)
     }
     __pyx_t_4 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_root);
     __Pyx_INCREF(__pyx_t_4);
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 310, __pyx_L1_error)
+      __PYX_ERR(0, 317, __pyx_L1_error)
     }
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_root, __pyx_t_3, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 310, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_root, __pyx_t_3, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 317, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 310, __pyx_L1_error)
+      __PYX_ERR(0, 317, __pyx_L1_error)
     }
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_largest, __pyx_t_4, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 310, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_records, __pyx_v_largest, __pyx_t_4, int, 1, __Pyx_PyLong_From_int, 1, 0, 0) < 0))) __PYX_ERR(0, 317, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":311
+    /* "hyperoptimized_sort.pyx":318
  *         if largest != root:
  *             records[root], records[largest] = records[largest], records[root]
  *             self._heapify(records, low, high, largest, key_column, reverse)             # <<<<<<<<<<<<<<
  * 
  *     def _radix_sort_records(self, list records, str key_column, bint reverse):
 */
-    ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_heapify(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, __pyx_v_largest, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 311, __pyx_L1_error)
+    ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_heapify(__pyx_v_self, __pyx_v_records, __pyx_v_low, __pyx_v_high, __pyx_v_largest, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 318, __pyx_L1_error)
 
-    /* "hyperoptimized_sort.pyx":309
+    /* "hyperoptimized_sort.pyx":316
  * 
  *         # If largest is not root
  *         if largest != root:             # <<<<<<<<<<<<<<
@@ -8671,7 +8809,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
   }
 
-  /* "hyperoptimized_sort.pyx":285
+  /* "hyperoptimized_sort.pyx":292
  *         return records
  * 
  *     cdef void _heapify(self, list records, int low, int high, int root, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -8690,7 +8828,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
   __Pyx_RefNannyFinishContext();
 }
 
-/* "hyperoptimized_sort.pyx":313
+/* "hyperoptimized_sort.pyx":320
  *             self._heapify(records, low, high, largest, key_column, reverse)
  * 
  *     def _radix_sort_records(self, list records, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -8699,15 +8837,15 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify(struct
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_11_radix_sort_records(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_13_radix_sort_records(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_sort_records, "\n        Hyperoptimized radix sort for numeric data\n        Uses counting sort as subroutine with cache optimization\n        ");
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_11_radix_sort_records(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_12_radix_sort_records, "\n        Hyperoptimized radix sort for numeric data\n        Uses counting sort as subroutine with cache optimization\n        ");
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_13_radix_sort_records(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -8739,46 +8877,46 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_records,&__pyx_mstate_global->__pyx_n_u_key_column,&__pyx_mstate_global->__pyx_n_u_reverse,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 313, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 320, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 313, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 320, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 313, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 320, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 313, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 320, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_radix_sort_records", 0) < 0) __PYX_ERR(0, 313, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_radix_sort_records", 0) < 0) __PYX_ERR(0, 320, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 3; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_radix_sort_records", 1, 3, 3, i); __PYX_ERR(0, 313, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_radix_sort_records", 1, 3, 3, i); __PYX_ERR(0, 320, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 3)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 313, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 320, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 313, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 320, __pyx_L3_error)
       values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 313, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 320, __pyx_L3_error)
     }
     __pyx_v_records = ((PyObject*)values[0]);
     __pyx_v_key_column = ((PyObject*)values[1]);
-    __pyx_v_reverse = __Pyx_PyObject_IsTrue(values[2]); if (unlikely((__pyx_v_reverse == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 313, __pyx_L3_error)
+    __pyx_v_reverse = __Pyx_PyObject_IsTrue(values[2]); if (unlikely((__pyx_v_reverse == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 320, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("_radix_sort_records", 1, 3, 3, __pyx_nargs); __PYX_ERR(0, 313, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("_radix_sort_records", 1, 3, 3, __pyx_nargs); __PYX_ERR(0, 320, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -8789,9 +8927,9 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_records), (&PyList_Type), 1, "records", 1))) __PYX_ERR(0, 313, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 1, "key_column", 1))) __PYX_ERR(0, 313, __pyx_L1_error)
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_sort_records(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse);
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_records), (&PyList_Type), 1, "records", 1))) __PYX_ERR(0, 320, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 1, "key_column", 1))) __PYX_ERR(0, 320, __pyx_L1_error)
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_radix_sort_records(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse);
 
   /* function exit code */
   goto __pyx_L0;
@@ -8810,7 +8948,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_radix_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse) {
   PyObject *__pyx_v_numeric_records = 0;
   int __pyx_v_i;
   PyObject *__pyx_v_record = NULL;
@@ -8830,12 +8968,13 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_
   int __pyx_t_9;
   int __pyx_t_10;
   int __pyx_t_11;
+  int __pyx_t_12;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_radix_sort_records", 0);
 
-  /* "hyperoptimized_sort.pyx":318
+  /* "hyperoptimized_sort.pyx":325
  *         Uses counting sort as subroutine with cache optimization
  *         """
  *         self.logger.info(f"Using radix sort for {len(records)} numeric records")             # <<<<<<<<<<<<<<
@@ -8846,16 +8985,16 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_
   __Pyx_INCREF(__pyx_t_2);
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 318, __pyx_L1_error)
+    __PYX_ERR(0, 325, __pyx_L1_error)
   }
-  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 318, __pyx_L1_error)
-  __pyx_t_4 = __Pyx_PyUnicode_From_Py_ssize_t(__pyx_t_3, 0, ' ', 'd'); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 318, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 325, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyUnicode_From_Py_ssize_t(__pyx_t_3, 0, ' ', 'd'); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 325, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __pyx_t_5[0] = __pyx_mstate_global->__pyx_kp_u_Using_radix_sort_for;
   __pyx_t_5[1] = __pyx_t_4;
   __pyx_t_5[2] = __pyx_mstate_global->__pyx_kp_u_numeric_records;
   __pyx_t_6 = __Pyx_PyUnicode_Join(__pyx_t_5, 3, 21 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_4) + 16, 127);
-  if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 318, __pyx_L1_error)
+  if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 325, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_7 = 0;
@@ -8864,29 +9003,29 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_
     __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_info, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 318, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 325, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":321
+  /* "hyperoptimized_sort.pyx":328
  * 
  *         # Extract numeric keys and maintain original indices
  *         cdef list numeric_records = []             # <<<<<<<<<<<<<<
  *         cdef int i
  * 
 */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 321, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 328, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_numeric_records = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":324
+  /* "hyperoptimized_sort.pyx":331
  *         cdef int i
  * 
  *         for i, record in enumerate(records):             # <<<<<<<<<<<<<<
  *             key_value = self._extract_sort_key(record, key_column)
- *             if isinstance(key_value, (int, float)):
+ *             # Only integers for radix sort, as verified by _is_numeric_sortable
 */
   __pyx_t_8 = 0;
   __pyx_t_1 = __pyx_v_records; __Pyx_INCREF(__pyx_t_1);
@@ -8895,93 +9034,131 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_
     {
       Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_1);
       #if !CYTHON_ASSUME_SAFE_SIZE
-      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 324, __pyx_L1_error)
+      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 331, __pyx_L1_error)
       #endif
       if (__pyx_t_3 >= __pyx_temp) break;
     }
     __pyx_t_6 = __Pyx_PyList_GetItemRef(__pyx_t_1, __pyx_t_3);
     ++__pyx_t_3;
-    if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 324, __pyx_L1_error)
+    if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 331, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_XDECREF_SET(__pyx_v_record, __pyx_t_6);
     __pyx_t_6 = 0;
     __pyx_v_i = __pyx_t_8;
     __pyx_t_8 = (__pyx_t_8 + 1);
 
-    /* "hyperoptimized_sort.pyx":325
+    /* "hyperoptimized_sort.pyx":332
  * 
  *         for i, record in enumerate(records):
  *             key_value = self._extract_sort_key(record, key_column)             # <<<<<<<<<<<<<<
- *             if isinstance(key_value, (int, float)):
- *                 numeric_records.append((key_value, i, record))
+ *             # Only integers for radix sort, as verified by _is_numeric_sortable
+ *             # Check for regular int and NumPy integer types
 */
-    if (!(likely(PyDict_CheckExact(__pyx_v_record))||((__pyx_v_record) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_v_record))) __PYX_ERR(0, 325, __pyx_L1_error)
-    __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_v_record), __pyx_v_key_column); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 325, __pyx_L1_error)
+    if (!(likely(PyDict_CheckExact(__pyx_v_record))||((__pyx_v_record) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_v_record))) __PYX_ERR(0, 332, __pyx_L1_error)
+    __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_v_record), __pyx_v_key_column); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 332, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_XDECREF_SET(__pyx_v_key_value, __pyx_t_6);
     __pyx_t_6 = 0;
 
-    /* "hyperoptimized_sort.pyx":326
- *         for i, record in enumerate(records):
- *             key_value = self._extract_sort_key(record, key_column)
- *             if isinstance(key_value, (int, float)):             # <<<<<<<<<<<<<<
+    /* "hyperoptimized_sort.pyx":335
+ *             # Only integers for radix sort, as verified by _is_numeric_sortable
+ *             # Check for regular int and NumPy integer types
+ *             if (isinstance(key_value, int) and not isinstance(key_value, bool)) or \             # <<<<<<<<<<<<<<
+ *                (hasattr(key_value, 'dtype') and 'int' in str(key_value.dtype)):
  *                 numeric_records.append((key_value, i, record))
- * 
 */
     __pyx_t_10 = PyLong_Check(__pyx_v_key_value); 
     if (!__pyx_t_10) {
+      goto __pyx_L7_next_or;
     } else {
-      __pyx_t_9 = __pyx_t_10;
+    }
+    __pyx_t_6 = ((PyObject*)&PyBool_Type);
+    __Pyx_INCREF(__pyx_t_6);
+    __pyx_t_10 = PyObject_IsInstance(__pyx_v_key_value, __pyx_t_6); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 335, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_11 = (!__pyx_t_10);
+    if (!__pyx_t_11) {
+    } else {
+      __pyx_t_9 = __pyx_t_11;
       goto __pyx_L6_bool_binop_done;
     }
-    __pyx_t_10 = PyFloat_Check(__pyx_v_key_value); 
-    __pyx_t_9 = __pyx_t_10;
+    __pyx_L7_next_or:;
+
+    /* "hyperoptimized_sort.pyx":336
+ *             # Check for regular int and NumPy integer types
+ *             if (isinstance(key_value, int) and not isinstance(key_value, bool)) or \
+ *                (hasattr(key_value, 'dtype') and 'int' in str(key_value.dtype)):             # <<<<<<<<<<<<<<
+ *                 numeric_records.append((key_value, i, record))
+ * 
+*/
+    __pyx_t_11 = __Pyx_HasAttr(__pyx_v_key_value, __pyx_mstate_global->__pyx_n_u_dtype); if (unlikely(__pyx_t_11 == ((int)-1))) __PYX_ERR(0, 336, __pyx_L1_error)
+    if (__pyx_t_11) {
+    } else {
+      __pyx_t_9 = __pyx_t_11;
+      goto __pyx_L6_bool_binop_done;
+    }
+    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_v_key_value, __pyx_mstate_global->__pyx_n_u_dtype); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 336, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_2 = __Pyx_PyObject_Unicode(__pyx_t_6); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 336, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_11 = (__Pyx_PyUnicode_ContainsTF(__pyx_mstate_global->__pyx_n_u_int, __pyx_t_2, Py_EQ)); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 336, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __pyx_t_9 = __pyx_t_11;
     __pyx_L6_bool_binop_done:;
+
+    /* "hyperoptimized_sort.pyx":335
+ *             # Only integers for radix sort, as verified by _is_numeric_sortable
+ *             # Check for regular int and NumPy integer types
+ *             if (isinstance(key_value, int) and not isinstance(key_value, bool)) or \             # <<<<<<<<<<<<<<
+ *                (hasattr(key_value, 'dtype') and 'int' in str(key_value.dtype)):
+ *                 numeric_records.append((key_value, i, record))
+*/
     if (__pyx_t_9) {
 
-      /* "hyperoptimized_sort.pyx":327
- *             key_value = self._extract_sort_key(record, key_column)
- *             if isinstance(key_value, (int, float)):
+      /* "hyperoptimized_sort.pyx":337
+ *             if (isinstance(key_value, int) and not isinstance(key_value, bool)) or \
+ *                (hasattr(key_value, 'dtype') and 'int' in str(key_value.dtype)):
  *                 numeric_records.append((key_value, i, record))             # <<<<<<<<<<<<<<
  * 
  *         if not numeric_records:
 */
-      __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_i); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 327, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_2 = PyTuple_New(3); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 327, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyLong_From_int(__pyx_v_i); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 337, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
+      __pyx_t_6 = PyTuple_New(3); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 337, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
       __Pyx_INCREF(__pyx_v_key_value);
       __Pyx_GIVEREF(__pyx_v_key_value);
-      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_2, 0, __pyx_v_key_value) != (0)) __PYX_ERR(0, 327, __pyx_L1_error);
-      __Pyx_GIVEREF(__pyx_t_6);
-      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_2, 1, __pyx_t_6) != (0)) __PYX_ERR(0, 327, __pyx_L1_error);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 0, __pyx_v_key_value) != (0)) __PYX_ERR(0, 337, __pyx_L1_error);
+      __Pyx_GIVEREF(__pyx_t_2);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 1, __pyx_t_2) != (0)) __PYX_ERR(0, 337, __pyx_L1_error);
       __Pyx_INCREF(__pyx_v_record);
       __Pyx_GIVEREF(__pyx_v_record);
-      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_2, 2, __pyx_v_record) != (0)) __PYX_ERR(0, 327, __pyx_L1_error);
-      __pyx_t_6 = 0;
-      __pyx_t_11 = __Pyx_PyList_Append(__pyx_v_numeric_records, __pyx_t_2); if (unlikely(__pyx_t_11 == ((int)-1))) __PYX_ERR(0, 327, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 2, __pyx_v_record) != (0)) __PYX_ERR(0, 337, __pyx_L1_error);
+      __pyx_t_2 = 0;
+      __pyx_t_12 = __Pyx_PyList_Append(__pyx_v_numeric_records, __pyx_t_6); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 337, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
 
-      /* "hyperoptimized_sort.pyx":326
- *         for i, record in enumerate(records):
- *             key_value = self._extract_sort_key(record, key_column)
- *             if isinstance(key_value, (int, float)):             # <<<<<<<<<<<<<<
+      /* "hyperoptimized_sort.pyx":335
+ *             # Only integers for radix sort, as verified by _is_numeric_sortable
+ *             # Check for regular int and NumPy integer types
+ *             if (isinstance(key_value, int) and not isinstance(key_value, bool)) or \             # <<<<<<<<<<<<<<
+ *                (hasattr(key_value, 'dtype') and 'int' in str(key_value.dtype)):
  *                 numeric_records.append((key_value, i, record))
- * 
 */
     }
 
-    /* "hyperoptimized_sort.pyx":324
+    /* "hyperoptimized_sort.pyx":331
  *         cdef int i
  * 
  *         for i, record in enumerate(records):             # <<<<<<<<<<<<<<
  *             key_value = self._extract_sort_key(record, key_column)
- *             if isinstance(key_value, (int, float)):
+ *             # Only integers for radix sort, as verified by _is_numeric_sortable
 */
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":329
+  /* "hyperoptimized_sort.pyx":339
  *                 numeric_records.append((key_value, i, record))
  * 
  *         if not numeric_records:             # <<<<<<<<<<<<<<
@@ -8989,11 +9166,11 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_
  *             return self._introsort_records(records, key_column, reverse)
 */
   __pyx_t_9 = (__Pyx_PyList_GET_SIZE(__pyx_v_numeric_records) != 0);
-  if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_9 < 0))) __PYX_ERR(0, 329, __pyx_L1_error)
-  __pyx_t_10 = (!__pyx_t_9);
-  if (__pyx_t_10) {
+  if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_9 < 0))) __PYX_ERR(0, 339, __pyx_L1_error)
+  __pyx_t_11 = (!__pyx_t_9);
+  if (__pyx_t_11) {
 
-    /* "hyperoptimized_sort.pyx":331
+    /* "hyperoptimized_sort.pyx":341
  *         if not numeric_records:
  *             # Fallback to comparison sort
  *             return self._introsort_records(records, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -9001,24 +9178,24 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_
  *         # Radix sort implementation
 */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_2 = ((PyObject *)__pyx_v_self);
-    __Pyx_INCREF(__pyx_t_2);
-    __pyx_t_6 = __Pyx_PyBool_FromLong(__pyx_v_reverse); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 331, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_6 = ((PyObject *)__pyx_v_self);
+    __Pyx_INCREF(__pyx_t_6);
+    __pyx_t_2 = __Pyx_PyBool_FromLong(__pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 341, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
     __pyx_t_7 = 0;
     {
-      PyObject *__pyx_callargs[4] = {__pyx_t_2, __pyx_v_records, __pyx_v_key_column, __pyx_t_6};
+      PyObject *__pyx_callargs[4] = {__pyx_t_6, __pyx_v_records, __pyx_v_key_column, __pyx_t_2};
       __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_introsort_records, __pyx_callargs+__pyx_t_7, (4-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-      __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 331, __pyx_L1_error)
+      __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 341, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
     }
     __pyx_r = __pyx_t_1;
     __pyx_t_1 = 0;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":329
+    /* "hyperoptimized_sort.pyx":339
  *                 numeric_records.append((key_value, i, record))
  * 
  *         if not numeric_records:             # <<<<<<<<<<<<<<
@@ -9027,19 +9204,19 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_
 */
   }
 
-  /* "hyperoptimized_sort.pyx":334
+  /* "hyperoptimized_sort.pyx":344
  * 
  *         # Radix sort implementation
  *         sorted_numeric = self._radix_sort_numeric(numeric_records, reverse)             # <<<<<<<<<<<<<<
  * 
  *         # Extract sorted records
 */
-  __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_radix_sort_numeric(__pyx_v_self, __pyx_v_numeric_records, __pyx_v_reverse); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 334, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_radix_sort_numeric(__pyx_v_self, __pyx_v_numeric_records, __pyx_v_reverse); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 344, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_sorted_numeric = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":337
+  /* "hyperoptimized_sort.pyx":347
  * 
  *         # Extract sorted records
  *         return [item[2] for item in sorted_numeric]             # <<<<<<<<<<<<<<
@@ -9048,46 +9225,46 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_
 */
   __Pyx_XDECREF(__pyx_r);
   { /* enter inner scope */
-    __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 337, __pyx_L12_error)
+    __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 347, __pyx_L14_error)
     __Pyx_GOTREF(__pyx_t_1);
     if (unlikely(__pyx_v_sorted_numeric == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not iterable");
-      __PYX_ERR(0, 337, __pyx_L12_error)
+      __PYX_ERR(0, 347, __pyx_L14_error)
     }
-    __pyx_t_6 = __pyx_v_sorted_numeric; __Pyx_INCREF(__pyx_t_6);
+    __pyx_t_2 = __pyx_v_sorted_numeric; __Pyx_INCREF(__pyx_t_2);
     __pyx_t_3 = 0;
     for (;;) {
       {
-        Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_6);
+        Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_2);
         #if !CYTHON_ASSUME_SAFE_SIZE
-        if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 337, __pyx_L12_error)
+        if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 347, __pyx_L14_error)
         #endif
         if (__pyx_t_3 >= __pyx_temp) break;
       }
-      __pyx_t_2 = __Pyx_PyList_GetItemRef(__pyx_t_6, __pyx_t_3);
+      __pyx_t_6 = __Pyx_PyList_GetItemRef(__pyx_t_2, __pyx_t_3);
       ++__pyx_t_3;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 337, __pyx_L12_error)
-      __Pyx_GOTREF(__pyx_t_2);
-      __Pyx_XDECREF_SET(__pyx_7genexpr__pyx_v_item, __pyx_t_2);
-      __pyx_t_2 = 0;
-      __pyx_t_2 = __Pyx_GetItemInt(__pyx_7genexpr__pyx_v_item, 2, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 337, __pyx_L12_error)
-      __Pyx_GOTREF(__pyx_t_2);
-      if (unlikely(__Pyx_ListComp_Append(__pyx_t_1, (PyObject*)__pyx_t_2))) __PYX_ERR(0, 337, __pyx_L12_error)
-      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 347, __pyx_L14_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      __Pyx_XDECREF_SET(__pyx_7genexpr__pyx_v_item, __pyx_t_6);
+      __pyx_t_6 = 0;
+      __pyx_t_6 = __Pyx_GetItemInt(__pyx_7genexpr__pyx_v_item, 2, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 347, __pyx_L14_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      if (unlikely(__Pyx_ListComp_Append(__pyx_t_1, (PyObject*)__pyx_t_6))) __PYX_ERR(0, 347, __pyx_L14_error)
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     }
-    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_XDECREF(__pyx_7genexpr__pyx_v_item); __pyx_7genexpr__pyx_v_item = 0;
-    goto __pyx_L16_exit_scope;
-    __pyx_L12_error:;
+    goto __pyx_L18_exit_scope;
+    __pyx_L14_error:;
     __Pyx_XDECREF(__pyx_7genexpr__pyx_v_item); __pyx_7genexpr__pyx_v_item = 0;
     goto __pyx_L1_error;
-    __pyx_L16_exit_scope:;
+    __pyx_L18_exit_scope:;
   } /* exit inner scope */
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":313
+  /* "hyperoptimized_sort.pyx":320
  *             self._heapify(records, low, high, largest, key_column, reverse)
  * 
  *     def _radix_sort_records(self, list records, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -9113,150 +9290,13 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
-static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_19_radix_sort_numeric_2generator(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value); /* proto */
 
-/* "hyperoptimized_sort.pyx":361
- * 
- *         # Perform radix sort on integer representation
- *         cdef int max_val = max(abs(item[0]) for item in int_records)             # <<<<<<<<<<<<<<
- *         cdef int exp = 1
- * 
-*/
-
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_19_radix_sort_numeric_genexpr(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_genexpr_arg_0) {
-  struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *__pyx_cur_scope;
-  PyObject *__pyx_r = NULL;
-  __Pyx_RefNannyDeclarations
-  int __pyx_lineno = 0;
-  const char *__pyx_filename = NULL;
-  int __pyx_clineno = 0;
-  __Pyx_RefNannySetupContext("genexpr", 0);
-  __pyx_cur_scope = (struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *)__pyx_tp_new_19hyperoptimized_sort___pyx_scope_struct__genexpr(__pyx_mstate_global->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr, __pyx_mstate_global->__pyx_empty_tuple, NULL);
-  if (unlikely(!__pyx_cur_scope)) {
-    __pyx_cur_scope = ((struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *)Py_None);
-    __Pyx_INCREF(Py_None);
-    __PYX_ERR(0, 361, __pyx_L1_error)
-  } else {
-    __Pyx_GOTREF((PyObject *)__pyx_cur_scope);
-  }
-  __pyx_cur_scope->__pyx_genexpr_arg_0 = __pyx_genexpr_arg_0;
-  __Pyx_INCREF(__pyx_cur_scope->__pyx_genexpr_arg_0);
-  __Pyx_GIVEREF(__pyx_cur_scope->__pyx_genexpr_arg_0);
-  {
-    __pyx_CoroutineObject *gen = __Pyx_Generator_New((__pyx_coroutine_body_t) __pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_19_radix_sort_numeric_2generator, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[0]), (PyObject *) __pyx_cur_scope, __pyx_mstate_global->__pyx_n_u_genexpr, __pyx_mstate_global->__pyx_n_u_HyperoptimizedSorter__radix_sort, __pyx_mstate_global->__pyx_n_u_hyperoptimized_sort); if (unlikely(!gen)) __PYX_ERR(0, 361, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_cur_scope);
-    __Pyx_RefNannyFinishContext();
-    return (PyObject *) gen;
-  }
-
-  /* function exit code */
-  __pyx_L1_error:;
-  __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._radix_sort_numeric.genexpr", __pyx_clineno, __pyx_lineno, __pyx_filename);
-  __pyx_r = NULL;
-  __Pyx_DECREF((PyObject *)__pyx_cur_scope);
-  __Pyx_XGIVEREF(__pyx_r);
-  __Pyx_RefNannyFinishContext();
-  return __pyx_r;
-}
-
-static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_19_radix_sort_numeric_2generator(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value) /* generator body */
-{
-  struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *__pyx_cur_scope = ((struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *)__pyx_generator->closure);
-  PyObject *__pyx_r = NULL;
-  PyObject *__pyx_t_1 = NULL;
-  Py_ssize_t __pyx_t_2;
-  PyObject *__pyx_t_3 = NULL;
-  PyObject *__pyx_t_4 = NULL;
-  int __pyx_lineno = 0;
-  const char *__pyx_filename = NULL;
-  int __pyx_clineno = 0;
-  __Pyx_RefNannyDeclarations
-  __Pyx_RefNannySetupContext("genexpr", 0);
-  switch (__pyx_generator->resume_label) {
-    case 0: goto __pyx_L3_first_run;
-    case 1: goto __pyx_L6_resume_from_yield;
-    default: /* CPython raises the right error here */
-    __Pyx_RefNannyFinishContext();
-    return NULL;
-  }
-  __pyx_L3_first_run:;
-  if (unlikely(__pyx_sent_value != Py_None)) {
-    if (unlikely(__pyx_sent_value)) PyErr_SetString(PyExc_TypeError, "can't send non-None value to a just-started generator");
-    __PYX_ERR(0, 361, __pyx_L1_error)
-  }
-  if (unlikely(!__pyx_cur_scope->__pyx_genexpr_arg_0)) { __Pyx_RaiseUnboundLocalError(".0"); __PYX_ERR(0, 361, __pyx_L1_error) }
-  __pyx_t_1 = __pyx_cur_scope->__pyx_genexpr_arg_0; __Pyx_INCREF(__pyx_t_1);
-  __pyx_t_2 = 0;
-  for (;;) {
-    {
-      Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_1);
-      #if !CYTHON_ASSUME_SAFE_SIZE
-      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 361, __pyx_L1_error)
-      #endif
-      if (__pyx_t_2 >= __pyx_temp) break;
-    }
-    __pyx_t_3 = __Pyx_PyList_GetItemRef(__pyx_t_1, __pyx_t_2);
-    ++__pyx_t_2;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 361, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_3);
-    __Pyx_XGOTREF(__pyx_cur_scope->__pyx_v_item);
-    __Pyx_XDECREF_SET(__pyx_cur_scope->__pyx_v_item, __pyx_t_3);
-    __Pyx_GIVEREF(__pyx_t_3);
-    __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_GetItemInt(__pyx_cur_scope->__pyx_v_item, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 361, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_PyNumber_Absolute(__pyx_t_3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 361, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_4);
-    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_r = __pyx_t_4;
-    __pyx_t_4 = 0;
-    __Pyx_XGIVEREF(__pyx_t_1);
-    __pyx_cur_scope->__pyx_t_0 = __pyx_t_1;
-    __pyx_cur_scope->__pyx_t_1 = __pyx_t_2;
-    __Pyx_XGIVEREF(__pyx_r);
-    __Pyx_RefNannyFinishContext();
-    __Pyx_Coroutine_ResetAndClearException(__pyx_generator);
-    /* return from generator, yielding value */
-    __pyx_generator->resume_label = 1;
-    return __pyx_r;
-    __pyx_L6_resume_from_yield:;
-    __pyx_t_1 = __pyx_cur_scope->__pyx_t_0;
-    __pyx_cur_scope->__pyx_t_0 = 0;
-    __Pyx_XGOTREF(__pyx_t_1);
-    __pyx_t_2 = __pyx_cur_scope->__pyx_t_1;
-    if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 361, __pyx_L1_error)
-  }
-  __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  CYTHON_MAYBE_UNUSED_VAR(__pyx_cur_scope);
-
-  /* function exit code */
-  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
-  goto __pyx_L0;
-  __pyx_L1_error:;
-  __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_XDECREF(__pyx_t_3);
-  __Pyx_XDECREF(__pyx_t_4);
-  if (__Pyx_PyErr_Occurred()) {
-    __Pyx_Generator_Replace_StopIteration(0);
-    __Pyx_AddTraceback("genexpr", __pyx_clineno, __pyx_lineno, __pyx_filename);
-  }
-  __pyx_L0:;
-  __Pyx_XGIVEREF(__pyx_r);
-  #if !CYTHON_USE_EXC_INFO_STACK
-  __Pyx_Coroutine_ResetAndClearException(__pyx_generator);
-  #endif
-  __pyx_generator->resume_label = -1;
-  __Pyx_Coroutine_clear((PyObject*)__pyx_generator);
-  __Pyx_RefNannyFinishContext();
-  return __pyx_r;
-}
-
-/* "hyperoptimized_sort.pyx":339
+/* "hyperoptimized_sort.pyx":349
  *         return [item[2] for item in sorted_numeric]
  * 
  *     cdef list _radix_sort_numeric(self, list numeric_records, bint reverse):             # <<<<<<<<<<<<<<
  *         """
- *         LSD (Least Significant Digit) radix sort for floating point numbers
+ *         LSD (Least Significant Digit) radix sort for integers with negative number support
 */
 
 static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sort_numeric(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_numeric_records, int __pyx_v_reverse) {
@@ -9266,10 +9306,9 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
   PyObject *__pyx_v_value = NULL;
   PyObject *__pyx_v_idx = NULL;
   PyObject *__pyx_v_record = NULL;
-  PyObject *__pyx_v_int_val = NULL;
-  int __pyx_v_max_val;
-  int __pyx_v_exp;
-  PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_19_radix_sort_numeric_2generator = 0;
+  PyObject *__pyx_v_negative_records = 0;
+  PyObject *__pyx_v_positive_records = 0;
+  PyObject *__pyx_v_result = 0;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   int __pyx_t_1;
@@ -9282,29 +9321,27 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
   PyObject *__pyx_t_8 = NULL;
   PyObject *__pyx_t_9 = NULL;
   PyObject *(*__pyx_t_10)(PyObject *);
-  double __pyx_t_11;
-  PY_LONG_LONG __pyx_t_12;
+  int __pyx_t_11;
+  size_t __pyx_t_12;
   int __pyx_t_13;
-  size_t __pyx_t_14;
-  int __pyx_t_15;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_radix_sort_numeric", 0);
 
-  /* "hyperoptimized_sort.pyx":344
- *         Uses bit manipulation for IEEE 754 compliance
+  /* "hyperoptimized_sort.pyx":354
+ *         Separates negative and positive numbers, sorts separately, then combines
  *         """
  *         if not numeric_records:             # <<<<<<<<<<<<<<
  *             return numeric_records
  * 
 */
   __pyx_t_1 = (__pyx_v_numeric_records != Py_None)&&(__Pyx_PyList_GET_SIZE(__pyx_v_numeric_records) != 0);
-  if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_1 < 0))) __PYX_ERR(0, 344, __pyx_L1_error)
+  if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_1 < 0))) __PYX_ERR(0, 354, __pyx_L1_error)
   __pyx_t_2 = (!__pyx_t_1);
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":345
+    /* "hyperoptimized_sort.pyx":355
  *         """
  *         if not numeric_records:
  *             return numeric_records             # <<<<<<<<<<<<<<
@@ -9316,8 +9353,8 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
     __pyx_r = __pyx_v_numeric_records;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":344
- *         Uses bit manipulation for IEEE 754 compliance
+    /* "hyperoptimized_sort.pyx":354
+ *         Separates negative and positive numbers, sorts separately, then combines
  *         """
  *         if not numeric_records:             # <<<<<<<<<<<<<<
  *             return numeric_records
@@ -9325,7 +9362,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
 */
   }
 
-  /* "hyperoptimized_sort.pyx":347
+  /* "hyperoptimized_sort.pyx":357
  *             return numeric_records
  * 
  *         cdef int n = len(numeric_records)             # <<<<<<<<<<<<<<
@@ -9334,12 +9371,12 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
 */
   if (unlikely(__pyx_v_numeric_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 347, __pyx_L1_error)
+    __PYX_ERR(0, 357, __pyx_L1_error)
   }
-  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_numeric_records); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 347, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_numeric_records); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 357, __pyx_L1_error)
   __pyx_v_n = __pyx_t_3;
 
-  /* "hyperoptimized_sort.pyx":348
+  /* "hyperoptimized_sort.pyx":358
  * 
  *         cdef int n = len(numeric_records)
  *         cdef int radix = 256  # Use byte-level radix for better cache performance             # <<<<<<<<<<<<<<
@@ -9348,28 +9385,28 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
 */
   __pyx_v_radix = 0x100;
 
-  /* "hyperoptimized_sort.pyx":351
+  /* "hyperoptimized_sort.pyx":361
  * 
  *         # Convert to integer representation for bit manipulation
  *         cdef list int_records = []             # <<<<<<<<<<<<<<
  *         for value, idx, record in numeric_records:
- *             if isinstance(value, float):
+ *             # Since _is_numeric_sortable() ensures only integers reach here,
 */
-  __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 351, __pyx_L1_error)
+  __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 361, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __pyx_v_int_records = ((PyObject*)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "hyperoptimized_sort.pyx":352
+  /* "hyperoptimized_sort.pyx":362
  *         # Convert to integer representation for bit manipulation
  *         cdef list int_records = []
  *         for value, idx, record in numeric_records:             # <<<<<<<<<<<<<<
- *             if isinstance(value, float):
- *                 # IEEE 754 bit manipulation
+ *             # Since _is_numeric_sortable() ensures only integers reach here,
+ *             # we shouldn't have any floats
 */
   if (unlikely(__pyx_v_numeric_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not iterable");
-    __PYX_ERR(0, 352, __pyx_L1_error)
+    __PYX_ERR(0, 362, __pyx_L1_error)
   }
   __pyx_t_4 = __pyx_v_numeric_records; __Pyx_INCREF(__pyx_t_4);
   __pyx_t_3 = 0;
@@ -9377,13 +9414,13 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
     {
       Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_4);
       #if !CYTHON_ASSUME_SAFE_SIZE
-      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 352, __pyx_L1_error)
+      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 362, __pyx_L1_error)
       #endif
       if (__pyx_t_3 >= __pyx_temp) break;
     }
     __pyx_t_5 = __Pyx_PyList_GetItemRef(__pyx_t_4, __pyx_t_3);
     ++__pyx_t_3;
-    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 352, __pyx_L1_error)
+    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 362, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     if ((likely(PyTuple_CheckExact(__pyx_t_5))) || (PyList_CheckExact(__pyx_t_5))) {
       PyObject* sequence = __pyx_t_5;
@@ -9391,7 +9428,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
       if (unlikely(size != 3)) {
         if (size > 3) __Pyx_RaiseTooManyValuesError(3);
         else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-        __PYX_ERR(0, 352, __pyx_L1_error)
+        __PYX_ERR(0, 362, __pyx_L1_error)
       }
       #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
       if (likely(PyTuple_CheckExact(sequence))) {
@@ -9403,27 +9440,27 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
         __Pyx_INCREF(__pyx_t_8);
       } else {
         __pyx_t_6 = __Pyx_PyList_GetItemRef(sequence, 0);
-        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 352, __pyx_L1_error)
+        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 362, __pyx_L1_error)
         __Pyx_XGOTREF(__pyx_t_6);
         __pyx_t_7 = __Pyx_PyList_GetItemRef(sequence, 1);
-        if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 352, __pyx_L1_error)
+        if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 362, __pyx_L1_error)
         __Pyx_XGOTREF(__pyx_t_7);
         __pyx_t_8 = __Pyx_PyList_GetItemRef(sequence, 2);
-        if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 352, __pyx_L1_error)
+        if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 362, __pyx_L1_error)
         __Pyx_XGOTREF(__pyx_t_8);
       }
       #else
-      __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 352, __pyx_L1_error)
+      __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 362, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_7 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 352, __pyx_L1_error)
+      __pyx_t_7 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 362, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_7);
-      __pyx_t_8 = __Pyx_PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 352, __pyx_L1_error)
+      __pyx_t_8 = __Pyx_PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 362, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_8);
       #endif
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     } else {
       Py_ssize_t index = -1;
-      __pyx_t_9 = PyObject_GetIter(__pyx_t_5); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 352, __pyx_L1_error)
+      __pyx_t_9 = PyObject_GetIter(__pyx_t_5); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 362, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_9);
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
       __pyx_t_10 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_9);
@@ -9433,7 +9470,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
       __Pyx_GOTREF(__pyx_t_7);
       index = 2; __pyx_t_8 = __pyx_t_10(__pyx_t_9); if (unlikely(!__pyx_t_8)) goto __pyx_L6_unpacking_failed;
       __Pyx_GOTREF(__pyx_t_8);
-      if (__Pyx_IternextUnpackEndCheck(__pyx_t_10(__pyx_t_9), 3) < 0) __PYX_ERR(0, 352, __pyx_L1_error)
+      if (__Pyx_IternextUnpackEndCheck(__pyx_t_10(__pyx_t_9), 3) < 0) __PYX_ERR(0, 362, __pyx_L1_error)
       __pyx_t_10 = NULL;
       __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
       goto __pyx_L7_unpacking_done;
@@ -9441,7 +9478,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
       __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
       __pyx_t_10 = NULL;
       if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-      __PYX_ERR(0, 352, __pyx_L1_error)
+      __PYX_ERR(0, 362, __pyx_L1_error)
       __pyx_L7_unpacking_done:;
     }
     __Pyx_XDECREF_SET(__pyx_v_value, __pyx_t_6);
@@ -9451,201 +9488,485 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
     __Pyx_XDECREF_SET(__pyx_v_record, __pyx_t_8);
     __pyx_t_8 = 0;
 
-    /* "hyperoptimized_sort.pyx":353
- *         cdef list int_records = []
- *         for value, idx, record in numeric_records:
- *             if isinstance(value, float):             # <<<<<<<<<<<<<<
- *                 # IEEE 754 bit manipulation
- *                 int_val = self._float_to_sortable_int(value)
+    /* "hyperoptimized_sort.pyx":366
+ *             # we shouldn't have any floats
+ *             # Check for regular int and NumPy integer types
+ *             if not ((isinstance(value, int) and not isinstance(value, bool)) or \             # <<<<<<<<<<<<<<
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype))):
+ *                 raise ValueError(f"Radix sort received non-integer value: {type(value)}")
 */
-    __pyx_t_2 = PyFloat_Check(__pyx_v_value); 
-    if (__pyx_t_2) {
-
-      /* "hyperoptimized_sort.pyx":355
- *             if isinstance(value, float):
- *                 # IEEE 754 bit manipulation
- *                 int_val = self._float_to_sortable_int(value)             # <<<<<<<<<<<<<<
- *             else:
- *                 int_val = value
-*/
-      __pyx_t_11 = __Pyx_PyFloat_AsDouble(__pyx_v_value); if (unlikely((__pyx_t_11 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 355, __pyx_L1_error)
-      __pyx_t_12 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_float_to_sortable_int(__pyx_v_self, __pyx_t_11); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 355, __pyx_L1_error)
-      __pyx_t_5 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_t_12); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 355, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_5);
-      __Pyx_XDECREF_SET(__pyx_v_int_val, __pyx_t_5);
-      __pyx_t_5 = 0;
-
-      /* "hyperoptimized_sort.pyx":353
- *         cdef list int_records = []
- *         for value, idx, record in numeric_records:
- *             if isinstance(value, float):             # <<<<<<<<<<<<<<
- *                 # IEEE 754 bit manipulation
- *                 int_val = self._float_to_sortable_int(value)
-*/
-      goto __pyx_L8;
+    __pyx_t_1 = PyLong_Check(__pyx_v_value); 
+    if (!__pyx_t_1) {
+      goto __pyx_L10_next_or;
+    } else {
     }
-
-    /* "hyperoptimized_sort.pyx":357
- *                 int_val = self._float_to_sortable_int(value)
- *             else:
- *                 int_val = value             # <<<<<<<<<<<<<<
- *             int_records.append((int_val, idx, record))
- * 
-*/
-    /*else*/ {
-      __Pyx_INCREF(__pyx_v_value);
-      __Pyx_XDECREF_SET(__pyx_v_int_val, __pyx_v_value);
+    __pyx_t_5 = ((PyObject*)&PyBool_Type);
+    __Pyx_INCREF(__pyx_t_5);
+    __pyx_t_1 = PyObject_IsInstance(__pyx_v_value, __pyx_t_5); if (unlikely(__pyx_t_1 == ((int)-1))) __PYX_ERR(0, 366, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    __pyx_t_11 = (!__pyx_t_1);
+    if (!__pyx_t_11) {
+    } else {
+      __pyx_t_2 = __pyx_t_11;
+      goto __pyx_L9_bool_binop_done;
     }
-    __pyx_L8:;
+    __pyx_L10_next_or:;
 
-    /* "hyperoptimized_sort.pyx":358
- *             else:
- *                 int_val = value
- *             int_records.append((int_val, idx, record))             # <<<<<<<<<<<<<<
- * 
- *         # Perform radix sort on integer representation
+    /* "hyperoptimized_sort.pyx":367
+ *             # Check for regular int and NumPy integer types
+ *             if not ((isinstance(value, int) and not isinstance(value, bool)) or \
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype))):             # <<<<<<<<<<<<<<
+ *                 raise ValueError(f"Radix sort received non-integer value: {type(value)}")
+ *             int_records.append((value, idx, record))
 */
-    __pyx_t_5 = PyTuple_New(3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 358, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_HasAttr(__pyx_v_value, __pyx_mstate_global->__pyx_n_u_dtype); if (unlikely(__pyx_t_11 == ((int)-1))) __PYX_ERR(0, 367, __pyx_L1_error)
+    if (__pyx_t_11) {
+    } else {
+      __pyx_t_2 = __pyx_t_11;
+      goto __pyx_L9_bool_binop_done;
+    }
+    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_v_value, __pyx_mstate_global->__pyx_n_u_dtype); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 367, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    __Pyx_INCREF(__pyx_v_int_val);
-    __Pyx_GIVEREF(__pyx_v_int_val);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_5, 0, __pyx_v_int_val) != (0)) __PYX_ERR(0, 358, __pyx_L1_error);
+    __pyx_t_8 = __Pyx_PyObject_Unicode(__pyx_t_5); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 367, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_8);
+    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    __pyx_t_11 = (__Pyx_PyUnicode_ContainsTF(__pyx_mstate_global->__pyx_n_u_int, __pyx_t_8, Py_EQ)); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 367, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+    __pyx_t_2 = __pyx_t_11;
+    __pyx_L9_bool_binop_done:;
+
+    /* "hyperoptimized_sort.pyx":366
+ *             # we shouldn't have any floats
+ *             # Check for regular int and NumPy integer types
+ *             if not ((isinstance(value, int) and not isinstance(value, bool)) or \             # <<<<<<<<<<<<<<
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype))):
+ *                 raise ValueError(f"Radix sort received non-integer value: {type(value)}")
+*/
+    __pyx_t_11 = (!__pyx_t_2);
+    if (unlikely(__pyx_t_11)) {
+
+      /* "hyperoptimized_sort.pyx":368
+ *             if not ((isinstance(value, int) and not isinstance(value, bool)) or \
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype))):
+ *                 raise ValueError(f"Radix sort received non-integer value: {type(value)}")             # <<<<<<<<<<<<<<
+ *             int_records.append((value, idx, record))
+ * 
+*/
+      __pyx_t_5 = NULL;
+      __Pyx_INCREF(__pyx_builtin_ValueError);
+      __pyx_t_7 = __pyx_builtin_ValueError; 
+      __pyx_t_6 = __Pyx_PyObject_FormatSimple(((PyObject *)Py_TYPE(__pyx_v_value)), __pyx_mstate_global->__pyx_empty_unicode); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 368, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_9 = __Pyx_PyUnicode_Concat(__pyx_mstate_global->__pyx_kp_u_Radix_sort_received_non_integer, __pyx_t_6); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 368, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_9);
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_12 = 1;
+      {
+        PyObject *__pyx_callargs[2] = {__pyx_t_5, __pyx_t_9};
+        __pyx_t_8 = __Pyx_PyObject_FastCall(__pyx_t_7, __pyx_callargs+__pyx_t_12, (2-__pyx_t_12) | (__pyx_t_12*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+        __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
+        __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+        if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 368, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_8);
+      }
+      __Pyx_Raise(__pyx_t_8, 0, 0, 0);
+      __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+      __PYX_ERR(0, 368, __pyx_L1_error)
+
+      /* "hyperoptimized_sort.pyx":366
+ *             # we shouldn't have any floats
+ *             # Check for regular int and NumPy integer types
+ *             if not ((isinstance(value, int) and not isinstance(value, bool)) or \             # <<<<<<<<<<<<<<
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype))):
+ *                 raise ValueError(f"Radix sort received non-integer value: {type(value)}")
+*/
+    }
+
+    /* "hyperoptimized_sort.pyx":369
+ *                    (hasattr(value, 'dtype') and 'int' in str(value.dtype))):
+ *                 raise ValueError(f"Radix sort received non-integer value: {type(value)}")
+ *             int_records.append((value, idx, record))             # <<<<<<<<<<<<<<
+ * 
+ *         # Separate negative and positive numbers
+*/
+    __pyx_t_8 = PyTuple_New(3); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 369, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_8);
+    __Pyx_INCREF(__pyx_v_value);
+    __Pyx_GIVEREF(__pyx_v_value);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 0, __pyx_v_value) != (0)) __PYX_ERR(0, 369, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_idx);
     __Pyx_GIVEREF(__pyx_v_idx);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_5, 1, __pyx_v_idx) != (0)) __PYX_ERR(0, 358, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_v_idx) != (0)) __PYX_ERR(0, 369, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_record);
     __Pyx_GIVEREF(__pyx_v_record);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_5, 2, __pyx_v_record) != (0)) __PYX_ERR(0, 358, __pyx_L1_error);
-    __pyx_t_13 = __Pyx_PyList_Append(__pyx_v_int_records, __pyx_t_5); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 358, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 2, __pyx_v_record) != (0)) __PYX_ERR(0, 369, __pyx_L1_error);
+    __pyx_t_13 = __Pyx_PyList_Append(__pyx_v_int_records, __pyx_t_8); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 369, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
 
-    /* "hyperoptimized_sort.pyx":352
+    /* "hyperoptimized_sort.pyx":362
  *         # Convert to integer representation for bit manipulation
  *         cdef list int_records = []
  *         for value, idx, record in numeric_records:             # <<<<<<<<<<<<<<
- *             if isinstance(value, float):
- *                 # IEEE 754 bit manipulation
+ *             # Since _is_numeric_sortable() ensures only integers reach here,
+ *             # we shouldn't have any floats
 */
   }
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "hyperoptimized_sort.pyx":361
+  /* "hyperoptimized_sort.pyx":372
  * 
- *         # Perform radix sort on integer representation
- *         cdef int max_val = max(abs(item[0]) for item in int_records)             # <<<<<<<<<<<<<<
- *         cdef int exp = 1
+ *         # Separate negative and positive numbers
+ *         cdef list negative_records = []             # <<<<<<<<<<<<<<
+ *         cdef list positive_records = []
  * 
 */
-  __pyx_t_5 = NULL;
-  __Pyx_INCREF(__pyx_builtin_max);
-  __pyx_t_8 = __pyx_builtin_max; 
-  __pyx_t_7 = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_19_radix_sort_numeric_genexpr(NULL, __pyx_v_int_records); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 361, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_7);
-  __pyx_t_14 = 1;
-  {
-    PyObject *__pyx_callargs[2] = {__pyx_t_5, __pyx_t_7};
-    __pyx_t_4 = __Pyx_PyObject_FastCall(__pyx_t_8, __pyx_callargs+__pyx_t_14, (2-__pyx_t_14) | (__pyx_t_14*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-    __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+  __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 372, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __pyx_v_negative_records = ((PyObject*)__pyx_t_4);
+  __pyx_t_4 = 0;
+
+  /* "hyperoptimized_sort.pyx":373
+ *         # Separate negative and positive numbers
+ *         cdef list negative_records = []
+ *         cdef list positive_records = []             # <<<<<<<<<<<<<<
+ * 
+ *         for value, idx, record in int_records:
+*/
+  __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 373, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __pyx_v_positive_records = ((PyObject*)__pyx_t_4);
+  __pyx_t_4 = 0;
+
+  /* "hyperoptimized_sort.pyx":375
+ *         cdef list positive_records = []
+ * 
+ *         for value, idx, record in int_records:             # <<<<<<<<<<<<<<
+ *             if value < 0:
+ *                 negative_records.append((value, idx, record))
+*/
+  __pyx_t_4 = __pyx_v_int_records; __Pyx_INCREF(__pyx_t_4);
+  __pyx_t_3 = 0;
+  for (;;) {
+    {
+      Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_4);
+      #if !CYTHON_ASSUME_SAFE_SIZE
+      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 375, __pyx_L1_error)
+      #endif
+      if (__pyx_t_3 >= __pyx_temp) break;
+    }
+    __pyx_t_8 = __Pyx_PyList_GetItemRef(__pyx_t_4, __pyx_t_3);
+    ++__pyx_t_3;
+    if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 375, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_8);
+    if ((likely(PyTuple_CheckExact(__pyx_t_8))) || (PyList_CheckExact(__pyx_t_8))) {
+      PyObject* sequence = __pyx_t_8;
+      Py_ssize_t size = __Pyx_PySequence_SIZE(sequence);
+      if (unlikely(size != 3)) {
+        if (size > 3) __Pyx_RaiseTooManyValuesError(3);
+        else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
+        __PYX_ERR(0, 375, __pyx_L1_error)
+      }
+      #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
+      if (likely(PyTuple_CheckExact(sequence))) {
+        __pyx_t_7 = PyTuple_GET_ITEM(sequence, 0);
+        __Pyx_INCREF(__pyx_t_7);
+        __pyx_t_9 = PyTuple_GET_ITEM(sequence, 1);
+        __Pyx_INCREF(__pyx_t_9);
+        __pyx_t_5 = PyTuple_GET_ITEM(sequence, 2);
+        __Pyx_INCREF(__pyx_t_5);
+      } else {
+        __pyx_t_7 = __Pyx_PyList_GetItemRef(sequence, 0);
+        if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 375, __pyx_L1_error)
+        __Pyx_XGOTREF(__pyx_t_7);
+        __pyx_t_9 = __Pyx_PyList_GetItemRef(sequence, 1);
+        if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 375, __pyx_L1_error)
+        __Pyx_XGOTREF(__pyx_t_9);
+        __pyx_t_5 = __Pyx_PyList_GetItemRef(sequence, 2);
+        if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 375, __pyx_L1_error)
+        __Pyx_XGOTREF(__pyx_t_5);
+      }
+      #else
+      __pyx_t_7 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 375, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __pyx_t_9 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 375, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_9);
+      __pyx_t_5 = __Pyx_PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 375, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_5);
+      #endif
+      __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+    } else {
+      Py_ssize_t index = -1;
+      __pyx_t_6 = PyObject_GetIter(__pyx_t_8); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 375, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+      __pyx_t_10 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_6);
+      index = 0; __pyx_t_7 = __pyx_t_10(__pyx_t_6); if (unlikely(!__pyx_t_7)) goto __pyx_L16_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_7);
+      index = 1; __pyx_t_9 = __pyx_t_10(__pyx_t_6); if (unlikely(!__pyx_t_9)) goto __pyx_L16_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_9);
+      index = 2; __pyx_t_5 = __pyx_t_10(__pyx_t_6); if (unlikely(!__pyx_t_5)) goto __pyx_L16_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_5);
+      if (__Pyx_IternextUnpackEndCheck(__pyx_t_10(__pyx_t_6), 3) < 0) __PYX_ERR(0, 375, __pyx_L1_error)
+      __pyx_t_10 = NULL;
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      goto __pyx_L17_unpacking_done;
+      __pyx_L16_unpacking_failed:;
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_10 = NULL;
+      if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
+      __PYX_ERR(0, 375, __pyx_L1_error)
+      __pyx_L17_unpacking_done:;
+    }
+    __Pyx_XDECREF_SET(__pyx_v_value, __pyx_t_7);
+    __pyx_t_7 = 0;
+    __Pyx_XDECREF_SET(__pyx_v_idx, __pyx_t_9);
+    __pyx_t_9 = 0;
+    __Pyx_XDECREF_SET(__pyx_v_record, __pyx_t_5);
+    __pyx_t_5 = 0;
+
+    /* "hyperoptimized_sort.pyx":376
+ * 
+ *         for value, idx, record in int_records:
+ *             if value < 0:             # <<<<<<<<<<<<<<
+ *                 negative_records.append((value, idx, record))
+ *             else:
+*/
+    __pyx_t_8 = PyObject_RichCompare(__pyx_v_value, __pyx_mstate_global->__pyx_int_0, Py_LT); __Pyx_XGOTREF(__pyx_t_8); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 376, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_11 < 0))) __PYX_ERR(0, 376, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 361, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_4);
+    if (__pyx_t_11) {
+
+      /* "hyperoptimized_sort.pyx":377
+ *         for value, idx, record in int_records:
+ *             if value < 0:
+ *                 negative_records.append((value, idx, record))             # <<<<<<<<<<<<<<
+ *             else:
+ *                 positive_records.append((value, idx, record))
+*/
+      __pyx_t_8 = PyTuple_New(3); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 377, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_8);
+      __Pyx_INCREF(__pyx_v_value);
+      __Pyx_GIVEREF(__pyx_v_value);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 0, __pyx_v_value) != (0)) __PYX_ERR(0, 377, __pyx_L1_error);
+      __Pyx_INCREF(__pyx_v_idx);
+      __Pyx_GIVEREF(__pyx_v_idx);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_v_idx) != (0)) __PYX_ERR(0, 377, __pyx_L1_error);
+      __Pyx_INCREF(__pyx_v_record);
+      __Pyx_GIVEREF(__pyx_v_record);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 2, __pyx_v_record) != (0)) __PYX_ERR(0, 377, __pyx_L1_error);
+      __pyx_t_13 = __Pyx_PyList_Append(__pyx_v_negative_records, __pyx_t_8); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 377, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+
+      /* "hyperoptimized_sort.pyx":376
+ * 
+ *         for value, idx, record in int_records:
+ *             if value < 0:             # <<<<<<<<<<<<<<
+ *                 negative_records.append((value, idx, record))
+ *             else:
+*/
+      goto __pyx_L18;
+    }
+
+    /* "hyperoptimized_sort.pyx":379
+ *                 negative_records.append((value, idx, record))
+ *             else:
+ *                 positive_records.append((value, idx, record))             # <<<<<<<<<<<<<<
+ * 
+ *         # Sort positive numbers normally
+*/
+    /*else*/ {
+      __pyx_t_8 = PyTuple_New(3); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 379, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_8);
+      __Pyx_INCREF(__pyx_v_value);
+      __Pyx_GIVEREF(__pyx_v_value);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 0, __pyx_v_value) != (0)) __PYX_ERR(0, 379, __pyx_L1_error);
+      __Pyx_INCREF(__pyx_v_idx);
+      __Pyx_GIVEREF(__pyx_v_idx);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_v_idx) != (0)) __PYX_ERR(0, 379, __pyx_L1_error);
+      __Pyx_INCREF(__pyx_v_record);
+      __Pyx_GIVEREF(__pyx_v_record);
+      if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 2, __pyx_v_record) != (0)) __PYX_ERR(0, 379, __pyx_L1_error);
+      __pyx_t_13 = __Pyx_PyList_Append(__pyx_v_positive_records, __pyx_t_8); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 379, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+    }
+    __pyx_L18:;
+
+    /* "hyperoptimized_sort.pyx":375
+ *         cdef list positive_records = []
+ * 
+ *         for value, idx, record in int_records:             # <<<<<<<<<<<<<<
+ *             if value < 0:
+ *                 negative_records.append((value, idx, record))
+*/
   }
-  __pyx_t_15 = __Pyx_PyLong_As_int(__pyx_t_4); if (unlikely((__pyx_t_15 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 361, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __pyx_v_max_val = __pyx_t_15;
 
-  /* "hyperoptimized_sort.pyx":362
- *         # Perform radix sort on integer representation
- *         cdef int max_val = max(abs(item[0]) for item in int_records)
- *         cdef int exp = 1             # <<<<<<<<<<<<<<
+  /* "hyperoptimized_sort.pyx":382
  * 
- *         while max_val // exp > 0:
-*/
-  __pyx_v_exp = 1;
-
-  /* "hyperoptimized_sort.pyx":364
- *         cdef int exp = 1
- * 
- *         while max_val // exp > 0:             # <<<<<<<<<<<<<<
- *             int_records = self._counting_sort_by_digit(int_records, exp, radix)
- *             exp *= radix
-*/
-  while (1) {
-    __pyx_t_2 = ((__pyx_v_max_val / __pyx_v_exp) > 0);
-    if (!__pyx_t_2) break;
-
-    /* "hyperoptimized_sort.pyx":365
- * 
- *         while max_val // exp > 0:
- *             int_records = self._counting_sort_by_digit(int_records, exp, radix)             # <<<<<<<<<<<<<<
- *             exp *= radix
+ *         # Sort positive numbers normally
+ *         if positive_records:             # <<<<<<<<<<<<<<
+ *             positive_records = self._radix_sort_positive(positive_records, radix)
  * 
 */
-    __pyx_t_4 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_counting_sort_by_digit(__pyx_v_self, __pyx_v_int_records, __pyx_v_exp, __pyx_v_radix); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 365, __pyx_L1_error)
+  __pyx_t_11 = (__Pyx_PyList_GET_SIZE(__pyx_v_positive_records) != 0);
+  if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_11 < 0))) __PYX_ERR(0, 382, __pyx_L1_error)
+  if (__pyx_t_11) {
+
+    /* "hyperoptimized_sort.pyx":383
+ *         # Sort positive numbers normally
+ *         if positive_records:
+ *             positive_records = self._radix_sort_positive(positive_records, radix)             # <<<<<<<<<<<<<<
+ * 
+ *         # Sort negative numbers by their absolute value, then reverse
+*/
+    __pyx_t_4 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_radix_sort_positive(__pyx_v_self, __pyx_v_positive_records, __pyx_v_radix); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 383, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __Pyx_DECREF_SET(__pyx_v_int_records, ((PyObject*)__pyx_t_4));
+    __Pyx_DECREF_SET(__pyx_v_positive_records, ((PyObject*)__pyx_t_4));
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":366
- *         while max_val // exp > 0:
- *             int_records = self._counting_sort_by_digit(int_records, exp, radix)
- *             exp *= radix             # <<<<<<<<<<<<<<
+    /* "hyperoptimized_sort.pyx":382
  * 
- *         if reverse:
+ *         # Sort positive numbers normally
+ *         if positive_records:             # <<<<<<<<<<<<<<
+ *             positive_records = self._radix_sort_positive(positive_records, radix)
+ * 
 */
-    __pyx_v_exp = (__pyx_v_exp * __pyx_v_radix);
   }
 
-  /* "hyperoptimized_sort.pyx":368
- *             exp *= radix
+  /* "hyperoptimized_sort.pyx":386
  * 
+ *         # Sort negative numbers by their absolute value, then reverse
+ *         if negative_records:             # <<<<<<<<<<<<<<
+ *             negative_records = self._radix_sort_negative(negative_records, radix)
+ * 
+*/
+  __pyx_t_11 = (__Pyx_PyList_GET_SIZE(__pyx_v_negative_records) != 0);
+  if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_11 < 0))) __PYX_ERR(0, 386, __pyx_L1_error)
+  if (__pyx_t_11) {
+
+    /* "hyperoptimized_sort.pyx":387
+ *         # Sort negative numbers by their absolute value, then reverse
+ *         if negative_records:
+ *             negative_records = self._radix_sort_negative(negative_records, radix)             # <<<<<<<<<<<<<<
+ * 
+ *         # Combine results based on reverse flag
+*/
+    __pyx_t_4 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_radix_sort_negative(__pyx_v_self, __pyx_v_negative_records, __pyx_v_radix); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 387, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_4);
+    __Pyx_DECREF_SET(__pyx_v_negative_records, ((PyObject*)__pyx_t_4));
+    __pyx_t_4 = 0;
+
+    /* "hyperoptimized_sort.pyx":386
+ * 
+ *         # Sort negative numbers by their absolute value, then reverse
+ *         if negative_records:             # <<<<<<<<<<<<<<
+ *             negative_records = self._radix_sort_negative(negative_records, radix)
+ * 
+*/
+  }
+
+  /* "hyperoptimized_sort.pyx":390
+ * 
+ *         # Combine results based on reverse flag
+ *         cdef list result = []             # <<<<<<<<<<<<<<
+ *         if reverse:
+ *             # For reverse order: positive numbers first (largest to smallest), then negative (closest to zero first)
+*/
+  __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 390, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __pyx_v_result = ((PyObject*)__pyx_t_4);
+  __pyx_t_4 = 0;
+
+  /* "hyperoptimized_sort.pyx":391
+ *         # Combine results based on reverse flag
+ *         cdef list result = []
  *         if reverse:             # <<<<<<<<<<<<<<
- *             int_records.reverse()
- * 
+ *             # For reverse order: positive numbers first (largest to smallest), then negative (closest to zero first)
+ *             # Reverse the positive numbers to get largest first
 */
   if (__pyx_v_reverse) {
 
-    /* "hyperoptimized_sort.pyx":369
- * 
- *         if reverse:
- *             int_records.reverse()             # <<<<<<<<<<<<<<
- * 
- *         return int_records
+    /* "hyperoptimized_sort.pyx":394
+ *             # For reverse order: positive numbers first (largest to smallest), then negative (closest to zero first)
+ *             # Reverse the positive numbers to get largest first
+ *             positive_records.reverse()             # <<<<<<<<<<<<<<
+ *             result.extend(positive_records)
+ *             # Negative numbers are already in correct order from _radix_sort_negative (closest to zero first)
 */
-    if (unlikely(__pyx_v_int_records == Py_None)) {
+    if (unlikely(__pyx_v_positive_records == Py_None)) {
       PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "reverse");
-      __PYX_ERR(0, 369, __pyx_L1_error)
+      __PYX_ERR(0, 394, __pyx_L1_error)
     }
-    __pyx_t_13 = PyList_Reverse(__pyx_v_int_records); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 369, __pyx_L1_error)
+    __pyx_t_13 = PyList_Reverse(__pyx_v_positive_records); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 394, __pyx_L1_error)
 
-    /* "hyperoptimized_sort.pyx":368
- *             exp *= radix
- * 
- *         if reverse:             # <<<<<<<<<<<<<<
- *             int_records.reverse()
- * 
+    /* "hyperoptimized_sort.pyx":395
+ *             # Reverse the positive numbers to get largest first
+ *             positive_records.reverse()
+ *             result.extend(positive_records)             # <<<<<<<<<<<<<<
+ *             # Negative numbers are already in correct order from _radix_sort_negative (closest to zero first)
+ *             result.extend(negative_records)
 */
+    __pyx_t_13 = __Pyx_PyList_Extend(__pyx_v_result, __pyx_v_positive_records); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 395, __pyx_L1_error)
+
+    /* "hyperoptimized_sort.pyx":397
+ *             result.extend(positive_records)
+ *             # Negative numbers are already in correct order from _radix_sort_negative (closest to zero first)
+ *             result.extend(negative_records)             # <<<<<<<<<<<<<<
+ *         else:
+ *             # For normal order: negative numbers first (furthest from zero first), then positive (smallest to largest)
+*/
+    __pyx_t_13 = __Pyx_PyList_Extend(__pyx_v_result, __pyx_v_negative_records); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 397, __pyx_L1_error)
+
+    /* "hyperoptimized_sort.pyx":391
+ *         # Combine results based on reverse flag
+ *         cdef list result = []
+ *         if reverse:             # <<<<<<<<<<<<<<
+ *             # For reverse order: positive numbers first (largest to smallest), then negative (closest to zero first)
+ *             # Reverse the positive numbers to get largest first
+*/
+    goto __pyx_L22;
   }
 
-  /* "hyperoptimized_sort.pyx":371
- *             int_records.reverse()
+  /* "hyperoptimized_sort.pyx":400
+ *         else:
+ *             # For normal order: negative numbers first (furthest from zero first), then positive (smallest to largest)
+ *             result.extend(negative_records)             # <<<<<<<<<<<<<<
+ *             result.extend(positive_records)
  * 
- *         return int_records             # <<<<<<<<<<<<<<
+*/
+  /*else*/ {
+    __pyx_t_13 = __Pyx_PyList_Extend(__pyx_v_result, __pyx_v_negative_records); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 400, __pyx_L1_error)
+
+    /* "hyperoptimized_sort.pyx":401
+ *             # For normal order: negative numbers first (furthest from zero first), then positive (smallest to largest)
+ *             result.extend(negative_records)
+ *             result.extend(positive_records)             # <<<<<<<<<<<<<<
  * 
- *     cdef long long _float_to_sortable_int(self, double value):
+ *         return result
+*/
+    __pyx_t_13 = __Pyx_PyList_Extend(__pyx_v_result, __pyx_v_positive_records); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 401, __pyx_L1_error)
+  }
+  __pyx_L22:;
+
+  /* "hyperoptimized_sort.pyx":403
+ *             result.extend(positive_records)
+ * 
+ *         return result             # <<<<<<<<<<<<<<
+ * 
+ *     cdef list _radix_sort_positive(self, list positive_records, int radix):
 */
   __Pyx_XDECREF(__pyx_r);
-  __Pyx_INCREF(__pyx_v_int_records);
-  __pyx_r = __pyx_v_int_records;
+  __Pyx_INCREF(__pyx_v_result);
+  __pyx_r = __pyx_v_result;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":339
+  /* "hyperoptimized_sort.pyx":349
  *         return [item[2] for item in sorted_numeric]
  * 
  *     cdef list _radix_sort_numeric(self, list numeric_records, bint reverse):             # <<<<<<<<<<<<<<
  *         """
- *         LSD (Least Significant Digit) radix sort for floating point numbers
+ *         LSD (Least Significant Digit) radix sort for integers with negative number support
 */
 
   /* function exit code */
@@ -9663,102 +9984,794 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sor
   __Pyx_XDECREF(__pyx_v_value);
   __Pyx_XDECREF(__pyx_v_idx);
   __Pyx_XDECREF(__pyx_v_record);
-  __Pyx_XDECREF(__pyx_v_int_val);
-  __Pyx_XDECREF(__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_19_radix_sort_numeric_2generator);
+  __Pyx_XDECREF(__pyx_v_negative_records);
+  __Pyx_XDECREF(__pyx_v_positive_records);
+  __Pyx_XDECREF(__pyx_v_result);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":373
- *         return int_records
+/* "hyperoptimized_sort.pyx":405
+ *         return result
+ * 
+ *     cdef list _radix_sort_positive(self, list positive_records, int radix):             # <<<<<<<<<<<<<<
+ *         """Radix sort for positive integers"""
+ *         if not positive_records:
+*/
+
+static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sort_positive(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_positive_records, int __pyx_v_radix) {
+  PY_LONG_LONG __pyx_v_max_val;
+  PyObject *__pyx_v_value = NULL;
+  CYTHON_UNUSED PyObject *__pyx_v_idx = NULL;
+  CYTHON_UNUSED PyObject *__pyx_v_record = NULL;
+  PY_LONG_LONG __pyx_v_exp;
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  int __pyx_t_1;
+  int __pyx_t_2;
+  PyObject *__pyx_t_3 = NULL;
+  Py_ssize_t __pyx_t_4;
+  PyObject *__pyx_t_5 = NULL;
+  PyObject *__pyx_t_6 = NULL;
+  PyObject *__pyx_t_7 = NULL;
+  PyObject *__pyx_t_8 = NULL;
+  PyObject *__pyx_t_9 = NULL;
+  PyObject *(*__pyx_t_10)(PyObject *);
+  PY_LONG_LONG __pyx_t_11;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("_radix_sort_positive", 0);
+  __Pyx_INCREF(__pyx_v_positive_records);
+
+  /* "hyperoptimized_sort.pyx":407
+ *     cdef list _radix_sort_positive(self, list positive_records, int radix):
+ *         """Radix sort for positive integers"""
+ *         if not positive_records:             # <<<<<<<<<<<<<<
+ *             return positive_records
+ * 
+*/
+  __pyx_t_1 = (__pyx_v_positive_records != Py_None)&&(__Pyx_PyList_GET_SIZE(__pyx_v_positive_records) != 0);
+  if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_1 < 0))) __PYX_ERR(0, 407, __pyx_L1_error)
+  __pyx_t_2 = (!__pyx_t_1);
+  if (__pyx_t_2) {
+
+    /* "hyperoptimized_sort.pyx":408
+ *         """Radix sort for positive integers"""
+ *         if not positive_records:
+ *             return positive_records             # <<<<<<<<<<<<<<
+ * 
+ *         # Find maximum value
+*/
+    __Pyx_XDECREF(__pyx_r);
+    __Pyx_INCREF(__pyx_v_positive_records);
+    __pyx_r = __pyx_v_positive_records;
+    goto __pyx_L0;
+
+    /* "hyperoptimized_sort.pyx":407
+ *     cdef list _radix_sort_positive(self, list positive_records, int radix):
+ *         """Radix sort for positive integers"""
+ *         if not positive_records:             # <<<<<<<<<<<<<<
+ *             return positive_records
+ * 
+*/
+  }
+
+  /* "hyperoptimized_sort.pyx":411
+ * 
+ *         # Find maximum value
+ *         cdef long long max_val = 0             # <<<<<<<<<<<<<<
+ *         for value, idx, record in positive_records:
+ *             if value > max_val:
+*/
+  __pyx_v_max_val = 0;
+
+  /* "hyperoptimized_sort.pyx":412
+ *         # Find maximum value
+ *         cdef long long max_val = 0
+ *         for value, idx, record in positive_records:             # <<<<<<<<<<<<<<
+ *             if value > max_val:
+ *                 max_val = value
+*/
+  if (unlikely(__pyx_v_positive_records == Py_None)) {
+    PyErr_SetString(PyExc_TypeError, "'NoneType' object is not iterable");
+    __PYX_ERR(0, 412, __pyx_L1_error)
+  }
+  __pyx_t_3 = __pyx_v_positive_records; __Pyx_INCREF(__pyx_t_3);
+  __pyx_t_4 = 0;
+  for (;;) {
+    {
+      Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
+      #if !CYTHON_ASSUME_SAFE_SIZE
+      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 412, __pyx_L1_error)
+      #endif
+      if (__pyx_t_4 >= __pyx_temp) break;
+    }
+    __pyx_t_5 = __Pyx_PyList_GetItemRef(__pyx_t_3, __pyx_t_4);
+    ++__pyx_t_4;
+    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 412, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_5);
+    if ((likely(PyTuple_CheckExact(__pyx_t_5))) || (PyList_CheckExact(__pyx_t_5))) {
+      PyObject* sequence = __pyx_t_5;
+      Py_ssize_t size = __Pyx_PySequence_SIZE(sequence);
+      if (unlikely(size != 3)) {
+        if (size > 3) __Pyx_RaiseTooManyValuesError(3);
+        else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
+        __PYX_ERR(0, 412, __pyx_L1_error)
+      }
+      #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
+      if (likely(PyTuple_CheckExact(sequence))) {
+        __pyx_t_6 = PyTuple_GET_ITEM(sequence, 0);
+        __Pyx_INCREF(__pyx_t_6);
+        __pyx_t_7 = PyTuple_GET_ITEM(sequence, 1);
+        __Pyx_INCREF(__pyx_t_7);
+        __pyx_t_8 = PyTuple_GET_ITEM(sequence, 2);
+        __Pyx_INCREF(__pyx_t_8);
+      } else {
+        __pyx_t_6 = __Pyx_PyList_GetItemRef(sequence, 0);
+        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 412, __pyx_L1_error)
+        __Pyx_XGOTREF(__pyx_t_6);
+        __pyx_t_7 = __Pyx_PyList_GetItemRef(sequence, 1);
+        if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 412, __pyx_L1_error)
+        __Pyx_XGOTREF(__pyx_t_7);
+        __pyx_t_8 = __Pyx_PyList_GetItemRef(sequence, 2);
+        if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 412, __pyx_L1_error)
+        __Pyx_XGOTREF(__pyx_t_8);
+      }
+      #else
+      __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 412, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_7 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 412, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __pyx_t_8 = __Pyx_PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 412, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_8);
+      #endif
+      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    } else {
+      Py_ssize_t index = -1;
+      __pyx_t_9 = PyObject_GetIter(__pyx_t_5); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 412, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_9);
+      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+      __pyx_t_10 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_9);
+      index = 0; __pyx_t_6 = __pyx_t_10(__pyx_t_9); if (unlikely(!__pyx_t_6)) goto __pyx_L6_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_6);
+      index = 1; __pyx_t_7 = __pyx_t_10(__pyx_t_9); if (unlikely(!__pyx_t_7)) goto __pyx_L6_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_7);
+      index = 2; __pyx_t_8 = __pyx_t_10(__pyx_t_9); if (unlikely(!__pyx_t_8)) goto __pyx_L6_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_8);
+      if (__Pyx_IternextUnpackEndCheck(__pyx_t_10(__pyx_t_9), 3) < 0) __PYX_ERR(0, 412, __pyx_L1_error)
+      __pyx_t_10 = NULL;
+      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      goto __pyx_L7_unpacking_done;
+      __pyx_L6_unpacking_failed:;
+      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      __pyx_t_10 = NULL;
+      if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
+      __PYX_ERR(0, 412, __pyx_L1_error)
+      __pyx_L7_unpacking_done:;
+    }
+    __Pyx_XDECREF_SET(__pyx_v_value, __pyx_t_6);
+    __pyx_t_6 = 0;
+    __Pyx_XDECREF_SET(__pyx_v_idx, __pyx_t_7);
+    __pyx_t_7 = 0;
+    __Pyx_XDECREF_SET(__pyx_v_record, __pyx_t_8);
+    __pyx_t_8 = 0;
+
+    /* "hyperoptimized_sort.pyx":413
+ *         cdef long long max_val = 0
+ *         for value, idx, record in positive_records:
+ *             if value > max_val:             # <<<<<<<<<<<<<<
+ *                 max_val = value
+ * 
+*/
+    __pyx_t_5 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_max_val); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 413, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_5);
+    __pyx_t_8 = PyObject_RichCompare(__pyx_v_value, __pyx_t_5, Py_GT); __Pyx_XGOTREF(__pyx_t_8); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 413, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 413, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+    if (__pyx_t_2) {
+
+      /* "hyperoptimized_sort.pyx":414
+ *         for value, idx, record in positive_records:
+ *             if value > max_val:
+ *                 max_val = value             # <<<<<<<<<<<<<<
+ * 
+ *         cdef long long exp = 1
+*/
+      __pyx_t_11 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_v_value); if (unlikely((__pyx_t_11 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 414, __pyx_L1_error)
+      __pyx_v_max_val = __pyx_t_11;
+
+      /* "hyperoptimized_sort.pyx":413
+ *         cdef long long max_val = 0
+ *         for value, idx, record in positive_records:
+ *             if value > max_val:             # <<<<<<<<<<<<<<
+ *                 max_val = value
+ * 
+*/
+    }
+
+    /* "hyperoptimized_sort.pyx":412
+ *         # Find maximum value
+ *         cdef long long max_val = 0
+ *         for value, idx, record in positive_records:             # <<<<<<<<<<<<<<
+ *             if value > max_val:
+ *                 max_val = value
+*/
+  }
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+
+  /* "hyperoptimized_sort.pyx":416
+ *                 max_val = value
+ * 
+ *         cdef long long exp = 1             # <<<<<<<<<<<<<<
+ *         while max_val // exp > 0:
+ *             positive_records = self._counting_sort_by_digit_positive(positive_records, exp, radix)
+*/
+  __pyx_v_exp = 1;
+
+  /* "hyperoptimized_sort.pyx":417
+ * 
+ *         cdef long long exp = 1
+ *         while max_val // exp > 0:             # <<<<<<<<<<<<<<
+ *             positive_records = self._counting_sort_by_digit_positive(positive_records, exp, radix)
+ *             exp *= radix
+*/
+  while (1) {
+    __pyx_t_2 = ((__pyx_v_max_val / __pyx_v_exp) > 0);
+    if (!__pyx_t_2) break;
+
+    /* "hyperoptimized_sort.pyx":418
+ *         cdef long long exp = 1
+ *         while max_val // exp > 0:
+ *             positive_records = self._counting_sort_by_digit_positive(positive_records, exp, radix)             # <<<<<<<<<<<<<<
+ *             exp *= radix
+ * 
+*/
+    __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_counting_sort_by_digit_positive(__pyx_v_self, __pyx_v_positive_records, __pyx_v_exp, __pyx_v_radix); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 418, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __Pyx_DECREF_SET(__pyx_v_positive_records, ((PyObject*)__pyx_t_3));
+    __pyx_t_3 = 0;
+
+    /* "hyperoptimized_sort.pyx":419
+ *         while max_val // exp > 0:
+ *             positive_records = self._counting_sort_by_digit_positive(positive_records, exp, radix)
+ *             exp *= radix             # <<<<<<<<<<<<<<
+ * 
+ *         return positive_records
+*/
+    __pyx_v_exp = (__pyx_v_exp * __pyx_v_radix);
+  }
+
+  /* "hyperoptimized_sort.pyx":421
+ *             exp *= radix
+ * 
+ *         return positive_records             # <<<<<<<<<<<<<<
+ * 
+ *     cdef list _radix_sort_negative(self, list negative_records, int radix):
+*/
+  __Pyx_XDECREF(__pyx_r);
+  __Pyx_INCREF(__pyx_v_positive_records);
+  __pyx_r = __pyx_v_positive_records;
+  goto __pyx_L0;
+
+  /* "hyperoptimized_sort.pyx":405
+ *         return result
+ * 
+ *     cdef list _radix_sort_positive(self, list positive_records, int radix):             # <<<<<<<<<<<<<<
+ *         """Radix sort for positive integers"""
+ *         if not positive_records:
+*/
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_3);
+  __Pyx_XDECREF(__pyx_t_5);
+  __Pyx_XDECREF(__pyx_t_6);
+  __Pyx_XDECREF(__pyx_t_7);
+  __Pyx_XDECREF(__pyx_t_8);
+  __Pyx_XDECREF(__pyx_t_9);
+  __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._radix_sort_positive", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = 0;
+  __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_value);
+  __Pyx_XDECREF(__pyx_v_idx);
+  __Pyx_XDECREF(__pyx_v_record);
+  __Pyx_XDECREF(__pyx_v_positive_records);
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "hyperoptimized_sort.pyx":423
+ *         return positive_records
+ * 
+ *     cdef list _radix_sort_negative(self, list negative_records, int radix):             # <<<<<<<<<<<<<<
+ *         """Radix sort for negative integers (by absolute value, then reverse)"""
+ *         if not negative_records:
+*/
+
+static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sort_negative(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_negative_records, int __pyx_v_radix) {
+  PY_LONG_LONG __pyx_v_max_val;
+  PY_LONG_LONG __pyx_v_abs_val;
+  PyObject *__pyx_v_value = NULL;
+  CYTHON_UNUSED PyObject *__pyx_v_idx = NULL;
+  CYTHON_UNUSED PyObject *__pyx_v_record = NULL;
+  PY_LONG_LONG __pyx_v_exp;
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  int __pyx_t_1;
+  int __pyx_t_2;
+  PyObject *__pyx_t_3 = NULL;
+  Py_ssize_t __pyx_t_4;
+  PyObject *__pyx_t_5 = NULL;
+  PyObject *__pyx_t_6 = NULL;
+  PyObject *__pyx_t_7 = NULL;
+  PyObject *__pyx_t_8 = NULL;
+  PyObject *__pyx_t_9 = NULL;
+  PyObject *(*__pyx_t_10)(PyObject *);
+  PY_LONG_LONG __pyx_t_11;
+  int __pyx_t_12;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("_radix_sort_negative", 0);
+  __Pyx_INCREF(__pyx_v_negative_records);
+
+  /* "hyperoptimized_sort.pyx":425
+ *     cdef list _radix_sort_negative(self, list negative_records, int radix):
+ *         """Radix sort for negative integers (by absolute value, then reverse)"""
+ *         if not negative_records:             # <<<<<<<<<<<<<<
+ *             return negative_records
+ * 
+*/
+  __pyx_t_1 = (__pyx_v_negative_records != Py_None)&&(__Pyx_PyList_GET_SIZE(__pyx_v_negative_records) != 0);
+  if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_1 < 0))) __PYX_ERR(0, 425, __pyx_L1_error)
+  __pyx_t_2 = (!__pyx_t_1);
+  if (__pyx_t_2) {
+
+    /* "hyperoptimized_sort.pyx":426
+ *         """Radix sort for negative integers (by absolute value, then reverse)"""
+ *         if not negative_records:
+ *             return negative_records             # <<<<<<<<<<<<<<
+ * 
+ *         # Find maximum absolute value
+*/
+    __Pyx_XDECREF(__pyx_r);
+    __Pyx_INCREF(__pyx_v_negative_records);
+    __pyx_r = __pyx_v_negative_records;
+    goto __pyx_L0;
+
+    /* "hyperoptimized_sort.pyx":425
+ *     cdef list _radix_sort_negative(self, list negative_records, int radix):
+ *         """Radix sort for negative integers (by absolute value, then reverse)"""
+ *         if not negative_records:             # <<<<<<<<<<<<<<
+ *             return negative_records
+ * 
+*/
+  }
+
+  /* "hyperoptimized_sort.pyx":429
+ * 
+ *         # Find maximum absolute value
+ *         cdef long long max_val = 0             # <<<<<<<<<<<<<<
+ *         cdef long long abs_val
+ *         for value, idx, record in negative_records:
+*/
+  __pyx_v_max_val = 0;
+
+  /* "hyperoptimized_sort.pyx":431
+ *         cdef long long max_val = 0
+ *         cdef long long abs_val
+ *         for value, idx, record in negative_records:             # <<<<<<<<<<<<<<
+ *             abs_val = -value  # value is negative, so -value is positive
+ *             if abs_val > max_val:
+*/
+  if (unlikely(__pyx_v_negative_records == Py_None)) {
+    PyErr_SetString(PyExc_TypeError, "'NoneType' object is not iterable");
+    __PYX_ERR(0, 431, __pyx_L1_error)
+  }
+  __pyx_t_3 = __pyx_v_negative_records; __Pyx_INCREF(__pyx_t_3);
+  __pyx_t_4 = 0;
+  for (;;) {
+    {
+      Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
+      #if !CYTHON_ASSUME_SAFE_SIZE
+      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 431, __pyx_L1_error)
+      #endif
+      if (__pyx_t_4 >= __pyx_temp) break;
+    }
+    __pyx_t_5 = __Pyx_PyList_GetItemRef(__pyx_t_3, __pyx_t_4);
+    ++__pyx_t_4;
+    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 431, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_5);
+    if ((likely(PyTuple_CheckExact(__pyx_t_5))) || (PyList_CheckExact(__pyx_t_5))) {
+      PyObject* sequence = __pyx_t_5;
+      Py_ssize_t size = __Pyx_PySequence_SIZE(sequence);
+      if (unlikely(size != 3)) {
+        if (size > 3) __Pyx_RaiseTooManyValuesError(3);
+        else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
+        __PYX_ERR(0, 431, __pyx_L1_error)
+      }
+      #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
+      if (likely(PyTuple_CheckExact(sequence))) {
+        __pyx_t_6 = PyTuple_GET_ITEM(sequence, 0);
+        __Pyx_INCREF(__pyx_t_6);
+        __pyx_t_7 = PyTuple_GET_ITEM(sequence, 1);
+        __Pyx_INCREF(__pyx_t_7);
+        __pyx_t_8 = PyTuple_GET_ITEM(sequence, 2);
+        __Pyx_INCREF(__pyx_t_8);
+      } else {
+        __pyx_t_6 = __Pyx_PyList_GetItemRef(sequence, 0);
+        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 431, __pyx_L1_error)
+        __Pyx_XGOTREF(__pyx_t_6);
+        __pyx_t_7 = __Pyx_PyList_GetItemRef(sequence, 1);
+        if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 431, __pyx_L1_error)
+        __Pyx_XGOTREF(__pyx_t_7);
+        __pyx_t_8 = __Pyx_PyList_GetItemRef(sequence, 2);
+        if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 431, __pyx_L1_error)
+        __Pyx_XGOTREF(__pyx_t_8);
+      }
+      #else
+      __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 431, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_7 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 431, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __pyx_t_8 = __Pyx_PySequence_ITEM(sequence, 2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 431, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_8);
+      #endif
+      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    } else {
+      Py_ssize_t index = -1;
+      __pyx_t_9 = PyObject_GetIter(__pyx_t_5); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 431, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_9);
+      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+      __pyx_t_10 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_9);
+      index = 0; __pyx_t_6 = __pyx_t_10(__pyx_t_9); if (unlikely(!__pyx_t_6)) goto __pyx_L6_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_6);
+      index = 1; __pyx_t_7 = __pyx_t_10(__pyx_t_9); if (unlikely(!__pyx_t_7)) goto __pyx_L6_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_7);
+      index = 2; __pyx_t_8 = __pyx_t_10(__pyx_t_9); if (unlikely(!__pyx_t_8)) goto __pyx_L6_unpacking_failed;
+      __Pyx_GOTREF(__pyx_t_8);
+      if (__Pyx_IternextUnpackEndCheck(__pyx_t_10(__pyx_t_9), 3) < 0) __PYX_ERR(0, 431, __pyx_L1_error)
+      __pyx_t_10 = NULL;
+      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      goto __pyx_L7_unpacking_done;
+      __pyx_L6_unpacking_failed:;
+      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      __pyx_t_10 = NULL;
+      if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
+      __PYX_ERR(0, 431, __pyx_L1_error)
+      __pyx_L7_unpacking_done:;
+    }
+    __Pyx_XDECREF_SET(__pyx_v_value, __pyx_t_6);
+    __pyx_t_6 = 0;
+    __Pyx_XDECREF_SET(__pyx_v_idx, __pyx_t_7);
+    __pyx_t_7 = 0;
+    __Pyx_XDECREF_SET(__pyx_v_record, __pyx_t_8);
+    __pyx_t_8 = 0;
+
+    /* "hyperoptimized_sort.pyx":432
+ *         cdef long long abs_val
+ *         for value, idx, record in negative_records:
+ *             abs_val = -value  # value is negative, so -value is positive             # <<<<<<<<<<<<<<
+ *             if abs_val > max_val:
+ *                 max_val = abs_val
+*/
+    __pyx_t_5 = PyNumber_Negative(__pyx_v_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 432, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_5);
+    __pyx_t_11 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_t_5); if (unlikely((__pyx_t_11 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 432, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    __pyx_v_abs_val = __pyx_t_11;
+
+    /* "hyperoptimized_sort.pyx":433
+ *         for value, idx, record in negative_records:
+ *             abs_val = -value  # value is negative, so -value is positive
+ *             if abs_val > max_val:             # <<<<<<<<<<<<<<
+ *                 max_val = abs_val
+ * 
+*/
+    __pyx_t_2 = (__pyx_v_abs_val > __pyx_v_max_val);
+    if (__pyx_t_2) {
+
+      /* "hyperoptimized_sort.pyx":434
+ *             abs_val = -value  # value is negative, so -value is positive
+ *             if abs_val > max_val:
+ *                 max_val = abs_val             # <<<<<<<<<<<<<<
+ * 
+ *         cdef long long exp = 1
+*/
+      __pyx_v_max_val = __pyx_v_abs_val;
+
+      /* "hyperoptimized_sort.pyx":433
+ *         for value, idx, record in negative_records:
+ *             abs_val = -value  # value is negative, so -value is positive
+ *             if abs_val > max_val:             # <<<<<<<<<<<<<<
+ *                 max_val = abs_val
+ * 
+*/
+    }
+
+    /* "hyperoptimized_sort.pyx":431
+ *         cdef long long max_val = 0
+ *         cdef long long abs_val
+ *         for value, idx, record in negative_records:             # <<<<<<<<<<<<<<
+ *             abs_val = -value  # value is negative, so -value is positive
+ *             if abs_val > max_val:
+*/
+  }
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+
+  /* "hyperoptimized_sort.pyx":436
+ *                 max_val = abs_val
+ * 
+ *         cdef long long exp = 1             # <<<<<<<<<<<<<<
+ *         while max_val // exp > 0:
+ *             negative_records = self._counting_sort_by_digit_negative(negative_records, exp, radix)
+*/
+  __pyx_v_exp = 1;
+
+  /* "hyperoptimized_sort.pyx":437
+ * 
+ *         cdef long long exp = 1
+ *         while max_val // exp > 0:             # <<<<<<<<<<<<<<
+ *             negative_records = self._counting_sort_by_digit_negative(negative_records, exp, radix)
+ *             exp *= radix
+*/
+  while (1) {
+    __pyx_t_2 = ((__pyx_v_max_val / __pyx_v_exp) > 0);
+    if (!__pyx_t_2) break;
+
+    /* "hyperoptimized_sort.pyx":438
+ *         cdef long long exp = 1
+ *         while max_val // exp > 0:
+ *             negative_records = self._counting_sort_by_digit_negative(negative_records, exp, radix)             # <<<<<<<<<<<<<<
+ *             exp *= radix
+ * 
+*/
+    __pyx_t_3 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_counting_sort_by_digit_negative(__pyx_v_self, __pyx_v_negative_records, __pyx_v_exp, __pyx_v_radix); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 438, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __Pyx_DECREF_SET(__pyx_v_negative_records, ((PyObject*)__pyx_t_3));
+    __pyx_t_3 = 0;
+
+    /* "hyperoptimized_sort.pyx":439
+ *         while max_val // exp > 0:
+ *             negative_records = self._counting_sort_by_digit_negative(negative_records, exp, radix)
+ *             exp *= radix             # <<<<<<<<<<<<<<
+ * 
+ *         # Reverse the order so that -1 comes after -2 (closer to zero)
+*/
+    __pyx_v_exp = (__pyx_v_exp * __pyx_v_radix);
+  }
+
+  /* "hyperoptimized_sort.pyx":442
+ * 
+ *         # Reverse the order so that -1 comes after -2 (closer to zero)
+ *         negative_records.reverse()             # <<<<<<<<<<<<<<
+ *         return negative_records
+ * 
+*/
+  if (unlikely(__pyx_v_negative_records == Py_None)) {
+    PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "reverse");
+    __PYX_ERR(0, 442, __pyx_L1_error)
+  }
+  __pyx_t_12 = PyList_Reverse(__pyx_v_negative_records); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 442, __pyx_L1_error)
+
+  /* "hyperoptimized_sort.pyx":443
+ *         # Reverse the order so that -1 comes after -2 (closer to zero)
+ *         negative_records.reverse()
+ *         return negative_records             # <<<<<<<<<<<<<<
+ * 
+ *     cdef long long _float_to_sortable_int(self, double value):
+*/
+  __Pyx_XDECREF(__pyx_r);
+  __Pyx_INCREF(__pyx_v_negative_records);
+  __pyx_r = __pyx_v_negative_records;
+  goto __pyx_L0;
+
+  /* "hyperoptimized_sort.pyx":423
+ *         return positive_records
+ * 
+ *     cdef list _radix_sort_negative(self, list negative_records, int radix):             # <<<<<<<<<<<<<<
+ *         """Radix sort for negative integers (by absolute value, then reverse)"""
+ *         if not negative_records:
+*/
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_3);
+  __Pyx_XDECREF(__pyx_t_5);
+  __Pyx_XDECREF(__pyx_t_6);
+  __Pyx_XDECREF(__pyx_t_7);
+  __Pyx_XDECREF(__pyx_t_8);
+  __Pyx_XDECREF(__pyx_t_9);
+  __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._radix_sort_negative", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = 0;
+  __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_value);
+  __Pyx_XDECREF(__pyx_v_idx);
+  __Pyx_XDECREF(__pyx_v_record);
+  __Pyx_XDECREF(__pyx_v_negative_records);
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "hyperoptimized_sort.pyx":445
+ *         return negative_records
  * 
  *     cdef long long _float_to_sortable_int(self, double value):             # <<<<<<<<<<<<<<
  *         """Convert float to integer preserving sort order (IEEE 754 trick)"""
- *         cdef long long int_bits = <long long>&value
+ *         # Use struct module for safe bit conversion instead of unsafe pointer casting
 */
 
 static PY_LONG_LONG __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__float_to_sortable_int(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, double __pyx_v_value) {
-  PY_LONG_LONG __pyx_v_int_bits;
-  PY_LONG_LONG __pyx_v_mask;
+  PyObject *__pyx_v_struct = NULL;
+  PyObject *__pyx_v_int_bits = NULL;
   PY_LONG_LONG __pyx_r;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   PyObject *__pyx_t_2 = NULL;
-  PY_LONG_LONG __pyx_t_3;
+  PyObject *__pyx_t_3 = NULL;
+  PyObject *__pyx_t_4 = NULL;
+  PyObject *__pyx_t_5 = NULL;
+  size_t __pyx_t_6;
+  int __pyx_t_7;
+  PY_LONG_LONG __pyx_t_8;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_float_to_sortable_int", 0);
 
-  /* "hyperoptimized_sort.pyx":375
- *     cdef long long _float_to_sortable_int(self, double value):
+  /* "hyperoptimized_sort.pyx":448
  *         """Convert float to integer preserving sort order (IEEE 754 trick)"""
- *         cdef long long int_bits = <long long>&value             # <<<<<<<<<<<<<<
- *         cdef long long mask = <long long>((int_bits >> 63) & 0x7FFFFFFFFFFFFFFF)
- *         return int_bits ^ mask
+ *         # Use struct module for safe bit conversion instead of unsafe pointer casting
+ *         import struct             # <<<<<<<<<<<<<<
+ *         int_bits = struct.unpack('!Q', struct.pack('!d', value))[0]
+ *         # Handle sign bit for proper sorting
 */
-  __pyx_v_int_bits = ((PY_LONG_LONG)(&__pyx_v_value));
-
-  /* "hyperoptimized_sort.pyx":376
- *         """Convert float to integer preserving sort order (IEEE 754 trick)"""
- *         cdef long long int_bits = <long long>&value
- *         cdef long long mask = <long long>((int_bits >> 63) & 0x7FFFFFFFFFFFFFFF)             # <<<<<<<<<<<<<<
- *         return int_bits ^ mask
- * 
-*/
-  __pyx_t_1 = __Pyx_PyLong_From_PY_LONG_LONG((__pyx_v_int_bits >> 63)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 376, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_ImportDottedModule(__pyx_mstate_global->__pyx_n_u_struct, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 448, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = PyNumber_And(__pyx_t_1, __pyx_mstate_global->__pyx_int_0x7fffffffffffffff); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 376, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_3 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_t_2); if (unlikely((__pyx_t_3 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 376, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_v_mask = ((PY_LONG_LONG)__pyx_t_3);
+  __pyx_v_struct = __pyx_t_1;
+  __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":377
- *         cdef long long int_bits = <long long>&value
- *         cdef long long mask = <long long>((int_bits >> 63) & 0x7FFFFFFFFFFFFFFF)
- *         return int_bits ^ mask             # <<<<<<<<<<<<<<
- * 
- *     cdef list _counting_sort_by_digit(self, list records, int exp, int radix):
+  /* "hyperoptimized_sort.pyx":449
+ *         # Use struct module for safe bit conversion instead of unsafe pointer casting
+ *         import struct
+ *         int_bits = struct.unpack('!Q', struct.pack('!d', value))[0]             # <<<<<<<<<<<<<<
+ *         # Handle sign bit for proper sorting
+ *         if int_bits & 0x8000000000000000:
 */
-  __pyx_r = (__pyx_v_int_bits ^ __pyx_v_mask);
+  __pyx_t_2 = __pyx_v_struct;
+  __Pyx_INCREF(__pyx_t_2);
+  __pyx_t_4 = __pyx_v_struct;
+  __Pyx_INCREF(__pyx_t_4);
+  __pyx_t_5 = PyFloat_FromDouble(__pyx_v_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 449, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_5);
+  __pyx_t_6 = 0;
+  {
+    PyObject *__pyx_callargs[3] = {__pyx_t_4, __pyx_mstate_global->__pyx_kp_u_d, __pyx_t_5};
+    __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_pack, __pyx_callargs+__pyx_t_6, (3-__pyx_t_6) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+    __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 449, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+  }
+  __pyx_t_6 = 0;
+  {
+    PyObject *__pyx_callargs[3] = {__pyx_t_2, __pyx_mstate_global->__pyx_kp_u_Q, __pyx_t_3};
+    __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_unpack, __pyx_callargs+__pyx_t_6, (3-__pyx_t_6) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+    __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 449, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+  }
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_1, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 449, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+  __pyx_v_int_bits = __pyx_t_3;
+  __pyx_t_3 = 0;
+
+  /* "hyperoptimized_sort.pyx":451
+ *         int_bits = struct.unpack('!Q', struct.pack('!d', value))[0]
+ *         # Handle sign bit for proper sorting
+ *         if int_bits & 0x8000000000000000:             # <<<<<<<<<<<<<<
+ *             int_bits ^= 0x7FFFFFFFFFFFFFFF
+ *         else:
+*/
+  __pyx_t_3 = PyNumber_And(__pyx_v_int_bits, __pyx_mstate_global->__pyx_int_0x8000000000000000); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 451, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 451, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  if (__pyx_t_7) {
+
+    /* "hyperoptimized_sort.pyx":452
+ *         # Handle sign bit for proper sorting
+ *         if int_bits & 0x8000000000000000:
+ *             int_bits ^= 0x7FFFFFFFFFFFFFFF             # <<<<<<<<<<<<<<
+ *         else:
+ *             int_bits ^= 0x8000000000000000
+*/
+    __pyx_t_3 = PyNumber_InPlaceXor(__pyx_v_int_bits, __pyx_mstate_global->__pyx_int_0x7fffffffffffffff); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 452, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __Pyx_DECREF_SET(__pyx_v_int_bits, __pyx_t_3);
+    __pyx_t_3 = 0;
+
+    /* "hyperoptimized_sort.pyx":451
+ *         int_bits = struct.unpack('!Q', struct.pack('!d', value))[0]
+ *         # Handle sign bit for proper sorting
+ *         if int_bits & 0x8000000000000000:             # <<<<<<<<<<<<<<
+ *             int_bits ^= 0x7FFFFFFFFFFFFFFF
+ *         else:
+*/
+    goto __pyx_L3;
+  }
+
+  /* "hyperoptimized_sort.pyx":454
+ *             int_bits ^= 0x7FFFFFFFFFFFFFFF
+ *         else:
+ *             int_bits ^= 0x8000000000000000             # <<<<<<<<<<<<<<
+ *         return int_bits
+ * 
+*/
+  /*else*/ {
+    __pyx_t_3 = PyNumber_InPlaceXor(__pyx_v_int_bits, __pyx_mstate_global->__pyx_int_0x8000000000000000); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 454, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __Pyx_DECREF_SET(__pyx_v_int_bits, __pyx_t_3);
+    __pyx_t_3 = 0;
+  }
+  __pyx_L3:;
+
+  /* "hyperoptimized_sort.pyx":455
+ *         else:
+ *             int_bits ^= 0x8000000000000000
+ *         return int_bits             # <<<<<<<<<<<<<<
+ * 
+ *     cdef list _counting_sort_by_digit_positive(self, list records, long long exp, int radix):
+*/
+  __pyx_t_8 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_v_int_bits); if (unlikely((__pyx_t_8 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 455, __pyx_L1_error)
+  __pyx_r = __pyx_t_8;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":373
- *         return int_records
+  /* "hyperoptimized_sort.pyx":445
+ *         return negative_records
  * 
  *     cdef long long _float_to_sortable_int(self, double value):             # <<<<<<<<<<<<<<
  *         """Convert float to integer preserving sort order (IEEE 754 trick)"""
- *         cdef long long int_bits = <long long>&value
+ *         # Use struct module for safe bit conversion instead of unsafe pointer casting
 */
 
   /* function exit code */
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
+  __Pyx_XDECREF(__pyx_t_3);
+  __Pyx_XDECREF(__pyx_t_4);
+  __Pyx_XDECREF(__pyx_t_5);
   __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._float_to_sortable_int", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = 0;
   __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_struct);
+  __Pyx_XDECREF(__pyx_v_int_bits);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":379
- *         return int_bits ^ mask
+/* "hyperoptimized_sort.pyx":457
+ *         return int_bits
  * 
- *     cdef list _counting_sort_by_digit(self, list records, int exp, int radix):             # <<<<<<<<<<<<<<
+ *     cdef list _counting_sort_by_digit_positive(self, list records, long long exp, int radix):             # <<<<<<<<<<<<<<
  *         """
- *         Counting sort by specific digit with cache optimization
+ *         Counting sort by specific digit for positive numbers
 */
 
-static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, int __pyx_v_exp, int __pyx_v_radix) {
+static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit_positive(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PY_LONG_LONG __pyx_v_exp, int __pyx_v_radix) {
   int __pyx_v_n;
   PyObject *__pyx_v_output = 0;
   PyObject *__pyx_v_count = 0;
+  PY_LONG_LONG __pyx_v_digit;
   long __pyx_v_i;
-  PyObject *__pyx_v_digit = NULL;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   Py_ssize_t __pyx_t_1;
@@ -9768,15 +10781,16 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
   long __pyx_t_5;
   PyObject *__pyx_t_6 = NULL;
   PyObject *__pyx_t_7 = NULL;
-  long __pyx_t_8;
+  PY_LONG_LONG __pyx_t_8;
   long __pyx_t_9;
+  long __pyx_t_10;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __Pyx_RefNannySetupContext("_counting_sort_by_digit", 0);
+  __Pyx_RefNannySetupContext("_counting_sort_by_digit_positive", 0);
 
-  /* "hyperoptimized_sort.pyx":384
- *         Uses prefetching and memory-friendly access patterns
+  /* "hyperoptimized_sort.pyx":461
+ *         Counting sort by specific digit for positive numbers
  *         """
  *         cdef int n = len(records)             # <<<<<<<<<<<<<<
  *         cdef list output = [None] * n
@@ -9784,54 +10798,54 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 384, __pyx_L1_error)
+    __PYX_ERR(0, 461, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 384, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 461, __pyx_L1_error)
   __pyx_v_n = __pyx_t_1;
 
-  /* "hyperoptimized_sort.pyx":385
+  /* "hyperoptimized_sort.pyx":462
  *         """
  *         cdef int n = len(records)
  *         cdef list output = [None] * n             # <<<<<<<<<<<<<<
  *         cdef list count = [0] * radix
- * 
+ *         cdef long long digit
 */
-  __pyx_t_2 = PyList_New(1 * ((__pyx_v_n<0) ? 0:__pyx_v_n)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 385, __pyx_L1_error)
+  __pyx_t_2 = PyList_New(1 * ((__pyx_v_n<0) ? 0:__pyx_v_n)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 462, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   { Py_ssize_t __pyx_temp;
     for (__pyx_temp=0; __pyx_temp < __pyx_v_n; __pyx_temp++) {
       __Pyx_INCREF(Py_None);
       __Pyx_GIVEREF(Py_None);
-      if (__Pyx_PyList_SET_ITEM(__pyx_t_2, __pyx_temp, Py_None) != (0)) __PYX_ERR(0, 385, __pyx_L1_error);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_2, __pyx_temp, Py_None) != (0)) __PYX_ERR(0, 462, __pyx_L1_error);
     }
   }
   __pyx_v_output = ((PyObject*)__pyx_t_2);
   __pyx_t_2 = 0;
 
-  /* "hyperoptimized_sort.pyx":386
+  /* "hyperoptimized_sort.pyx":463
  *         cdef int n = len(records)
  *         cdef list output = [None] * n
  *         cdef list count = [0] * radix             # <<<<<<<<<<<<<<
+ *         cdef long long digit
  * 
- *         # Count occurrences of each digit
 */
-  __pyx_t_2 = PyList_New(1 * ((__pyx_v_radix<0) ? 0:__pyx_v_radix)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 386, __pyx_L1_error)
+  __pyx_t_2 = PyList_New(1 * ((__pyx_v_radix<0) ? 0:__pyx_v_radix)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 463, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   { Py_ssize_t __pyx_temp;
     for (__pyx_temp=0; __pyx_temp < __pyx_v_radix; __pyx_temp++) {
       __Pyx_INCREF(__pyx_mstate_global->__pyx_int_0);
       __Pyx_GIVEREF(__pyx_mstate_global->__pyx_int_0);
-      if (__Pyx_PyList_SET_ITEM(__pyx_t_2, __pyx_temp, __pyx_mstate_global->__pyx_int_0) != (0)) __PYX_ERR(0, 386, __pyx_L1_error);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_2, __pyx_temp, __pyx_mstate_global->__pyx_int_0) != (0)) __PYX_ERR(0, 463, __pyx_L1_error);
     }
   }
   __pyx_v_count = ((PyObject*)__pyx_t_2);
   __pyx_t_2 = 0;
 
-  /* "hyperoptimized_sort.pyx":389
+  /* "hyperoptimized_sort.pyx":467
  * 
  *         # Count occurrences of each digit
  *         for i in range(n):             # <<<<<<<<<<<<<<
- *             digit = (abs(records[i][0]) // exp) % radix
+ *             digit = (records[i][0] // exp) % radix
  *             count[digit] += 1
 */
   __pyx_t_3 = __pyx_v_n;
@@ -9839,57 +10853,50 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
   for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
     __pyx_v_i = __pyx_t_5;
 
-    /* "hyperoptimized_sort.pyx":390
+    /* "hyperoptimized_sort.pyx":468
  *         # Count occurrences of each digit
  *         for i in range(n):
- *             digit = (abs(records[i][0]) // exp) % radix             # <<<<<<<<<<<<<<
+ *             digit = (records[i][0] // exp) % radix             # <<<<<<<<<<<<<<
  *             count[digit] += 1
  * 
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 390, __pyx_L1_error)
+      __PYX_ERR(0, 468, __pyx_L1_error)
     }
-    __pyx_t_2 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i), 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 390, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i), 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 468, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_6 = __Pyx_PyNumber_Absolute(__pyx_t_2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 390, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_exp); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 468, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __pyx_t_2 = __Pyx_PyLong_From_int(__pyx_v_exp); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 390, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_7 = PyNumber_FloorDivide(__pyx_t_6, __pyx_t_2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 390, __pyx_L1_error)
+    __pyx_t_7 = PyNumber_FloorDivide(__pyx_t_2, __pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 468, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __pyx_t_2 = __Pyx_PyLong_From_int(__pyx_v_radix); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 390, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_6 = PyNumber_Remainder(__pyx_t_7, __pyx_t_2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 390, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_radix); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 468, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_2 = PyNumber_Remainder(__pyx_t_7, __pyx_t_6); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 468, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_8 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_t_2); if (unlikely((__pyx_t_8 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 468, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __Pyx_XDECREF_SET(__pyx_v_digit, __pyx_t_6);
-    __pyx_t_6 = 0;
+    __pyx_v_digit = __pyx_t_8;
 
-    /* "hyperoptimized_sort.pyx":391
+    /* "hyperoptimized_sort.pyx":469
  *         for i in range(n):
- *             digit = (abs(records[i][0]) // exp) % radix
+ *             digit = (records[i][0] // exp) % radix
  *             count[digit] += 1             # <<<<<<<<<<<<<<
  * 
  *         # Cumulative count
 */
-    __Pyx_INCREF(__pyx_v_digit);
-    __pyx_t_6 = __pyx_v_digit;
-    __pyx_t_2 = __Pyx_PyObject_GetItem(__pyx_v_count, __pyx_t_6); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 391, __pyx_L1_error)
+    __pyx_t_8 = __pyx_v_digit;
+    __pyx_t_2 = __Pyx_PyLong_AddObjC(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_8), __pyx_mstate_global->__pyx_int_1, 1, 1, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 469, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_7 = __Pyx_PyLong_AddObjC(__pyx_t_2, __pyx_mstate_global->__pyx_int_1, 1, 1, 0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 391, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_7);
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_count, __pyx_t_8, __pyx_t_2, PY_LONG_LONG, 1, __Pyx_PyLong_From_PY_LONG_LONG, 1, 0, 0) < 0))) __PYX_ERR(0, 469, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely((PyObject_SetItem(__pyx_v_count, __pyx_t_6, __pyx_t_7) < 0))) __PYX_ERR(0, 391, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   }
 
-  /* "hyperoptimized_sort.pyx":394
+  /* "hyperoptimized_sort.pyx":472
  * 
  *         # Cumulative count
  *         for i in range(1, radix):             # <<<<<<<<<<<<<<
@@ -9901,7 +10908,279 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
   for (__pyx_t_5 = 1; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
     __pyx_v_i = __pyx_t_5;
 
-    /* "hyperoptimized_sort.pyx":395
+    /* "hyperoptimized_sort.pyx":473
+ *         # Cumulative count
+ *         for i in range(1, radix):
+ *             count[i] += count[i - 1]             # <<<<<<<<<<<<<<
+ * 
+ *         # Build output array
+*/
+    __pyx_t_9 = __pyx_v_i;
+    __pyx_t_10 = (__pyx_v_i - 1);
+    __pyx_t_2 = PyNumber_InPlaceAdd(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_9), __Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_10)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 473, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_count, __pyx_t_9, __pyx_t_2, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 473, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  }
+
+  /* "hyperoptimized_sort.pyx":476
+ * 
+ *         # Build output array
+ *         for i in range(n - 1, -1, -1):             # <<<<<<<<<<<<<<
+ *             digit = (records[i][0] // exp) % radix
+ *             output[count[digit] - 1] = records[i]
+*/
+  for (__pyx_t_5 = (__pyx_v_n - 1); __pyx_t_5 > -1L; __pyx_t_5-=1) {
+    __pyx_v_i = __pyx_t_5;
+
+    /* "hyperoptimized_sort.pyx":477
+ *         # Build output array
+ *         for i in range(n - 1, -1, -1):
+ *             digit = (records[i][0] // exp) % radix             # <<<<<<<<<<<<<<
+ *             output[count[digit] - 1] = records[i]
+ *             count[digit] -= 1
+*/
+    if (unlikely(__pyx_v_records == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 477, __pyx_L1_error)
+    }
+    __pyx_t_2 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i), 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 477, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    __pyx_t_6 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_exp); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 477, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_7 = PyNumber_FloorDivide(__pyx_t_2, __pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 477, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_radix); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 477, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_2 = PyNumber_Remainder(__pyx_t_7, __pyx_t_6); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 477, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_8 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_t_2); if (unlikely((__pyx_t_8 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 477, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __pyx_v_digit = __pyx_t_8;
+
+    /* "hyperoptimized_sort.pyx":478
+ *         for i in range(n - 1, -1, -1):
+ *             digit = (records[i][0] // exp) % radix
+ *             output[count[digit] - 1] = records[i]             # <<<<<<<<<<<<<<
+ *             count[digit] -= 1
+ * 
+*/
+    if (unlikely(__pyx_v_records == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 478, __pyx_L1_error)
+    }
+    __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i);
+    __Pyx_INCREF(__pyx_t_2);
+    __pyx_t_6 = __Pyx_PyLong_SubtractObjC(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_v_digit), __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 478, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    if (unlikely((PyObject_SetItem(__pyx_v_output, __pyx_t_6, __pyx_t_2) < 0))) __PYX_ERR(0, 478, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+
+    /* "hyperoptimized_sort.pyx":479
+ *             digit = (records[i][0] // exp) % radix
+ *             output[count[digit] - 1] = records[i]
+ *             count[digit] -= 1             # <<<<<<<<<<<<<<
+ * 
+ *         return output
+*/
+    __pyx_t_8 = __pyx_v_digit;
+    __pyx_t_2 = __Pyx_PyLong_SubtractObjC(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_8), __pyx_mstate_global->__pyx_int_1, 1, 1, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 479, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_count, __pyx_t_8, __pyx_t_2, PY_LONG_LONG, 1, __Pyx_PyLong_From_PY_LONG_LONG, 1, 0, 0) < 0))) __PYX_ERR(0, 479, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  }
+
+  /* "hyperoptimized_sort.pyx":481
+ *             count[digit] -= 1
+ * 
+ *         return output             # <<<<<<<<<<<<<<
+ * 
+ *     cdef list _counting_sort_by_digit_negative(self, list records, long long exp, int radix):
+*/
+  __Pyx_XDECREF(__pyx_r);
+  __Pyx_INCREF(__pyx_v_output);
+  __pyx_r = __pyx_v_output;
+  goto __pyx_L0;
+
+  /* "hyperoptimized_sort.pyx":457
+ *         return int_bits
+ * 
+ *     cdef list _counting_sort_by_digit_positive(self, list records, long long exp, int radix):             # <<<<<<<<<<<<<<
+ *         """
+ *         Counting sort by specific digit for positive numbers
+*/
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_2);
+  __Pyx_XDECREF(__pyx_t_6);
+  __Pyx_XDECREF(__pyx_t_7);
+  __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._counting_sort_by_digit_positive", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = 0;
+  __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_output);
+  __Pyx_XDECREF(__pyx_v_count);
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "hyperoptimized_sort.pyx":483
+ *         return output
+ * 
+ *     cdef list _counting_sort_by_digit_negative(self, list records, long long exp, int radix):             # <<<<<<<<<<<<<<
+ *         """
+ *         Counting sort by specific digit for negative numbers (using absolute values)
+*/
+
+static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit_negative(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PY_LONG_LONG __pyx_v_exp, int __pyx_v_radix) {
+  int __pyx_v_n;
+  PyObject *__pyx_v_output = 0;
+  PyObject *__pyx_v_count = 0;
+  PY_LONG_LONG __pyx_v_digit;
+  PY_LONG_LONG __pyx_v_abs_value;
+  long __pyx_v_i;
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  Py_ssize_t __pyx_t_1;
+  PyObject *__pyx_t_2 = NULL;
+  int __pyx_t_3;
+  int __pyx_t_4;
+  long __pyx_t_5;
+  PyObject *__pyx_t_6 = NULL;
+  PY_LONG_LONG __pyx_t_7;
+  long __pyx_t_8;
+  long __pyx_t_9;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("_counting_sort_by_digit_negative", 0);
+
+  /* "hyperoptimized_sort.pyx":487
+ *         Counting sort by specific digit for negative numbers (using absolute values)
+ *         """
+ *         cdef int n = len(records)             # <<<<<<<<<<<<<<
+ *         cdef list output = [None] * n
+ *         cdef list count = [0] * radix
+*/
+  if (unlikely(__pyx_v_records == Py_None)) {
+    PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
+    __PYX_ERR(0, 487, __pyx_L1_error)
+  }
+  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 487, __pyx_L1_error)
+  __pyx_v_n = __pyx_t_1;
+
+  /* "hyperoptimized_sort.pyx":488
+ *         """
+ *         cdef int n = len(records)
+ *         cdef list output = [None] * n             # <<<<<<<<<<<<<<
+ *         cdef list count = [0] * radix
+ *         cdef long long digit
+*/
+  __pyx_t_2 = PyList_New(1 * ((__pyx_v_n<0) ? 0:__pyx_v_n)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 488, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  { Py_ssize_t __pyx_temp;
+    for (__pyx_temp=0; __pyx_temp < __pyx_v_n; __pyx_temp++) {
+      __Pyx_INCREF(Py_None);
+      __Pyx_GIVEREF(Py_None);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_2, __pyx_temp, Py_None) != (0)) __PYX_ERR(0, 488, __pyx_L1_error);
+    }
+  }
+  __pyx_v_output = ((PyObject*)__pyx_t_2);
+  __pyx_t_2 = 0;
+
+  /* "hyperoptimized_sort.pyx":489
+ *         cdef int n = len(records)
+ *         cdef list output = [None] * n
+ *         cdef list count = [0] * radix             # <<<<<<<<<<<<<<
+ *         cdef long long digit
+ *         cdef long long abs_value
+*/
+  __pyx_t_2 = PyList_New(1 * ((__pyx_v_radix<0) ? 0:__pyx_v_radix)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 489, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  { Py_ssize_t __pyx_temp;
+    for (__pyx_temp=0; __pyx_temp < __pyx_v_radix; __pyx_temp++) {
+      __Pyx_INCREF(__pyx_mstate_global->__pyx_int_0);
+      __Pyx_GIVEREF(__pyx_mstate_global->__pyx_int_0);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_2, __pyx_temp, __pyx_mstate_global->__pyx_int_0) != (0)) __PYX_ERR(0, 489, __pyx_L1_error);
+    }
+  }
+  __pyx_v_count = ((PyObject*)__pyx_t_2);
+  __pyx_t_2 = 0;
+
+  /* "hyperoptimized_sort.pyx":494
+ * 
+ *         # Count occurrences of each digit (using absolute value)
+ *         for i in range(n):             # <<<<<<<<<<<<<<
+ *             abs_value = -records[i][0]  # records[i][0] is negative, so -records[i][0] is positive
+ *             digit = (abs_value // exp) % radix
+*/
+  __pyx_t_3 = __pyx_v_n;
+  __pyx_t_4 = __pyx_t_3;
+  for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
+    __pyx_v_i = __pyx_t_5;
+
+    /* "hyperoptimized_sort.pyx":495
+ *         # Count occurrences of each digit (using absolute value)
+ *         for i in range(n):
+ *             abs_value = -records[i][0]  # records[i][0] is negative, so -records[i][0] is positive             # <<<<<<<<<<<<<<
+ *             digit = (abs_value // exp) % radix
+ *             count[digit] += 1
+*/
+    if (unlikely(__pyx_v_records == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 495, __pyx_L1_error)
+    }
+    __pyx_t_2 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i), 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 495, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    __pyx_t_6 = PyNumber_Negative(__pyx_t_2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 495, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __pyx_t_7 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_t_6); if (unlikely((__pyx_t_7 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 495, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_v_abs_value = __pyx_t_7;
+
+    /* "hyperoptimized_sort.pyx":496
+ *         for i in range(n):
+ *             abs_value = -records[i][0]  # records[i][0] is negative, so -records[i][0] is positive
+ *             digit = (abs_value // exp) % radix             # <<<<<<<<<<<<<<
+ *             count[digit] += 1
+ * 
+*/
+    __pyx_v_digit = ((__pyx_v_abs_value / __pyx_v_exp) % __pyx_v_radix);
+
+    /* "hyperoptimized_sort.pyx":497
+ *             abs_value = -records[i][0]  # records[i][0] is negative, so -records[i][0] is positive
+ *             digit = (abs_value // exp) % radix
+ *             count[digit] += 1             # <<<<<<<<<<<<<<
+ * 
+ *         # Cumulative count
+*/
+    __pyx_t_7 = __pyx_v_digit;
+    __pyx_t_6 = __Pyx_PyLong_AddObjC(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_7), __pyx_mstate_global->__pyx_int_1, 1, 1, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 497, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_count, __pyx_t_7, __pyx_t_6, PY_LONG_LONG, 1, __Pyx_PyLong_From_PY_LONG_LONG, 1, 0, 0) < 0))) __PYX_ERR(0, 497, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+  }
+
+  /* "hyperoptimized_sort.pyx":500
+ * 
+ *         # Cumulative count
+ *         for i in range(1, radix):             # <<<<<<<<<<<<<<
+ *             count[i] += count[i - 1]
+ * 
+*/
+  __pyx_t_3 = __pyx_v_radix;
+  __pyx_t_4 = __pyx_t_3;
+  for (__pyx_t_5 = 1; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
+    __pyx_v_i = __pyx_t_5;
+
+    /* "hyperoptimized_sort.pyx":501
  *         # Cumulative count
  *         for i in range(1, radix):
  *             count[i] += count[i - 1]             # <<<<<<<<<<<<<<
@@ -9910,13 +11189,287 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
 */
     __pyx_t_8 = __pyx_v_i;
     __pyx_t_9 = (__pyx_v_i - 1);
-    __pyx_t_6 = PyNumber_InPlaceAdd(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_8), __Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_9)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 395, __pyx_L1_error)
+    __pyx_t_6 = PyNumber_InPlaceAdd(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_8), __Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_9)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 501, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_count, __pyx_t_8, __pyx_t_6, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 395, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_count, __pyx_t_8, __pyx_t_6, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 501, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   }
 
-  /* "hyperoptimized_sort.pyx":398
+  /* "hyperoptimized_sort.pyx":504
+ * 
+ *         # Build output array
+ *         for i in range(n - 1, -1, -1):             # <<<<<<<<<<<<<<
+ *             abs_value = -records[i][0]  # records[i][0] is negative, so -records[i][0] is positive
+ *             digit = (abs_value // exp) % radix
+*/
+  for (__pyx_t_5 = (__pyx_v_n - 1); __pyx_t_5 > -1L; __pyx_t_5-=1) {
+    __pyx_v_i = __pyx_t_5;
+
+    /* "hyperoptimized_sort.pyx":505
+ *         # Build output array
+ *         for i in range(n - 1, -1, -1):
+ *             abs_value = -records[i][0]  # records[i][0] is negative, so -records[i][0] is positive             # <<<<<<<<<<<<<<
+ *             digit = (abs_value // exp) % radix
+ *             output[count[digit] - 1] = records[i]
+*/
+    if (unlikely(__pyx_v_records == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 505, __pyx_L1_error)
+    }
+    __pyx_t_6 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i), 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 505, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_2 = PyNumber_Negative(__pyx_t_6); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 505, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_7 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_t_2); if (unlikely((__pyx_t_7 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 505, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __pyx_v_abs_value = __pyx_t_7;
+
+    /* "hyperoptimized_sort.pyx":506
+ *         for i in range(n - 1, -1, -1):
+ *             abs_value = -records[i][0]  # records[i][0] is negative, so -records[i][0] is positive
+ *             digit = (abs_value // exp) % radix             # <<<<<<<<<<<<<<
+ *             output[count[digit] - 1] = records[i]
+ *             count[digit] -= 1
+*/
+    __pyx_v_digit = ((__pyx_v_abs_value / __pyx_v_exp) % __pyx_v_radix);
+
+    /* "hyperoptimized_sort.pyx":507
+ *             abs_value = -records[i][0]  # records[i][0] is negative, so -records[i][0] is positive
+ *             digit = (abs_value // exp) % radix
+ *             output[count[digit] - 1] = records[i]             # <<<<<<<<<<<<<<
+ *             count[digit] -= 1
+ * 
+*/
+    if (unlikely(__pyx_v_records == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 507, __pyx_L1_error)
+    }
+    __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i);
+    __Pyx_INCREF(__pyx_t_2);
+    __pyx_t_6 = __Pyx_PyLong_SubtractObjC(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_v_digit), __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 507, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    if (unlikely((PyObject_SetItem(__pyx_v_output, __pyx_t_6, __pyx_t_2) < 0))) __PYX_ERR(0, 507, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+
+    /* "hyperoptimized_sort.pyx":508
+ *             digit = (abs_value // exp) % radix
+ *             output[count[digit] - 1] = records[i]
+ *             count[digit] -= 1             # <<<<<<<<<<<<<<
+ * 
+ *         return output
+*/
+    __pyx_t_7 = __pyx_v_digit;
+    __pyx_t_2 = __Pyx_PyLong_SubtractObjC(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_7), __pyx_mstate_global->__pyx_int_1, 1, 1, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 508, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_count, __pyx_t_7, __pyx_t_2, PY_LONG_LONG, 1, __Pyx_PyLong_From_PY_LONG_LONG, 1, 0, 0) < 0))) __PYX_ERR(0, 508, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  }
+
+  /* "hyperoptimized_sort.pyx":510
+ *             count[digit] -= 1
+ * 
+ *         return output             # <<<<<<<<<<<<<<
+ * 
+ *     cdef list _counting_sort_by_digit(self, list records, long long exp, int radix):
+*/
+  __Pyx_XDECREF(__pyx_r);
+  __Pyx_INCREF(__pyx_v_output);
+  __pyx_r = __pyx_v_output;
+  goto __pyx_L0;
+
+  /* "hyperoptimized_sort.pyx":483
+ *         return output
+ * 
+ *     cdef list _counting_sort_by_digit_negative(self, list records, long long exp, int radix):             # <<<<<<<<<<<<<<
+ *         """
+ *         Counting sort by specific digit for negative numbers (using absolute values)
+*/
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_2);
+  __Pyx_XDECREF(__pyx_t_6);
+  __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._counting_sort_by_digit_negative", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = 0;
+  __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_output);
+  __Pyx_XDECREF(__pyx_v_count);
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "hyperoptimized_sort.pyx":512
+ *         return output
+ * 
+ *     cdef list _counting_sort_by_digit(self, list records, long long exp, int radix):             # <<<<<<<<<<<<<<
+ *         """
+ *         DEPRECATED: Legacy counting sort by specific digit
+*/
+
+static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PY_LONG_LONG __pyx_v_exp, int __pyx_v_radix) {
+  int __pyx_v_n;
+  PyObject *__pyx_v_output = 0;
+  PyObject *__pyx_v_count = 0;
+  PY_LONG_LONG __pyx_v_digit;
+  long __pyx_v_i;
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  Py_ssize_t __pyx_t_1;
+  PyObject *__pyx_t_2 = NULL;
+  int __pyx_t_3;
+  int __pyx_t_4;
+  long __pyx_t_5;
+  PyObject *__pyx_t_6 = NULL;
+  PyObject *__pyx_t_7 = NULL;
+  PY_LONG_LONG __pyx_t_8;
+  long __pyx_t_9;
+  long __pyx_t_10;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("_counting_sort_by_digit", 0);
+
+  /* "hyperoptimized_sort.pyx":519
+ *         # This method is kept for backwards compatibility but should not be used
+ *         # for mixed positive/negative numbers
+ *         cdef int n = len(records)             # <<<<<<<<<<<<<<
+ *         cdef list output = [None] * n
+ *         cdef list count = [0] * radix
+*/
+  if (unlikely(__pyx_v_records == Py_None)) {
+    PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
+    __PYX_ERR(0, 519, __pyx_L1_error)
+  }
+  __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 519, __pyx_L1_error)
+  __pyx_v_n = __pyx_t_1;
+
+  /* "hyperoptimized_sort.pyx":520
+ *         # for mixed positive/negative numbers
+ *         cdef int n = len(records)
+ *         cdef list output = [None] * n             # <<<<<<<<<<<<<<
+ *         cdef list count = [0] * radix
+ *         cdef long long digit
+*/
+  __pyx_t_2 = PyList_New(1 * ((__pyx_v_n<0) ? 0:__pyx_v_n)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 520, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  { Py_ssize_t __pyx_temp;
+    for (__pyx_temp=0; __pyx_temp < __pyx_v_n; __pyx_temp++) {
+      __Pyx_INCREF(Py_None);
+      __Pyx_GIVEREF(Py_None);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_2, __pyx_temp, Py_None) != (0)) __PYX_ERR(0, 520, __pyx_L1_error);
+    }
+  }
+  __pyx_v_output = ((PyObject*)__pyx_t_2);
+  __pyx_t_2 = 0;
+
+  /* "hyperoptimized_sort.pyx":521
+ *         cdef int n = len(records)
+ *         cdef list output = [None] * n
+ *         cdef list count = [0] * radix             # <<<<<<<<<<<<<<
+ *         cdef long long digit
+ * 
+*/
+  __pyx_t_2 = PyList_New(1 * ((__pyx_v_radix<0) ? 0:__pyx_v_radix)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 521, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  { Py_ssize_t __pyx_temp;
+    for (__pyx_temp=0; __pyx_temp < __pyx_v_radix; __pyx_temp++) {
+      __Pyx_INCREF(__pyx_mstate_global->__pyx_int_0);
+      __Pyx_GIVEREF(__pyx_mstate_global->__pyx_int_0);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_2, __pyx_temp, __pyx_mstate_global->__pyx_int_0) != (0)) __PYX_ERR(0, 521, __pyx_L1_error);
+    }
+  }
+  __pyx_v_count = ((PyObject*)__pyx_t_2);
+  __pyx_t_2 = 0;
+
+  /* "hyperoptimized_sort.pyx":525
+ * 
+ *         # Count occurrences of each digit
+ *         for i in range(n):             # <<<<<<<<<<<<<<
+ *             digit = (abs(records[i][0]) // exp) % radix
+ *             count[digit] += 1
+*/
+  __pyx_t_3 = __pyx_v_n;
+  __pyx_t_4 = __pyx_t_3;
+  for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
+    __pyx_v_i = __pyx_t_5;
+
+    /* "hyperoptimized_sort.pyx":526
+ *         # Count occurrences of each digit
+ *         for i in range(n):
+ *             digit = (abs(records[i][0]) // exp) % radix             # <<<<<<<<<<<<<<
+ *             count[digit] += 1
+ * 
+*/
+    if (unlikely(__pyx_v_records == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 526, __pyx_L1_error)
+    }
+    __pyx_t_2 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i), 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 526, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    __pyx_t_6 = __Pyx_PyNumber_Absolute(__pyx_t_2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 526, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __pyx_t_2 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_exp); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 526, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    __pyx_t_7 = PyNumber_FloorDivide(__pyx_t_6, __pyx_t_2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 526, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __pyx_t_2 = __Pyx_PyLong_From_int(__pyx_v_radix); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 526, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    __pyx_t_6 = PyNumber_Remainder(__pyx_t_7, __pyx_t_2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 526, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __pyx_t_8 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_t_6); if (unlikely((__pyx_t_8 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 526, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_v_digit = __pyx_t_8;
+
+    /* "hyperoptimized_sort.pyx":527
+ *         for i in range(n):
+ *             digit = (abs(records[i][0]) // exp) % radix
+ *             count[digit] += 1             # <<<<<<<<<<<<<<
+ * 
+ *         # Cumulative count
+*/
+    __pyx_t_8 = __pyx_v_digit;
+    __pyx_t_6 = __Pyx_PyLong_AddObjC(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_8), __pyx_mstate_global->__pyx_int_1, 1, 1, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 527, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_count, __pyx_t_8, __pyx_t_6, PY_LONG_LONG, 1, __Pyx_PyLong_From_PY_LONG_LONG, 1, 0, 0) < 0))) __PYX_ERR(0, 527, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+  }
+
+  /* "hyperoptimized_sort.pyx":530
+ * 
+ *         # Cumulative count
+ *         for i in range(1, radix):             # <<<<<<<<<<<<<<
+ *             count[i] += count[i - 1]
+ * 
+*/
+  __pyx_t_3 = __pyx_v_radix;
+  __pyx_t_4 = __pyx_t_3;
+  for (__pyx_t_5 = 1; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
+    __pyx_v_i = __pyx_t_5;
+
+    /* "hyperoptimized_sort.pyx":531
+ *         # Cumulative count
+ *         for i in range(1, radix):
+ *             count[i] += count[i - 1]             # <<<<<<<<<<<<<<
+ * 
+ *         # Build output array
+*/
+    __pyx_t_9 = __pyx_v_i;
+    __pyx_t_10 = (__pyx_v_i - 1);
+    __pyx_t_6 = PyNumber_InPlaceAdd(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_9), __Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_10)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 531, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_count, __pyx_t_9, __pyx_t_6, long, 1, __Pyx_PyLong_From_long, 1, 0, 0) < 0))) __PYX_ERR(0, 531, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+  }
+
+  /* "hyperoptimized_sort.pyx":534
  * 
  *         # Build output array
  *         for i in range(n - 1, -1, -1):             # <<<<<<<<<<<<<<
@@ -9926,7 +11479,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
   for (__pyx_t_5 = (__pyx_v_n - 1); __pyx_t_5 > -1L; __pyx_t_5-=1) {
     __pyx_v_i = __pyx_t_5;
 
-    /* "hyperoptimized_sort.pyx":399
+    /* "hyperoptimized_sort.pyx":535
  *         # Build output array
  *         for i in range(n - 1, -1, -1):
  *             digit = (abs(records[i][0]) // exp) % radix             # <<<<<<<<<<<<<<
@@ -9935,29 +11488,30 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 399, __pyx_L1_error)
+      __PYX_ERR(0, 535, __pyx_L1_error)
     }
-    __pyx_t_6 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i), 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 399, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_GetItemInt(__Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i), 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 535, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_7 = __Pyx_PyNumber_Absolute(__pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 399, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_7);
-    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_exp); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 399, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_2 = PyNumber_FloorDivide(__pyx_t_7, __pyx_t_6); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 399, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyNumber_Absolute(__pyx_t_6); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 535, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_radix); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 399, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_exp); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 535, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_7 = PyNumber_Remainder(__pyx_t_2, __pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 399, __pyx_L1_error)
+    __pyx_t_7 = PyNumber_FloorDivide(__pyx_t_2, __pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 535, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __Pyx_XDECREF_SET(__pyx_v_digit, __pyx_t_7);
-    __pyx_t_7 = 0;
+    __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_radix); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 535, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_2 = PyNumber_Remainder(__pyx_t_7, __pyx_t_6); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 535, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_8 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_t_2); if (unlikely((__pyx_t_8 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 535, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __pyx_v_digit = __pyx_t_8;
 
-    /* "hyperoptimized_sort.pyx":400
+    /* "hyperoptimized_sort.pyx":536
  *         for i in range(n - 1, -1, -1):
  *             digit = (abs(records[i][0]) // exp) % radix
  *             output[count[digit] - 1] = records[i]             # <<<<<<<<<<<<<<
@@ -9966,39 +11520,31 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 400, __pyx_L1_error)
+      __PYX_ERR(0, 536, __pyx_L1_error)
     }
-    __pyx_t_7 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i);
-    __Pyx_INCREF(__pyx_t_7);
-    __pyx_t_6 = __Pyx_PyObject_GetItem(__pyx_v_count, __pyx_v_digit); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 400, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_records, __pyx_v_i);
+    __Pyx_INCREF(__pyx_t_2);
+    __pyx_t_6 = __Pyx_PyLong_SubtractObjC(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_v_digit), __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 536, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_2 = __Pyx_PyLong_SubtractObjC(__pyx_t_6, __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 400, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_2);
+    if (unlikely((PyObject_SetItem(__pyx_v_output, __pyx_t_6, __pyx_t_2) < 0))) __PYX_ERR(0, 536, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    if (unlikely((PyObject_SetItem(__pyx_v_output, __pyx_t_2, __pyx_t_7) < 0))) __PYX_ERR(0, 400, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-    /* "hyperoptimized_sort.pyx":401
+    /* "hyperoptimized_sort.pyx":537
  *             digit = (abs(records[i][0]) // exp) % radix
  *             output[count[digit] - 1] = records[i]
  *             count[digit] -= 1             # <<<<<<<<<<<<<<
  * 
  *         return output
 */
-    __Pyx_INCREF(__pyx_v_digit);
-    __pyx_t_7 = __pyx_v_digit;
-    __pyx_t_2 = __Pyx_PyObject_GetItem(__pyx_v_count, __pyx_t_7); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 401, __pyx_L1_error)
+    __pyx_t_8 = __pyx_v_digit;
+    __pyx_t_2 = __Pyx_PyLong_SubtractObjC(__Pyx_PyList_GET_ITEM(__pyx_v_count, __pyx_t_8), __pyx_mstate_global->__pyx_int_1, 1, 1, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 537, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_6 = __Pyx_PyLong_SubtractObjC(__pyx_t_2, __pyx_mstate_global->__pyx_int_1, 1, 1, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 401, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_count, __pyx_t_8, __pyx_t_2, PY_LONG_LONG, 1, __Pyx_PyLong_From_PY_LONG_LONG, 1, 0, 0) < 0))) __PYX_ERR(0, 537, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely((PyObject_SetItem(__pyx_v_count, __pyx_t_7, __pyx_t_6) < 0))) __PYX_ERR(0, 401, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   }
 
-  /* "hyperoptimized_sort.pyx":403
+  /* "hyperoptimized_sort.pyx":539
  *             count[digit] -= 1
  * 
  *         return output             # <<<<<<<<<<<<<<
@@ -10010,12 +11556,12 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
   __pyx_r = __pyx_v_output;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":379
- *         return int_bits ^ mask
+  /* "hyperoptimized_sort.pyx":512
+ *         return output
  * 
- *     cdef list _counting_sort_by_digit(self, list records, int exp, int radix):             # <<<<<<<<<<<<<<
+ *     cdef list _counting_sort_by_digit(self, list records, long long exp, int radix):             # <<<<<<<<<<<<<<
  *         """
- *         Counting sort by specific digit with cache optimization
+ *         DEPRECATED: Legacy counting sort by specific digit
 */
 
   /* function exit code */
@@ -10028,13 +11574,12 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
   __pyx_L0:;
   __Pyx_XDECREF(__pyx_v_output);
   __Pyx_XDECREF(__pyx_v_count);
-  __Pyx_XDECREF(__pyx_v_digit);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":405
+/* "hyperoptimized_sort.pyx":541
  *         return output
  * 
  *     def _external_merge_sort_records(self, list records, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -10043,15 +11588,15 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_13_external_merge_sort_records(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_15_external_merge_sort_records(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_12_external_merge_sort_records, "\n        External merge sort for large datasets that don't fit in memory\n        Uses memory-mapped files and k-way merge for efficiency\n        ");
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_13_external_merge_sort_records(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_14_external_merge_sort_records, "\n        External merge sort for large datasets that don't fit in memory\n        Uses memory-mapped files and k-way merge for efficiency\n        ");
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_15_external_merge_sort_records(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -10083,46 +11628,46 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_records,&__pyx_mstate_global->__pyx_n_u_key_column,&__pyx_mstate_global->__pyx_n_u_reverse,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 405, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 541, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 405, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 541, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 405, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 541, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 405, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 541, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_external_merge_sort_records", 0) < 0) __PYX_ERR(0, 405, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_external_merge_sort_records", 0) < 0) __PYX_ERR(0, 541, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 3; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_external_merge_sort_records", 1, 3, 3, i); __PYX_ERR(0, 405, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_external_merge_sort_records", 1, 3, 3, i); __PYX_ERR(0, 541, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 3)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 405, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 541, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 405, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 541, __pyx_L3_error)
       values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 405, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 541, __pyx_L3_error)
     }
     __pyx_v_records = ((PyObject*)values[0]);
     __pyx_v_key_column = ((PyObject*)values[1]);
-    __pyx_v_reverse = __Pyx_PyObject_IsTrue(values[2]); if (unlikely((__pyx_v_reverse == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 405, __pyx_L3_error)
+    __pyx_v_reverse = __Pyx_PyObject_IsTrue(values[2]); if (unlikely((__pyx_v_reverse == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 541, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("_external_merge_sort_records", 1, 3, 3, __pyx_nargs); __PYX_ERR(0, 405, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("_external_merge_sort_records", 1, 3, 3, __pyx_nargs); __PYX_ERR(0, 541, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -10133,9 +11678,9 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_records), (&PyList_Type), 1, "records", 1))) __PYX_ERR(0, 405, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 1, "key_column", 1))) __PYX_ERR(0, 405, __pyx_L1_error)
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_external_merge_sort_records(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse);
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_records), (&PyList_Type), 1, "records", 1))) __PYX_ERR(0, 541, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 1, "key_column", 1))) __PYX_ERR(0, 541, __pyx_L1_error)
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_external_merge_sort_records(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse);
 
   /* function exit code */
   goto __pyx_L0;
@@ -10154,7 +11699,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_external_merge_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_external_merge_sort_records(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_records, PyObject *__pyx_v_key_column, int __pyx_v_reverse) {
   CYTHON_UNUSED int __pyx_v_n;
   int __pyx_v_chunk_size;
   PyObject *__pyx_v_chunk_files = NULL;
@@ -10176,7 +11721,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_extern
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_external_merge_sort_records", 0);
 
-  /* "hyperoptimized_sort.pyx":410
+  /* "hyperoptimized_sort.pyx":546
  *         Uses memory-mapped files and k-way merge for efficiency
  *         """
  *         self.logger.info(f"Using external merge sort for {len(records)} records")             # <<<<<<<<<<<<<<
@@ -10187,16 +11732,16 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_extern
   __Pyx_INCREF(__pyx_t_2);
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 410, __pyx_L1_error)
+    __PYX_ERR(0, 546, __pyx_L1_error)
   }
-  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 410, __pyx_L1_error)
-  __pyx_t_4 = __Pyx_PyUnicode_From_Py_ssize_t(__pyx_t_3, 0, ' ', 'd'); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 410, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 546, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyUnicode_From_Py_ssize_t(__pyx_t_3, 0, ' ', 'd'); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 546, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __pyx_t_5[0] = __pyx_mstate_global->__pyx_kp_u_Using_external_merge_sort_for;
   __pyx_t_5[1] = __pyx_t_4;
   __pyx_t_5[2] = __pyx_mstate_global->__pyx_kp_u_records_2;
   __pyx_t_6 = __Pyx_PyUnicode_Join(__pyx_t_5, 3, 30 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_4) + 8, 127);
-  if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 410, __pyx_L1_error)
+  if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 546, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_7 = 0;
@@ -10205,12 +11750,12 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_extern
     __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_info, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 410, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 546, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":412
+  /* "hyperoptimized_sort.pyx":548
  *         self.logger.info(f"Using external merge sort for {len(records)} records")
  * 
  *         cdef int n = len(records)             # <<<<<<<<<<<<<<
@@ -10219,12 +11764,12 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_extern
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 412, __pyx_L1_error)
+    __PYX_ERR(0, 548, __pyx_L1_error)
   }
-  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 412, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 548, __pyx_L1_error)
   __pyx_v_n = __pyx_t_3;
 
-  /* "hyperoptimized_sort.pyx":413
+  /* "hyperoptimized_sort.pyx":549
  * 
  *         cdef int n = len(records)
  *         cdef int chunk_size = self.memory_limit_mb * 1024 * 1024 // (64 * 8)  # Estimate 64 bytes per record             # <<<<<<<<<<<<<<
@@ -10233,7 +11778,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_extern
 */
   __pyx_v_chunk_size = (((__pyx_v_self->memory_limit_mb * 0x400) * 0x400) / 0x200);
 
-  /* "hyperoptimized_sort.pyx":414
+  /* "hyperoptimized_sort.pyx":550
  *         cdef int n = len(records)
  *         cdef int chunk_size = self.memory_limit_mb * 1024 * 1024 // (64 * 8)  # Estimate 64 bytes per record
  *         chunk_size = max(chunk_size, 1000)  # Minimum chunk size             # <<<<<<<<<<<<<<
@@ -10250,19 +11795,19 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_extern
   }
   __pyx_v_chunk_size = __pyx_t_10;
 
-  /* "hyperoptimized_sort.pyx":417
+  /* "hyperoptimized_sort.pyx":553
  * 
  *         # Phase 1: Sort chunks and write to temporary files
  *         chunk_files = self._sort_and_write_chunks(records, chunk_size, key_column, reverse)             # <<<<<<<<<<<<<<
  * 
  *         # Phase 2: K-way merge of sorted chunks
 */
-  __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_sort_and_write_chunks(__pyx_v_self, __pyx_v_records, __pyx_v_chunk_size, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 417, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_sort_and_write_chunks(__pyx_v_self, __pyx_v_records, __pyx_v_chunk_size, __pyx_v_key_column, __pyx_v_reverse); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 553, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_chunk_files = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":420
+  /* "hyperoptimized_sort.pyx":556
  * 
  *         # Phase 2: K-way merge of sorted chunks
  *         return self._k_way_merge_chunks(chunk_files, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -10272,7 +11817,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_extern
   __Pyx_XDECREF(__pyx_r);
   __pyx_t_6 = ((PyObject *)__pyx_v_self);
   __Pyx_INCREF(__pyx_t_6);
-  __pyx_t_2 = __Pyx_PyBool_FromLong(__pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 420, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyBool_FromLong(__pyx_v_reverse); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 556, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_t_7 = 0;
   {
@@ -10280,14 +11825,14 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_extern
     __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_k_way_merge_chunks, __pyx_callargs+__pyx_t_7, (4-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 420, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 556, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":405
+  /* "hyperoptimized_sort.pyx":541
  *         return output
  * 
  *     def _external_merge_sort_records(self, list records, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -10310,7 +11855,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_12_extern
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":422
+/* "hyperoptimized_sort.pyx":558
  *         return self._k_way_merge_chunks(chunk_files, key_column, reverse)
  * 
  *     cdef list _sort_and_write_chunks(self, list records, int chunk_size, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -10351,19 +11896,19 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_sort_and_write_chunks", 0);
 
-  /* "hyperoptimized_sort.pyx":424
+  /* "hyperoptimized_sort.pyx":560
  *     cdef list _sort_and_write_chunks(self, list records, int chunk_size, str key_column, bint reverse):
  *         """Sort individual chunks and write to temporary files"""
  *         cdef list chunk_files = []             # <<<<<<<<<<<<<<
  *         cdef int n = len(records)
  *         cdef int chunk_id = 0
 */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 424, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 560, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_chunk_files = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":425
+  /* "hyperoptimized_sort.pyx":561
  *         """Sort individual chunks and write to temporary files"""
  *         cdef list chunk_files = []
  *         cdef int n = len(records)             # <<<<<<<<<<<<<<
@@ -10372,12 +11917,12 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
 */
   if (unlikely(__pyx_v_records == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 425, __pyx_L1_error)
+    __PYX_ERR(0, 561, __pyx_L1_error)
   }
-  __pyx_t_2 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 425, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyList_GET_SIZE(__pyx_v_records); if (unlikely(__pyx_t_2 == ((Py_ssize_t)-1))) __PYX_ERR(0, 561, __pyx_L1_error)
   __pyx_v_n = __pyx_t_2;
 
-  /* "hyperoptimized_sort.pyx":426
+  /* "hyperoptimized_sort.pyx":562
  *         cdef list chunk_files = []
  *         cdef int n = len(records)
  *         cdef int chunk_id = 0             # <<<<<<<<<<<<<<
@@ -10386,7 +11931,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
 */
   __pyx_v_chunk_id = 0;
 
-  /* "hyperoptimized_sort.pyx":428
+  /* "hyperoptimized_sort.pyx":564
  *         cdef int chunk_id = 0
  * 
  *         for start_idx in range(0, n, chunk_size):             # <<<<<<<<<<<<<<
@@ -10396,9 +11941,9 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
   __pyx_t_3 = NULL;
   __Pyx_INCREF(__pyx_builtin_range);
   __pyx_t_4 = __pyx_builtin_range; 
-  __pyx_t_5 = __Pyx_PyLong_From_int(__pyx_v_n); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 428, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyLong_From_int(__pyx_v_n); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 564, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_chunk_size); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 428, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_chunk_size); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 564, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __pyx_t_7 = 1;
   {
@@ -10408,7 +11953,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 428, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 564, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   if (likely(PyList_CheckExact(__pyx_t_1)) || PyTuple_CheckExact(__pyx_t_1)) {
@@ -10416,9 +11961,9 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
     __pyx_t_2 = 0;
     __pyx_t_8 = NULL;
   } else {
-    __pyx_t_2 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 428, __pyx_L1_error)
+    __pyx_t_2 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 564, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_8 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 428, __pyx_L1_error)
+    __pyx_t_8 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 564, __pyx_L1_error)
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   for (;;) {
@@ -10427,7 +11972,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
         {
           Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_4);
           #if !CYTHON_ASSUME_SAFE_SIZE
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 428, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 564, __pyx_L1_error)
           #endif
           if (__pyx_t_2 >= __pyx_temp) break;
         }
@@ -10437,7 +11982,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
         {
           Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_4);
           #if !CYTHON_ASSUME_SAFE_SIZE
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 428, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 564, __pyx_L1_error)
           #endif
           if (__pyx_t_2 >= __pyx_temp) break;
         }
@@ -10448,24 +11993,24 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
         #endif
         ++__pyx_t_2;
       }
-      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 428, __pyx_L1_error)
+      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 564, __pyx_L1_error)
     } else {
       __pyx_t_1 = __pyx_t_8(__pyx_t_4);
       if (unlikely(!__pyx_t_1)) {
         PyObject* exc_type = PyErr_Occurred();
         if (exc_type) {
-          if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 428, __pyx_L1_error)
+          if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 564, __pyx_L1_error)
           PyErr_Clear();
         }
         break;
       }
     }
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_9 = __Pyx_PyLong_As_long(__pyx_t_1); if (unlikely((__pyx_t_9 == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 428, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_PyLong_As_long(__pyx_t_1); if (unlikely((__pyx_t_9 == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 564, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     __pyx_v_start_idx = __pyx_t_9;
 
-    /* "hyperoptimized_sort.pyx":429
+    /* "hyperoptimized_sort.pyx":565
  * 
  *         for start_idx in range(0, n, chunk_size):
  *             end_idx = min(start_idx + chunk_size, n)             # <<<<<<<<<<<<<<
@@ -10482,7 +12027,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
     }
     __pyx_v_end_idx = __pyx_t_11;
 
-    /* "hyperoptimized_sort.pyx":430
+    /* "hyperoptimized_sort.pyx":566
  *         for start_idx in range(0, n, chunk_size):
  *             end_idx = min(start_idx + chunk_size, n)
  *             chunk = records[start_idx:end_idx]             # <<<<<<<<<<<<<<
@@ -10491,33 +12036,33 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
 */
     if (unlikely(__pyx_v_records == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 430, __pyx_L1_error)
+      __PYX_ERR(0, 566, __pyx_L1_error)
     }
-    __pyx_t_1 = __Pyx_PyList_GetSlice(__pyx_v_records, __pyx_v_start_idx, __pyx_v_end_idx); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 430, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyList_GetSlice(__pyx_v_records, __pyx_v_start_idx, __pyx_v_end_idx); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 566, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_XDECREF_SET(__pyx_v_chunk, ((PyObject*)__pyx_t_1));
     __pyx_t_1 = 0;
 
-    /* "hyperoptimized_sort.pyx":433
+    /* "hyperoptimized_sort.pyx":569
  * 
  *             # Sort chunk in memory
  *             if len(chunk) < RADIX_SORT_THRESHOLD and self._is_numeric_sortable(chunk, key_column):             # <<<<<<<<<<<<<<
  *                 sorted_chunk = self._radix_sort_records(chunk, key_column, reverse)
  *             else:
 */
-    __pyx_t_13 = __Pyx_PyList_GET_SIZE(__pyx_v_chunk); if (unlikely(__pyx_t_13 == ((Py_ssize_t)-1))) __PYX_ERR(0, 433, __pyx_L1_error)
+    __pyx_t_13 = __Pyx_PyList_GET_SIZE(__pyx_v_chunk); if (unlikely(__pyx_t_13 == ((Py_ssize_t)-1))) __PYX_ERR(0, 569, __pyx_L1_error)
     __pyx_t_14 = (__pyx_t_13 < __pyx_v_19hyperoptimized_sort_RADIX_SORT_THRESHOLD);
     if (__pyx_t_14) {
     } else {
       __pyx_t_12 = __pyx_t_14;
       goto __pyx_L6_bool_binop_done;
     }
-    __pyx_t_14 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_is_numeric_sortable(__pyx_v_self, __pyx_v_chunk, __pyx_v_key_column); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 433, __pyx_L1_error)
+    __pyx_t_14 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_is_numeric_sortable(__pyx_v_self, __pyx_v_chunk, __pyx_v_key_column); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 569, __pyx_L1_error)
     __pyx_t_12 = __pyx_t_14;
     __pyx_L6_bool_binop_done:;
     if (__pyx_t_12) {
 
-      /* "hyperoptimized_sort.pyx":434
+      /* "hyperoptimized_sort.pyx":570
  *             # Sort chunk in memory
  *             if len(chunk) < RADIX_SORT_THRESHOLD and self._is_numeric_sortable(chunk, key_column):
  *                 sorted_chunk = self._radix_sort_records(chunk, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -10526,7 +12071,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
 */
       __pyx_t_6 = ((PyObject *)__pyx_v_self);
       __Pyx_INCREF(__pyx_t_6);
-      __pyx_t_5 = __Pyx_PyBool_FromLong(__pyx_v_reverse); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 434, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyBool_FromLong(__pyx_v_reverse); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 570, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
       __pyx_t_7 = 0;
       {
@@ -10534,13 +12079,13 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
         __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_radix_sort_records, __pyx_callargs+__pyx_t_7, (4-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
         __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
         __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-        if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 434, __pyx_L1_error)
+        if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 570, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
       }
       __Pyx_XDECREF_SET(__pyx_v_sorted_chunk, __pyx_t_1);
       __pyx_t_1 = 0;
 
-      /* "hyperoptimized_sort.pyx":433
+      /* "hyperoptimized_sort.pyx":569
  * 
  *             # Sort chunk in memory
  *             if len(chunk) < RADIX_SORT_THRESHOLD and self._is_numeric_sortable(chunk, key_column):             # <<<<<<<<<<<<<<
@@ -10550,7 +12095,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
       goto __pyx_L5;
     }
 
-    /* "hyperoptimized_sort.pyx":436
+    /* "hyperoptimized_sort.pyx":572
  *                 sorted_chunk = self._radix_sort_records(chunk, key_column, reverse)
  *             else:
  *                 sorted_chunk = self._introsort_records(chunk, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -10560,7 +12105,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
     /*else*/ {
       __pyx_t_5 = ((PyObject *)__pyx_v_self);
       __Pyx_INCREF(__pyx_t_5);
-      __pyx_t_6 = __Pyx_PyBool_FromLong(__pyx_v_reverse); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 436, __pyx_L1_error)
+      __pyx_t_6 = __Pyx_PyBool_FromLong(__pyx_v_reverse); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 572, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
       __pyx_t_7 = 0;
       {
@@ -10568,7 +12113,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
         __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_introsort_records, __pyx_callargs+__pyx_t_7, (4-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
         __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
         __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-        if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 436, __pyx_L1_error)
+        if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 572, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
       }
       __Pyx_XDECREF_SET(__pyx_v_sorted_chunk, __pyx_t_1);
@@ -10576,27 +12121,27 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
     }
     __pyx_L5:;
 
-    /* "hyperoptimized_sort.pyx":439
+    /* "hyperoptimized_sort.pyx":575
  * 
  *             # Write to temporary file
  *             temp_file = os.path.join(self.temp_dir, f"sort_chunk_{chunk_id}.tmp")             # <<<<<<<<<<<<<<
  *             self._write_chunk_to_file(sorted_chunk, temp_file)
  *             chunk_files.append(temp_file)
 */
-    __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_os); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 439, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_os); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 575, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_path); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 439, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_path); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 575, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __pyx_t_6 = __pyx_t_3;
     __Pyx_INCREF(__pyx_t_6);
-    __pyx_t_5 = __Pyx_PyUnicode_From_int(__pyx_v_chunk_id, 0, ' ', 'd'); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 439, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyUnicode_From_int(__pyx_v_chunk_id, 0, ' ', 'd'); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 575, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __pyx_t_15[0] = __pyx_mstate_global->__pyx_n_u_sort_chunk;
     __pyx_t_15[1] = __pyx_t_5;
     __pyx_t_15[2] = __pyx_mstate_global->__pyx_kp_u_tmp;
     __pyx_t_16 = __Pyx_PyUnicode_Join(__pyx_t_15, 3, 11 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_5) + 4, 127);
-    if (unlikely(!__pyx_t_16)) __PYX_ERR(0, 439, __pyx_L1_error)
+    if (unlikely(!__pyx_t_16)) __PYX_ERR(0, 575, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_16);
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __pyx_t_7 = 0;
@@ -10606,33 +12151,33 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
       __Pyx_DECREF(__pyx_t_16); __pyx_t_16 = 0;
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 439, __pyx_L1_error)
+      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 575, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
     }
     __Pyx_XDECREF_SET(__pyx_v_temp_file, __pyx_t_1);
     __pyx_t_1 = 0;
 
-    /* "hyperoptimized_sort.pyx":440
+    /* "hyperoptimized_sort.pyx":576
  *             # Write to temporary file
  *             temp_file = os.path.join(self.temp_dir, f"sort_chunk_{chunk_id}.tmp")
  *             self._write_chunk_to_file(sorted_chunk, temp_file)             # <<<<<<<<<<<<<<
  *             chunk_files.append(temp_file)
  *             self.temp_files.append(temp_file)
 */
-    if (!(likely(PyList_CheckExact(__pyx_v_sorted_chunk))||((__pyx_v_sorted_chunk) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_v_sorted_chunk))) __PYX_ERR(0, 440, __pyx_L1_error)
-    if (!(likely(PyUnicode_CheckExact(__pyx_v_temp_file))||((__pyx_v_temp_file) == Py_None) || __Pyx_RaiseUnexpectedTypeError("str", __pyx_v_temp_file))) __PYX_ERR(0, 440, __pyx_L1_error)
-    ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_write_chunk_to_file(__pyx_v_self, ((PyObject*)__pyx_v_sorted_chunk), ((PyObject*)__pyx_v_temp_file)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 440, __pyx_L1_error)
+    if (!(likely(PyList_CheckExact(__pyx_v_sorted_chunk))||((__pyx_v_sorted_chunk) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_v_sorted_chunk))) __PYX_ERR(0, 576, __pyx_L1_error)
+    if (!(likely(PyUnicode_CheckExact(__pyx_v_temp_file))||((__pyx_v_temp_file) == Py_None) || __Pyx_RaiseUnexpectedTypeError("str", __pyx_v_temp_file))) __PYX_ERR(0, 576, __pyx_L1_error)
+    ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_write_chunk_to_file(__pyx_v_self, ((PyObject*)__pyx_v_sorted_chunk), ((PyObject*)__pyx_v_temp_file)); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 576, __pyx_L1_error)
 
-    /* "hyperoptimized_sort.pyx":441
+    /* "hyperoptimized_sort.pyx":577
  *             temp_file = os.path.join(self.temp_dir, f"sort_chunk_{chunk_id}.tmp")
  *             self._write_chunk_to_file(sorted_chunk, temp_file)
  *             chunk_files.append(temp_file)             # <<<<<<<<<<<<<<
  *             self.temp_files.append(temp_file)
  *             chunk_id += 1
 */
-    __pyx_t_17 = __Pyx_PyList_Append(__pyx_v_chunk_files, __pyx_v_temp_file); if (unlikely(__pyx_t_17 == ((int)-1))) __PYX_ERR(0, 441, __pyx_L1_error)
+    __pyx_t_17 = __Pyx_PyList_Append(__pyx_v_chunk_files, __pyx_v_temp_file); if (unlikely(__pyx_t_17 == ((int)-1))) __PYX_ERR(0, 577, __pyx_L1_error)
 
-    /* "hyperoptimized_sort.pyx":442
+    /* "hyperoptimized_sort.pyx":578
  *             self._write_chunk_to_file(sorted_chunk, temp_file)
  *             chunk_files.append(temp_file)
  *             self.temp_files.append(temp_file)             # <<<<<<<<<<<<<<
@@ -10641,11 +12186,11 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
 */
     if (unlikely(__pyx_v_self->temp_files == Py_None)) {
       PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "append");
-      __PYX_ERR(0, 442, __pyx_L1_error)
+      __PYX_ERR(0, 578, __pyx_L1_error)
     }
-    __pyx_t_17 = __Pyx_PyList_Append(__pyx_v_self->temp_files, __pyx_v_temp_file); if (unlikely(__pyx_t_17 == ((int)-1))) __PYX_ERR(0, 442, __pyx_L1_error)
+    __pyx_t_17 = __Pyx_PyList_Append(__pyx_v_self->temp_files, __pyx_v_temp_file); if (unlikely(__pyx_t_17 == ((int)-1))) __PYX_ERR(0, 578, __pyx_L1_error)
 
-    /* "hyperoptimized_sort.pyx":443
+    /* "hyperoptimized_sort.pyx":579
  *             chunk_files.append(temp_file)
  *             self.temp_files.append(temp_file)
  *             chunk_id += 1             # <<<<<<<<<<<<<<
@@ -10654,7 +12199,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
 */
     __pyx_v_chunk_id = (__pyx_v_chunk_id + 1);
 
-    /* "hyperoptimized_sort.pyx":428
+    /* "hyperoptimized_sort.pyx":564
  *         cdef int chunk_id = 0
  * 
  *         for start_idx in range(0, n, chunk_size):             # <<<<<<<<<<<<<<
@@ -10664,7 +12209,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
   }
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "hyperoptimized_sort.pyx":445
+  /* "hyperoptimized_sort.pyx":581
  *             chunk_id += 1
  * 
  *         return chunk_files             # <<<<<<<<<<<<<<
@@ -10676,7 +12221,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
   __pyx_r = __pyx_v_chunk_files;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":422
+  /* "hyperoptimized_sort.pyx":558
  *         return self._k_way_merge_chunks(chunk_files, key_column, reverse)
  * 
  *     cdef list _sort_and_write_chunks(self, list records, int chunk_size, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -10704,7 +12249,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":447
+/* "hyperoptimized_sort.pyx":583
  *         return chunk_files
  * 
  *     cdef void _write_chunk_to_file(self, list chunk, str filename):             # <<<<<<<<<<<<<<
@@ -10733,7 +12278,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_write_chunk_to_file", 0);
 
-  /* "hyperoptimized_sort.pyx":449
+  /* "hyperoptimized_sort.pyx":585
  *     cdef void _write_chunk_to_file(self, list chunk, str filename):
  *         """Write sorted chunk to temporary file using efficient serialization"""
  *         with open(filename, 'wb') as f:             # <<<<<<<<<<<<<<
@@ -10750,13 +12295,13 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
       __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+__pyx_t_4, (3-__pyx_t_4) | (__pyx_t_4*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 449, __pyx_L1_error)
+      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 585, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
     }
-    __pyx_t_5 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_exit); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 449, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_exit); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 585, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __pyx_t_2 = NULL;
-    __pyx_t_6 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_enter); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 449, __pyx_L3_error)
+    __pyx_t_6 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_enter); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 585, __pyx_L3_error)
     __Pyx_GOTREF(__pyx_t_6);
     __pyx_t_4 = 1;
     #if CYTHON_UNPACK_METHODS
@@ -10775,7 +12320,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
       __pyx_t_3 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+__pyx_t_4, (1-__pyx_t_4) | (__pyx_t_4*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 449, __pyx_L3_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 585, __pyx_L3_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __pyx_t_6 = __pyx_t_3;
@@ -10793,7 +12338,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
           __pyx_v_f = __pyx_t_6;
           __pyx_t_6 = 0;
 
-          /* "hyperoptimized_sort.pyx":450
+          /* "hyperoptimized_sort.pyx":586
  *         """Write sorted chunk to temporary file using efficient serialization"""
  *         with open(filename, 'wb') as f:
  *             pickle.dump(chunk, f, protocol=pickle.HIGHEST_PROTOCOL)             # <<<<<<<<<<<<<<
@@ -10801,14 +12346,14 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
  *     cdef list _read_chunk_from_file(self, str filename):
 */
           __pyx_t_1 = NULL;
-          __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pickle); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 450, __pyx_L7_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pickle); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 586, __pyx_L7_error)
           __Pyx_GOTREF(__pyx_t_3);
-          __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_dump); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 450, __pyx_L7_error)
+          __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_dump); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 586, __pyx_L7_error)
           __Pyx_GOTREF(__pyx_t_2);
           __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-          __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pickle); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 450, __pyx_L7_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pickle); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 586, __pyx_L7_error)
           __Pyx_GOTREF(__pyx_t_3);
-          __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_HIGHEST_PROTOCOL); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 450, __pyx_L7_error)
+          __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_HIGHEST_PROTOCOL); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 586, __pyx_L7_error)
           __Pyx_GOTREF(__pyx_t_10);
           __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
           __pyx_t_4 = 1;
@@ -10825,20 +12370,20 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
           #endif
           {
             PyObject *__pyx_callargs[3 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_1, __pyx_v_chunk, __pyx_v_f};
-            __pyx_t_3 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 450, __pyx_L7_error)
+            __pyx_t_3 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 586, __pyx_L7_error)
             __Pyx_GOTREF(__pyx_t_3);
-            if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_protocol, __pyx_t_10, __pyx_t_3, __pyx_callargs+3, 0) < 0) __PYX_ERR(0, 450, __pyx_L7_error)
+            if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_protocol, __pyx_t_10, __pyx_t_3, __pyx_callargs+3, 0) < 0) __PYX_ERR(0, 586, __pyx_L7_error)
             __pyx_t_6 = __Pyx_Object_Vectorcall_CallFromBuilder(__pyx_t_2, __pyx_callargs+__pyx_t_4, (3-__pyx_t_4) | (__pyx_t_4*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_3);
             __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
             __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
             __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
             __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-            if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 450, __pyx_L7_error)
+            if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 586, __pyx_L7_error)
             __Pyx_GOTREF(__pyx_t_6);
           }
           __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
 
-          /* "hyperoptimized_sort.pyx":449
+          /* "hyperoptimized_sort.pyx":585
  *     cdef void _write_chunk_to_file(self, list chunk, str filename):
  *         """Write sorted chunk to temporary file using efficient serialization"""
  *         with open(filename, 'wb') as f:             # <<<<<<<<<<<<<<
@@ -10858,20 +12403,20 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
         __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
         /*except:*/ {
           __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._write_chunk_to_file", __pyx_clineno, __pyx_lineno, __pyx_filename);
-          if (__Pyx_GetException(&__pyx_t_6, &__pyx_t_2, &__pyx_t_3) < 0) __PYX_ERR(0, 449, __pyx_L9_except_error)
+          if (__Pyx_GetException(&__pyx_t_6, &__pyx_t_2, &__pyx_t_3) < 0) __PYX_ERR(0, 585, __pyx_L9_except_error)
           __Pyx_XGOTREF(__pyx_t_6);
           __Pyx_XGOTREF(__pyx_t_2);
           __Pyx_XGOTREF(__pyx_t_3);
-          __pyx_t_10 = PyTuple_Pack(3, __pyx_t_6, __pyx_t_2, __pyx_t_3); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 449, __pyx_L9_except_error)
+          __pyx_t_10 = PyTuple_Pack(3, __pyx_t_6, __pyx_t_2, __pyx_t_3); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 585, __pyx_L9_except_error)
           __Pyx_GOTREF(__pyx_t_10);
           __pyx_t_11 = __Pyx_PyObject_Call(__pyx_t_5, __pyx_t_10, NULL);
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
           __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-          if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 449, __pyx_L9_except_error)
+          if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 585, __pyx_L9_except_error)
           __Pyx_GOTREF(__pyx_t_11);
           __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_t_11);
           __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-          if (__pyx_t_12 < 0) __PYX_ERR(0, 449, __pyx_L9_except_error)
+          if (__pyx_t_12 < 0) __PYX_ERR(0, 585, __pyx_L9_except_error)
           __pyx_t_13 = (!__pyx_t_12);
           if (unlikely(__pyx_t_13)) {
             __Pyx_GIVEREF(__pyx_t_6);
@@ -10879,7 +12424,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
             __Pyx_XGIVEREF(__pyx_t_3);
             __Pyx_ErrRestoreWithState(__pyx_t_6, __pyx_t_2, __pyx_t_3);
             __pyx_t_6 = 0;  __pyx_t_2 = 0;  __pyx_t_3 = 0; 
-            __PYX_ERR(0, 449, __pyx_L9_except_error)
+            __PYX_ERR(0, 585, __pyx_L9_except_error)
           }
           __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
           __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
@@ -10905,7 +12450,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
         if (__pyx_t_5) {
           __pyx_t_9 = __Pyx_PyObject_Call(__pyx_t_5, __pyx_mstate_global->__pyx_tuple[0], NULL);
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-          if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 449, __pyx_L1_error)
+          if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 585, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_9);
           __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
         }
@@ -10920,7 +12465,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
     __pyx_L16:;
   }
 
-  /* "hyperoptimized_sort.pyx":447
+  /* "hyperoptimized_sort.pyx":583
  *         return chunk_files
  * 
  *     cdef void _write_chunk_to_file(self, list chunk, str filename):             # <<<<<<<<<<<<<<
@@ -10942,7 +12487,7 @@ static void __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to
   __Pyx_RefNannyFinishContext();
 }
 
-/* "hyperoptimized_sort.pyx":452
+/* "hyperoptimized_sort.pyx":588
  *             pickle.dump(chunk, f, protocol=pickle.HIGHEST_PROTOCOL)
  * 
  *     cdef list _read_chunk_from_file(self, str filename):             # <<<<<<<<<<<<<<
@@ -10972,7 +12517,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_read_chunk_from_file", 0);
 
-  /* "hyperoptimized_sort.pyx":454
+  /* "hyperoptimized_sort.pyx":590
  *     cdef list _read_chunk_from_file(self, str filename):
  *         """Read chunk from temporary file"""
  *         with open(filename, 'rb') as f:             # <<<<<<<<<<<<<<
@@ -10989,13 +12534,13 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
       __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+__pyx_t_4, (3-__pyx_t_4) | (__pyx_t_4*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 454, __pyx_L1_error)
+      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 590, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
     }
-    __pyx_t_5 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_exit); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 454, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_exit); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 590, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __pyx_t_2 = NULL;
-    __pyx_t_6 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_enter); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 454, __pyx_L3_error)
+    __pyx_t_6 = __Pyx_PyObject_LookupSpecial(__pyx_t_1, __pyx_mstate_global->__pyx_n_u_enter); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 590, __pyx_L3_error)
     __Pyx_GOTREF(__pyx_t_6);
     __pyx_t_4 = 1;
     #if CYTHON_UNPACK_METHODS
@@ -11014,7 +12559,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
       __pyx_t_3 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+__pyx_t_4, (1-__pyx_t_4) | (__pyx_t_4*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 454, __pyx_L3_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 590, __pyx_L3_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __pyx_t_6 = __pyx_t_3;
@@ -11032,7 +12577,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
           __pyx_v_f = __pyx_t_6;
           __pyx_t_6 = 0;
 
-          /* "hyperoptimized_sort.pyx":455
+          /* "hyperoptimized_sort.pyx":591
  *         """Read chunk from temporary file"""
  *         with open(filename, 'rb') as f:
  *             return pickle.load(f)             # <<<<<<<<<<<<<<
@@ -11041,9 +12586,9 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
 */
           __Pyx_XDECREF(__pyx_r);
           __pyx_t_1 = NULL;
-          __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pickle); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 455, __pyx_L7_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pickle); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 591, __pyx_L7_error)
           __Pyx_GOTREF(__pyx_t_3);
-          __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_load); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 455, __pyx_L7_error)
+          __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_load); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 591, __pyx_L7_error)
           __Pyx_GOTREF(__pyx_t_2);
           __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
           __pyx_t_4 = 1;
@@ -11063,15 +12608,15 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
             __pyx_t_6 = __Pyx_PyObject_FastCall(__pyx_t_2, __pyx_callargs+__pyx_t_4, (2-__pyx_t_4) | (__pyx_t_4*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
             __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
             __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-            if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 455, __pyx_L7_error)
+            if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 591, __pyx_L7_error)
             __Pyx_GOTREF(__pyx_t_6);
           }
-          if (!(likely(PyList_CheckExact(__pyx_t_6))||((__pyx_t_6) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_6))) __PYX_ERR(0, 455, __pyx_L7_error)
+          if (!(likely(PyList_CheckExact(__pyx_t_6))||((__pyx_t_6) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_6))) __PYX_ERR(0, 591, __pyx_L7_error)
           __pyx_r = ((PyObject*)__pyx_t_6);
           __pyx_t_6 = 0;
           goto __pyx_L11_try_return;
 
-          /* "hyperoptimized_sort.pyx":454
+          /* "hyperoptimized_sort.pyx":590
  *     cdef list _read_chunk_from_file(self, str filename):
  *         """Read chunk from temporary file"""
  *         with open(filename, 'rb') as f:             # <<<<<<<<<<<<<<
@@ -11086,20 +12631,20 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
         __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
         /*except:*/ {
           __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._read_chunk_from_file", __pyx_clineno, __pyx_lineno, __pyx_filename);
-          if (__Pyx_GetException(&__pyx_t_6, &__pyx_t_2, &__pyx_t_1) < 0) __PYX_ERR(0, 454, __pyx_L9_except_error)
+          if (__Pyx_GetException(&__pyx_t_6, &__pyx_t_2, &__pyx_t_1) < 0) __PYX_ERR(0, 590, __pyx_L9_except_error)
           __Pyx_XGOTREF(__pyx_t_6);
           __Pyx_XGOTREF(__pyx_t_2);
           __Pyx_XGOTREF(__pyx_t_1);
-          __pyx_t_3 = PyTuple_Pack(3, __pyx_t_6, __pyx_t_2, __pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 454, __pyx_L9_except_error)
+          __pyx_t_3 = PyTuple_Pack(3, __pyx_t_6, __pyx_t_2, __pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 590, __pyx_L9_except_error)
           __Pyx_GOTREF(__pyx_t_3);
           __pyx_t_10 = __Pyx_PyObject_Call(__pyx_t_5, __pyx_t_3, NULL);
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
           __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-          if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 454, __pyx_L9_except_error)
+          if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 590, __pyx_L9_except_error)
           __Pyx_GOTREF(__pyx_t_10);
           __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_10);
           __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-          if (__pyx_t_11 < 0) __PYX_ERR(0, 454, __pyx_L9_except_error)
+          if (__pyx_t_11 < 0) __PYX_ERR(0, 590, __pyx_L9_except_error)
           __pyx_t_12 = (!__pyx_t_11);
           if (unlikely(__pyx_t_12)) {
             __Pyx_GIVEREF(__pyx_t_6);
@@ -11107,7 +12652,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
             __Pyx_XGIVEREF(__pyx_t_1);
             __Pyx_ErrRestoreWithState(__pyx_t_6, __pyx_t_2, __pyx_t_1);
             __pyx_t_6 = 0;  __pyx_t_2 = 0;  __pyx_t_1 = 0; 
-            __PYX_ERR(0, 454, __pyx_L9_except_error)
+            __PYX_ERR(0, 590, __pyx_L9_except_error)
           }
           __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
           __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
@@ -11138,7 +12683,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
         if (__pyx_t_5) {
           __pyx_t_9 = __Pyx_PyObject_Call(__pyx_t_5, __pyx_mstate_global->__pyx_tuple[0], NULL);
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-          if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 454, __pyx_L1_error)
+          if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 590, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_9);
           __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
         }
@@ -11150,7 +12695,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
         if (__pyx_t_5) {
           __pyx_t_9 = __Pyx_PyObject_Call(__pyx_t_5, __pyx_mstate_global->__pyx_tuple[0], NULL);
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-          if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 454, __pyx_L1_error)
+          if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 590, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_9);
           __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
         }
@@ -11167,7 +12712,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
     __pyx_L16:;
   }
 
-  /* "hyperoptimized_sort.pyx":452
+  /* "hyperoptimized_sort.pyx":588
  *             pickle.dump(chunk, f, protocol=pickle.HIGHEST_PROTOCOL)
  * 
  *     cdef list _read_chunk_from_file(self, str filename):             # <<<<<<<<<<<<<<
@@ -11192,7 +12737,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":457
+/* "hyperoptimized_sort.pyx":593
  *             return pickle.load(f)
  * 
  *     def _k_way_merge_chunks(self, list chunk_files, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -11201,15 +12746,15 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chun
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_15_k_way_merge_chunks(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_17_k_way_merge_chunks(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_merge_chunks, "\n        K-way merge using min/max heap for efficient merging\n        Uses generators to minimize memory usage\n        ");
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_15_k_way_merge_chunks(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_16_k_way_merge_chunks, "\n        K-way merge using min/max heap for efficient merging\n        Uses generators to minimize memory usage\n        ");
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_17_k_way_merge_chunks(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -11241,46 +12786,46 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_chunk_files,&__pyx_mstate_global->__pyx_n_u_key_column,&__pyx_mstate_global->__pyx_n_u_reverse,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 457, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 593, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 457, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 593, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 457, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 593, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 457, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 593, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_k_way_merge_chunks", 0) < 0) __PYX_ERR(0, 457, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_k_way_merge_chunks", 0) < 0) __PYX_ERR(0, 593, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 3; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_k_way_merge_chunks", 1, 3, 3, i); __PYX_ERR(0, 457, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_k_way_merge_chunks", 1, 3, 3, i); __PYX_ERR(0, 593, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 3)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 457, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 593, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 457, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 593, __pyx_L3_error)
       values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 457, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 593, __pyx_L3_error)
     }
     __pyx_v_chunk_files = ((PyObject*)values[0]);
     __pyx_v_key_column = ((PyObject*)values[1]);
-    __pyx_v_reverse = __Pyx_PyObject_IsTrue(values[2]); if (unlikely((__pyx_v_reverse == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 457, __pyx_L3_error)
+    __pyx_v_reverse = __Pyx_PyObject_IsTrue(values[2]); if (unlikely((__pyx_v_reverse == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 593, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("_k_way_merge_chunks", 1, 3, 3, __pyx_nargs); __PYX_ERR(0, 457, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("_k_way_merge_chunks", 1, 3, 3, __pyx_nargs); __PYX_ERR(0, 593, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -11291,9 +12836,9 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_chunk_files), (&PyList_Type), 1, "chunk_files", 1))) __PYX_ERR(0, 457, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 1, "key_column", 1))) __PYX_ERR(0, 457, __pyx_L1_error)
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_merge_chunks(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_chunk_files, __pyx_v_key_column, __pyx_v_reverse);
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_chunk_files), (&PyList_Type), 1, "chunk_files", 1))) __PYX_ERR(0, 593, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 1, "key_column", 1))) __PYX_ERR(0, 593, __pyx_L1_error)
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16_k_way_merge_chunks(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_chunk_files, __pyx_v_key_column, __pyx_v_reverse);
 
   /* function exit code */
   goto __pyx_L0;
@@ -11312,7 +12857,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_merge_chunks(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_chunk_files, PyObject *__pyx_v_key_column, int __pyx_v_reverse) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16_k_way_merge_chunks(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_chunk_files, PyObject *__pyx_v_key_column, int __pyx_v_reverse) {
   PyObject *__pyx_v_heap = 0;
   PyObject *__pyx_v_chunk_iterators = 0;
   Py_ssize_t __pyx_v_i;
@@ -11353,7 +12898,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_k_way_merge_chunks", 0);
 
-  /* "hyperoptimized_sort.pyx":462
+  /* "hyperoptimized_sort.pyx":598
  *         Uses generators to minimize memory usage
  *         """
  *         self.logger.info(f"Merging {len(chunk_files)} sorted chunks")             # <<<<<<<<<<<<<<
@@ -11364,16 +12909,16 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
   __Pyx_INCREF(__pyx_t_2);
   if (unlikely(__pyx_v_chunk_files == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    __PYX_ERR(0, 462, __pyx_L1_error)
+    __PYX_ERR(0, 598, __pyx_L1_error)
   }
-  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_chunk_files); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 462, __pyx_L1_error)
-  __pyx_t_4 = __Pyx_PyUnicode_From_Py_ssize_t(__pyx_t_3, 0, ' ', 'd'); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 462, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyList_GET_SIZE(__pyx_v_chunk_files); if (unlikely(__pyx_t_3 == ((Py_ssize_t)-1))) __PYX_ERR(0, 598, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyUnicode_From_Py_ssize_t(__pyx_t_3, 0, ' ', 'd'); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 598, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __pyx_t_5[0] = __pyx_mstate_global->__pyx_kp_u_Merging;
   __pyx_t_5[1] = __pyx_t_4;
   __pyx_t_5[2] = __pyx_mstate_global->__pyx_kp_u_sorted_chunks;
   __pyx_t_6 = __Pyx_PyUnicode_Join(__pyx_t_5, 3, 8 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_4) + 14, 127);
-  if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 462, __pyx_L1_error)
+  if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 598, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_7 = 0;
@@ -11382,36 +12927,36 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
     __pyx_t_1 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_info, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 462, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 598, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":465
+  /* "hyperoptimized_sort.pyx":601
  * 
  *         # Initialize heap with first element from each chunk
  *         cdef list heap = []             # <<<<<<<<<<<<<<
  *         cdef list chunk_iterators = []
  * 
 */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 465, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 601, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_heap = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":466
+  /* "hyperoptimized_sort.pyx":602
  *         # Initialize heap with first element from each chunk
  *         cdef list heap = []
  *         cdef list chunk_iterators = []             # <<<<<<<<<<<<<<
  * 
  *         for i, chunk_file in enumerate(chunk_files):
 */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 466, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 602, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_chunk_iterators = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":468
+  /* "hyperoptimized_sort.pyx":604
  *         cdef list chunk_iterators = []
  * 
  *         for i, chunk_file in enumerate(chunk_files):             # <<<<<<<<<<<<<<
@@ -11425,33 +12970,33 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
     {
       Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_1);
       #if !CYTHON_ASSUME_SAFE_SIZE
-      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 468, __pyx_L1_error)
+      if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 604, __pyx_L1_error)
       #endif
       if (__pyx_t_8 >= __pyx_temp) break;
     }
     __pyx_t_6 = __Pyx_PyList_GetItemRef(__pyx_t_1, __pyx_t_8);
     ++__pyx_t_8;
-    if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 468, __pyx_L1_error)
+    if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 604, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_XDECREF_SET(__pyx_v_chunk_file, __pyx_t_6);
     __pyx_t_6 = 0;
     __pyx_v_i = __pyx_t_3;
     __pyx_t_3 = (__pyx_t_3 + 1);
 
-    /* "hyperoptimized_sort.pyx":469
+    /* "hyperoptimized_sort.pyx":605
  * 
  *         for i, chunk_file in enumerate(chunk_files):
  *             chunk = self._read_chunk_from_file(chunk_file)             # <<<<<<<<<<<<<<
  *             if chunk:
  *                 chunk_iter = iter(chunk)
 */
-    if (!(likely(PyUnicode_CheckExact(__pyx_v_chunk_file))||((__pyx_v_chunk_file) == Py_None) || __Pyx_RaiseUnexpectedTypeError("str", __pyx_v_chunk_file))) __PYX_ERR(0, 469, __pyx_L1_error)
-    __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_read_chunk_from_file(__pyx_v_self, ((PyObject*)__pyx_v_chunk_file)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 469, __pyx_L1_error)
+    if (!(likely(PyUnicode_CheckExact(__pyx_v_chunk_file))||((__pyx_v_chunk_file) == Py_None) || __Pyx_RaiseUnexpectedTypeError("str", __pyx_v_chunk_file))) __PYX_ERR(0, 605, __pyx_L1_error)
+    __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_read_chunk_from_file(__pyx_v_self, ((PyObject*)__pyx_v_chunk_file)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 605, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_XDECREF_SET(__pyx_v_chunk, ((PyObject*)__pyx_t_6));
     __pyx_t_6 = 0;
 
-    /* "hyperoptimized_sort.pyx":470
+    /* "hyperoptimized_sort.pyx":606
  *         for i, chunk_file in enumerate(chunk_files):
  *             chunk = self._read_chunk_from_file(chunk_file)
  *             if chunk:             # <<<<<<<<<<<<<<
@@ -11459,22 +13004,22 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
  *                 try:
 */
     __pyx_t_9 = (__pyx_v_chunk != Py_None)&&(__Pyx_PyList_GET_SIZE(__pyx_v_chunk) != 0);
-    if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_9 < 0))) __PYX_ERR(0, 470, __pyx_L1_error)
+    if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_9 < 0))) __PYX_ERR(0, 606, __pyx_L1_error)
     if (__pyx_t_9) {
 
-      /* "hyperoptimized_sort.pyx":471
+      /* "hyperoptimized_sort.pyx":607
  *             chunk = self._read_chunk_from_file(chunk_file)
  *             if chunk:
  *                 chunk_iter = iter(chunk)             # <<<<<<<<<<<<<<
  *                 try:
  *                     first_record = next(chunk_iter)
 */
-      __pyx_t_6 = PyObject_GetIter(__pyx_v_chunk); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 471, __pyx_L1_error)
+      __pyx_t_6 = PyObject_GetIter(__pyx_v_chunk); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 607, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
       __Pyx_XDECREF_SET(__pyx_v_chunk_iter, __pyx_t_6);
       __pyx_t_6 = 0;
 
-      /* "hyperoptimized_sort.pyx":472
+      /* "hyperoptimized_sort.pyx":608
  *             if chunk:
  *                 chunk_iter = iter(chunk)
  *                 try:             # <<<<<<<<<<<<<<
@@ -11490,32 +13035,32 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
         __Pyx_XGOTREF(__pyx_t_12);
         /*try:*/ {
 
-          /* "hyperoptimized_sort.pyx":473
+          /* "hyperoptimized_sort.pyx":609
  *                 chunk_iter = iter(chunk)
  *                 try:
  *                     first_record = next(chunk_iter)             # <<<<<<<<<<<<<<
  *                     sort_key = self._extract_sort_key(first_record, key_column)
  * 
 */
-          __pyx_t_6 = __Pyx_PyIter_Next(__pyx_v_chunk_iter); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 473, __pyx_L6_error)
+          __pyx_t_6 = __Pyx_PyIter_Next(__pyx_v_chunk_iter); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 609, __pyx_L6_error)
           __Pyx_GOTREF(__pyx_t_6);
           __Pyx_XDECREF_SET(__pyx_v_first_record, __pyx_t_6);
           __pyx_t_6 = 0;
 
-          /* "hyperoptimized_sort.pyx":474
+          /* "hyperoptimized_sort.pyx":610
  *                 try:
  *                     first_record = next(chunk_iter)
  *                     sort_key = self._extract_sort_key(first_record, key_column)             # <<<<<<<<<<<<<<
  * 
  *                     # For reverse sort, negate the comparison
 */
-          if (!(likely(PyDict_CheckExact(__pyx_v_first_record))||((__pyx_v_first_record) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_v_first_record))) __PYX_ERR(0, 474, __pyx_L6_error)
-          __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_v_first_record), __pyx_v_key_column); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 474, __pyx_L6_error)
+          if (!(likely(PyDict_CheckExact(__pyx_v_first_record))||((__pyx_v_first_record) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_v_first_record))) __PYX_ERR(0, 610, __pyx_L6_error)
+          __pyx_t_6 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_v_first_record), __pyx_v_key_column); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 610, __pyx_L6_error)
           __Pyx_GOTREF(__pyx_t_6);
           __Pyx_XDECREF_SET(__pyx_v_sort_key, __pyx_t_6);
           __pyx_t_6 = 0;
 
-          /* "hyperoptimized_sort.pyx":477
+          /* "hyperoptimized_sort.pyx":613
  * 
  *                     # For reverse sort, negate the comparison
  *                     if reverse:             # <<<<<<<<<<<<<<
@@ -11524,36 +13069,36 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
 */
           if (__pyx_v_reverse) {
 
-            /* "hyperoptimized_sort.pyx":478
+            /* "hyperoptimized_sort.pyx":614
  *                     # For reverse sort, negate the comparison
  *                     if reverse:
  *                         heap_item = (-self._get_numeric_key(sort_key), i, first_record, chunk_iter)             # <<<<<<<<<<<<<<
  *                     else:
  *                         heap_item = (self._get_numeric_key(sort_key), i, first_record, chunk_iter)
 */
-            __pyx_t_13 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_get_numeric_key(__pyx_v_self, __pyx_v_sort_key); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 478, __pyx_L6_error)
-            __pyx_t_6 = PyFloat_FromDouble((-__pyx_t_13)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 478, __pyx_L6_error)
+            __pyx_t_13 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_get_numeric_key(__pyx_v_self, __pyx_v_sort_key); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 614, __pyx_L6_error)
+            __pyx_t_6 = PyFloat_FromDouble((-__pyx_t_13)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 614, __pyx_L6_error)
             __Pyx_GOTREF(__pyx_t_6);
-            __pyx_t_2 = PyLong_FromSsize_t(__pyx_v_i); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 478, __pyx_L6_error)
+            __pyx_t_2 = PyLong_FromSsize_t(__pyx_v_i); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 614, __pyx_L6_error)
             __Pyx_GOTREF(__pyx_t_2);
-            __pyx_t_4 = PyTuple_New(4); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 478, __pyx_L6_error)
+            __pyx_t_4 = PyTuple_New(4); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 614, __pyx_L6_error)
             __Pyx_GOTREF(__pyx_t_4);
             __Pyx_GIVEREF(__pyx_t_6);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_6) != (0)) __PYX_ERR(0, 478, __pyx_L6_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_6) != (0)) __PYX_ERR(0, 614, __pyx_L6_error);
             __Pyx_GIVEREF(__pyx_t_2);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_t_2) != (0)) __PYX_ERR(0, 478, __pyx_L6_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_t_2) != (0)) __PYX_ERR(0, 614, __pyx_L6_error);
             __Pyx_INCREF(__pyx_v_first_record);
             __Pyx_GIVEREF(__pyx_v_first_record);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_v_first_record) != (0)) __PYX_ERR(0, 478, __pyx_L6_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_v_first_record) != (0)) __PYX_ERR(0, 614, __pyx_L6_error);
             __Pyx_INCREF(__pyx_v_chunk_iter);
             __Pyx_GIVEREF(__pyx_v_chunk_iter);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 3, __pyx_v_chunk_iter) != (0)) __PYX_ERR(0, 478, __pyx_L6_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 3, __pyx_v_chunk_iter) != (0)) __PYX_ERR(0, 614, __pyx_L6_error);
             __pyx_t_6 = 0;
             __pyx_t_2 = 0;
             __Pyx_XDECREF_SET(__pyx_v_heap_item, ((PyObject*)__pyx_t_4));
             __pyx_t_4 = 0;
 
-            /* "hyperoptimized_sort.pyx":477
+            /* "hyperoptimized_sort.pyx":613
  * 
  *                     # For reverse sort, negate the comparison
  *                     if reverse:             # <<<<<<<<<<<<<<
@@ -11563,7 +13108,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
             goto __pyx_L14;
           }
 
-          /* "hyperoptimized_sort.pyx":480
+          /* "hyperoptimized_sort.pyx":616
  *                         heap_item = (-self._get_numeric_key(sort_key), i, first_record, chunk_iter)
  *                     else:
  *                         heap_item = (self._get_numeric_key(sort_key), i, first_record, chunk_iter)             # <<<<<<<<<<<<<<
@@ -11571,23 +13116,23 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
  *                     heapq.heappush(heap, heap_item)
 */
           /*else*/ {
-            __pyx_t_13 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_get_numeric_key(__pyx_v_self, __pyx_v_sort_key); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 480, __pyx_L6_error)
-            __pyx_t_4 = PyFloat_FromDouble(__pyx_t_13); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 480, __pyx_L6_error)
+            __pyx_t_13 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_get_numeric_key(__pyx_v_self, __pyx_v_sort_key); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 616, __pyx_L6_error)
+            __pyx_t_4 = PyFloat_FromDouble(__pyx_t_13); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 616, __pyx_L6_error)
             __Pyx_GOTREF(__pyx_t_4);
-            __pyx_t_2 = PyLong_FromSsize_t(__pyx_v_i); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 480, __pyx_L6_error)
+            __pyx_t_2 = PyLong_FromSsize_t(__pyx_v_i); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 616, __pyx_L6_error)
             __Pyx_GOTREF(__pyx_t_2);
-            __pyx_t_6 = PyTuple_New(4); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 480, __pyx_L6_error)
+            __pyx_t_6 = PyTuple_New(4); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 616, __pyx_L6_error)
             __Pyx_GOTREF(__pyx_t_6);
             __Pyx_GIVEREF(__pyx_t_4);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 0, __pyx_t_4) != (0)) __PYX_ERR(0, 480, __pyx_L6_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 0, __pyx_t_4) != (0)) __PYX_ERR(0, 616, __pyx_L6_error);
             __Pyx_GIVEREF(__pyx_t_2);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 1, __pyx_t_2) != (0)) __PYX_ERR(0, 480, __pyx_L6_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 1, __pyx_t_2) != (0)) __PYX_ERR(0, 616, __pyx_L6_error);
             __Pyx_INCREF(__pyx_v_first_record);
             __Pyx_GIVEREF(__pyx_v_first_record);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 2, __pyx_v_first_record) != (0)) __PYX_ERR(0, 480, __pyx_L6_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 2, __pyx_v_first_record) != (0)) __PYX_ERR(0, 616, __pyx_L6_error);
             __Pyx_INCREF(__pyx_v_chunk_iter);
             __Pyx_GIVEREF(__pyx_v_chunk_iter);
-            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 3, __pyx_v_chunk_iter) != (0)) __PYX_ERR(0, 480, __pyx_L6_error);
+            if (__Pyx_PyTuple_SET_ITEM(__pyx_t_6, 3, __pyx_v_chunk_iter) != (0)) __PYX_ERR(0, 616, __pyx_L6_error);
             __pyx_t_4 = 0;
             __pyx_t_2 = 0;
             __Pyx_XDECREF_SET(__pyx_v_heap_item, ((PyObject*)__pyx_t_6));
@@ -11595,7 +13140,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
           }
           __pyx_L14:;
 
-          /* "hyperoptimized_sort.pyx":482
+          /* "hyperoptimized_sort.pyx":618
  *                         heap_item = (self._get_numeric_key(sort_key), i, first_record, chunk_iter)
  * 
  *                     heapq.heappush(heap, heap_item)             # <<<<<<<<<<<<<<
@@ -11603,9 +13148,9 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
  *                 except StopIteration:
 */
           __pyx_t_2 = NULL;
-          __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_heapq); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 482, __pyx_L6_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_heapq); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 618, __pyx_L6_error)
           __Pyx_GOTREF(__pyx_t_4);
-          __pyx_t_14 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_heappush); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 482, __pyx_L6_error)
+          __pyx_t_14 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_heappush); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 618, __pyx_L6_error)
           __Pyx_GOTREF(__pyx_t_14);
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
           __pyx_t_7 = 1;
@@ -11625,21 +13170,21 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
             __pyx_t_6 = __Pyx_PyObject_FastCall(__pyx_t_14, __pyx_callargs+__pyx_t_7, (3-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
             __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
             __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
-            if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 482, __pyx_L6_error)
+            if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 618, __pyx_L6_error)
             __Pyx_GOTREF(__pyx_t_6);
           }
           __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
 
-          /* "hyperoptimized_sort.pyx":483
+          /* "hyperoptimized_sort.pyx":619
  * 
  *                     heapq.heappush(heap, heap_item)
  *                     chunk_iterators.append(chunk_iter)             # <<<<<<<<<<<<<<
  *                 except StopIteration:
  *                     pass
 */
-          __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_chunk_iterators, __pyx_v_chunk_iter); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 483, __pyx_L6_error)
+          __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_chunk_iterators, __pyx_v_chunk_iter); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 619, __pyx_L6_error)
 
-          /* "hyperoptimized_sort.pyx":472
+          /* "hyperoptimized_sort.pyx":608
  *             if chunk:
  *                 chunk_iter = iter(chunk)
  *                 try:             # <<<<<<<<<<<<<<
@@ -11657,7 +13202,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
         __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
         __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
 
-        /* "hyperoptimized_sort.pyx":484
+        /* "hyperoptimized_sort.pyx":620
  *                     heapq.heappush(heap, heap_item)
  *                     chunk_iterators.append(chunk_iter)
  *                 except StopIteration:             # <<<<<<<<<<<<<<
@@ -11671,7 +13216,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
         }
         goto __pyx_L8_except_error;
 
-        /* "hyperoptimized_sort.pyx":472
+        /* "hyperoptimized_sort.pyx":608
  *             if chunk:
  *                 chunk_iter = iter(chunk)
  *                 try:             # <<<<<<<<<<<<<<
@@ -11692,7 +13237,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
         __pyx_L13_try_end:;
       }
 
-      /* "hyperoptimized_sort.pyx":470
+      /* "hyperoptimized_sort.pyx":606
  *         for i, chunk_file in enumerate(chunk_files):
  *             chunk = self._read_chunk_from_file(chunk_file)
  *             if chunk:             # <<<<<<<<<<<<<<
@@ -11701,7 +13246,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
 */
     }
 
-    /* "hyperoptimized_sort.pyx":468
+    /* "hyperoptimized_sort.pyx":604
  *         cdef list chunk_iterators = []
  * 
  *         for i, chunk_file in enumerate(chunk_files):             # <<<<<<<<<<<<<<
@@ -11711,19 +13256,19 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":488
+  /* "hyperoptimized_sort.pyx":624
  * 
  *         # Merge all chunks
  *         cdef list result = []             # <<<<<<<<<<<<<<
  *         while heap:
  *             sort_key, chunk_id, record, chunk_iter = heapq.heappop(heap)
 */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 488, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 624, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_v_result = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "hyperoptimized_sort.pyx":489
+  /* "hyperoptimized_sort.pyx":625
  *         # Merge all chunks
  *         cdef list result = []
  *         while heap:             # <<<<<<<<<<<<<<
@@ -11732,10 +13277,10 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
 */
   while (1) {
     __pyx_t_9 = (__Pyx_PyList_GET_SIZE(__pyx_v_heap) != 0);
-    if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_9 < 0))) __PYX_ERR(0, 489, __pyx_L1_error)
+    if (unlikely(((!CYTHON_ASSUME_SAFE_MACROS) && __pyx_t_9 < 0))) __PYX_ERR(0, 625, __pyx_L1_error)
     if (!__pyx_t_9) break;
 
-    /* "hyperoptimized_sort.pyx":490
+    /* "hyperoptimized_sort.pyx":626
  *         cdef list result = []
  *         while heap:
  *             sort_key, chunk_id, record, chunk_iter = heapq.heappop(heap)             # <<<<<<<<<<<<<<
@@ -11743,9 +13288,9 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
  * 
 */
     __pyx_t_6 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_14, __pyx_mstate_global->__pyx_n_u_heapq); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 490, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_14, __pyx_mstate_global->__pyx_n_u_heapq); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 626, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_14);
-    __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_14, __pyx_mstate_global->__pyx_n_u_heappop); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 490, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_14, __pyx_mstate_global->__pyx_n_u_heappop); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 626, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
     __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
     __pyx_t_7 = 1;
@@ -11765,7 +13310,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
       __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_2, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 490, __pyx_L1_error)
+      if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 626, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
     }
     if ((likely(PyTuple_CheckExact(__pyx_t_1))) || (PyList_CheckExact(__pyx_t_1))) {
@@ -11774,7 +13319,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
       if (unlikely(size != 4)) {
         if (size > 4) __Pyx_RaiseTooManyValuesError(4);
         else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-        __PYX_ERR(0, 490, __pyx_L1_error)
+        __PYX_ERR(0, 626, __pyx_L1_error)
       }
       #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
       if (likely(PyTuple_CheckExact(sequence))) {
@@ -11788,16 +13333,16 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
         __Pyx_INCREF(__pyx_t_4);
       } else {
         __pyx_t_2 = __Pyx_PyList_GetItemRef(sequence, 0);
-        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 490, __pyx_L1_error)
+        if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 626, __pyx_L1_error)
         __Pyx_XGOTREF(__pyx_t_2);
         __pyx_t_6 = __Pyx_PyList_GetItemRef(sequence, 1);
-        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 490, __pyx_L1_error)
+        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 626, __pyx_L1_error)
         __Pyx_XGOTREF(__pyx_t_6);
         __pyx_t_14 = __Pyx_PyList_GetItemRef(sequence, 2);
-        if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 490, __pyx_L1_error)
+        if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 626, __pyx_L1_error)
         __Pyx_XGOTREF(__pyx_t_14);
         __pyx_t_4 = __Pyx_PyList_GetItemRef(sequence, 3);
-        if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 490, __pyx_L1_error)
+        if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 626, __pyx_L1_error)
         __Pyx_XGOTREF(__pyx_t_4);
       }
       #else
@@ -11805,7 +13350,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
         Py_ssize_t i;
         PyObject** temps[4] = {&__pyx_t_2,&__pyx_t_6,&__pyx_t_14,&__pyx_t_4};
         for (i=0; i < 4; i++) {
-          PyObject* item = __Pyx_PySequence_ITEM(sequence, i); if (unlikely(!item)) __PYX_ERR(0, 490, __pyx_L1_error)
+          PyObject* item = __Pyx_PySequence_ITEM(sequence, i); if (unlikely(!item)) __PYX_ERR(0, 626, __pyx_L1_error)
           __Pyx_GOTREF(item);
           *(temps[i]) = item;
         }
@@ -11815,7 +13360,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
     } else {
       Py_ssize_t index = -1;
       PyObject** temps[4] = {&__pyx_t_2,&__pyx_t_6,&__pyx_t_14,&__pyx_t_4};
-      __pyx_t_17 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_17)) __PYX_ERR(0, 490, __pyx_L1_error)
+      __pyx_t_17 = PyObject_GetIter(__pyx_t_1); if (unlikely(!__pyx_t_17)) __PYX_ERR(0, 626, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_17);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
       __pyx_t_18 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_17);
@@ -11824,7 +13369,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
         __Pyx_GOTREF(item);
         *(temps[index]) = item;
       }
-      if (__Pyx_IternextUnpackEndCheck(__pyx_t_18(__pyx_t_17), 4) < 0) __PYX_ERR(0, 490, __pyx_L1_error)
+      if (__Pyx_IternextUnpackEndCheck(__pyx_t_18(__pyx_t_17), 4) < 0) __PYX_ERR(0, 626, __pyx_L1_error)
       __pyx_t_18 = NULL;
       __Pyx_DECREF(__pyx_t_17); __pyx_t_17 = 0;
       goto __pyx_L21_unpacking_done;
@@ -11832,7 +13377,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
       __Pyx_DECREF(__pyx_t_17); __pyx_t_17 = 0;
       __pyx_t_18 = NULL;
       if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-      __PYX_ERR(0, 490, __pyx_L1_error)
+      __PYX_ERR(0, 626, __pyx_L1_error)
       __pyx_L21_unpacking_done:;
     }
     __Pyx_XDECREF_SET(__pyx_v_sort_key, __pyx_t_2);
@@ -11844,16 +13389,16 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
     __Pyx_XDECREF_SET(__pyx_v_chunk_iter, __pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":491
+    /* "hyperoptimized_sort.pyx":627
  *         while heap:
  *             sort_key, chunk_id, record, chunk_iter = heapq.heappop(heap)
  *             result.append(record)             # <<<<<<<<<<<<<<
  * 
  *             # Get next record from same chunk
 */
-    __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_result, __pyx_v_record); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 491, __pyx_L1_error)
+    __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_result, __pyx_v_record); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 627, __pyx_L1_error)
 
-    /* "hyperoptimized_sort.pyx":494
+    /* "hyperoptimized_sort.pyx":630
  * 
  *             # Get next record from same chunk
  *             try:             # <<<<<<<<<<<<<<
@@ -11869,32 +13414,32 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
       __Pyx_XGOTREF(__pyx_t_10);
       /*try:*/ {
 
-        /* "hyperoptimized_sort.pyx":495
+        /* "hyperoptimized_sort.pyx":631
  *             # Get next record from same chunk
  *             try:
  *                 next_record = next(chunk_iter)             # <<<<<<<<<<<<<<
  *                 next_sort_key = self._extract_sort_key(next_record, key_column)
  * 
 */
-        __pyx_t_1 = __Pyx_PyIter_Next(__pyx_v_chunk_iter); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 495, __pyx_L22_error)
+        __pyx_t_1 = __Pyx_PyIter_Next(__pyx_v_chunk_iter); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 631, __pyx_L22_error)
         __Pyx_GOTREF(__pyx_t_1);
         __Pyx_XDECREF_SET(__pyx_v_next_record, __pyx_t_1);
         __pyx_t_1 = 0;
 
-        /* "hyperoptimized_sort.pyx":496
+        /* "hyperoptimized_sort.pyx":632
  *             try:
  *                 next_record = next(chunk_iter)
  *                 next_sort_key = self._extract_sort_key(next_record, key_column)             # <<<<<<<<<<<<<<
  * 
  *                 if reverse:
 */
-        if (!(likely(PyDict_CheckExact(__pyx_v_next_record))||((__pyx_v_next_record) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_v_next_record))) __PYX_ERR(0, 496, __pyx_L22_error)
-        __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_v_next_record), __pyx_v_key_column); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 496, __pyx_L22_error)
+        if (!(likely(PyDict_CheckExact(__pyx_v_next_record))||((__pyx_v_next_record) == Py_None) || __Pyx_RaiseUnexpectedTypeError("dict", __pyx_v_next_record))) __PYX_ERR(0, 632, __pyx_L22_error)
+        __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_extract_sort_key(__pyx_v_self, ((PyObject*)__pyx_v_next_record), __pyx_v_key_column); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 632, __pyx_L22_error)
         __Pyx_GOTREF(__pyx_t_1);
         __Pyx_XDECREF_SET(__pyx_v_next_sort_key, __pyx_t_1);
         __pyx_t_1 = 0;
 
-        /* "hyperoptimized_sort.pyx":498
+        /* "hyperoptimized_sort.pyx":634
  *                 next_sort_key = self._extract_sort_key(next_record, key_column)
  * 
  *                 if reverse:             # <<<<<<<<<<<<<<
@@ -11903,34 +13448,34 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
 */
         if (__pyx_v_reverse) {
 
-          /* "hyperoptimized_sort.pyx":499
+          /* "hyperoptimized_sort.pyx":635
  * 
  *                 if reverse:
  *                     next_heap_item = (-self._get_numeric_key(next_sort_key), chunk_id, next_record, chunk_iter)             # <<<<<<<<<<<<<<
  *                 else:
  *                     next_heap_item = (self._get_numeric_key(next_sort_key), chunk_id, next_record, chunk_iter)
 */
-          __pyx_t_13 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_get_numeric_key(__pyx_v_self, __pyx_v_next_sort_key); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 499, __pyx_L22_error)
-          __pyx_t_1 = PyFloat_FromDouble((-__pyx_t_13)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 499, __pyx_L22_error)
+          __pyx_t_13 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_get_numeric_key(__pyx_v_self, __pyx_v_next_sort_key); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 635, __pyx_L22_error)
+          __pyx_t_1 = PyFloat_FromDouble((-__pyx_t_13)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 635, __pyx_L22_error)
           __Pyx_GOTREF(__pyx_t_1);
-          __pyx_t_4 = PyTuple_New(4); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 499, __pyx_L22_error)
+          __pyx_t_4 = PyTuple_New(4); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 635, __pyx_L22_error)
           __Pyx_GOTREF(__pyx_t_4);
           __Pyx_GIVEREF(__pyx_t_1);
-          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_1) != (0)) __PYX_ERR(0, 499, __pyx_L22_error);
+          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_1) != (0)) __PYX_ERR(0, 635, __pyx_L22_error);
           __Pyx_INCREF(__pyx_v_chunk_id);
           __Pyx_GIVEREF(__pyx_v_chunk_id);
-          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_v_chunk_id) != (0)) __PYX_ERR(0, 499, __pyx_L22_error);
+          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_v_chunk_id) != (0)) __PYX_ERR(0, 635, __pyx_L22_error);
           __Pyx_INCREF(__pyx_v_next_record);
           __Pyx_GIVEREF(__pyx_v_next_record);
-          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_v_next_record) != (0)) __PYX_ERR(0, 499, __pyx_L22_error);
+          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_v_next_record) != (0)) __PYX_ERR(0, 635, __pyx_L22_error);
           __Pyx_INCREF(__pyx_v_chunk_iter);
           __Pyx_GIVEREF(__pyx_v_chunk_iter);
-          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 3, __pyx_v_chunk_iter) != (0)) __PYX_ERR(0, 499, __pyx_L22_error);
+          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 3, __pyx_v_chunk_iter) != (0)) __PYX_ERR(0, 635, __pyx_L22_error);
           __pyx_t_1 = 0;
           __Pyx_XDECREF_SET(__pyx_v_next_heap_item, ((PyObject*)__pyx_t_4));
           __pyx_t_4 = 0;
 
-          /* "hyperoptimized_sort.pyx":498
+          /* "hyperoptimized_sort.pyx":634
  *                 next_sort_key = self._extract_sort_key(next_record, key_column)
  * 
  *                 if reverse:             # <<<<<<<<<<<<<<
@@ -11940,7 +13485,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
           goto __pyx_L30;
         }
 
-        /* "hyperoptimized_sort.pyx":501
+        /* "hyperoptimized_sort.pyx":637
  *                     next_heap_item = (-self._get_numeric_key(next_sort_key), chunk_id, next_record, chunk_iter)
  *                 else:
  *                     next_heap_item = (self._get_numeric_key(next_sort_key), chunk_id, next_record, chunk_iter)             # <<<<<<<<<<<<<<
@@ -11948,29 +13493,29 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
  *                 heapq.heappush(heap, next_heap_item)
 */
         /*else*/ {
-          __pyx_t_13 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_get_numeric_key(__pyx_v_self, __pyx_v_next_sort_key); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 501, __pyx_L22_error)
-          __pyx_t_4 = PyFloat_FromDouble(__pyx_t_13); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 501, __pyx_L22_error)
+          __pyx_t_13 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_get_numeric_key(__pyx_v_self, __pyx_v_next_sort_key); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 637, __pyx_L22_error)
+          __pyx_t_4 = PyFloat_FromDouble(__pyx_t_13); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 637, __pyx_L22_error)
           __Pyx_GOTREF(__pyx_t_4);
-          __pyx_t_1 = PyTuple_New(4); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 501, __pyx_L22_error)
+          __pyx_t_1 = PyTuple_New(4); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 637, __pyx_L22_error)
           __Pyx_GOTREF(__pyx_t_1);
           __Pyx_GIVEREF(__pyx_t_4);
-          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_t_4) != (0)) __PYX_ERR(0, 501, __pyx_L22_error);
+          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_t_4) != (0)) __PYX_ERR(0, 637, __pyx_L22_error);
           __Pyx_INCREF(__pyx_v_chunk_id);
           __Pyx_GIVEREF(__pyx_v_chunk_id);
-          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_v_chunk_id) != (0)) __PYX_ERR(0, 501, __pyx_L22_error);
+          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_v_chunk_id) != (0)) __PYX_ERR(0, 637, __pyx_L22_error);
           __Pyx_INCREF(__pyx_v_next_record);
           __Pyx_GIVEREF(__pyx_v_next_record);
-          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 2, __pyx_v_next_record) != (0)) __PYX_ERR(0, 501, __pyx_L22_error);
+          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 2, __pyx_v_next_record) != (0)) __PYX_ERR(0, 637, __pyx_L22_error);
           __Pyx_INCREF(__pyx_v_chunk_iter);
           __Pyx_GIVEREF(__pyx_v_chunk_iter);
-          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 3, __pyx_v_chunk_iter) != (0)) __PYX_ERR(0, 501, __pyx_L22_error);
+          if (__Pyx_PyTuple_SET_ITEM(__pyx_t_1, 3, __pyx_v_chunk_iter) != (0)) __PYX_ERR(0, 637, __pyx_L22_error);
           __pyx_t_4 = 0;
           __Pyx_XDECREF_SET(__pyx_v_next_heap_item, ((PyObject*)__pyx_t_1));
           __pyx_t_1 = 0;
         }
         __pyx_L30:;
 
-        /* "hyperoptimized_sort.pyx":503
+        /* "hyperoptimized_sort.pyx":639
  *                     next_heap_item = (self._get_numeric_key(next_sort_key), chunk_id, next_record, chunk_iter)
  * 
  *                 heapq.heappush(heap, next_heap_item)             # <<<<<<<<<<<<<<
@@ -11978,9 +13523,9 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
  *                 pass
 */
         __pyx_t_4 = NULL;
-        __Pyx_GetModuleGlobalName(__pyx_t_14, __pyx_mstate_global->__pyx_n_u_heapq); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 503, __pyx_L22_error)
+        __Pyx_GetModuleGlobalName(__pyx_t_14, __pyx_mstate_global->__pyx_n_u_heapq); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 639, __pyx_L22_error)
         __Pyx_GOTREF(__pyx_t_14);
-        __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_14, __pyx_mstate_global->__pyx_n_u_heappush); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 503, __pyx_L22_error)
+        __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_14, __pyx_mstate_global->__pyx_n_u_heappush); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 639, __pyx_L22_error)
         __Pyx_GOTREF(__pyx_t_6);
         __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
         __pyx_t_7 = 1;
@@ -12000,12 +13545,12 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
           __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+__pyx_t_7, (3-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
           __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-          if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 503, __pyx_L22_error)
+          if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 639, __pyx_L22_error)
           __Pyx_GOTREF(__pyx_t_1);
         }
         __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-        /* "hyperoptimized_sort.pyx":494
+        /* "hyperoptimized_sort.pyx":630
  * 
  *             # Get next record from same chunk
  *             try:             # <<<<<<<<<<<<<<
@@ -12025,7 +13570,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
 
-      /* "hyperoptimized_sort.pyx":504
+      /* "hyperoptimized_sort.pyx":640
  * 
  *                 heapq.heappush(heap, next_heap_item)
  *             except StopIteration:             # <<<<<<<<<<<<<<
@@ -12039,7 +13584,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
       }
       goto __pyx_L24_except_error;
 
-      /* "hyperoptimized_sort.pyx":494
+      /* "hyperoptimized_sort.pyx":630
  * 
  *             # Get next record from same chunk
  *             try:             # <<<<<<<<<<<<<<
@@ -12061,7 +13606,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
     }
   }
 
-  /* "hyperoptimized_sort.pyx":507
+  /* "hyperoptimized_sort.pyx":643
  *                 pass
  * 
  *         return result             # <<<<<<<<<<<<<<
@@ -12073,7 +13618,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
   __pyx_r = __pyx_v_result;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":457
+  /* "hyperoptimized_sort.pyx":593
  *             return pickle.load(f)
  * 
  *     def _k_way_merge_chunks(self, list chunk_files, str key_column, bint reverse):             # <<<<<<<<<<<<<<
@@ -12111,7 +13656,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":509
+/* "hyperoptimized_sort.pyx":645
  *         return result
  * 
  *     cdef object _extract_sort_key(self, dict record, str key_column):             # <<<<<<<<<<<<<<
@@ -12136,12 +13681,13 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
   PyObject *__pyx_t_11 = NULL;
   size_t __pyx_t_12;
   int __pyx_t_13;
+  int __pyx_t_14;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_extract_sort_key", 0);
 
-  /* "hyperoptimized_sort.pyx":511
+  /* "hyperoptimized_sort.pyx":647
  *     cdef object _extract_sort_key(self, dict record, str key_column):
  *         """Extract sort key from record with type conversion"""
  *         if key_column not in record:             # <<<<<<<<<<<<<<
@@ -12150,12 +13696,12 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
 */
   if (unlikely(__pyx_v_record == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not iterable");
-    __PYX_ERR(0, 511, __pyx_L1_error)
+    __PYX_ERR(0, 647, __pyx_L1_error)
   }
-  __pyx_t_1 = (__Pyx_PyDict_ContainsTF(__pyx_v_key_column, __pyx_v_record, Py_NE)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 511, __pyx_L1_error)
+  __pyx_t_1 = (__Pyx_PyDict_ContainsTF(__pyx_v_key_column, __pyx_v_record, Py_NE)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 647, __pyx_L1_error)
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":512
+    /* "hyperoptimized_sort.pyx":648
  *         """Extract sort key from record with type conversion"""
  *         if key_column not in record:
  *             return None             # <<<<<<<<<<<<<<
@@ -12166,7 +13712,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
     __pyx_r = Py_None; __Pyx_INCREF(Py_None);
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":511
+    /* "hyperoptimized_sort.pyx":647
  *     cdef object _extract_sort_key(self, dict record, str key_column):
  *         """Extract sort key from record with type conversion"""
  *         if key_column not in record:             # <<<<<<<<<<<<<<
@@ -12175,7 +13721,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
 */
   }
 
-  /* "hyperoptimized_sort.pyx":514
+  /* "hyperoptimized_sort.pyx":650
  *             return None
  * 
  *         value = record[key_column]             # <<<<<<<<<<<<<<
@@ -12184,14 +13730,14 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
 */
   if (unlikely(__pyx_v_record == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-    __PYX_ERR(0, 514, __pyx_L1_error)
+    __PYX_ERR(0, 650, __pyx_L1_error)
   }
-  __pyx_t_2 = __Pyx_PyDict_GetItem(__pyx_v_record, __pyx_v_key_column); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 514, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyDict_GetItem(__pyx_v_record, __pyx_v_key_column); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 650, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_v_value = __pyx_t_2;
   __pyx_t_2 = 0;
 
-  /* "hyperoptimized_sort.pyx":517
+  /* "hyperoptimized_sort.pyx":653
  * 
  *         # Handle None values
  *         if value is None:             # <<<<<<<<<<<<<<
@@ -12201,7 +13747,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
   __pyx_t_1 = (__pyx_v_value == Py_None);
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":518
+    /* "hyperoptimized_sort.pyx":654
  *         # Handle None values
  *         if value is None:
  *             return float('-inf')             # <<<<<<<<<<<<<<
@@ -12209,14 +13755,14 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
  *         # Convert to sortable format
 */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_3 = __Pyx_PyUnicode_AsDouble(__pyx_mstate_global->__pyx_kp_u_inf); if (unlikely(__pyx_t_3 == ((double)((double)-1)) && PyErr_Occurred())) __PYX_ERR(0, 518, __pyx_L1_error)
-    __pyx_t_2 = PyFloat_FromDouble(__pyx_t_3); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 518, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyUnicode_AsDouble(__pyx_mstate_global->__pyx_kp_u_inf); if (unlikely(__pyx_t_3 == ((double)((double)-1)) && PyErr_Occurred())) __PYX_ERR(0, 654, __pyx_L1_error)
+    __pyx_t_2 = PyFloat_FromDouble(__pyx_t_3); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 654, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
     __pyx_r = __pyx_t_2;
     __pyx_t_2 = 0;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":517
+    /* "hyperoptimized_sort.pyx":653
  * 
  *         # Handle None values
  *         if value is None:             # <<<<<<<<<<<<<<
@@ -12225,7 +13771,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
 */
   }
 
-  /* "hyperoptimized_sort.pyx":521
+  /* "hyperoptimized_sort.pyx":657
  * 
  *         # Convert to sortable format
  *         if isinstance(value, str):             # <<<<<<<<<<<<<<
@@ -12235,7 +13781,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
   __pyx_t_1 = PyUnicode_Check(__pyx_v_value); 
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":522
+    /* "hyperoptimized_sort.pyx":658
  *         # Convert to sortable format
  *         if isinstance(value, str):
  *             try:             # <<<<<<<<<<<<<<
@@ -12251,17 +13797,17 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
       __Pyx_XGOTREF(__pyx_t_6);
       /*try:*/ {
 
-        /* "hyperoptimized_sort.pyx":524
+        /* "hyperoptimized_sort.pyx":660
  *             try:
  *                 # Try numeric conversion first
  *                 if '.' in value:             # <<<<<<<<<<<<<<
  *                     return float(value)
  *                 else:
 */
-        __pyx_t_1 = (__Pyx_PySequence_ContainsTF(__pyx_mstate_global->__pyx_kp_u_, __pyx_v_value, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 524, __pyx_L6_error)
+        __pyx_t_1 = (__Pyx_PySequence_ContainsTF(__pyx_mstate_global->__pyx_kp_u_, __pyx_v_value, Py_EQ)); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 660, __pyx_L6_error)
         if (__pyx_t_1) {
 
-          /* "hyperoptimized_sort.pyx":525
+          /* "hyperoptimized_sort.pyx":661
  *                 # Try numeric conversion first
  *                 if '.' in value:
  *                     return float(value)             # <<<<<<<<<<<<<<
@@ -12269,13 +13815,13 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
  *                     return int(value)
 */
           __Pyx_XDECREF(__pyx_r);
-          __pyx_t_2 = __Pyx_PyNumber_Float(__pyx_v_value); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 525, __pyx_L6_error)
+          __pyx_t_2 = __Pyx_PyNumber_Float(__pyx_v_value); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 661, __pyx_L6_error)
           __Pyx_GOTREF(__pyx_t_2);
           __pyx_r = __pyx_t_2;
           __pyx_t_2 = 0;
           goto __pyx_L10_try_return;
 
-          /* "hyperoptimized_sort.pyx":524
+          /* "hyperoptimized_sort.pyx":660
  *             try:
  *                 # Try numeric conversion first
  *                 if '.' in value:             # <<<<<<<<<<<<<<
@@ -12284,7 +13830,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
 */
         }
 
-        /* "hyperoptimized_sort.pyx":527
+        /* "hyperoptimized_sort.pyx":663
  *                     return float(value)
  *                 else:
  *                     return int(value)             # <<<<<<<<<<<<<<
@@ -12293,14 +13839,14 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
 */
         /*else*/ {
           __Pyx_XDECREF(__pyx_r);
-          __pyx_t_2 = __Pyx_PyNumber_Int(__pyx_v_value); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 527, __pyx_L6_error)
+          __pyx_t_2 = __Pyx_PyNumber_Int(__pyx_v_value); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 663, __pyx_L6_error)
           __Pyx_GOTREF(__pyx_t_2);
           __pyx_r = __pyx_t_2;
           __pyx_t_2 = 0;
           goto __pyx_L10_try_return;
         }
 
-        /* "hyperoptimized_sort.pyx":522
+        /* "hyperoptimized_sort.pyx":658
  *         # Convert to sortable format
  *         if isinstance(value, str):
  *             try:             # <<<<<<<<<<<<<<
@@ -12311,27 +13857,27 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
       __pyx_L6_error:;
       __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-      /* "hyperoptimized_sort.pyx":528
+      /* "hyperoptimized_sort.pyx":664
  *                 else:
  *                     return int(value)
  *             except (ValueError, TypeError):             # <<<<<<<<<<<<<<
  *                 return value.lower()  # Case-insensitive string comparison
- *         elif isinstance(value, (int, float)):
+ *         elif isinstance(value, (int, float)) or hasattr(value, 'dtype'):
 */
       __pyx_t_7 = __Pyx_PyErr_ExceptionMatches2(__pyx_builtin_ValueError, __pyx_builtin_TypeError);
       if (__pyx_t_7) {
         __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._extract_sort_key", __pyx_clineno, __pyx_lineno, __pyx_filename);
-        if (__Pyx_GetException(&__pyx_t_2, &__pyx_t_8, &__pyx_t_9) < 0) __PYX_ERR(0, 528, __pyx_L8_except_error)
+        if (__Pyx_GetException(&__pyx_t_2, &__pyx_t_8, &__pyx_t_9) < 0) __PYX_ERR(0, 664, __pyx_L8_except_error)
         __Pyx_XGOTREF(__pyx_t_2);
         __Pyx_XGOTREF(__pyx_t_8);
         __Pyx_XGOTREF(__pyx_t_9);
 
-        /* "hyperoptimized_sort.pyx":529
+        /* "hyperoptimized_sort.pyx":665
  *                     return int(value)
  *             except (ValueError, TypeError):
  *                 return value.lower()  # Case-insensitive string comparison             # <<<<<<<<<<<<<<
- *         elif isinstance(value, (int, float)):
- *             return float(value)
+ *         elif isinstance(value, (int, float)) or hasattr(value, 'dtype'):
+ *             # Handle regular numbers and NumPy numeric types
 */
         __Pyx_XDECREF(__pyx_r);
         __pyx_t_11 = __pyx_v_value;
@@ -12341,7 +13887,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
           PyObject *__pyx_callargs[2] = {__pyx_t_11, NULL};
           __pyx_t_10 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_lower, __pyx_callargs+__pyx_t_12, (1-__pyx_t_12) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_11); __pyx_t_11 = 0;
-          if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 529, __pyx_L8_except_error)
+          if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 665, __pyx_L8_except_error)
           __Pyx_GOTREF(__pyx_t_10);
         }
         __pyx_r = __pyx_t_10;
@@ -12353,7 +13899,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
       }
       goto __pyx_L8_except_error;
 
-      /* "hyperoptimized_sort.pyx":522
+      /* "hyperoptimized_sort.pyx":658
  *         # Convert to sortable format
  *         if isinstance(value, str):
  *             try:             # <<<<<<<<<<<<<<
@@ -12380,7 +13926,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
       goto __pyx_L0;
     }
 
-    /* "hyperoptimized_sort.pyx":521
+    /* "hyperoptimized_sort.pyx":657
  * 
  *         # Convert to sortable format
  *         if isinstance(value, str):             # <<<<<<<<<<<<<<
@@ -12389,49 +13935,55 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
 */
   }
 
-  /* "hyperoptimized_sort.pyx":530
+  /* "hyperoptimized_sort.pyx":666
  *             except (ValueError, TypeError):
  *                 return value.lower()  # Case-insensitive string comparison
- *         elif isinstance(value, (int, float)):             # <<<<<<<<<<<<<<
- *             return float(value)
- *         else:
+ *         elif isinstance(value, (int, float)) or hasattr(value, 'dtype'):             # <<<<<<<<<<<<<<
+ *             # Handle regular numbers and NumPy numeric types
+ *             return value  # Keep original type
 */
-  __pyx_t_13 = PyLong_Check(__pyx_v_value); 
+  __pyx_t_14 = PyLong_Check(__pyx_v_value); 
+  if (!__pyx_t_14) {
+  } else {
+    __pyx_t_13 = __pyx_t_14;
+    goto __pyx_L17_bool_binop_done;
+  }
+  __pyx_t_14 = PyFloat_Check(__pyx_v_value); 
+  __pyx_t_13 = __pyx_t_14;
+  __pyx_L17_bool_binop_done:;
   if (!__pyx_t_13) {
   } else {
     __pyx_t_1 = __pyx_t_13;
     goto __pyx_L15_bool_binop_done;
   }
-  __pyx_t_13 = PyFloat_Check(__pyx_v_value); 
+  __pyx_t_13 = __Pyx_HasAttr(__pyx_v_value, __pyx_mstate_global->__pyx_n_u_dtype); if (unlikely(__pyx_t_13 == ((int)-1))) __PYX_ERR(0, 666, __pyx_L1_error)
   __pyx_t_1 = __pyx_t_13;
   __pyx_L15_bool_binop_done:;
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":531
- *                 return value.lower()  # Case-insensitive string comparison
- *         elif isinstance(value, (int, float)):
- *             return float(value)             # <<<<<<<<<<<<<<
+    /* "hyperoptimized_sort.pyx":668
+ *         elif isinstance(value, (int, float)) or hasattr(value, 'dtype'):
+ *             # Handle regular numbers and NumPy numeric types
+ *             return value  # Keep original type             # <<<<<<<<<<<<<<
  *         else:
  *             return str(value).lower()
 */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_9 = __Pyx_PyNumber_Float(__pyx_v_value); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 531, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_9);
-    __pyx_r = __pyx_t_9;
-    __pyx_t_9 = 0;
+    __Pyx_INCREF(__pyx_v_value);
+    __pyx_r = __pyx_v_value;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":530
+    /* "hyperoptimized_sort.pyx":666
  *             except (ValueError, TypeError):
  *                 return value.lower()  # Case-insensitive string comparison
- *         elif isinstance(value, (int, float)):             # <<<<<<<<<<<<<<
- *             return float(value)
- *         else:
+ *         elif isinstance(value, (int, float)) or hasattr(value, 'dtype'):             # <<<<<<<<<<<<<<
+ *             # Handle regular numbers and NumPy numeric types
+ *             return value  # Keep original type
 */
   }
 
-  /* "hyperoptimized_sort.pyx":533
- *             return float(value)
+  /* "hyperoptimized_sort.pyx":670
+ *             return value  # Keep original type
  *         else:
  *             return str(value).lower()             # <<<<<<<<<<<<<<
  * 
@@ -12439,7 +13991,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
 */
   /*else*/ {
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_2 = __Pyx_PyObject_Unicode(__pyx_v_value); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 533, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyObject_Unicode(__pyx_v_value); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 670, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
     __pyx_t_8 = __pyx_t_2;
     __Pyx_INCREF(__pyx_t_8);
@@ -12449,7 +14001,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
       __pyx_t_9 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_lower, __pyx_callargs+__pyx_t_12, (1-__pyx_t_12) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-      if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 533, __pyx_L1_error)
+      if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 670, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_9);
     }
     __pyx_r = __pyx_t_9;
@@ -12457,7 +14009,7 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
     goto __pyx_L0;
   }
 
-  /* "hyperoptimized_sort.pyx":509
+  /* "hyperoptimized_sort.pyx":645
  *         return result
  * 
  *     cdef object _extract_sort_key(self, dict record, str key_column):             # <<<<<<<<<<<<<<
@@ -12481,64 +14033,73 @@ static PyObject *__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__extract_s
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":535
+/* "hyperoptimized_sort.pyx":672
  *             return str(value).lower()
  * 
  *     cdef double _get_numeric_key(self, object key):             # <<<<<<<<<<<<<<
  *         """Convert key to numeric value for heap operations"""
- *         if isinstance(key, (int, float)):
+ *         if isinstance(key, (int, float)) or hasattr(key, 'dtype'):
 */
 
 static double __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__get_numeric_key(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_key) {
   double __pyx_r;
   int __pyx_t_1;
   int __pyx_t_2;
-  double __pyx_t_3;
-  Py_hash_t __pyx_t_4;
+  int __pyx_t_3;
+  double __pyx_t_4;
+  Py_hash_t __pyx_t_5;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
 
-  /* "hyperoptimized_sort.pyx":537
+  /* "hyperoptimized_sort.pyx":674
  *     cdef double _get_numeric_key(self, object key):
  *         """Convert key to numeric value for heap operations"""
- *         if isinstance(key, (int, float)):             # <<<<<<<<<<<<<<
+ *         if isinstance(key, (int, float)) or hasattr(key, 'dtype'):             # <<<<<<<<<<<<<<
+ *             # Handle regular numbers and NumPy numeric types
  *             return float(key)
- *         elif isinstance(key, str):
 */
-  __pyx_t_2 = PyLong_Check(__pyx_v_key); 
+  __pyx_t_3 = PyLong_Check(__pyx_v_key); 
+  if (!__pyx_t_3) {
+  } else {
+    __pyx_t_2 = __pyx_t_3;
+    goto __pyx_L6_bool_binop_done;
+  }
+  __pyx_t_3 = PyFloat_Check(__pyx_v_key); 
+  __pyx_t_2 = __pyx_t_3;
+  __pyx_L6_bool_binop_done:;
   if (!__pyx_t_2) {
   } else {
     __pyx_t_1 = __pyx_t_2;
     goto __pyx_L4_bool_binop_done;
   }
-  __pyx_t_2 = PyFloat_Check(__pyx_v_key); 
+  __pyx_t_2 = __Pyx_HasAttr(__pyx_v_key, __pyx_mstate_global->__pyx_n_u_dtype); if (unlikely(__pyx_t_2 == ((int)-1))) __PYX_ERR(0, 674, __pyx_L1_error)
   __pyx_t_1 = __pyx_t_2;
   __pyx_L4_bool_binop_done:;
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":538
- *         """Convert key to numeric value for heap operations"""
- *         if isinstance(key, (int, float)):
+    /* "hyperoptimized_sort.pyx":676
+ *         if isinstance(key, (int, float)) or hasattr(key, 'dtype'):
+ *             # Handle regular numbers and NumPy numeric types
  *             return float(key)             # <<<<<<<<<<<<<<
  *         elif isinstance(key, str):
  *             # Hash string to numeric value for consistent ordering
 */
-    __pyx_t_3 = __Pyx_PyObject_AsDouble(__pyx_v_key); if (unlikely(__pyx_t_3 == ((double)((double)-1)) && PyErr_Occurred())) __PYX_ERR(0, 538, __pyx_L1_error)
-    __pyx_r = __pyx_t_3;
+    __pyx_t_4 = __Pyx_PyObject_AsDouble(__pyx_v_key); if (unlikely(__pyx_t_4 == ((double)((double)-1)) && PyErr_Occurred())) __PYX_ERR(0, 676, __pyx_L1_error)
+    __pyx_r = __pyx_t_4;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":537
+    /* "hyperoptimized_sort.pyx":674
  *     cdef double _get_numeric_key(self, object key):
  *         """Convert key to numeric value for heap operations"""
- *         if isinstance(key, (int, float)):             # <<<<<<<<<<<<<<
+ *         if isinstance(key, (int, float)) or hasattr(key, 'dtype'):             # <<<<<<<<<<<<<<
+ *             # Handle regular numbers and NumPy numeric types
  *             return float(key)
- *         elif isinstance(key, str):
 */
   }
 
-  /* "hyperoptimized_sort.pyx":539
- *         if isinstance(key, (int, float)):
+  /* "hyperoptimized_sort.pyx":677
+ *             # Handle regular numbers and NumPy numeric types
  *             return float(key)
  *         elif isinstance(key, str):             # <<<<<<<<<<<<<<
  *             # Hash string to numeric value for consistent ordering
@@ -12547,19 +14108,19 @@ static double __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__get_numeric_
   __pyx_t_1 = PyUnicode_Check(__pyx_v_key); 
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":541
+    /* "hyperoptimized_sort.pyx":679
  *         elif isinstance(key, str):
  *             # Hash string to numeric value for consistent ordering
  *             return float(hash(key))             # <<<<<<<<<<<<<<
  *         else:
  *             return 0.0
 */
-    __pyx_t_4 = PyObject_Hash(__pyx_v_key); if (unlikely(__pyx_t_4 == ((Py_hash_t)-1))) __PYX_ERR(0, 541, __pyx_L1_error)
-    __pyx_r = ((double)__pyx_t_4);
+    __pyx_t_5 = PyObject_Hash(__pyx_v_key); if (unlikely(__pyx_t_5 == ((Py_hash_t)-1))) __PYX_ERR(0, 679, __pyx_L1_error)
+    __pyx_r = ((double)__pyx_t_5);
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":539
- *         if isinstance(key, (int, float)):
+    /* "hyperoptimized_sort.pyx":677
+ *             # Handle regular numbers and NumPy numeric types
  *             return float(key)
  *         elif isinstance(key, str):             # <<<<<<<<<<<<<<
  *             # Hash string to numeric value for consistent ordering
@@ -12567,7 +14128,7 @@ static double __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__get_numeric_
 */
   }
 
-  /* "hyperoptimized_sort.pyx":543
+  /* "hyperoptimized_sort.pyx":681
  *             return float(hash(key))
  *         else:
  *             return 0.0             # <<<<<<<<<<<<<<
@@ -12579,12 +14140,12 @@ static double __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__get_numeric_
     goto __pyx_L0;
   }
 
-  /* "hyperoptimized_sort.pyx":535
+  /* "hyperoptimized_sort.pyx":672
  *             return str(value).lower()
  * 
  *     cdef double _get_numeric_key(self, object key):             # <<<<<<<<<<<<<<
  *         """Convert key to numeric value for heap operations"""
- *         if isinstance(key, (int, float)):
+ *         if isinstance(key, (int, float)) or hasattr(key, 'dtype'):
 */
 
   /* function exit code */
@@ -12595,7 +14156,7 @@ static double __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__get_numeric_
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":545
+/* "hyperoptimized_sort.pyx":683
  *             return 0.0
  * 
  *     cdef bint _should_swap(self, object key1, object key2, bint reverse):             # <<<<<<<<<<<<<<
@@ -12611,17 +14172,17 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__should_swap(str
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
 
-  /* "hyperoptimized_sort.pyx":547
+  /* "hyperoptimized_sort.pyx":685
  *     cdef bint _should_swap(self, object key1, object key2, bint reverse):
  *         """Branchless comparison with reverse support"""
  *         cdef int comparison = self._compare_keys(key1, key2, reverse)             # <<<<<<<<<<<<<<
  *         return comparison > 0
  * 
 */
-  __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_v_key1, __pyx_v_key2, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 547, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self->__pyx_vtab)->_compare_keys(__pyx_v_self, __pyx_v_key1, __pyx_v_key2, __pyx_v_reverse); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 685, __pyx_L1_error)
   __pyx_v_comparison = __pyx_t_1;
 
-  /* "hyperoptimized_sort.pyx":548
+  /* "hyperoptimized_sort.pyx":686
  *         """Branchless comparison with reverse support"""
  *         cdef int comparison = self._compare_keys(key1, key2, reverse)
  *         return comparison > 0             # <<<<<<<<<<<<<<
@@ -12631,7 +14192,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__should_swap(str
   __pyx_r = (__pyx_v_comparison > 0);
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":545
+  /* "hyperoptimized_sort.pyx":683
  *             return 0.0
  * 
  *     cdef bint _should_swap(self, object key1, object key2, bint reverse):             # <<<<<<<<<<<<<<
@@ -12647,16 +14208,17 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__should_swap(str
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":550
+/* "hyperoptimized_sort.pyx":688
  *         return comparison > 0
  * 
  *     cdef int _compare_keys(self, object key1, object key2, bint reverse):             # <<<<<<<<<<<<<<
  *         """
- *         Optimized key comparison with type-aware logic
+ *         Optimized key comparison with type-aware logic and special float handling
 */
 
 static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CYTHON_UNUSED struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_key1, PyObject *__pyx_v_key2, int __pyx_v_reverse) {
   int __pyx_v_result;
+  PyObject *__pyx_v_math = NULL;
   PyObject *__pyx_v_str1 = NULL;
   PyObject *__pyx_v_str2 = NULL;
   int __pyx_r;
@@ -12665,18 +14227,19 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
   int __pyx_t_2;
   PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
-  PyObject *__pyx_t_5 = NULL;
-  PyObject *__pyx_t_6 = NULL;
-  int __pyx_t_7;
+  size_t __pyx_t_5;
+  int __pyx_t_6;
+  PyObject *__pyx_t_7 = NULL;
   PyObject *__pyx_t_8 = NULL;
   PyObject *__pyx_t_9 = NULL;
   PyObject *__pyx_t_10 = NULL;
+  PyObject *__pyx_t_11 = NULL;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_compare_keys", 0);
 
-  /* "hyperoptimized_sort.pyx":558
+  /* "hyperoptimized_sort.pyx":696
  * 
  *         # Handle None values
  *         if key1 is None and key2 is None:             # <<<<<<<<<<<<<<
@@ -12694,7 +14257,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
   __pyx_L4_bool_binop_done:;
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":559
+    /* "hyperoptimized_sort.pyx":697
  *         # Handle None values
  *         if key1 is None and key2 is None:
  *             return 0             # <<<<<<<<<<<<<<
@@ -12704,7 +14267,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
     __pyx_r = 0;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":558
+    /* "hyperoptimized_sort.pyx":696
  * 
  *         # Handle None values
  *         if key1 is None and key2 is None:             # <<<<<<<<<<<<<<
@@ -12713,7 +14276,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
 */
   }
 
-  /* "hyperoptimized_sort.pyx":560
+  /* "hyperoptimized_sort.pyx":698
  *         if key1 is None and key2 is None:
  *             return 0
  *         elif key1 is None:             # <<<<<<<<<<<<<<
@@ -12723,7 +14286,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
   __pyx_t_1 = (__pyx_v_key1 == Py_None);
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":561
+    /* "hyperoptimized_sort.pyx":699
  *             return 0
  *         elif key1 is None:
  *             return -1             # <<<<<<<<<<<<<<
@@ -12733,7 +14296,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
     __pyx_r = -1;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":560
+    /* "hyperoptimized_sort.pyx":698
  *         if key1 is None and key2 is None:
  *             return 0
  *         elif key1 is None:             # <<<<<<<<<<<<<<
@@ -12742,7 +14305,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
 */
   }
 
-  /* "hyperoptimized_sort.pyx":562
+  /* "hyperoptimized_sort.pyx":700
  *         elif key1 is None:
  *             return -1
  *         elif key2 is None:             # <<<<<<<<<<<<<<
@@ -12752,17 +14315,17 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
   __pyx_t_1 = (__pyx_v_key2 == Py_None);
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":563
+    /* "hyperoptimized_sort.pyx":701
  *             return -1
  *         elif key2 is None:
  *             return 1             # <<<<<<<<<<<<<<
  * 
- *         # Type-safe comparison
+ *         # Handle special float values (NaN, inf, -inf)
 */
     __pyx_r = 1;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":562
+    /* "hyperoptimized_sort.pyx":700
  *         elif key1 is None:
  *             return -1
  *         elif key2 is None:             # <<<<<<<<<<<<<<
@@ -12771,9 +14334,406 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
 */
   }
 
-  /* "hyperoptimized_sort.pyx":566
+  /* "hyperoptimized_sort.pyx":704
  * 
- *         # Type-safe comparison
+ *         # Handle special float values (NaN, inf, -inf)
+ *         if isinstance(key1, float) and isinstance(key2, float):             # <<<<<<<<<<<<<<
+ *             import math
+ * 
+*/
+  __pyx_t_2 = PyFloat_Check(__pyx_v_key1); 
+  if (__pyx_t_2) {
+  } else {
+    __pyx_t_1 = __pyx_t_2;
+    goto __pyx_L7_bool_binop_done;
+  }
+  __pyx_t_2 = PyFloat_Check(__pyx_v_key2); 
+  __pyx_t_1 = __pyx_t_2;
+  __pyx_L7_bool_binop_done:;
+  if (__pyx_t_1) {
+
+    /* "hyperoptimized_sort.pyx":705
+ *         # Handle special float values (NaN, inf, -inf)
+ *         if isinstance(key1, float) and isinstance(key2, float):
+ *             import math             # <<<<<<<<<<<<<<
+ * 
+ *             # Handle NaN values - NaN should come last
+*/
+    __pyx_t_3 = __Pyx_ImportDottedModule(__pyx_mstate_global->__pyx_n_u_math, NULL); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 705, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __pyx_v_math = __pyx_t_3;
+    __pyx_t_3 = 0;
+
+    /* "hyperoptimized_sort.pyx":708
+ * 
+ *             # Handle NaN values - NaN should come last
+ *             if math.isnan(key1) and math.isnan(key2):             # <<<<<<<<<<<<<<
+ *                 return 0
+ *             elif math.isnan(key1):
+*/
+    __pyx_t_4 = __pyx_v_math;
+    __Pyx_INCREF(__pyx_t_4);
+    __pyx_t_5 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_v_key1};
+      __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_isnan, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 708, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+    }
+    __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 708, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    if (__pyx_t_2) {
+    } else {
+      __pyx_t_1 = __pyx_t_2;
+      goto __pyx_L10_bool_binop_done;
+    }
+    __pyx_t_4 = __pyx_v_math;
+    __Pyx_INCREF(__pyx_t_4);
+    __pyx_t_5 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_v_key2};
+      __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_isnan, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 708, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+    }
+    __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 708, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __pyx_t_1 = __pyx_t_2;
+    __pyx_L10_bool_binop_done:;
+    if (__pyx_t_1) {
+
+      /* "hyperoptimized_sort.pyx":709
+ *             # Handle NaN values - NaN should come last
+ *             if math.isnan(key1) and math.isnan(key2):
+ *                 return 0             # <<<<<<<<<<<<<<
+ *             elif math.isnan(key1):
+ *                 return 1  # NaN is "greater" (comes last)
+*/
+      __pyx_r = 0;
+      goto __pyx_L0;
+
+      /* "hyperoptimized_sort.pyx":708
+ * 
+ *             # Handle NaN values - NaN should come last
+ *             if math.isnan(key1) and math.isnan(key2):             # <<<<<<<<<<<<<<
+ *                 return 0
+ *             elif math.isnan(key1):
+*/
+    }
+
+    /* "hyperoptimized_sort.pyx":710
+ *             if math.isnan(key1) and math.isnan(key2):
+ *                 return 0
+ *             elif math.isnan(key1):             # <<<<<<<<<<<<<<
+ *                 return 1  # NaN is "greater" (comes last)
+ *             elif math.isnan(key2):
+*/
+    __pyx_t_4 = __pyx_v_math;
+    __Pyx_INCREF(__pyx_t_4);
+    __pyx_t_5 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_v_key1};
+      __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_isnan, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 710, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+    }
+    __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 710, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    if (__pyx_t_1) {
+
+      /* "hyperoptimized_sort.pyx":711
+ *                 return 0
+ *             elif math.isnan(key1):
+ *                 return 1  # NaN is "greater" (comes last)             # <<<<<<<<<<<<<<
+ *             elif math.isnan(key2):
+ *                 return -1  # NaN is "greater" (comes last)
+*/
+      __pyx_r = 1;
+      goto __pyx_L0;
+
+      /* "hyperoptimized_sort.pyx":710
+ *             if math.isnan(key1) and math.isnan(key2):
+ *                 return 0
+ *             elif math.isnan(key1):             # <<<<<<<<<<<<<<
+ *                 return 1  # NaN is "greater" (comes last)
+ *             elif math.isnan(key2):
+*/
+    }
+
+    /* "hyperoptimized_sort.pyx":712
+ *             elif math.isnan(key1):
+ *                 return 1  # NaN is "greater" (comes last)
+ *             elif math.isnan(key2):             # <<<<<<<<<<<<<<
+ *                 return -1  # NaN is "greater" (comes last)
+ * 
+*/
+    __pyx_t_4 = __pyx_v_math;
+    __Pyx_INCREF(__pyx_t_4);
+    __pyx_t_5 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_v_key2};
+      __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_isnan, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 712, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+    }
+    __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 712, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    if (__pyx_t_1) {
+
+      /* "hyperoptimized_sort.pyx":713
+ *                 return 1  # NaN is "greater" (comes last)
+ *             elif math.isnan(key2):
+ *                 return -1  # NaN is "greater" (comes last)             # <<<<<<<<<<<<<<
+ * 
+ *             # Handle infinity values
+*/
+      __pyx_r = -1;
+      goto __pyx_L0;
+
+      /* "hyperoptimized_sort.pyx":712
+ *             elif math.isnan(key1):
+ *                 return 1  # NaN is "greater" (comes last)
+ *             elif math.isnan(key2):             # <<<<<<<<<<<<<<
+ *                 return -1  # NaN is "greater" (comes last)
+ * 
+*/
+    }
+
+    /* "hyperoptimized_sort.pyx":716
+ * 
+ *             # Handle infinity values
+ *             if math.isinf(key1) and math.isinf(key2):             # <<<<<<<<<<<<<<
+ *                 if key1 == key2:  # Both +inf or both -inf
+ *                     return 0
+*/
+    __pyx_t_4 = __pyx_v_math;
+    __Pyx_INCREF(__pyx_t_4);
+    __pyx_t_5 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_v_key1};
+      __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_isinf, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 716, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+    }
+    __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 716, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    if (__pyx_t_2) {
+    } else {
+      __pyx_t_1 = __pyx_t_2;
+      goto __pyx_L13_bool_binop_done;
+    }
+    __pyx_t_4 = __pyx_v_math;
+    __Pyx_INCREF(__pyx_t_4);
+    __pyx_t_5 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_v_key2};
+      __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_isinf, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 716, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+    }
+    __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 716, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __pyx_t_1 = __pyx_t_2;
+    __pyx_L13_bool_binop_done:;
+    if (__pyx_t_1) {
+
+      /* "hyperoptimized_sort.pyx":717
+ *             # Handle infinity values
+ *             if math.isinf(key1) and math.isinf(key2):
+ *                 if key1 == key2:  # Both +inf or both -inf             # <<<<<<<<<<<<<<
+ *                     return 0
+ *                 elif key1 > key2:  # key1 is +inf, key2 is -inf
+*/
+      __pyx_t_3 = PyObject_RichCompare(__pyx_v_key1, __pyx_v_key2, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 717, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 717, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      if (__pyx_t_1) {
+
+        /* "hyperoptimized_sort.pyx":718
+ *             if math.isinf(key1) and math.isinf(key2):
+ *                 if key1 == key2:  # Both +inf or both -inf
+ *                     return 0             # <<<<<<<<<<<<<<
+ *                 elif key1 > key2:  # key1 is +inf, key2 is -inf
+ *                     return 1
+*/
+        __pyx_r = 0;
+        goto __pyx_L0;
+
+        /* "hyperoptimized_sort.pyx":717
+ *             # Handle infinity values
+ *             if math.isinf(key1) and math.isinf(key2):
+ *                 if key1 == key2:  # Both +inf or both -inf             # <<<<<<<<<<<<<<
+ *                     return 0
+ *                 elif key1 > key2:  # key1 is +inf, key2 is -inf
+*/
+      }
+
+      /* "hyperoptimized_sort.pyx":719
+ *                 if key1 == key2:  # Both +inf or both -inf
+ *                     return 0
+ *                 elif key1 > key2:  # key1 is +inf, key2 is -inf             # <<<<<<<<<<<<<<
+ *                     return 1
+ *                 else:  # key1 is -inf, key2 is +inf
+*/
+      __pyx_t_3 = PyObject_RichCompare(__pyx_v_key1, __pyx_v_key2, Py_GT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 719, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 719, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      if (__pyx_t_1) {
+
+        /* "hyperoptimized_sort.pyx":720
+ *                     return 0
+ *                 elif key1 > key2:  # key1 is +inf, key2 is -inf
+ *                     return 1             # <<<<<<<<<<<<<<
+ *                 else:  # key1 is -inf, key2 is +inf
+ *                     return -1
+*/
+        __pyx_r = 1;
+        goto __pyx_L0;
+
+        /* "hyperoptimized_sort.pyx":719
+ *                 if key1 == key2:  # Both +inf or both -inf
+ *                     return 0
+ *                 elif key1 > key2:  # key1 is +inf, key2 is -inf             # <<<<<<<<<<<<<<
+ *                     return 1
+ *                 else:  # key1 is -inf, key2 is +inf
+*/
+      }
+
+      /* "hyperoptimized_sort.pyx":722
+ *                     return 1
+ *                 else:  # key1 is -inf, key2 is +inf
+ *                     return -1             # <<<<<<<<<<<<<<
+ *             elif math.isinf(key1):
+ *                 return 1 if key1 > 0 else -1  # +inf > everything, -inf < everything
+*/
+      /*else*/ {
+        __pyx_r = -1;
+        goto __pyx_L0;
+      }
+
+      /* "hyperoptimized_sort.pyx":716
+ * 
+ *             # Handle infinity values
+ *             if math.isinf(key1) and math.isinf(key2):             # <<<<<<<<<<<<<<
+ *                 if key1 == key2:  # Both +inf or both -inf
+ *                     return 0
+*/
+    }
+
+    /* "hyperoptimized_sort.pyx":723
+ *                 else:  # key1 is -inf, key2 is +inf
+ *                     return -1
+ *             elif math.isinf(key1):             # <<<<<<<<<<<<<<
+ *                 return 1 if key1 > 0 else -1  # +inf > everything, -inf < everything
+ *             elif math.isinf(key2):
+*/
+    __pyx_t_4 = __pyx_v_math;
+    __Pyx_INCREF(__pyx_t_4);
+    __pyx_t_5 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_v_key1};
+      __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_isinf, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 723, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+    }
+    __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 723, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    if (__pyx_t_1) {
+
+      /* "hyperoptimized_sort.pyx":724
+ *                     return -1
+ *             elif math.isinf(key1):
+ *                 return 1 if key1 > 0 else -1  # +inf > everything, -inf < everything             # <<<<<<<<<<<<<<
+ *             elif math.isinf(key2):
+ *                 return -1 if key2 > 0 else 1  # +inf > everything, -inf < everything
+*/
+      __pyx_t_3 = PyObject_RichCompare(__pyx_v_key1, __pyx_mstate_global->__pyx_int_0, Py_GT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 724, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 724, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      if (__pyx_t_1) {
+        __pyx_t_6 = 1;
+      } else {
+        __pyx_t_6 = -1;
+      }
+      __pyx_r = __pyx_t_6;
+      goto __pyx_L0;
+
+      /* "hyperoptimized_sort.pyx":723
+ *                 else:  # key1 is -inf, key2 is +inf
+ *                     return -1
+ *             elif math.isinf(key1):             # <<<<<<<<<<<<<<
+ *                 return 1 if key1 > 0 else -1  # +inf > everything, -inf < everything
+ *             elif math.isinf(key2):
+*/
+    }
+
+    /* "hyperoptimized_sort.pyx":725
+ *             elif math.isinf(key1):
+ *                 return 1 if key1 > 0 else -1  # +inf > everything, -inf < everything
+ *             elif math.isinf(key2):             # <<<<<<<<<<<<<<
+ *                 return -1 if key2 > 0 else 1  # +inf > everything, -inf < everything
+ * 
+*/
+    __pyx_t_4 = __pyx_v_math;
+    __Pyx_INCREF(__pyx_t_4);
+    __pyx_t_5 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_v_key2};
+      __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_isinf, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 725, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+    }
+    __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 725, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    if (__pyx_t_1) {
+
+      /* "hyperoptimized_sort.pyx":726
+ *                 return 1 if key1 > 0 else -1  # +inf > everything, -inf < everything
+ *             elif math.isinf(key2):
+ *                 return -1 if key2 > 0 else 1  # +inf > everything, -inf < everything             # <<<<<<<<<<<<<<
+ * 
+ *         # Type-safe comparison for normal values
+*/
+      __pyx_t_3 = PyObject_RichCompare(__pyx_v_key2, __pyx_mstate_global->__pyx_int_0, Py_GT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 726, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 726, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      if (__pyx_t_1) {
+        __pyx_t_6 = -1;
+      } else {
+        __pyx_t_6 = 1;
+      }
+      __pyx_r = __pyx_t_6;
+      goto __pyx_L0;
+
+      /* "hyperoptimized_sort.pyx":725
+ *             elif math.isinf(key1):
+ *                 return 1 if key1 > 0 else -1  # +inf > everything, -inf < everything
+ *             elif math.isinf(key2):             # <<<<<<<<<<<<<<
+ *                 return -1 if key2 > 0 else 1  # +inf > everything, -inf < everything
+ * 
+*/
+    }
+
+    /* "hyperoptimized_sort.pyx":704
+ * 
+ *         # Handle special float values (NaN, inf, -inf)
+ *         if isinstance(key1, float) and isinstance(key2, float):             # <<<<<<<<<<<<<<
+ *             import math
+ * 
+*/
+  }
+
+  /* "hyperoptimized_sort.pyx":729
+ * 
+ *         # Type-safe comparison for normal values
  *         try:             # <<<<<<<<<<<<<<
  *             if key1 < key2:
  *                 result = -1
@@ -12781,25 +14741,25 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
   {
     __Pyx_PyThreadState_declare
     __Pyx_PyThreadState_assign
-    __Pyx_ExceptionSave(&__pyx_t_3, &__pyx_t_4, &__pyx_t_5);
-    __Pyx_XGOTREF(__pyx_t_3);
-    __Pyx_XGOTREF(__pyx_t_4);
-    __Pyx_XGOTREF(__pyx_t_5);
+    __Pyx_ExceptionSave(&__pyx_t_7, &__pyx_t_8, &__pyx_t_9);
+    __Pyx_XGOTREF(__pyx_t_7);
+    __Pyx_XGOTREF(__pyx_t_8);
+    __Pyx_XGOTREF(__pyx_t_9);
     /*try:*/ {
 
-      /* "hyperoptimized_sort.pyx":567
- *         # Type-safe comparison
+      /* "hyperoptimized_sort.pyx":730
+ *         # Type-safe comparison for normal values
  *         try:
  *             if key1 < key2:             # <<<<<<<<<<<<<<
  *                 result = -1
  *             elif key1 > key2:
 */
-      __pyx_t_6 = PyObject_RichCompare(__pyx_v_key1, __pyx_v_key2, Py_LT); __Pyx_XGOTREF(__pyx_t_6); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 567, __pyx_L6_error)
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_6); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 567, __pyx_L6_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_3 = PyObject_RichCompare(__pyx_v_key1, __pyx_v_key2, Py_LT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 730, __pyx_L16_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 730, __pyx_L16_error)
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       if (__pyx_t_1) {
 
-        /* "hyperoptimized_sort.pyx":568
+        /* "hyperoptimized_sort.pyx":731
  *         try:
  *             if key1 < key2:
  *                 result = -1             # <<<<<<<<<<<<<<
@@ -12808,29 +14768,29 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
 */
         __pyx_v_result = -1;
 
-        /* "hyperoptimized_sort.pyx":567
- *         # Type-safe comparison
+        /* "hyperoptimized_sort.pyx":730
+ *         # Type-safe comparison for normal values
  *         try:
  *             if key1 < key2:             # <<<<<<<<<<<<<<
  *                 result = -1
  *             elif key1 > key2:
 */
-        goto __pyx_L12;
+        goto __pyx_L22;
       }
 
-      /* "hyperoptimized_sort.pyx":569
+      /* "hyperoptimized_sort.pyx":732
  *             if key1 < key2:
  *                 result = -1
  *             elif key1 > key2:             # <<<<<<<<<<<<<<
  *                 result = 1
  *             else:
 */
-      __pyx_t_6 = PyObject_RichCompare(__pyx_v_key1, __pyx_v_key2, Py_GT); __Pyx_XGOTREF(__pyx_t_6); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 569, __pyx_L6_error)
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_6); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 569, __pyx_L6_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_3 = PyObject_RichCompare(__pyx_v_key1, __pyx_v_key2, Py_GT); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 732, __pyx_L16_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 732, __pyx_L16_error)
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       if (__pyx_t_1) {
 
-        /* "hyperoptimized_sort.pyx":570
+        /* "hyperoptimized_sort.pyx":733
  *                 result = -1
  *             elif key1 > key2:
  *                 result = 1             # <<<<<<<<<<<<<<
@@ -12839,17 +14799,17 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
 */
         __pyx_v_result = 1;
 
-        /* "hyperoptimized_sort.pyx":569
+        /* "hyperoptimized_sort.pyx":732
  *             if key1 < key2:
  *                 result = -1
  *             elif key1 > key2:             # <<<<<<<<<<<<<<
  *                 result = 1
  *             else:
 */
-        goto __pyx_L12;
+        goto __pyx_L22;
       }
 
-      /* "hyperoptimized_sort.pyx":572
+      /* "hyperoptimized_sort.pyx":735
  *                 result = 1
  *             else:
  *                 result = 0             # <<<<<<<<<<<<<<
@@ -12859,75 +14819,76 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
       /*else*/ {
         __pyx_v_result = 0;
       }
-      __pyx_L12:;
+      __pyx_L22:;
 
-      /* "hyperoptimized_sort.pyx":566
+      /* "hyperoptimized_sort.pyx":729
  * 
- *         # Type-safe comparison
+ *         # Type-safe comparison for normal values
  *         try:             # <<<<<<<<<<<<<<
  *             if key1 < key2:
  *                 result = -1
 */
     }
+    __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
+    __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
+    goto __pyx_L21_try_end;
+    __pyx_L16_error:;
     __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
     __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-    goto __pyx_L11_try_end;
-    __pyx_L6_error:;
-    __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
 
-    /* "hyperoptimized_sort.pyx":573
+    /* "hyperoptimized_sort.pyx":736
  *             else:
  *                 result = 0
  *         except TypeError:             # <<<<<<<<<<<<<<
  *             # Fallback to string comparison for incompatible types
  *             str1 = str(key1)
 */
-    __pyx_t_7 = __Pyx_PyErr_ExceptionMatches(__pyx_builtin_TypeError);
-    if (__pyx_t_7) {
+    __pyx_t_6 = __Pyx_PyErr_ExceptionMatches(__pyx_builtin_TypeError);
+    if (__pyx_t_6) {
       __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._compare_keys", __pyx_clineno, __pyx_lineno, __pyx_filename);
-      if (__Pyx_GetException(&__pyx_t_6, &__pyx_t_8, &__pyx_t_9) < 0) __PYX_ERR(0, 573, __pyx_L8_except_error)
-      __Pyx_XGOTREF(__pyx_t_6);
-      __Pyx_XGOTREF(__pyx_t_8);
-      __Pyx_XGOTREF(__pyx_t_9);
+      if (__Pyx_GetException(&__pyx_t_3, &__pyx_t_4, &__pyx_t_10) < 0) __PYX_ERR(0, 736, __pyx_L18_except_error)
+      __Pyx_XGOTREF(__pyx_t_3);
+      __Pyx_XGOTREF(__pyx_t_4);
+      __Pyx_XGOTREF(__pyx_t_10);
 
-      /* "hyperoptimized_sort.pyx":575
+      /* "hyperoptimized_sort.pyx":738
  *         except TypeError:
  *             # Fallback to string comparison for incompatible types
  *             str1 = str(key1)             # <<<<<<<<<<<<<<
  *             str2 = str(key2)
  *             if str1 < str2:
 */
-      __pyx_t_10 = __Pyx_PyObject_Unicode(__pyx_v_key1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 575, __pyx_L8_except_error)
-      __Pyx_GOTREF(__pyx_t_10);
-      __pyx_v_str1 = ((PyObject*)__pyx_t_10);
-      __pyx_t_10 = 0;
+      __pyx_t_11 = __Pyx_PyObject_Unicode(__pyx_v_key1); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 738, __pyx_L18_except_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __pyx_v_str1 = ((PyObject*)__pyx_t_11);
+      __pyx_t_11 = 0;
 
-      /* "hyperoptimized_sort.pyx":576
+      /* "hyperoptimized_sort.pyx":739
  *             # Fallback to string comparison for incompatible types
  *             str1 = str(key1)
  *             str2 = str(key2)             # <<<<<<<<<<<<<<
  *             if str1 < str2:
  *                 result = -1
 */
-      __pyx_t_10 = __Pyx_PyObject_Unicode(__pyx_v_key2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 576, __pyx_L8_except_error)
-      __Pyx_GOTREF(__pyx_t_10);
-      __pyx_v_str2 = ((PyObject*)__pyx_t_10);
-      __pyx_t_10 = 0;
+      __pyx_t_11 = __Pyx_PyObject_Unicode(__pyx_v_key2); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 739, __pyx_L18_except_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __pyx_v_str2 = ((PyObject*)__pyx_t_11);
+      __pyx_t_11 = 0;
 
-      /* "hyperoptimized_sort.pyx":577
+      /* "hyperoptimized_sort.pyx":740
  *             str1 = str(key1)
  *             str2 = str(key2)
  *             if str1 < str2:             # <<<<<<<<<<<<<<
  *                 result = -1
  *             elif str1 > str2:
 */
-      __pyx_t_10 = PyObject_RichCompare(__pyx_v_str1, __pyx_v_str2, Py_LT); __Pyx_XGOTREF(__pyx_t_10); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 577, __pyx_L8_except_error)
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_10); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 577, __pyx_L8_except_error)
-      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      __pyx_t_11 = PyObject_RichCompare(__pyx_v_str1, __pyx_v_str2, Py_LT); __Pyx_XGOTREF(__pyx_t_11); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 740, __pyx_L18_except_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_11); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 740, __pyx_L18_except_error)
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
       if (__pyx_t_1) {
 
-        /* "hyperoptimized_sort.pyx":578
+        /* "hyperoptimized_sort.pyx":741
  *             str2 = str(key2)
  *             if str1 < str2:
  *                 result = -1             # <<<<<<<<<<<<<<
@@ -12936,29 +14897,29 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
 */
         __pyx_v_result = -1;
 
-        /* "hyperoptimized_sort.pyx":577
+        /* "hyperoptimized_sort.pyx":740
  *             str1 = str(key1)
  *             str2 = str(key2)
  *             if str1 < str2:             # <<<<<<<<<<<<<<
  *                 result = -1
  *             elif str1 > str2:
 */
-        goto __pyx_L15;
+        goto __pyx_L25;
       }
 
-      /* "hyperoptimized_sort.pyx":579
+      /* "hyperoptimized_sort.pyx":742
  *             if str1 < str2:
  *                 result = -1
  *             elif str1 > str2:             # <<<<<<<<<<<<<<
  *                 result = 1
  *             else:
 */
-      __pyx_t_10 = PyObject_RichCompare(__pyx_v_str1, __pyx_v_str2, Py_GT); __Pyx_XGOTREF(__pyx_t_10); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 579, __pyx_L8_except_error)
-      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_10); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 579, __pyx_L8_except_error)
-      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      __pyx_t_11 = PyObject_RichCompare(__pyx_v_str1, __pyx_v_str2, Py_GT); __Pyx_XGOTREF(__pyx_t_11); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 742, __pyx_L18_except_error)
+      __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_11); if (unlikely((__pyx_t_1 < 0))) __PYX_ERR(0, 742, __pyx_L18_except_error)
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
       if (__pyx_t_1) {
 
-        /* "hyperoptimized_sort.pyx":580
+        /* "hyperoptimized_sort.pyx":743
  *                 result = -1
  *             elif str1 > str2:
  *                 result = 1             # <<<<<<<<<<<<<<
@@ -12967,17 +14928,17 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
 */
         __pyx_v_result = 1;
 
-        /* "hyperoptimized_sort.pyx":579
+        /* "hyperoptimized_sort.pyx":742
  *             if str1 < str2:
  *                 result = -1
  *             elif str1 > str2:             # <<<<<<<<<<<<<<
  *                 result = 1
  *             else:
 */
-        goto __pyx_L15;
+        goto __pyx_L25;
       }
 
-      /* "hyperoptimized_sort.pyx":582
+      /* "hyperoptimized_sort.pyx":745
  *                 result = 1
  *             else:
  *                 result = 0             # <<<<<<<<<<<<<<
@@ -12987,36 +14948,36 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
       /*else*/ {
         __pyx_v_result = 0;
       }
-      __pyx_L15:;
-      __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
-      __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
-      goto __pyx_L7_exception_handled;
+      __pyx_L25:;
+      __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
+      goto __pyx_L17_exception_handled;
     }
-    goto __pyx_L8_except_error;
+    goto __pyx_L18_except_error;
 
-    /* "hyperoptimized_sort.pyx":566
+    /* "hyperoptimized_sort.pyx":729
  * 
- *         # Type-safe comparison
+ *         # Type-safe comparison for normal values
  *         try:             # <<<<<<<<<<<<<<
  *             if key1 < key2:
  *                 result = -1
 */
-    __pyx_L8_except_error:;
-    __Pyx_XGIVEREF(__pyx_t_3);
-    __Pyx_XGIVEREF(__pyx_t_4);
-    __Pyx_XGIVEREF(__pyx_t_5);
-    __Pyx_ExceptionReset(__pyx_t_3, __pyx_t_4, __pyx_t_5);
+    __pyx_L18_except_error:;
+    __Pyx_XGIVEREF(__pyx_t_7);
+    __Pyx_XGIVEREF(__pyx_t_8);
+    __Pyx_XGIVEREF(__pyx_t_9);
+    __Pyx_ExceptionReset(__pyx_t_7, __pyx_t_8, __pyx_t_9);
     goto __pyx_L1_error;
-    __pyx_L7_exception_handled:;
-    __Pyx_XGIVEREF(__pyx_t_3);
-    __Pyx_XGIVEREF(__pyx_t_4);
-    __Pyx_XGIVEREF(__pyx_t_5);
-    __Pyx_ExceptionReset(__pyx_t_3, __pyx_t_4, __pyx_t_5);
-    __pyx_L11_try_end:;
+    __pyx_L17_exception_handled:;
+    __Pyx_XGIVEREF(__pyx_t_7);
+    __Pyx_XGIVEREF(__pyx_t_8);
+    __Pyx_XGIVEREF(__pyx_t_9);
+    __Pyx_ExceptionReset(__pyx_t_7, __pyx_t_8, __pyx_t_9);
+    __pyx_L21_try_end:;
   }
 
-  /* "hyperoptimized_sort.pyx":585
+  /* "hyperoptimized_sort.pyx":748
  * 
  *         # Apply reverse if needed
  *         if reverse:             # <<<<<<<<<<<<<<
@@ -13025,7 +14986,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
 */
   if (__pyx_v_reverse) {
 
-    /* "hyperoptimized_sort.pyx":586
+    /* "hyperoptimized_sort.pyx":749
  *         # Apply reverse if needed
  *         if reverse:
  *             result = -result             # <<<<<<<<<<<<<<
@@ -13034,7 +14995,7 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
 */
     __pyx_v_result = (-__pyx_v_result);
 
-    /* "hyperoptimized_sort.pyx":585
+    /* "hyperoptimized_sort.pyx":748
  * 
  *         # Apply reverse if needed
  *         if reverse:             # <<<<<<<<<<<<<<
@@ -13043,57 +15004,58 @@ static int __pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__compare_keys(CY
 */
   }
 
-  /* "hyperoptimized_sort.pyx":588
+  /* "hyperoptimized_sort.pyx":751
  *             result = -result
  * 
  *         return result             # <<<<<<<<<<<<<<
  * 
- *     def sort(self, data):
+ *     def sort(self, data, reverse=False):
 */
   __pyx_r = __pyx_v_result;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":550
+  /* "hyperoptimized_sort.pyx":688
  *         return comparison > 0
  * 
  *     cdef int _compare_keys(self, object key1, object key2, bint reverse):             # <<<<<<<<<<<<<<
  *         """
- *         Optimized key comparison with type-aware logic
+ *         Optimized key comparison with type-aware logic and special float handling
 */
 
   /* function exit code */
   __pyx_L1_error:;
-  __Pyx_XDECREF(__pyx_t_6);
-  __Pyx_XDECREF(__pyx_t_8);
-  __Pyx_XDECREF(__pyx_t_9);
+  __Pyx_XDECREF(__pyx_t_3);
+  __Pyx_XDECREF(__pyx_t_4);
   __Pyx_XDECREF(__pyx_t_10);
+  __Pyx_XDECREF(__pyx_t_11);
   __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter._compare_keys", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = 0;
   __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_math);
   __Pyx_XDECREF(__pyx_v_str1);
   __Pyx_XDECREF(__pyx_v_str2);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":590
+/* "hyperoptimized_sort.pyx":753
  *         return result
  * 
- *     def sort(self, data):             # <<<<<<<<<<<<<<
+ *     def sort(self, data, reverse=False):             # <<<<<<<<<<<<<<
  *         """
  *         Sort method compatible with the test suite
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_17sort(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_19sort(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_16sort, "\n        Sort method compatible with the test suite\n        Handles both arrays and dictionaries\n        ");
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_17sort(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_18sort, "\n        Sort method compatible with the test suite\n        Handles both arrays and dictionaries\n        For NumPy arrays, sorts in-place for compatibility with tests\n        \n        Args:\n            data: Data to sort (NumPy array, list, or list of dicts)  \n            reverse: If True, sort in descending order\n        ");
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_19sort(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -13101,11 +15063,12 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ) {
   PyObject *__pyx_v_data = 0;
+  PyObject *__pyx_v_reverse = 0;
   #if !CYTHON_METH_FASTCALL
   CYTHON_UNUSED Py_ssize_t __pyx_nargs;
   #endif
   CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
-  PyObject* values[1] = {0};
+  PyObject* values[2] = {0,0};
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -13121,34 +15084,48 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   #endif
   __pyx_kwvalues = __Pyx_KwValues_FASTCALL(__pyx_args, __pyx_nargs);
   {
-    PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_data,0};
+    PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_data,&__pyx_mstate_global->__pyx_n_u_reverse,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 590, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 753, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
+        case  2:
+        values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 753, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 590, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 753, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "sort", 0) < 0) __PYX_ERR(0, 590, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "sort", 0) < 0) __PYX_ERR(0, 753, __pyx_L3_error)
+      if (!values[1]) values[1] = __Pyx_NewRef(((PyObject *)Py_False));
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("sort", 1, 1, 1, i); __PYX_ERR(0, 590, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("sort", 0, 1, 2, i); __PYX_ERR(0, 753, __pyx_L3_error) }
       }
-    } else if (unlikely(__pyx_nargs != 1)) {
-      goto __pyx_L5_argtuple_error;
     } else {
-      values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 590, __pyx_L3_error)
+      switch (__pyx_nargs) {
+        case  2:
+        values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 753, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  1:
+        values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 753, __pyx_L3_error)
+        break;
+        default: goto __pyx_L5_argtuple_error;
+      }
+      if (!values[1]) values[1] = __Pyx_NewRef(((PyObject *)Py_False));
     }
     __pyx_v_data = values[0];
+    __pyx_v_reverse = values[1];
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("sort", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 590, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("sort", 0, 1, 2, __pyx_nargs); __PYX_ERR(0, 753, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -13159,7 +15136,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16sort(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_data);
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18sort(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_data, __pyx_v_reverse);
 
   /* function exit code */
   for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
@@ -13169,14 +15146,20 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16sort(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_data) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18sort(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_data, PyObject *__pyx_v_reverse) {
+  PyObject *__pyx_v_original_data = NULL;
   PyObject *__pyx_v_dict_data = NULL;
   PyObject *__pyx_v_sorted_dict = NULL;
-  PyObject *__pyx_8genexpr2__pyx_v_i = NULL;
+  PyObject *__pyx_v_sorted_values = NULL;
+  PyObject *__pyx_v_i = NULL;
+  PyObject *__pyx_v_value = NULL;
+  PyObject *__pyx_8genexpr1__pyx_v_item = NULL;
   PyObject *__pyx_8genexpr2__pyx_v_item = NULL;
+  PyObject *__pyx_8genexpr3__pyx_v_i = NULL;
   PyObject *__pyx_8genexpr3__pyx_v_item = NULL;
   PyObject *__pyx_8genexpr4__pyx_v_item = NULL;
   PyObject *__pyx_8genexpr5__pyx_v_item = NULL;
+  PyObject *__pyx_8genexpr6__pyx_v_item = NULL;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   Py_ssize_t __pyx_t_1;
@@ -13184,28 +15167,313 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16sort(st
   PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
   size_t __pyx_t_5;
-  PyObject *__pyx_t_6 = NULL;
-  PyObject *(*__pyx_t_7)(PyObject *);
+  PyObject *(*__pyx_t_6)(PyObject *);
+  PyObject *__pyx_t_7 = NULL;
   PyObject *__pyx_t_8 = NULL;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("sort", 0);
 
-  /* "hyperoptimized_sort.pyx":595
- *         Handles both arrays and dictionaries
+  /* "hyperoptimized_sort.pyx":763
+ *             reverse: If True, sort in descending order
  *         """
  *         if len(data) == 0:             # <<<<<<<<<<<<<<
  *             return data
  * 
 */
-  __pyx_t_1 = PyObject_Length(__pyx_v_data); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 595, __pyx_L1_error)
+  __pyx_t_1 = PyObject_Length(__pyx_v_data); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 763, __pyx_L1_error)
   __pyx_t_2 = (__pyx_t_1 == 0);
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":596
+    /* "hyperoptimized_sort.pyx":764
  *         """
  *         if len(data) == 0:
+ *             return data             # <<<<<<<<<<<<<<
+ * 
+ *         # Check if it's a NumPy array - sort in-place for test compatibility
+*/
+    __Pyx_XDECREF(__pyx_r);
+    __Pyx_INCREF(__pyx_v_data);
+    __pyx_r = __pyx_v_data;
+    goto __pyx_L0;
+
+    /* "hyperoptimized_sort.pyx":763
+ *             reverse: If True, sort in descending order
+ *         """
+ *         if len(data) == 0:             # <<<<<<<<<<<<<<
+ *             return data
+ * 
+*/
+  }
+
+  /* "hyperoptimized_sort.pyx":767
+ * 
+ *         # Check if it's a NumPy array - sort in-place for test compatibility
+ *         if isinstance(data, np.ndarray):             # <<<<<<<<<<<<<<
+ *             # Convert to list, sort, then copy back to original array
+ *             original_data = data.tolist()
+*/
+  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 767, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_ndarray); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 767, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __pyx_t_2 = PyObject_IsInstance(__pyx_v_data, __pyx_t_4); if (unlikely(__pyx_t_2 == ((int)-1))) __PYX_ERR(0, 767, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+  if (__pyx_t_2) {
+
+    /* "hyperoptimized_sort.pyx":769
+ *         if isinstance(data, np.ndarray):
+ *             # Convert to list, sort, then copy back to original array
+ *             original_data = data.tolist()             # <<<<<<<<<<<<<<
+ *             dict_data = [{'value': item} for item in original_data]
+ *             sorted_dict = self.sort_records(dict_data, 'value', reverse)
+*/
+    __pyx_t_3 = __pyx_v_data;
+    __Pyx_INCREF(__pyx_t_3);
+    __pyx_t_5 = 0;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_3, NULL};
+      __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_tolist, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 769, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
+    }
+    __pyx_v_original_data = __pyx_t_4;
+    __pyx_t_4 = 0;
+
+    /* "hyperoptimized_sort.pyx":770
+ *             # Convert to list, sort, then copy back to original array
+ *             original_data = data.tolist()
+ *             dict_data = [{'value': item} for item in original_data]             # <<<<<<<<<<<<<<
+ *             sorted_dict = self.sort_records(dict_data, 'value', reverse)
+ *             sorted_values = [item['value'] for item in sorted_dict]
+*/
+    { /* enter inner scope */
+      __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 770, __pyx_L7_error)
+      __Pyx_GOTREF(__pyx_t_4);
+      if (likely(PyList_CheckExact(__pyx_v_original_data)) || PyTuple_CheckExact(__pyx_v_original_data)) {
+        __pyx_t_3 = __pyx_v_original_data; __Pyx_INCREF(__pyx_t_3);
+        __pyx_t_1 = 0;
+        __pyx_t_6 = NULL;
+      } else {
+        __pyx_t_1 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_v_original_data); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 770, __pyx_L7_error)
+        __Pyx_GOTREF(__pyx_t_3);
+        __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 770, __pyx_L7_error)
+      }
+      for (;;) {
+        if (likely(!__pyx_t_6)) {
+          if (likely(PyList_CheckExact(__pyx_t_3))) {
+            {
+              Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
+              #if !CYTHON_ASSUME_SAFE_SIZE
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 770, __pyx_L7_error)
+              #endif
+              if (__pyx_t_1 >= __pyx_temp) break;
+            }
+            __pyx_t_7 = __Pyx_PyList_GetItemRef(__pyx_t_3, __pyx_t_1);
+            ++__pyx_t_1;
+          } else {
+            {
+              Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_3);
+              #if !CYTHON_ASSUME_SAFE_SIZE
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 770, __pyx_L7_error)
+              #endif
+              if (__pyx_t_1 >= __pyx_temp) break;
+            }
+            #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
+            __pyx_t_7 = __Pyx_NewRef(PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_1));
+            #else
+            __pyx_t_7 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_1);
+            #endif
+            ++__pyx_t_1;
+          }
+          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 770, __pyx_L7_error)
+        } else {
+          __pyx_t_7 = __pyx_t_6(__pyx_t_3);
+          if (unlikely(!__pyx_t_7)) {
+            PyObject* exc_type = PyErr_Occurred();
+            if (exc_type) {
+              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 770, __pyx_L7_error)
+              PyErr_Clear();
+            }
+            break;
+          }
+        }
+        __Pyx_GOTREF(__pyx_t_7);
+        __Pyx_XDECREF_SET(__pyx_8genexpr1__pyx_v_item, __pyx_t_7);
+        __pyx_t_7 = 0;
+        __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 770, __pyx_L7_error)
+        __Pyx_GOTREF(__pyx_t_7);
+        if (PyDict_SetItem(__pyx_t_7, __pyx_mstate_global->__pyx_n_u_value, __pyx_8genexpr1__pyx_v_item) < 0) __PYX_ERR(0, 770, __pyx_L7_error)
+        if (unlikely(__Pyx_ListComp_Append(__pyx_t_4, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 770, __pyx_L7_error)
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      }
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __Pyx_XDECREF(__pyx_8genexpr1__pyx_v_item); __pyx_8genexpr1__pyx_v_item = 0;
+      goto __pyx_L11_exit_scope;
+      __pyx_L7_error:;
+      __Pyx_XDECREF(__pyx_8genexpr1__pyx_v_item); __pyx_8genexpr1__pyx_v_item = 0;
+      goto __pyx_L1_error;
+      __pyx_L11_exit_scope:;
+    } /* exit inner scope */
+    __pyx_v_dict_data = ((PyObject*)__pyx_t_4);
+    __pyx_t_4 = 0;
+
+    /* "hyperoptimized_sort.pyx":771
+ *             original_data = data.tolist()
+ *             dict_data = [{'value': item} for item in original_data]
+ *             sorted_dict = self.sort_records(dict_data, 'value', reverse)             # <<<<<<<<<<<<<<
+ *             sorted_values = [item['value'] for item in sorted_dict]
+ * 
+*/
+    __pyx_t_3 = ((PyObject *)__pyx_v_self);
+    __Pyx_INCREF(__pyx_t_3);
+    __pyx_t_5 = 0;
+    {
+      PyObject *__pyx_callargs[4] = {__pyx_t_3, __pyx_v_dict_data, __pyx_mstate_global->__pyx_n_u_value, __pyx_v_reverse};
+      __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_sort_records, __pyx_callargs+__pyx_t_5, (4-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 771, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
+    }
+    __pyx_v_sorted_dict = __pyx_t_4;
+    __pyx_t_4 = 0;
+
+    /* "hyperoptimized_sort.pyx":772
+ *             dict_data = [{'value': item} for item in original_data]
+ *             sorted_dict = self.sort_records(dict_data, 'value', reverse)
+ *             sorted_values = [item['value'] for item in sorted_dict]             # <<<<<<<<<<<<<<
+ * 
+ *             # Copy sorted values back to original array in-place
+*/
+    { /* enter inner scope */
+      __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 772, __pyx_L14_error)
+      __Pyx_GOTREF(__pyx_t_4);
+      if (likely(PyList_CheckExact(__pyx_v_sorted_dict)) || PyTuple_CheckExact(__pyx_v_sorted_dict)) {
+        __pyx_t_3 = __pyx_v_sorted_dict; __Pyx_INCREF(__pyx_t_3);
+        __pyx_t_1 = 0;
+        __pyx_t_6 = NULL;
+      } else {
+        __pyx_t_1 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_v_sorted_dict); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 772, __pyx_L14_error)
+        __Pyx_GOTREF(__pyx_t_3);
+        __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 772, __pyx_L14_error)
+      }
+      for (;;) {
+        if (likely(!__pyx_t_6)) {
+          if (likely(PyList_CheckExact(__pyx_t_3))) {
+            {
+              Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
+              #if !CYTHON_ASSUME_SAFE_SIZE
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 772, __pyx_L14_error)
+              #endif
+              if (__pyx_t_1 >= __pyx_temp) break;
+            }
+            __pyx_t_7 = __Pyx_PyList_GetItemRef(__pyx_t_3, __pyx_t_1);
+            ++__pyx_t_1;
+          } else {
+            {
+              Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_3);
+              #if !CYTHON_ASSUME_SAFE_SIZE
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 772, __pyx_L14_error)
+              #endif
+              if (__pyx_t_1 >= __pyx_temp) break;
+            }
+            #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
+            __pyx_t_7 = __Pyx_NewRef(PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_1));
+            #else
+            __pyx_t_7 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_1);
+            #endif
+            ++__pyx_t_1;
+          }
+          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 772, __pyx_L14_error)
+        } else {
+          __pyx_t_7 = __pyx_t_6(__pyx_t_3);
+          if (unlikely(!__pyx_t_7)) {
+            PyObject* exc_type = PyErr_Occurred();
+            if (exc_type) {
+              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 772, __pyx_L14_error)
+              PyErr_Clear();
+            }
+            break;
+          }
+        }
+        __Pyx_GOTREF(__pyx_t_7);
+        __Pyx_XDECREF_SET(__pyx_8genexpr2__pyx_v_item, __pyx_t_7);
+        __pyx_t_7 = 0;
+        __pyx_t_7 = __Pyx_PyObject_Dict_GetItem(__pyx_8genexpr2__pyx_v_item, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 772, __pyx_L14_error)
+        __Pyx_GOTREF(__pyx_t_7);
+        if (unlikely(__Pyx_ListComp_Append(__pyx_t_4, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 772, __pyx_L14_error)
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      }
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __Pyx_XDECREF(__pyx_8genexpr2__pyx_v_item); __pyx_8genexpr2__pyx_v_item = 0;
+      goto __pyx_L18_exit_scope;
+      __pyx_L14_error:;
+      __Pyx_XDECREF(__pyx_8genexpr2__pyx_v_item); __pyx_8genexpr2__pyx_v_item = 0;
+      goto __pyx_L1_error;
+      __pyx_L18_exit_scope:;
+    } /* exit inner scope */
+    __pyx_v_sorted_values = ((PyObject*)__pyx_t_4);
+    __pyx_t_4 = 0;
+
+    /* "hyperoptimized_sort.pyx":775
+ * 
+ *             # Copy sorted values back to original array in-place
+ *             for i, value in enumerate(sorted_values):             # <<<<<<<<<<<<<<
+ *                 data[i] = value
+ *             return data
+*/
+    __Pyx_INCREF(__pyx_mstate_global->__pyx_int_0);
+    __pyx_t_4 = __pyx_mstate_global->__pyx_int_0;
+    __pyx_t_3 = __pyx_v_sorted_values; __Pyx_INCREF(__pyx_t_3);
+    __pyx_t_1 = 0;
+    for (;;) {
+      {
+        Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
+        #if !CYTHON_ASSUME_SAFE_SIZE
+        if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 775, __pyx_L1_error)
+        #endif
+        if (__pyx_t_1 >= __pyx_temp) break;
+      }
+      __pyx_t_7 = __Pyx_PyList_GetItemRef(__pyx_t_3, __pyx_t_1);
+      ++__pyx_t_1;
+      if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 775, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __Pyx_XDECREF_SET(__pyx_v_value, __pyx_t_7);
+      __pyx_t_7 = 0;
+      __Pyx_INCREF(__pyx_t_4);
+      __Pyx_XDECREF_SET(__pyx_v_i, __pyx_t_4);
+      __pyx_t_7 = __Pyx_PyLong_AddObjC(__pyx_t_4, __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 775, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __Pyx_DECREF(__pyx_t_4);
+      __pyx_t_4 = __pyx_t_7;
+      __pyx_t_7 = 0;
+
+      /* "hyperoptimized_sort.pyx":776
+ *             # Copy sorted values back to original array in-place
+ *             for i, value in enumerate(sorted_values):
+ *                 data[i] = value             # <<<<<<<<<<<<<<
+ *             return data
+ * 
+*/
+      if (unlikely((PyObject_SetItem(__pyx_v_data, __pyx_v_i, __pyx_v_value) < 0))) __PYX_ERR(0, 776, __pyx_L1_error)
+
+      /* "hyperoptimized_sort.pyx":775
+ * 
+ *             # Copy sorted values back to original array in-place
+ *             for i, value in enumerate(sorted_values):             # <<<<<<<<<<<<<<
+ *                 data[i] = value
+ *             return data
+*/
+    }
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+
+    /* "hyperoptimized_sort.pyx":777
+ *             for i, value in enumerate(sorted_values):
+ *                 data[i] = value
  *             return data             # <<<<<<<<<<<<<<
  * 
  *         # Check if it's an array of primitives or dictionaries
@@ -13215,456 +15483,456 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16sort(st
     __pyx_r = __pyx_v_data;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":595
- *         Handles both arrays and dictionaries
- *         """
- *         if len(data) == 0:             # <<<<<<<<<<<<<<
- *             return data
+    /* "hyperoptimized_sort.pyx":767
  * 
+ *         # Check if it's a NumPy array - sort in-place for test compatibility
+ *         if isinstance(data, np.ndarray):             # <<<<<<<<<<<<<<
+ *             # Convert to list, sort, then copy back to original array
+ *             original_data = data.tolist()
 */
   }
 
-  /* "hyperoptimized_sort.pyx":599
+  /* "hyperoptimized_sort.pyx":780
  * 
  *         # Check if it's an array of primitives or dictionaries
- *         if isinstance(data[0], dict):             # <<<<<<<<<<<<<<
+ *         elif isinstance(data[0], dict):             # <<<<<<<<<<<<<<
  *             # For dictionary records, use a default key or assume 'value' key
  *             if 'value' in data[0]:
 */
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_data, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 599, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_2 = PyDict_Check(__pyx_t_3); 
-  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __pyx_t_4 = __Pyx_GetItemInt(__pyx_v_data, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 780, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __pyx_t_2 = PyDict_Check(__pyx_t_4); 
+  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":601
- *         if isinstance(data[0], dict):
+    /* "hyperoptimized_sort.pyx":782
+ *         elif isinstance(data[0], dict):
  *             # For dictionary records, use a default key or assume 'value' key
  *             if 'value' in data[0]:             # <<<<<<<<<<<<<<
- *                 return self.sort_records(data, 'value', False)
+ *                 return self.sort_records(data, 'value', reverse)
  *             else:
 */
-    __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_data, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 601, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_2 = (__Pyx_PySequence_ContainsTF(__pyx_mstate_global->__pyx_n_u_value, __pyx_t_3, Py_EQ)); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 601, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __pyx_t_4 = __Pyx_GetItemInt(__pyx_v_data, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 782, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_4);
+    __pyx_t_2 = (__Pyx_PySequence_ContainsTF(__pyx_mstate_global->__pyx_n_u_value, __pyx_t_4, Py_EQ)); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 782, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     if (__pyx_t_2) {
 
-      /* "hyperoptimized_sort.pyx":602
+      /* "hyperoptimized_sort.pyx":783
  *             # For dictionary records, use a default key or assume 'value' key
  *             if 'value' in data[0]:
- *                 return self.sort_records(data, 'value', False)             # <<<<<<<<<<<<<<
+ *                 return self.sort_records(data, 'value', reverse)             # <<<<<<<<<<<<<<
  *             else:
  *                 # Convert to dict format for sorting
 */
       __Pyx_XDECREF(__pyx_r);
-      __pyx_t_4 = ((PyObject *)__pyx_v_self);
-      __Pyx_INCREF(__pyx_t_4);
+      __pyx_t_3 = ((PyObject *)__pyx_v_self);
+      __Pyx_INCREF(__pyx_t_3);
       __pyx_t_5 = 0;
       {
-        PyObject *__pyx_callargs[4] = {__pyx_t_4, __pyx_v_data, __pyx_mstate_global->__pyx_n_u_value, Py_False};
-        __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_sort_records, __pyx_callargs+__pyx_t_5, (4-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-        __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 602, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_3);
+        PyObject *__pyx_callargs[4] = {__pyx_t_3, __pyx_v_data, __pyx_mstate_global->__pyx_n_u_value, __pyx_v_reverse};
+        __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_sort_records, __pyx_callargs+__pyx_t_5, (4-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+        __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+        if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 783, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_4);
       }
-      __pyx_r = __pyx_t_3;
-      __pyx_t_3 = 0;
+      __pyx_r = __pyx_t_4;
+      __pyx_t_4 = 0;
       goto __pyx_L0;
 
-      /* "hyperoptimized_sort.pyx":601
- *         if isinstance(data[0], dict):
+      /* "hyperoptimized_sort.pyx":782
+ *         elif isinstance(data[0], dict):
  *             # For dictionary records, use a default key or assume 'value' key
  *             if 'value' in data[0]:             # <<<<<<<<<<<<<<
- *                 return self.sort_records(data, 'value', False)
+ *                 return self.sort_records(data, 'value', reverse)
  *             else:
 */
     }
 
-    /* "hyperoptimized_sort.pyx":605
+    /* "hyperoptimized_sort.pyx":786
  *             else:
  *                 # Convert to dict format for sorting
  *                 dict_data = [{'value': item, 'index': i} for i, item in enumerate(data)]             # <<<<<<<<<<<<<<
- *                 sorted_dict = self.sort_records(dict_data, 'value', False)
+ *                 sorted_dict = self.sort_records(dict_data, 'value', reverse)
  *                 return [item['value'] for item in sorted_dict]
 */
     /*else*/ {
       { /* enter inner scope */
-        __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 605, __pyx_L8_error)
-        __Pyx_GOTREF(__pyx_t_3);
+        __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 786, __pyx_L25_error)
+        __Pyx_GOTREF(__pyx_t_4);
         __Pyx_INCREF(__pyx_mstate_global->__pyx_int_0);
-        __pyx_t_4 = __pyx_mstate_global->__pyx_int_0;
+        __pyx_t_3 = __pyx_mstate_global->__pyx_int_0;
         if (likely(PyList_CheckExact(__pyx_v_data)) || PyTuple_CheckExact(__pyx_v_data)) {
-          __pyx_t_6 = __pyx_v_data; __Pyx_INCREF(__pyx_t_6);
+          __pyx_t_7 = __pyx_v_data; __Pyx_INCREF(__pyx_t_7);
           __pyx_t_1 = 0;
-          __pyx_t_7 = NULL;
+          __pyx_t_6 = NULL;
         } else {
-          __pyx_t_1 = -1; __pyx_t_6 = PyObject_GetIter(__pyx_v_data); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 605, __pyx_L8_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 605, __pyx_L8_error)
+          __pyx_t_1 = -1; __pyx_t_7 = PyObject_GetIter(__pyx_v_data); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 786, __pyx_L25_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_7); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 786, __pyx_L25_error)
         }
         for (;;) {
-          if (likely(!__pyx_t_7)) {
-            if (likely(PyList_CheckExact(__pyx_t_6))) {
+          if (likely(!__pyx_t_6)) {
+            if (likely(PyList_CheckExact(__pyx_t_7))) {
               {
-                Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_6);
+                Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_7);
                 #if !CYTHON_ASSUME_SAFE_SIZE
-                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 605, __pyx_L8_error)
+                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 786, __pyx_L25_error)
                 #endif
                 if (__pyx_t_1 >= __pyx_temp) break;
               }
-              __pyx_t_8 = __Pyx_PyList_GetItemRef(__pyx_t_6, __pyx_t_1);
+              __pyx_t_8 = __Pyx_PyList_GetItemRef(__pyx_t_7, __pyx_t_1);
               ++__pyx_t_1;
             } else {
               {
-                Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_6);
+                Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_7);
                 #if !CYTHON_ASSUME_SAFE_SIZE
-                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 605, __pyx_L8_error)
+                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 786, __pyx_L25_error)
                 #endif
                 if (__pyx_t_1 >= __pyx_temp) break;
               }
               #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-              __pyx_t_8 = __Pyx_NewRef(PyTuple_GET_ITEM(__pyx_t_6, __pyx_t_1));
+              __pyx_t_8 = __Pyx_NewRef(PyTuple_GET_ITEM(__pyx_t_7, __pyx_t_1));
               #else
-              __pyx_t_8 = __Pyx_PySequence_ITEM(__pyx_t_6, __pyx_t_1);
+              __pyx_t_8 = __Pyx_PySequence_ITEM(__pyx_t_7, __pyx_t_1);
               #endif
               ++__pyx_t_1;
             }
-            if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 605, __pyx_L8_error)
+            if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 786, __pyx_L25_error)
           } else {
-            __pyx_t_8 = __pyx_t_7(__pyx_t_6);
+            __pyx_t_8 = __pyx_t_6(__pyx_t_7);
             if (unlikely(!__pyx_t_8)) {
               PyObject* exc_type = PyErr_Occurred();
               if (exc_type) {
-                if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 605, __pyx_L8_error)
+                if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 786, __pyx_L25_error)
                 PyErr_Clear();
               }
               break;
             }
           }
           __Pyx_GOTREF(__pyx_t_8);
-          __Pyx_XDECREF_SET(__pyx_8genexpr2__pyx_v_item, __pyx_t_8);
+          __Pyx_XDECREF_SET(__pyx_8genexpr3__pyx_v_item, __pyx_t_8);
           __pyx_t_8 = 0;
-          __Pyx_INCREF(__pyx_t_4);
-          __Pyx_XDECREF_SET(__pyx_8genexpr2__pyx_v_i, __pyx_t_4);
-          __pyx_t_8 = __Pyx_PyLong_AddObjC(__pyx_t_4, __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 605, __pyx_L8_error)
+          __Pyx_INCREF(__pyx_t_3);
+          __Pyx_XDECREF_SET(__pyx_8genexpr3__pyx_v_i, __pyx_t_3);
+          __pyx_t_8 = __Pyx_PyLong_AddObjC(__pyx_t_3, __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 786, __pyx_L25_error)
           __Pyx_GOTREF(__pyx_t_8);
-          __Pyx_DECREF(__pyx_t_4);
-          __pyx_t_4 = __pyx_t_8;
+          __Pyx_DECREF(__pyx_t_3);
+          __pyx_t_3 = __pyx_t_8;
           __pyx_t_8 = 0;
-          __pyx_t_8 = __Pyx_PyDict_NewPresized(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 605, __pyx_L8_error)
+          __pyx_t_8 = __Pyx_PyDict_NewPresized(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 786, __pyx_L25_error)
           __Pyx_GOTREF(__pyx_t_8);
-          if (PyDict_SetItem(__pyx_t_8, __pyx_mstate_global->__pyx_n_u_value, __pyx_8genexpr2__pyx_v_item) < 0) __PYX_ERR(0, 605, __pyx_L8_error)
-          if (PyDict_SetItem(__pyx_t_8, __pyx_mstate_global->__pyx_n_u_index, __pyx_8genexpr2__pyx_v_i) < 0) __PYX_ERR(0, 605, __pyx_L8_error)
-          if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_8))) __PYX_ERR(0, 605, __pyx_L8_error)
+          if (PyDict_SetItem(__pyx_t_8, __pyx_mstate_global->__pyx_n_u_value, __pyx_8genexpr3__pyx_v_item) < 0) __PYX_ERR(0, 786, __pyx_L25_error)
+          if (PyDict_SetItem(__pyx_t_8, __pyx_mstate_global->__pyx_n_u_index, __pyx_8genexpr3__pyx_v_i) < 0) __PYX_ERR(0, 786, __pyx_L25_error)
+          if (unlikely(__Pyx_ListComp_Append(__pyx_t_4, (PyObject*)__pyx_t_8))) __PYX_ERR(0, 786, __pyx_L25_error)
           __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
         }
-        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-        __Pyx_XDECREF(__pyx_8genexpr2__pyx_v_i); __pyx_8genexpr2__pyx_v_i = 0;
-        __Pyx_XDECREF(__pyx_8genexpr2__pyx_v_item); __pyx_8genexpr2__pyx_v_item = 0;
-        goto __pyx_L12_exit_scope;
-        __pyx_L8_error:;
-        __Pyx_XDECREF(__pyx_8genexpr2__pyx_v_i); __pyx_8genexpr2__pyx_v_i = 0;
-        __Pyx_XDECREF(__pyx_8genexpr2__pyx_v_item); __pyx_8genexpr2__pyx_v_item = 0;
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __Pyx_XDECREF(__pyx_8genexpr3__pyx_v_i); __pyx_8genexpr3__pyx_v_i = 0;
+        __Pyx_XDECREF(__pyx_8genexpr3__pyx_v_item); __pyx_8genexpr3__pyx_v_item = 0;
+        goto __pyx_L29_exit_scope;
+        __pyx_L25_error:;
+        __Pyx_XDECREF(__pyx_8genexpr3__pyx_v_i); __pyx_8genexpr3__pyx_v_i = 0;
+        __Pyx_XDECREF(__pyx_8genexpr3__pyx_v_item); __pyx_8genexpr3__pyx_v_item = 0;
         goto __pyx_L1_error;
-        __pyx_L12_exit_scope:;
+        __pyx_L29_exit_scope:;
       } /* exit inner scope */
-      __pyx_v_dict_data = ((PyObject*)__pyx_t_3);
-      __pyx_t_3 = 0;
+      __pyx_v_dict_data = ((PyObject*)__pyx_t_4);
+      __pyx_t_4 = 0;
 
-      /* "hyperoptimized_sort.pyx":606
+      /* "hyperoptimized_sort.pyx":787
  *                 # Convert to dict format for sorting
  *                 dict_data = [{'value': item, 'index': i} for i, item in enumerate(data)]
- *                 sorted_dict = self.sort_records(dict_data, 'value', False)             # <<<<<<<<<<<<<<
+ *                 sorted_dict = self.sort_records(dict_data, 'value', reverse)             # <<<<<<<<<<<<<<
  *                 return [item['value'] for item in sorted_dict]
  *         else:
 */
-      __pyx_t_4 = ((PyObject *)__pyx_v_self);
-      __Pyx_INCREF(__pyx_t_4);
+      __pyx_t_3 = ((PyObject *)__pyx_v_self);
+      __Pyx_INCREF(__pyx_t_3);
       __pyx_t_5 = 0;
       {
-        PyObject *__pyx_callargs[4] = {__pyx_t_4, __pyx_v_dict_data, __pyx_mstate_global->__pyx_n_u_value, Py_False};
-        __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_sort_records, __pyx_callargs+__pyx_t_5, (4-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-        __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 606, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_3);
+        PyObject *__pyx_callargs[4] = {__pyx_t_3, __pyx_v_dict_data, __pyx_mstate_global->__pyx_n_u_value, __pyx_v_reverse};
+        __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_sort_records, __pyx_callargs+__pyx_t_5, (4-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+        __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+        if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 787, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_4);
       }
-      __pyx_v_sorted_dict = __pyx_t_3;
-      __pyx_t_3 = 0;
+      __pyx_v_sorted_dict = __pyx_t_4;
+      __pyx_t_4 = 0;
 
-      /* "hyperoptimized_sort.pyx":607
+      /* "hyperoptimized_sort.pyx":788
  *                 dict_data = [{'value': item, 'index': i} for i, item in enumerate(data)]
- *                 sorted_dict = self.sort_records(dict_data, 'value', False)
+ *                 sorted_dict = self.sort_records(dict_data, 'value', reverse)
  *                 return [item['value'] for item in sorted_dict]             # <<<<<<<<<<<<<<
  *         else:
  *             # Convert primitive array to dict format for sorting
 */
       __Pyx_XDECREF(__pyx_r);
       { /* enter inner scope */
-        __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 607, __pyx_L15_error)
-        __Pyx_GOTREF(__pyx_t_3);
+        __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 788, __pyx_L32_error)
+        __Pyx_GOTREF(__pyx_t_4);
         if (likely(PyList_CheckExact(__pyx_v_sorted_dict)) || PyTuple_CheckExact(__pyx_v_sorted_dict)) {
-          __pyx_t_4 = __pyx_v_sorted_dict; __Pyx_INCREF(__pyx_t_4);
+          __pyx_t_3 = __pyx_v_sorted_dict; __Pyx_INCREF(__pyx_t_3);
           __pyx_t_1 = 0;
-          __pyx_t_7 = NULL;
+          __pyx_t_6 = NULL;
         } else {
-          __pyx_t_1 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_v_sorted_dict); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 607, __pyx_L15_error)
-          __Pyx_GOTREF(__pyx_t_4);
-          __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 607, __pyx_L15_error)
+          __pyx_t_1 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_v_sorted_dict); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 788, __pyx_L32_error)
+          __Pyx_GOTREF(__pyx_t_3);
+          __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 788, __pyx_L32_error)
         }
         for (;;) {
-          if (likely(!__pyx_t_7)) {
-            if (likely(PyList_CheckExact(__pyx_t_4))) {
+          if (likely(!__pyx_t_6)) {
+            if (likely(PyList_CheckExact(__pyx_t_3))) {
               {
-                Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_4);
+                Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
                 #if !CYTHON_ASSUME_SAFE_SIZE
-                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 607, __pyx_L15_error)
+                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 788, __pyx_L32_error)
                 #endif
                 if (__pyx_t_1 >= __pyx_temp) break;
               }
-              __pyx_t_6 = __Pyx_PyList_GetItemRef(__pyx_t_4, __pyx_t_1);
+              __pyx_t_7 = __Pyx_PyList_GetItemRef(__pyx_t_3, __pyx_t_1);
               ++__pyx_t_1;
             } else {
               {
-                Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_4);
+                Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_3);
                 #if !CYTHON_ASSUME_SAFE_SIZE
-                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 607, __pyx_L15_error)
+                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 788, __pyx_L32_error)
                 #endif
                 if (__pyx_t_1 >= __pyx_temp) break;
               }
               #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-              __pyx_t_6 = __Pyx_NewRef(PyTuple_GET_ITEM(__pyx_t_4, __pyx_t_1));
+              __pyx_t_7 = __Pyx_NewRef(PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_1));
               #else
-              __pyx_t_6 = __Pyx_PySequence_ITEM(__pyx_t_4, __pyx_t_1);
+              __pyx_t_7 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_1);
               #endif
               ++__pyx_t_1;
             }
-            if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 607, __pyx_L15_error)
+            if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 788, __pyx_L32_error)
           } else {
-            __pyx_t_6 = __pyx_t_7(__pyx_t_4);
-            if (unlikely(!__pyx_t_6)) {
+            __pyx_t_7 = __pyx_t_6(__pyx_t_3);
+            if (unlikely(!__pyx_t_7)) {
               PyObject* exc_type = PyErr_Occurred();
               if (exc_type) {
-                if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 607, __pyx_L15_error)
+                if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 788, __pyx_L32_error)
                 PyErr_Clear();
               }
               break;
             }
           }
-          __Pyx_GOTREF(__pyx_t_6);
-          __Pyx_XDECREF_SET(__pyx_8genexpr3__pyx_v_item, __pyx_t_6);
-          __pyx_t_6 = 0;
-          __pyx_t_6 = __Pyx_PyObject_Dict_GetItem(__pyx_8genexpr3__pyx_v_item, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 607, __pyx_L15_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_6))) __PYX_ERR(0, 607, __pyx_L15_error)
-          __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+          __Pyx_GOTREF(__pyx_t_7);
+          __Pyx_XDECREF_SET(__pyx_8genexpr4__pyx_v_item, __pyx_t_7);
+          __pyx_t_7 = 0;
+          __pyx_t_7 = __Pyx_PyObject_Dict_GetItem(__pyx_8genexpr4__pyx_v_item, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 788, __pyx_L32_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          if (unlikely(__Pyx_ListComp_Append(__pyx_t_4, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 788, __pyx_L32_error)
+          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
         }
-        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-        __Pyx_XDECREF(__pyx_8genexpr3__pyx_v_item); __pyx_8genexpr3__pyx_v_item = 0;
-        goto __pyx_L19_exit_scope;
-        __pyx_L15_error:;
-        __Pyx_XDECREF(__pyx_8genexpr3__pyx_v_item); __pyx_8genexpr3__pyx_v_item = 0;
+        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __Pyx_XDECREF(__pyx_8genexpr4__pyx_v_item); __pyx_8genexpr4__pyx_v_item = 0;
+        goto __pyx_L36_exit_scope;
+        __pyx_L32_error:;
+        __Pyx_XDECREF(__pyx_8genexpr4__pyx_v_item); __pyx_8genexpr4__pyx_v_item = 0;
         goto __pyx_L1_error;
-        __pyx_L19_exit_scope:;
+        __pyx_L36_exit_scope:;
       } /* exit inner scope */
-      __pyx_r = __pyx_t_3;
-      __pyx_t_3 = 0;
+      __pyx_r = __pyx_t_4;
+      __pyx_t_4 = 0;
       goto __pyx_L0;
     }
 
-    /* "hyperoptimized_sort.pyx":599
+    /* "hyperoptimized_sort.pyx":780
  * 
  *         # Check if it's an array of primitives or dictionaries
- *         if isinstance(data[0], dict):             # <<<<<<<<<<<<<<
+ *         elif isinstance(data[0], dict):             # <<<<<<<<<<<<<<
  *             # For dictionary records, use a default key or assume 'value' key
  *             if 'value' in data[0]:
 */
   }
 
-  /* "hyperoptimized_sort.pyx":610
+  /* "hyperoptimized_sort.pyx":791
  *         else:
  *             # Convert primitive array to dict format for sorting
  *             dict_data = [{'value': item} for item in data]             # <<<<<<<<<<<<<<
- *             sorted_dict = self.sort_records(dict_data, 'value', False)
+ *             sorted_dict = self.sort_records(dict_data, 'value', reverse)
  *             return [item['value'] for item in sorted_dict]
 */
   /*else*/ {
     { /* enter inner scope */
-      __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 610, __pyx_L22_error)
-      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 791, __pyx_L39_error)
+      __Pyx_GOTREF(__pyx_t_4);
       if (likely(PyList_CheckExact(__pyx_v_data)) || PyTuple_CheckExact(__pyx_v_data)) {
-        __pyx_t_4 = __pyx_v_data; __Pyx_INCREF(__pyx_t_4);
+        __pyx_t_3 = __pyx_v_data; __Pyx_INCREF(__pyx_t_3);
         __pyx_t_1 = 0;
-        __pyx_t_7 = NULL;
+        __pyx_t_6 = NULL;
       } else {
-        __pyx_t_1 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_v_data); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 610, __pyx_L22_error)
-        __Pyx_GOTREF(__pyx_t_4);
-        __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 610, __pyx_L22_error)
+        __pyx_t_1 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_v_data); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 791, __pyx_L39_error)
+        __Pyx_GOTREF(__pyx_t_3);
+        __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 791, __pyx_L39_error)
       }
       for (;;) {
-        if (likely(!__pyx_t_7)) {
-          if (likely(PyList_CheckExact(__pyx_t_4))) {
+        if (likely(!__pyx_t_6)) {
+          if (likely(PyList_CheckExact(__pyx_t_3))) {
             {
-              Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_4);
+              Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
               #if !CYTHON_ASSUME_SAFE_SIZE
-              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 610, __pyx_L22_error)
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 791, __pyx_L39_error)
               #endif
               if (__pyx_t_1 >= __pyx_temp) break;
             }
-            __pyx_t_6 = __Pyx_PyList_GetItemRef(__pyx_t_4, __pyx_t_1);
+            __pyx_t_7 = __Pyx_PyList_GetItemRef(__pyx_t_3, __pyx_t_1);
             ++__pyx_t_1;
           } else {
             {
-              Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_4);
+              Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_3);
               #if !CYTHON_ASSUME_SAFE_SIZE
-              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 610, __pyx_L22_error)
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 791, __pyx_L39_error)
               #endif
               if (__pyx_t_1 >= __pyx_temp) break;
             }
             #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-            __pyx_t_6 = __Pyx_NewRef(PyTuple_GET_ITEM(__pyx_t_4, __pyx_t_1));
+            __pyx_t_7 = __Pyx_NewRef(PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_1));
             #else
-            __pyx_t_6 = __Pyx_PySequence_ITEM(__pyx_t_4, __pyx_t_1);
+            __pyx_t_7 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_1);
             #endif
             ++__pyx_t_1;
           }
-          if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 610, __pyx_L22_error)
+          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 791, __pyx_L39_error)
         } else {
-          __pyx_t_6 = __pyx_t_7(__pyx_t_4);
-          if (unlikely(!__pyx_t_6)) {
+          __pyx_t_7 = __pyx_t_6(__pyx_t_3);
+          if (unlikely(!__pyx_t_7)) {
             PyObject* exc_type = PyErr_Occurred();
             if (exc_type) {
-              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 610, __pyx_L22_error)
+              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 791, __pyx_L39_error)
               PyErr_Clear();
             }
             break;
           }
         }
-        __Pyx_GOTREF(__pyx_t_6);
-        __Pyx_XDECREF_SET(__pyx_8genexpr4__pyx_v_item, __pyx_t_6);
-        __pyx_t_6 = 0;
-        __pyx_t_6 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 610, __pyx_L22_error)
-        __Pyx_GOTREF(__pyx_t_6);
-        if (PyDict_SetItem(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_value, __pyx_8genexpr4__pyx_v_item) < 0) __PYX_ERR(0, 610, __pyx_L22_error)
-        if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_6))) __PYX_ERR(0, 610, __pyx_L22_error)
-        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+        __Pyx_GOTREF(__pyx_t_7);
+        __Pyx_XDECREF_SET(__pyx_8genexpr5__pyx_v_item, __pyx_t_7);
+        __pyx_t_7 = 0;
+        __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 791, __pyx_L39_error)
+        __Pyx_GOTREF(__pyx_t_7);
+        if (PyDict_SetItem(__pyx_t_7, __pyx_mstate_global->__pyx_n_u_value, __pyx_8genexpr5__pyx_v_item) < 0) __PYX_ERR(0, 791, __pyx_L39_error)
+        if (unlikely(__Pyx_ListComp_Append(__pyx_t_4, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 791, __pyx_L39_error)
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
       }
-      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      __Pyx_XDECREF(__pyx_8genexpr4__pyx_v_item); __pyx_8genexpr4__pyx_v_item = 0;
-      goto __pyx_L26_exit_scope;
-      __pyx_L22_error:;
-      __Pyx_XDECREF(__pyx_8genexpr4__pyx_v_item); __pyx_8genexpr4__pyx_v_item = 0;
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __Pyx_XDECREF(__pyx_8genexpr5__pyx_v_item); __pyx_8genexpr5__pyx_v_item = 0;
+      goto __pyx_L43_exit_scope;
+      __pyx_L39_error:;
+      __Pyx_XDECREF(__pyx_8genexpr5__pyx_v_item); __pyx_8genexpr5__pyx_v_item = 0;
       goto __pyx_L1_error;
-      __pyx_L26_exit_scope:;
+      __pyx_L43_exit_scope:;
     } /* exit inner scope */
-    __pyx_v_dict_data = ((PyObject*)__pyx_t_3);
-    __pyx_t_3 = 0;
+    __pyx_v_dict_data = ((PyObject*)__pyx_t_4);
+    __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":611
+    /* "hyperoptimized_sort.pyx":792
  *             # Convert primitive array to dict format for sorting
  *             dict_data = [{'value': item} for item in data]
- *             sorted_dict = self.sort_records(dict_data, 'value', False)             # <<<<<<<<<<<<<<
+ *             sorted_dict = self.sort_records(dict_data, 'value', reverse)             # <<<<<<<<<<<<<<
  *             return [item['value'] for item in sorted_dict]
  * 
 */
-    __pyx_t_4 = ((PyObject *)__pyx_v_self);
-    __Pyx_INCREF(__pyx_t_4);
+    __pyx_t_3 = ((PyObject *)__pyx_v_self);
+    __Pyx_INCREF(__pyx_t_3);
     __pyx_t_5 = 0;
     {
-      PyObject *__pyx_callargs[4] = {__pyx_t_4, __pyx_v_dict_data, __pyx_mstate_global->__pyx_n_u_value, Py_False};
-      __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_sort_records, __pyx_callargs+__pyx_t_5, (4-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 611, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_3);
+      PyObject *__pyx_callargs[4] = {__pyx_t_3, __pyx_v_dict_data, __pyx_mstate_global->__pyx_n_u_value, __pyx_v_reverse};
+      __pyx_t_4 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_sort_records, __pyx_callargs+__pyx_t_5, (4-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 792, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
     }
-    __pyx_v_sorted_dict = __pyx_t_3;
-    __pyx_t_3 = 0;
+    __pyx_v_sorted_dict = __pyx_t_4;
+    __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":612
+    /* "hyperoptimized_sort.pyx":793
  *             dict_data = [{'value': item} for item in data]
- *             sorted_dict = self.sort_records(dict_data, 'value', False)
+ *             sorted_dict = self.sort_records(dict_data, 'value', reverse)
  *             return [item['value'] for item in sorted_dict]             # <<<<<<<<<<<<<<
  * 
  *     def select_algorithm(self, data):
 */
     __Pyx_XDECREF(__pyx_r);
     { /* enter inner scope */
-      __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 612, __pyx_L29_error)
-      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 793, __pyx_L46_error)
+      __Pyx_GOTREF(__pyx_t_4);
       if (likely(PyList_CheckExact(__pyx_v_sorted_dict)) || PyTuple_CheckExact(__pyx_v_sorted_dict)) {
-        __pyx_t_4 = __pyx_v_sorted_dict; __Pyx_INCREF(__pyx_t_4);
+        __pyx_t_3 = __pyx_v_sorted_dict; __Pyx_INCREF(__pyx_t_3);
         __pyx_t_1 = 0;
-        __pyx_t_7 = NULL;
+        __pyx_t_6 = NULL;
       } else {
-        __pyx_t_1 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_v_sorted_dict); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 612, __pyx_L29_error)
-        __Pyx_GOTREF(__pyx_t_4);
-        __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 612, __pyx_L29_error)
+        __pyx_t_1 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_v_sorted_dict); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 793, __pyx_L46_error)
+        __Pyx_GOTREF(__pyx_t_3);
+        __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 793, __pyx_L46_error)
       }
       for (;;) {
-        if (likely(!__pyx_t_7)) {
-          if (likely(PyList_CheckExact(__pyx_t_4))) {
+        if (likely(!__pyx_t_6)) {
+          if (likely(PyList_CheckExact(__pyx_t_3))) {
             {
-              Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_4);
+              Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
               #if !CYTHON_ASSUME_SAFE_SIZE
-              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 612, __pyx_L29_error)
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 793, __pyx_L46_error)
               #endif
               if (__pyx_t_1 >= __pyx_temp) break;
             }
-            __pyx_t_6 = __Pyx_PyList_GetItemRef(__pyx_t_4, __pyx_t_1);
+            __pyx_t_7 = __Pyx_PyList_GetItemRef(__pyx_t_3, __pyx_t_1);
             ++__pyx_t_1;
           } else {
             {
-              Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_4);
+              Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_3);
               #if !CYTHON_ASSUME_SAFE_SIZE
-              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 612, __pyx_L29_error)
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 793, __pyx_L46_error)
               #endif
               if (__pyx_t_1 >= __pyx_temp) break;
             }
             #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-            __pyx_t_6 = __Pyx_NewRef(PyTuple_GET_ITEM(__pyx_t_4, __pyx_t_1));
+            __pyx_t_7 = __Pyx_NewRef(PyTuple_GET_ITEM(__pyx_t_3, __pyx_t_1));
             #else
-            __pyx_t_6 = __Pyx_PySequence_ITEM(__pyx_t_4, __pyx_t_1);
+            __pyx_t_7 = __Pyx_PySequence_ITEM(__pyx_t_3, __pyx_t_1);
             #endif
             ++__pyx_t_1;
           }
-          if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 612, __pyx_L29_error)
+          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 793, __pyx_L46_error)
         } else {
-          __pyx_t_6 = __pyx_t_7(__pyx_t_4);
-          if (unlikely(!__pyx_t_6)) {
+          __pyx_t_7 = __pyx_t_6(__pyx_t_3);
+          if (unlikely(!__pyx_t_7)) {
             PyObject* exc_type = PyErr_Occurred();
             if (exc_type) {
-              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 612, __pyx_L29_error)
+              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 793, __pyx_L46_error)
               PyErr_Clear();
             }
             break;
           }
         }
-        __Pyx_GOTREF(__pyx_t_6);
-        __Pyx_XDECREF_SET(__pyx_8genexpr5__pyx_v_item, __pyx_t_6);
-        __pyx_t_6 = 0;
-        __pyx_t_6 = __Pyx_PyObject_Dict_GetItem(__pyx_8genexpr5__pyx_v_item, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 612, __pyx_L29_error)
-        __Pyx_GOTREF(__pyx_t_6);
-        if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_6))) __PYX_ERR(0, 612, __pyx_L29_error)
-        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+        __Pyx_GOTREF(__pyx_t_7);
+        __Pyx_XDECREF_SET(__pyx_8genexpr6__pyx_v_item, __pyx_t_7);
+        __pyx_t_7 = 0;
+        __pyx_t_7 = __Pyx_PyObject_Dict_GetItem(__pyx_8genexpr6__pyx_v_item, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 793, __pyx_L46_error)
+        __Pyx_GOTREF(__pyx_t_7);
+        if (unlikely(__Pyx_ListComp_Append(__pyx_t_4, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 793, __pyx_L46_error)
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
       }
-      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      __Pyx_XDECREF(__pyx_8genexpr5__pyx_v_item); __pyx_8genexpr5__pyx_v_item = 0;
-      goto __pyx_L33_exit_scope;
-      __pyx_L29_error:;
-      __Pyx_XDECREF(__pyx_8genexpr5__pyx_v_item); __pyx_8genexpr5__pyx_v_item = 0;
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __Pyx_XDECREF(__pyx_8genexpr6__pyx_v_item); __pyx_8genexpr6__pyx_v_item = 0;
+      goto __pyx_L50_exit_scope;
+      __pyx_L46_error:;
+      __Pyx_XDECREF(__pyx_8genexpr6__pyx_v_item); __pyx_8genexpr6__pyx_v_item = 0;
       goto __pyx_L1_error;
-      __pyx_L33_exit_scope:;
+      __pyx_L50_exit_scope:;
     } /* exit inner scope */
-    __pyx_r = __pyx_t_3;
-    __pyx_t_3 = 0;
+    __pyx_r = __pyx_t_4;
+    __pyx_t_4 = 0;
     goto __pyx_L0;
   }
 
-  /* "hyperoptimized_sort.pyx":590
+  /* "hyperoptimized_sort.pyx":753
  *         return result
  * 
- *     def sort(self, data):             # <<<<<<<<<<<<<<
+ *     def sort(self, data, reverse=False):             # <<<<<<<<<<<<<<
  *         """
  *         Sort method compatible with the test suite
 */
@@ -13673,24 +15941,30 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16sort(st
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_3);
   __Pyx_XDECREF(__pyx_t_4);
-  __Pyx_XDECREF(__pyx_t_6);
+  __Pyx_XDECREF(__pyx_t_7);
   __Pyx_XDECREF(__pyx_t_8);
   __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter.sort", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_original_data);
   __Pyx_XDECREF(__pyx_v_dict_data);
   __Pyx_XDECREF(__pyx_v_sorted_dict);
-  __Pyx_XDECREF(__pyx_8genexpr2__pyx_v_i);
+  __Pyx_XDECREF(__pyx_v_sorted_values);
+  __Pyx_XDECREF(__pyx_v_i);
+  __Pyx_XDECREF(__pyx_v_value);
+  __Pyx_XDECREF(__pyx_8genexpr1__pyx_v_item);
   __Pyx_XDECREF(__pyx_8genexpr2__pyx_v_item);
+  __Pyx_XDECREF(__pyx_8genexpr3__pyx_v_i);
   __Pyx_XDECREF(__pyx_8genexpr3__pyx_v_item);
   __Pyx_XDECREF(__pyx_8genexpr4__pyx_v_item);
   __Pyx_XDECREF(__pyx_8genexpr5__pyx_v_item);
+  __Pyx_XDECREF(__pyx_8genexpr6__pyx_v_item);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":614
+/* "hyperoptimized_sort.pyx":795
  *             return [item['value'] for item in sorted_dict]
  * 
  *     def select_algorithm(self, data):             # <<<<<<<<<<<<<<
@@ -13699,15 +15973,15 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16sort(st
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_19select_algorithm(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_21select_algorithm(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_18select_algorithm, "\n        Select the best sorting algorithm based on data characteristics\n        \n        Args:\n            data: Input array to analyze\n            \n        Returns:\n            String name of selected algorithm\n        ");
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_19select_algorithm(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_20select_algorithm, "\n        Select the best sorting algorithm based on data characteristics\n        \n        Args:\n            data: Input array to analyze\n            \n        Returns:\n            String name of selected algorithm\n        ");
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_21select_algorithm(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -13737,32 +16011,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_data,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 614, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 795, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 614, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 795, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "select_algorithm", 0) < 0) __PYX_ERR(0, 614, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "select_algorithm", 0) < 0) __PYX_ERR(0, 795, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("select_algorithm", 1, 1, 1, i); __PYX_ERR(0, 614, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("select_algorithm", 1, 1, 1, i); __PYX_ERR(0, 795, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 614, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 795, __pyx_L3_error)
     }
     __pyx_v_data = values[0];
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("select_algorithm", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 614, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("select_algorithm", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 795, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -13773,7 +16047,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_algorithm(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_data);
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20select_algorithm(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v_data);
 
   /* function exit code */
   for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
@@ -13782,9 +16056,9 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
-static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_2generator1(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value); /* proto */
+static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_2generator(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value); /* proto */
 
-/* "hyperoptimized_sort.pyx":634
+/* "hyperoptimized_sort.pyx":815
  *             if data.dtype in [np.int32, np.int64, np.uint32, np.uint64] and n > RADIX_SORT_THRESHOLD:
  *                 return "radix"
  *         elif all(isinstance(x, (int, float)) for x in data[:min(100, len(data))]):             # <<<<<<<<<<<<<<
@@ -13793,18 +16067,18 @@ static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_
 */
 
 static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_genexpr(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_genexpr_arg_0) {
-  struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *__pyx_cur_scope;
+  struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *__pyx_cur_scope;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("genexpr", 0);
-  __pyx_cur_scope = (struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *)__pyx_tp_new_19hyperoptimized_sort___pyx_scope_struct_1_genexpr(__pyx_mstate_global->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr, __pyx_mstate_global->__pyx_empty_tuple, NULL);
+  __pyx_cur_scope = (struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *)__pyx_tp_new_19hyperoptimized_sort___pyx_scope_struct__genexpr(__pyx_mstate_global->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr, __pyx_mstate_global->__pyx_empty_tuple, NULL);
   if (unlikely(!__pyx_cur_scope)) {
-    __pyx_cur_scope = ((struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *)Py_None);
+    __pyx_cur_scope = ((struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *)Py_None);
     __Pyx_INCREF(Py_None);
-    __PYX_ERR(0, 634, __pyx_L1_error)
+    __PYX_ERR(0, 815, __pyx_L1_error)
   } else {
     __Pyx_GOTREF((PyObject *)__pyx_cur_scope);
   }
@@ -13812,7 +16086,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16select_
   __Pyx_INCREF(__pyx_cur_scope->__pyx_genexpr_arg_0);
   __Pyx_GIVEREF(__pyx_cur_scope->__pyx_genexpr_arg_0);
   {
-    __pyx_CoroutineObject *gen = __Pyx_Generator_New((__pyx_coroutine_body_t) __pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_2generator1, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[1]), (PyObject *) __pyx_cur_scope, __pyx_mstate_global->__pyx_n_u_genexpr, __pyx_mstate_global->__pyx_n_u_select_algorithm_locals_genexpr, __pyx_mstate_global->__pyx_n_u_hyperoptimized_sort); if (unlikely(!gen)) __PYX_ERR(0, 634, __pyx_L1_error)
+    __pyx_CoroutineObject *gen = __Pyx_Generator_New((__pyx_coroutine_body_t) __pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_2generator, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[0]), (PyObject *) __pyx_cur_scope, __pyx_mstate_global->__pyx_n_u_genexpr, __pyx_mstate_global->__pyx_n_u_select_algorithm_locals_genexpr, __pyx_mstate_global->__pyx_n_u_hyperoptimized_sort); if (unlikely(!gen)) __PYX_ERR(0, 815, __pyx_L1_error)
     __Pyx_DECREF(__pyx_cur_scope);
     __Pyx_RefNannyFinishContext();
     return (PyObject *) gen;
@@ -13828,9 +16102,9 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16select_
   return __pyx_r;
 }
 
-static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_2generator1(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value) /* generator body */
+static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_2generator(__pyx_CoroutineObject *__pyx_generator, CYTHON_UNUSED PyThreadState *__pyx_tstate, PyObject *__pyx_sent_value) /* generator body */
 {
-  struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *__pyx_cur_scope = ((struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *)__pyx_generator->closure);
+  struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *__pyx_cur_scope = ((struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *)__pyx_generator->closure);
   PyObject *__pyx_r = NULL;
   PyObject *__pyx_t_1 = NULL;
   Py_ssize_t __pyx_t_2;
@@ -13850,16 +16124,16 @@ static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_
     return NULL;
   }
   __pyx_L3_first_run:;
-  if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 634, __pyx_L1_error)
-  if (unlikely(!__pyx_cur_scope->__pyx_genexpr_arg_0)) { __Pyx_RaiseUnboundLocalError(".0"); __PYX_ERR(0, 634, __pyx_L1_error) }
+  if (unlikely(!__pyx_sent_value)) __PYX_ERR(0, 815, __pyx_L1_error)
+  if (unlikely(!__pyx_cur_scope->__pyx_genexpr_arg_0)) { __Pyx_RaiseUnboundLocalError(".0"); __PYX_ERR(0, 815, __pyx_L1_error) }
   if (likely(PyList_CheckExact(__pyx_cur_scope->__pyx_genexpr_arg_0)) || PyTuple_CheckExact(__pyx_cur_scope->__pyx_genexpr_arg_0)) {
     __pyx_t_1 = __pyx_cur_scope->__pyx_genexpr_arg_0; __Pyx_INCREF(__pyx_t_1);
     __pyx_t_2 = 0;
     __pyx_t_3 = NULL;
   } else {
-    __pyx_t_2 = -1; __pyx_t_1 = PyObject_GetIter(__pyx_cur_scope->__pyx_genexpr_arg_0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 634, __pyx_L1_error)
+    __pyx_t_2 = -1; __pyx_t_1 = PyObject_GetIter(__pyx_cur_scope->__pyx_genexpr_arg_0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 815, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_3 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 634, __pyx_L1_error)
+    __pyx_t_3 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 815, __pyx_L1_error)
   }
   for (;;) {
     if (likely(!__pyx_t_3)) {
@@ -13867,7 +16141,7 @@ static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_
         {
           Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_1);
           #if !CYTHON_ASSUME_SAFE_SIZE
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 634, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 815, __pyx_L1_error)
           #endif
           if (__pyx_t_2 >= __pyx_temp) break;
         }
@@ -13877,7 +16151,7 @@ static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_
         {
           Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_1);
           #if !CYTHON_ASSUME_SAFE_SIZE
-          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 634, __pyx_L1_error)
+          if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 815, __pyx_L1_error)
           #endif
           if (__pyx_t_2 >= __pyx_temp) break;
         }
@@ -13888,13 +16162,13 @@ static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_
         #endif
         ++__pyx_t_2;
       }
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 634, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 815, __pyx_L1_error)
     } else {
       __pyx_t_4 = __pyx_t_3(__pyx_t_1);
       if (unlikely(!__pyx_t_4)) {
         PyObject* exc_type = PyErr_Occurred();
         if (exc_type) {
-          if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 634, __pyx_L1_error)
+          if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 815, __pyx_L1_error)
           PyErr_Clear();
         }
         break;
@@ -13952,7 +16226,7 @@ static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":614
+/* "hyperoptimized_sort.pyx":795
  *             return [item['value'] for item in sorted_dict]
  * 
  *     def select_algorithm(self, data):             # <<<<<<<<<<<<<<
@@ -13960,9 +16234,9 @@ static PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_
  *         Select the best sorting algorithm based on data characteristics
 */
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_algorithm(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_data) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20select_algorithm(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v_data) {
   int __pyx_v_n;
-  PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_2generator1 = 0;
+  PyObject *__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_2generator = 0;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   Py_ssize_t __pyx_t_1;
@@ -13979,17 +16253,17 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("select_algorithm", 0);
 
-  /* "hyperoptimized_sort.pyx":624
+  /* "hyperoptimized_sort.pyx":805
  *             String name of selected algorithm
  *         """
  *         cdef int n = len(data)             # <<<<<<<<<<<<<<
  *         self.record_count = n
  * 
 */
-  __pyx_t_1 = PyObject_Length(__pyx_v_data); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 624, __pyx_L1_error)
+  __pyx_t_1 = PyObject_Length(__pyx_v_data); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 805, __pyx_L1_error)
   __pyx_v_n = __pyx_t_1;
 
-  /* "hyperoptimized_sort.pyx":625
+  /* "hyperoptimized_sort.pyx":806
  *         """
  *         cdef int n = len(data)
  *         self.record_count = n             # <<<<<<<<<<<<<<
@@ -13998,7 +16272,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
 */
   __pyx_v_self->record_count = __pyx_v_n;
 
-  /* "hyperoptimized_sort.pyx":627
+  /* "hyperoptimized_sort.pyx":808
  *         self.record_count = n
  * 
  *         if n < INSERTION_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14008,7 +16282,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
   __pyx_t_2 = (__pyx_v_n < __pyx_v_19hyperoptimized_sort_INSERTION_SORT_THRESHOLD);
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":628
+    /* "hyperoptimized_sort.pyx":809
  * 
  *         if n < INSERTION_SORT_THRESHOLD:
  *             return "insertion"             # <<<<<<<<<<<<<<
@@ -14020,7 +16294,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
     __pyx_r = __pyx_mstate_global->__pyx_n_u_insertion;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":627
+    /* "hyperoptimized_sort.pyx":808
  *         self.record_count = n
  * 
  *         if n < INSERTION_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14029,7 +16303,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
 */
   }
 
-  /* "hyperoptimized_sort.pyx":629
+  /* "hyperoptimized_sort.pyx":810
  *         if n < INSERTION_SORT_THRESHOLD:
  *             return "insertion"
  *         elif n > EXTERNAL_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14039,7 +16313,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
   __pyx_t_2 = (__pyx_v_n > __pyx_v_19hyperoptimized_sort_EXTERNAL_SORT_THRESHOLD);
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":630
+    /* "hyperoptimized_sort.pyx":811
  *             return "insertion"
  *         elif n > EXTERNAL_SORT_THRESHOLD:
  *             return "external"             # <<<<<<<<<<<<<<
@@ -14051,7 +16325,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
     __pyx_r = __pyx_mstate_global->__pyx_n_u_external;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":629
+    /* "hyperoptimized_sort.pyx":810
  *         if n < INSERTION_SORT_THRESHOLD:
  *             return "insertion"
  *         elif n > EXTERNAL_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14060,81 +16334,81 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
 */
   }
 
-  /* "hyperoptimized_sort.pyx":631
+  /* "hyperoptimized_sort.pyx":812
  *         elif n > EXTERNAL_SORT_THRESHOLD:
  *             return "external"
  *         elif isinstance(data, np.ndarray):             # <<<<<<<<<<<<<<
  *             if data.dtype in [np.int32, np.int64, np.uint32, np.uint64] and n > RADIX_SORT_THRESHOLD:
  *                 return "radix"
 */
-  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 631, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 812, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_ndarray); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 631, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_ndarray); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 812, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_2 = PyObject_IsInstance(__pyx_v_data, __pyx_t_4); if (unlikely(__pyx_t_2 == ((int)-1))) __PYX_ERR(0, 631, __pyx_L1_error)
+  __pyx_t_2 = PyObject_IsInstance(__pyx_v_data, __pyx_t_4); if (unlikely(__pyx_t_2 == ((int)-1))) __PYX_ERR(0, 812, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":632
+    /* "hyperoptimized_sort.pyx":813
  *             return "external"
  *         elif isinstance(data, np.ndarray):
  *             if data.dtype in [np.int32, np.int64, np.uint32, np.uint64] and n > RADIX_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
  *                 return "radix"
  *         elif all(isinstance(x, (int, float)) for x in data[:min(100, len(data))]):
 */
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_data, __pyx_mstate_global->__pyx_n_u_dtype); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_data, __pyx_mstate_global->__pyx_n_u_dtype); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_int32); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_int32); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = PyObject_RichCompare(__pyx_t_4, __pyx_t_6, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_3 = PyObject_RichCompare(__pyx_t_4, __pyx_t_6, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     if (!__pyx_t_7) {
     } else {
       __pyx_t_5 = __pyx_t_7;
       goto __pyx_L7_bool_binop_done;
     }
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_int64); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_int64); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = PyObject_RichCompare(__pyx_t_4, __pyx_t_6, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_3 = PyObject_RichCompare(__pyx_t_4, __pyx_t_6, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     if (!__pyx_t_7) {
     } else {
       __pyx_t_5 = __pyx_t_7;
       goto __pyx_L7_bool_binop_done;
     }
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_uint32); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_uint32); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = PyObject_RichCompare(__pyx_t_4, __pyx_t_6, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_3 = PyObject_RichCompare(__pyx_t_4, __pyx_t_6, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     if (!__pyx_t_7) {
     } else {
       __pyx_t_5 = __pyx_t_7;
       goto __pyx_L7_bool_binop_done;
     }
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_uint64); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_uint64); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = PyObject_RichCompare(__pyx_t_4, __pyx_t_6, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_3 = PyObject_RichCompare(__pyx_t_4, __pyx_t_6, Py_EQ); __Pyx_XGOTREF(__pyx_t_3); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 632, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 813, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_t_5 = __pyx_t_7;
     __pyx_L7_bool_binop_done:;
@@ -14150,7 +16424,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
     __pyx_L5_bool_binop_done:;
     if (__pyx_t_2) {
 
-      /* "hyperoptimized_sort.pyx":633
+      /* "hyperoptimized_sort.pyx":814
  *         elif isinstance(data, np.ndarray):
  *             if data.dtype in [np.int32, np.int64, np.uint32, np.uint64] and n > RADIX_SORT_THRESHOLD:
  *                 return "radix"             # <<<<<<<<<<<<<<
@@ -14162,7 +16436,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
       __pyx_r = __pyx_mstate_global->__pyx_n_u_radix;
       goto __pyx_L0;
 
-      /* "hyperoptimized_sort.pyx":632
+      /* "hyperoptimized_sort.pyx":813
  *             return "external"
  *         elif isinstance(data, np.ndarray):
  *             if data.dtype in [np.int32, np.int64, np.uint32, np.uint64] and n > RADIX_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14171,7 +16445,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
 */
     }
 
-    /* "hyperoptimized_sort.pyx":631
+    /* "hyperoptimized_sort.pyx":812
  *         elif n > EXTERNAL_SORT_THRESHOLD:
  *             return "external"
  *         elif isinstance(data, np.ndarray):             # <<<<<<<<<<<<<<
@@ -14181,14 +16455,14 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
     goto __pyx_L3;
   }
 
-  /* "hyperoptimized_sort.pyx":634
+  /* "hyperoptimized_sort.pyx":815
  *             if data.dtype in [np.int32, np.int64, np.uint32, np.uint64] and n > RADIX_SORT_THRESHOLD:
  *                 return "radix"
  *         elif all(isinstance(x, (int, float)) for x in data[:min(100, len(data))]):             # <<<<<<<<<<<<<<
  *             if n > RADIX_SORT_THRESHOLD:
  *                 return "radix"
 */
-  __pyx_t_1 = PyObject_Length(__pyx_v_data); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 634, __pyx_L1_error)
+  __pyx_t_1 = PyObject_Length(__pyx_v_data); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 815, __pyx_L1_error)
   __pyx_t_8 = 0x64;
   __pyx_t_2 = (__pyx_t_1 < __pyx_t_8);
   if (__pyx_t_2) {
@@ -14196,19 +16470,19 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
   } else {
     __pyx_t_9 = __pyx_t_8;
   }
-  __pyx_t_4 = __Pyx_PyObject_GetSlice(__pyx_v_data, 0, __pyx_t_9, NULL, NULL, NULL, 0, 1, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 634, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetSlice(__pyx_v_data, 0, __pyx_t_9, NULL, NULL, NULL, 0, 1, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 815, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_3 = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_genexpr(NULL, __pyx_t_4); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 634, __pyx_L1_error)
+  __pyx_t_3 = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_genexpr(NULL, __pyx_t_4); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 815, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __pyx_t_4 = __Pyx_Generator_GetInlinedResult(__pyx_t_3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 634, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_Generator_GetInlinedResult(__pyx_t_3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 815, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 634, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_4); if (unlikely((__pyx_t_2 < 0))) __PYX_ERR(0, 815, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":635
+    /* "hyperoptimized_sort.pyx":816
  *                 return "radix"
  *         elif all(isinstance(x, (int, float)) for x in data[:min(100, len(data))]):
  *             if n > RADIX_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14218,7 +16492,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
     __pyx_t_2 = (__pyx_v_n > __pyx_v_19hyperoptimized_sort_RADIX_SORT_THRESHOLD);
     if (__pyx_t_2) {
 
-      /* "hyperoptimized_sort.pyx":636
+      /* "hyperoptimized_sort.pyx":817
  *         elif all(isinstance(x, (int, float)) for x in data[:min(100, len(data))]):
  *             if n > RADIX_SORT_THRESHOLD:
  *                 return "radix"             # <<<<<<<<<<<<<<
@@ -14230,7 +16504,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
       __pyx_r = __pyx_mstate_global->__pyx_n_u_radix;
       goto __pyx_L0;
 
-      /* "hyperoptimized_sort.pyx":635
+      /* "hyperoptimized_sort.pyx":816
  *                 return "radix"
  *         elif all(isinstance(x, (int, float)) for x in data[:min(100, len(data))]):
  *             if n > RADIX_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14239,7 +16513,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
 */
     }
 
-    /* "hyperoptimized_sort.pyx":634
+    /* "hyperoptimized_sort.pyx":815
  *             if data.dtype in [np.int32, np.int64, np.uint32, np.uint64] and n > RADIX_SORT_THRESHOLD:
  *                 return "radix"
  *         elif all(isinstance(x, (int, float)) for x in data[:min(100, len(data))]):             # <<<<<<<<<<<<<<
@@ -14249,7 +16523,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
   }
   __pyx_L3:;
 
-  /* "hyperoptimized_sort.pyx":638
+  /* "hyperoptimized_sort.pyx":819
  *                 return "radix"
  * 
  *         return "introsort"             # <<<<<<<<<<<<<<
@@ -14261,7 +16535,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
   __pyx_r = __pyx_mstate_global->__pyx_n_u_introsort;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":614
+  /* "hyperoptimized_sort.pyx":795
  *             return [item['value'] for item in sorted_dict]
  * 
  *     def select_algorithm(self, data):             # <<<<<<<<<<<<<<
@@ -14277,13 +16551,13 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
   __Pyx_AddTraceback("hyperoptimized_sort.HyperoptimizedSorter.select_algorithm", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
-  __Pyx_XDECREF(__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_2generator1);
+  __Pyx_XDECREF(__pyx_gb_19hyperoptimized_sort_20HyperoptimizedSorter_16select_algorithm_2generator);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":640
+/* "hyperoptimized_sort.pyx":821
  *         return "introsort"
  * 
  *     def get_algorithm_info(self):             # <<<<<<<<<<<<<<
@@ -14292,15 +16566,15 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_18select_
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_21get_algorithm_info(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_23get_algorithm_info(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_20get_algorithm_info, "\n        Get information about the selected algorithm\n        \n        Returns:\n            String describing the algorithm choice\n        ");
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_21get_algorithm_info(PyObject *__pyx_v_self, 
+PyDoc_STRVAR(__pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_22get_algorithm_info, "\n        Get information about the selected algorithm\n        \n        Returns:\n            String describing the algorithm choice\n        ");
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_23get_algorithm_info(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -14326,20 +16600,20 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   const Py_ssize_t __pyx_kwds_len = unlikely(__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
   if (unlikely(__pyx_kwds_len < 0)) return NULL;
   if (unlikely(__pyx_kwds_len > 0)) {__Pyx_RejectKeywords("get_algorithm_info", __pyx_kwds); return NULL;}
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_algorithm_info(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self));
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_22get_algorithm_info(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_algorithm_info(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_22get_algorithm_info(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   int __pyx_t_1;
   __Pyx_RefNannySetupContext("get_algorithm_info", 0);
 
-  /* "hyperoptimized_sort.pyx":647
+  /* "hyperoptimized_sort.pyx":828
  *             String describing the algorithm choice
  *         """
  *         if self.record_count < INSERTION_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14349,7 +16623,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
   __pyx_t_1 = (__pyx_v_self->record_count < __pyx_v_19hyperoptimized_sort_INSERTION_SORT_THRESHOLD);
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":648
+    /* "hyperoptimized_sort.pyx":829
  *         """
  *         if self.record_count < INSERTION_SORT_THRESHOLD:
  *             return "Insertion Sort"             # <<<<<<<<<<<<<<
@@ -14361,7 +16635,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
     __pyx_r = __pyx_mstate_global->__pyx_kp_u_Insertion_Sort;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":647
+    /* "hyperoptimized_sort.pyx":828
  *             String describing the algorithm choice
  *         """
  *         if self.record_count < INSERTION_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14370,7 +16644,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
 */
   }
 
-  /* "hyperoptimized_sort.pyx":649
+  /* "hyperoptimized_sort.pyx":830
  *         if self.record_count < INSERTION_SORT_THRESHOLD:
  *             return "Insertion Sort"
  *         elif self.record_count > EXTERNAL_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14380,7 +16654,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
   __pyx_t_1 = (__pyx_v_self->record_count > __pyx_v_19hyperoptimized_sort_EXTERNAL_SORT_THRESHOLD);
   if (__pyx_t_1) {
 
-    /* "hyperoptimized_sort.pyx":650
+    /* "hyperoptimized_sort.pyx":831
  *             return "Insertion Sort"
  *         elif self.record_count > EXTERNAL_SORT_THRESHOLD:
  *             return "External Merge Sort"             # <<<<<<<<<<<<<<
@@ -14392,7 +16666,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
     __pyx_r = __pyx_mstate_global->__pyx_kp_u_External_Merge_Sort;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":649
+    /* "hyperoptimized_sort.pyx":830
  *         if self.record_count < INSERTION_SORT_THRESHOLD:
  *             return "Insertion Sort"
  *         elif self.record_count > EXTERNAL_SORT_THRESHOLD:             # <<<<<<<<<<<<<<
@@ -14401,7 +16675,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
 */
   }
 
-  /* "hyperoptimized_sort.pyx":651
+  /* "hyperoptimized_sort.pyx":832
  *         elif self.record_count > EXTERNAL_SORT_THRESHOLD:
  *             return "External Merge Sort"
  *         elif self.use_external_sort:             # <<<<<<<<<<<<<<
@@ -14410,7 +16684,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
 */
   if (__pyx_v_self->use_external_sort) {
 
-    /* "hyperoptimized_sort.pyx":652
+    /* "hyperoptimized_sort.pyx":833
  *             return "External Merge Sort"
  *         elif self.use_external_sort:
  *             return "External Merge Sort"             # <<<<<<<<<<<<<<
@@ -14422,7 +16696,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
     __pyx_r = __pyx_mstate_global->__pyx_kp_u_External_Merge_Sort;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":651
+    /* "hyperoptimized_sort.pyx":832
  *         elif self.record_count > EXTERNAL_SORT_THRESHOLD:
  *             return "External Merge Sort"
  *         elif self.use_external_sort:             # <<<<<<<<<<<<<<
@@ -14431,7 +16705,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
 */
   }
 
-  /* "hyperoptimized_sort.pyx":654
+  /* "hyperoptimized_sort.pyx":835
  *             return "External Merge Sort"
  *         else:
  *             return "Introspective Sort (QuickSort + HeapSort)"             # <<<<<<<<<<<<<<
@@ -14445,7 +16719,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
     goto __pyx_L0;
   }
 
-  /* "hyperoptimized_sort.pyx":640
+  /* "hyperoptimized_sort.pyx":821
  *         return "introsort"
  * 
  *     def get_algorithm_info(self):             # <<<<<<<<<<<<<<
@@ -14467,14 +16741,14 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_20get_alg
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_23__reduce_cython__(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_25__reduce_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_23__reduce_cython__(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_25__reduce_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -14500,14 +16774,14 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   const Py_ssize_t __pyx_kwds_len = unlikely(__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
   if (unlikely(__pyx_kwds_len < 0)) return NULL;
   if (unlikely(__pyx_kwds_len > 0)) {__Pyx_RejectKeywords("__reduce_cython__", __pyx_kwds); return NULL;}
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_22__reduce_cython__(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self));
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_24__reduce_cython__(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_22__reduce_cython__(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_24__reduce_cython__(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self) {
   PyObject *__pyx_v_state = 0;
   PyObject *__pyx_v__dict = 0;
   int __pyx_v_use_setstate;
@@ -14779,14 +17053,14 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_22__reduc
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_25__setstate_cython__(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_27__setstate_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_25__setstate_cython__(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_27__setstate_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -14852,7 +17126,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_24__setstate_cython__(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v___pyx_state);
+  __pyx_r = __pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_26__setstate_cython__(((struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *)__pyx_v_self), __pyx_v___pyx_state);
 
   /* function exit code */
   for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
@@ -14862,7 +17136,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_24__setstate_cython__(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v___pyx_state) {
+static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_26__setstate_cython__(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *__pyx_v_self, PyObject *__pyx_v___pyx_state) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -14901,7 +17175,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_20HyperoptimizedSorter_24__setst
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":658
+/* "hyperoptimized_sort.pyx":839
  * 
  * # Factory function for easy integration
  * def create_optimized_sorter(memory_limit_mb=512, temp_dir=None, enable_simd=True, enable_parallel=True):             # <<<<<<<<<<<<<<
@@ -14952,30 +17226,30 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_memory_limit_mb,&__pyx_mstate_global->__pyx_n_u_temp_dir,&__pyx_mstate_global->__pyx_n_u_enable_simd,&__pyx_mstate_global->__pyx_n_u_enable_parallel,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 658, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 839, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  4:
         values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 658, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 839, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 658, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 839, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 658, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 839, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 658, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 839, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "create_optimized_sorter", 0) < 0) __PYX_ERR(0, 658, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "create_optimized_sorter", 0) < 0) __PYX_ERR(0, 839, __pyx_L3_error)
       if (!values[0]) values[0] = __Pyx_NewRef(((PyObject *)__pyx_mstate_global->__pyx_int_512));
       if (!values[1]) values[1] = __Pyx_NewRef(((PyObject *)Py_None));
       if (!values[2]) values[2] = __Pyx_NewRef(((PyObject *)Py_True));
@@ -14984,19 +17258,19 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
       switch (__pyx_nargs) {
         case  4:
         values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 658, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 839, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 658, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 839, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 658, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 839, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 658, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 839, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
@@ -15013,7 +17287,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("create_optimized_sorter", 0, 0, 4, __pyx_nargs); __PYX_ERR(0, 658, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("create_optimized_sorter", 0, 0, 4, __pyx_nargs); __PYX_ERR(0, 839, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -15046,7 +17320,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_create_optimized_sorter(CYTHON_U
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("create_optimized_sorter", 0);
 
-  /* "hyperoptimized_sort.pyx":671
+  /* "hyperoptimized_sort.pyx":852
  *         HyperoptimizedSorter instance
  *     """
  *     return HyperoptimizedSorter(memory_limit_mb, temp_dir, enable_simd, enable_parallel)             # <<<<<<<<<<<<<<
@@ -15063,14 +17337,14 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_create_optimized_sorter(CYTHON_U
     __pyx_t_1 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+__pyx_t_4, (5-__pyx_t_4) | (__pyx_t_4*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 671, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 852, __pyx_L1_error)
     __Pyx_GOTREF((PyObject *)__pyx_t_1);
   }
   __pyx_r = ((PyObject *)__pyx_t_1);
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "hyperoptimized_sort.pyx":658
+  /* "hyperoptimized_sort.pyx":839
  * 
  * # Factory function for easy integration
  * def create_optimized_sorter(memory_limit_mb=512, temp_dir=None, enable_simd=True, enable_parallel=True):             # <<<<<<<<<<<<<<
@@ -15091,7 +17365,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_create_optimized_sorter(CYTHON_U
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":675
+/* "hyperoptimized_sort.pyx":856
  * 
  * # Convenience function for direct sorting
  * def hyperopt_sort(data, key_column: str = 'value', reverse: bool = False,             # <<<<<<<<<<<<<<
@@ -15143,39 +17417,39 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_data,&__pyx_mstate_global->__pyx_n_u_key_column,&__pyx_mstate_global->__pyx_n_u_reverse,&__pyx_mstate_global->__pyx_n_u_memory_limit_mb,&__pyx_mstate_global->__pyx_n_u_temp_dir,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 675, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 856, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  5:
         values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 675, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 856, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  4:
         values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 675, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 856, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 675, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 856, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 675, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 856, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 675, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 856, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "hyperopt_sort", 0) < 0) __PYX_ERR(0, 675, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "hyperopt_sort", 0) < 0) __PYX_ERR(0, 856, __pyx_L3_error)
       if (!values[1]) values[1] = __Pyx_NewRef(((PyObject*)__pyx_mstate_global->__pyx_n_u_value));
       if (!values[2]) values[2] = __Pyx_NewRef(((PyObject *)Py_False));
       if (!values[3]) values[3] = __Pyx_NewRef(((PyObject*)__pyx_mstate_global->__pyx_int_512));
 
-      /* "hyperoptimized_sort.pyx":676
+      /* "hyperoptimized_sort.pyx":857
  * # Convenience function for direct sorting
  * def hyperopt_sort(data, key_column: str = 'value', reverse: bool = False,
  *                  memory_limit_mb: int = 512, temp_dir: str = None):             # <<<<<<<<<<<<<<
@@ -15184,35 +17458,35 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
 */
       if (!values[4]) values[4] = __Pyx_NewRef(((PyObject*)Py_None));
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("hyperopt_sort", 0, 1, 5, i); __PYX_ERR(0, 675, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("hyperopt_sort", 0, 1, 5, i); __PYX_ERR(0, 856, __pyx_L3_error) }
       }
     } else {
       switch (__pyx_nargs) {
         case  5:
         values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 675, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 856, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  4:
         values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 675, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 856, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 675, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 856, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 675, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 856, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 675, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 856, __pyx_L3_error)
         break;
         default: goto __pyx_L5_argtuple_error;
       }
       if (!values[1]) values[1] = __Pyx_NewRef(((PyObject*)__pyx_mstate_global->__pyx_n_u_value));
 
-      /* "hyperoptimized_sort.pyx":675
+      /* "hyperoptimized_sort.pyx":856
  * 
  * # Convenience function for direct sorting
  * def hyperopt_sort(data, key_column: str = 'value', reverse: bool = False,             # <<<<<<<<<<<<<<
@@ -15222,7 +17496,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
       if (!values[2]) values[2] = __Pyx_NewRef(((PyObject *)Py_False));
       if (!values[3]) values[3] = __Pyx_NewRef(((PyObject*)__pyx_mstate_global->__pyx_int_512));
 
-      /* "hyperoptimized_sort.pyx":676
+      /* "hyperoptimized_sort.pyx":857
  * # Convenience function for direct sorting
  * def hyperopt_sort(data, key_column: str = 'value', reverse: bool = False,
  *                  memory_limit_mb: int = 512, temp_dir: str = None):             # <<<<<<<<<<<<<<
@@ -15239,7 +17513,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("hyperopt_sort", 0, 1, 5, __pyx_nargs); __PYX_ERR(0, 675, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("hyperopt_sort", 0, 1, 5, __pyx_nargs); __PYX_ERR(0, 856, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -15250,12 +17524,12 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 0, "key_column", 2))) __PYX_ERR(0, 675, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_memory_limit_mb), (&PyLong_Type), 0, "memory_limit_mb", 2))) __PYX_ERR(0, 676, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_temp_dir), (&PyUnicode_Type), 1, "temp_dir", 2))) __PYX_ERR(0, 676, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 0, "key_column", 2))) __PYX_ERR(0, 856, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_memory_limit_mb), (&PyLong_Type), 0, "memory_limit_mb", 2))) __PYX_ERR(0, 857, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_temp_dir), (&PyUnicode_Type), 1, "temp_dir", 2))) __PYX_ERR(0, 857, __pyx_L1_error)
   __pyx_r = __pyx_pf_19hyperoptimized_sort_2hyperopt_sort(__pyx_self, __pyx_v_data, __pyx_v_key_column, __pyx_v_reverse, __pyx_v_memory_limit_mb, __pyx_v_temp_dir);
 
-  /* "hyperoptimized_sort.pyx":675
+  /* "hyperoptimized_sort.pyx":856
  * 
  * # Convenience function for direct sorting
  * def hyperopt_sort(data, key_column: str = 'value', reverse: bool = False,             # <<<<<<<<<<<<<<
@@ -15284,8 +17558,8 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
   PyObject *__pyx_v_records = NULL;
   PyObject *__pyx_v_sorter = NULL;
   PyObject *__pyx_v_sorted_records = NULL;
-  PyObject *__pyx_8genexpr7__pyx_v_item = NULL;
   PyObject *__pyx_8genexpr8__pyx_v_item = NULL;
+  PyObject *__pyx_8genexpr9__pyx_v_item = NULL;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   Py_ssize_t __pyx_t_1;
@@ -15311,18 +17585,18 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("hyperopt_sort", 0);
 
-  /* "hyperoptimized_sort.pyx":690
+  /* "hyperoptimized_sort.pyx":871
  *         Sorted list of records or values
  *     """
  *     if len(data) == 0:             # <<<<<<<<<<<<<<
  *         return data
  * 
 */
-  __pyx_t_1 = PyObject_Length(__pyx_v_data); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 690, __pyx_L1_error)
+  __pyx_t_1 = PyObject_Length(__pyx_v_data); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 871, __pyx_L1_error)
   __pyx_t_2 = (__pyx_t_1 == 0);
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":691
+    /* "hyperoptimized_sort.pyx":872
  *     """
  *     if len(data) == 0:
  *         return data             # <<<<<<<<<<<<<<
@@ -15334,7 +17608,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
     __pyx_r = __pyx_v_data;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":690
+    /* "hyperoptimized_sort.pyx":871
  *         Sorted list of records or values
  *     """
  *     if len(data) == 0:             # <<<<<<<<<<<<<<
@@ -15343,21 +17617,21 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
 */
   }
 
-  /* "hyperoptimized_sort.pyx":694
+  /* "hyperoptimized_sort.pyx":875
  * 
  *     # Handle primitive arrays by converting to dict format
  *     if not isinstance(data[0], dict):             # <<<<<<<<<<<<<<
  *         records = [{'value': item} for item in data]
  *         sorter = create_optimized_sorter(memory_limit_mb, temp_dir)
 */
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_data, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 694, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_data, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 875, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_t_2 = PyDict_Check(__pyx_t_3); 
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_4 = (!__pyx_t_2);
   if (__pyx_t_4) {
 
-    /* "hyperoptimized_sort.pyx":695
+    /* "hyperoptimized_sort.pyx":876
  *     # Handle primitive arrays by converting to dict format
  *     if not isinstance(data[0], dict):
  *         records = [{'value': item} for item in data]             # <<<<<<<<<<<<<<
@@ -15365,16 +17639,16 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
  *         try:
 */
     { /* enter inner scope */
-      __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 695, __pyx_L7_error)
+      __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 876, __pyx_L7_error)
       __Pyx_GOTREF(__pyx_t_3);
       if (likely(PyList_CheckExact(__pyx_v_data)) || PyTuple_CheckExact(__pyx_v_data)) {
         __pyx_t_5 = __pyx_v_data; __Pyx_INCREF(__pyx_t_5);
         __pyx_t_1 = 0;
         __pyx_t_6 = NULL;
       } else {
-        __pyx_t_1 = -1; __pyx_t_5 = PyObject_GetIter(__pyx_v_data); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 695, __pyx_L7_error)
+        __pyx_t_1 = -1; __pyx_t_5 = PyObject_GetIter(__pyx_v_data); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 876, __pyx_L7_error)
         __Pyx_GOTREF(__pyx_t_5);
-        __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_5); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 695, __pyx_L7_error)
+        __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_5); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 876, __pyx_L7_error)
       }
       for (;;) {
         if (likely(!__pyx_t_6)) {
@@ -15382,7 +17656,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
             {
               Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_5);
               #if !CYTHON_ASSUME_SAFE_SIZE
-              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 695, __pyx_L7_error)
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 876, __pyx_L7_error)
               #endif
               if (__pyx_t_1 >= __pyx_temp) break;
             }
@@ -15392,7 +17666,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
             {
               Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_5);
               #if !CYTHON_ASSUME_SAFE_SIZE
-              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 695, __pyx_L7_error)
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 876, __pyx_L7_error)
               #endif
               if (__pyx_t_1 >= __pyx_temp) break;
             }
@@ -15403,39 +17677,39 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
             #endif
             ++__pyx_t_1;
           }
-          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 695, __pyx_L7_error)
+          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 876, __pyx_L7_error)
         } else {
           __pyx_t_7 = __pyx_t_6(__pyx_t_5);
           if (unlikely(!__pyx_t_7)) {
             PyObject* exc_type = PyErr_Occurred();
             if (exc_type) {
-              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 695, __pyx_L7_error)
+              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 876, __pyx_L7_error)
               PyErr_Clear();
             }
             break;
           }
         }
         __Pyx_GOTREF(__pyx_t_7);
-        __Pyx_XDECREF_SET(__pyx_8genexpr7__pyx_v_item, __pyx_t_7);
+        __Pyx_XDECREF_SET(__pyx_8genexpr8__pyx_v_item, __pyx_t_7);
         __pyx_t_7 = 0;
-        __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 695, __pyx_L7_error)
+        __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 876, __pyx_L7_error)
         __Pyx_GOTREF(__pyx_t_7);
-        if (PyDict_SetItem(__pyx_t_7, __pyx_mstate_global->__pyx_n_u_value, __pyx_8genexpr7__pyx_v_item) < 0) __PYX_ERR(0, 695, __pyx_L7_error)
-        if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 695, __pyx_L7_error)
+        if (PyDict_SetItem(__pyx_t_7, __pyx_mstate_global->__pyx_n_u_value, __pyx_8genexpr8__pyx_v_item) < 0) __PYX_ERR(0, 876, __pyx_L7_error)
+        if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 876, __pyx_L7_error)
         __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
       }
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-      __Pyx_XDECREF(__pyx_8genexpr7__pyx_v_item); __pyx_8genexpr7__pyx_v_item = 0;
+      __Pyx_XDECREF(__pyx_8genexpr8__pyx_v_item); __pyx_8genexpr8__pyx_v_item = 0;
       goto __pyx_L11_exit_scope;
       __pyx_L7_error:;
-      __Pyx_XDECREF(__pyx_8genexpr7__pyx_v_item); __pyx_8genexpr7__pyx_v_item = 0;
+      __Pyx_XDECREF(__pyx_8genexpr8__pyx_v_item); __pyx_8genexpr8__pyx_v_item = 0;
       goto __pyx_L1_error;
       __pyx_L11_exit_scope:;
     } /* exit inner scope */
     __pyx_v_records = ((PyObject*)__pyx_t_3);
     __pyx_t_3 = 0;
 
-    /* "hyperoptimized_sort.pyx":696
+    /* "hyperoptimized_sort.pyx":877
  *     if not isinstance(data[0], dict):
  *         records = [{'value': item} for item in data]
  *         sorter = create_optimized_sorter(memory_limit_mb, temp_dir)             # <<<<<<<<<<<<<<
@@ -15443,7 +17717,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
  *             sorted_records = sorter.sort_records(records, key_column, reverse)
 */
     __pyx_t_5 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_mstate_global->__pyx_n_u_create_optimized_sorter); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 696, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_mstate_global->__pyx_n_u_create_optimized_sorter); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 877, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
     __pyx_t_8 = 1;
     #if CYTHON_UNPACK_METHODS
@@ -15462,13 +17736,13 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
       __pyx_t_3 = __Pyx_PyObject_FastCall(__pyx_t_7, __pyx_callargs+__pyx_t_8, (3-__pyx_t_8) | (__pyx_t_8*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 696, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 877, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __pyx_v_sorter = __pyx_t_3;
     __pyx_t_3 = 0;
 
-    /* "hyperoptimized_sort.pyx":697
+    /* "hyperoptimized_sort.pyx":878
  *         records = [{'value': item} for item in data]
  *         sorter = create_optimized_sorter(memory_limit_mb, temp_dir)
  *         try:             # <<<<<<<<<<<<<<
@@ -15477,7 +17751,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
 */
     /*try:*/ {
 
-      /* "hyperoptimized_sort.pyx":698
+      /* "hyperoptimized_sort.pyx":879
  *         sorter = create_optimized_sorter(memory_limit_mb, temp_dir)
  *         try:
  *             sorted_records = sorter.sort_records(records, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -15491,31 +17765,31 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
         PyObject *__pyx_callargs[4] = {__pyx_t_7, __pyx_v_records, __pyx_v_key_column, __pyx_v_reverse};
         __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_sort_records, __pyx_callargs+__pyx_t_8, (4-__pyx_t_8) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
         __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
-        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 698, __pyx_L13_error)
+        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 879, __pyx_L13_error)
         __Pyx_GOTREF(__pyx_t_3);
       }
       __pyx_v_sorted_records = __pyx_t_3;
       __pyx_t_3 = 0;
 
-      /* "hyperoptimized_sort.pyx":699
+      /* "hyperoptimized_sort.pyx":880
  *         try:
  *             sorted_records = sorter.sort_records(records, key_column, reverse)
  *             return [item['value'] for item in sorted_records]             # <<<<<<<<<<<<<<
  *         finally:
- *             sorter._cleanup_temp_files()
+ *             sorter.cleanup_temp_files()
 */
       __Pyx_XDECREF(__pyx_r);
       { /* enter inner scope */
-        __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 699, __pyx_L17_error)
+        __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 880, __pyx_L17_error)
         __Pyx_GOTREF(__pyx_t_3);
         if (likely(PyList_CheckExact(__pyx_v_sorted_records)) || PyTuple_CheckExact(__pyx_v_sorted_records)) {
           __pyx_t_7 = __pyx_v_sorted_records; __Pyx_INCREF(__pyx_t_7);
           __pyx_t_1 = 0;
           __pyx_t_6 = NULL;
         } else {
-          __pyx_t_1 = -1; __pyx_t_7 = PyObject_GetIter(__pyx_v_sorted_records); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 699, __pyx_L17_error)
+          __pyx_t_1 = -1; __pyx_t_7 = PyObject_GetIter(__pyx_v_sorted_records); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 880, __pyx_L17_error)
           __Pyx_GOTREF(__pyx_t_7);
-          __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_7); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 699, __pyx_L17_error)
+          __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_7); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 880, __pyx_L17_error)
         }
         for (;;) {
           if (likely(!__pyx_t_6)) {
@@ -15523,7 +17797,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
               {
                 Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_7);
                 #if !CYTHON_ASSUME_SAFE_SIZE
-                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 699, __pyx_L17_error)
+                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 880, __pyx_L17_error)
                 #endif
                 if (__pyx_t_1 >= __pyx_temp) break;
               }
@@ -15533,7 +17807,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
               {
                 Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_7);
                 #if !CYTHON_ASSUME_SAFE_SIZE
-                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 699, __pyx_L17_error)
+                if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 880, __pyx_L17_error)
                 #endif
                 if (__pyx_t_1 >= __pyx_temp) break;
               }
@@ -15544,31 +17818,31 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
               #endif
               ++__pyx_t_1;
             }
-            if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 699, __pyx_L17_error)
+            if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 880, __pyx_L17_error)
           } else {
             __pyx_t_5 = __pyx_t_6(__pyx_t_7);
             if (unlikely(!__pyx_t_5)) {
               PyObject* exc_type = PyErr_Occurred();
               if (exc_type) {
-                if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 699, __pyx_L17_error)
+                if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 880, __pyx_L17_error)
                 PyErr_Clear();
               }
               break;
             }
           }
           __Pyx_GOTREF(__pyx_t_5);
-          __Pyx_XDECREF_SET(__pyx_8genexpr8__pyx_v_item, __pyx_t_5);
+          __Pyx_XDECREF_SET(__pyx_8genexpr9__pyx_v_item, __pyx_t_5);
           __pyx_t_5 = 0;
-          __pyx_t_5 = __Pyx_PyObject_Dict_GetItem(__pyx_8genexpr8__pyx_v_item, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 699, __pyx_L17_error)
+          __pyx_t_5 = __Pyx_PyObject_Dict_GetItem(__pyx_8genexpr9__pyx_v_item, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 880, __pyx_L17_error)
           __Pyx_GOTREF(__pyx_t_5);
-          if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_5))) __PYX_ERR(0, 699, __pyx_L17_error)
+          if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_5))) __PYX_ERR(0, 880, __pyx_L17_error)
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
         }
         __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-        __Pyx_XDECREF(__pyx_8genexpr8__pyx_v_item); __pyx_8genexpr8__pyx_v_item = 0;
+        __Pyx_XDECREF(__pyx_8genexpr9__pyx_v_item); __pyx_8genexpr9__pyx_v_item = 0;
         goto __pyx_L21_exit_scope;
         __pyx_L17_error:;
-        __Pyx_XDECREF(__pyx_8genexpr8__pyx_v_item); __pyx_8genexpr8__pyx_v_item = 0;
+        __Pyx_XDECREF(__pyx_8genexpr9__pyx_v_item); __pyx_8genexpr9__pyx_v_item = 0;
         goto __pyx_L13_error;
         __pyx_L21_exit_scope:;
       } /* exit inner scope */
@@ -15577,10 +17851,10 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
       goto __pyx_L12_return;
     }
 
-    /* "hyperoptimized_sort.pyx":701
+    /* "hyperoptimized_sort.pyx":882
  *             return [item['value'] for item in sorted_records]
  *         finally:
- *             sorter._cleanup_temp_files()             # <<<<<<<<<<<<<<
+ *             sorter.cleanup_temp_files()             # <<<<<<<<<<<<<<
  *     else:
  *         # Handle dictionary records
 */
@@ -15610,7 +17884,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
             PyObject *__pyx_callargs[2] = {__pyx_t_7, NULL};
             __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_cleanup_temp_files, __pyx_callargs+__pyx_t_8, (1-__pyx_t_8) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
             __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
-            if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 701, __pyx_L23_error)
+            if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 882, __pyx_L23_error)
             __Pyx_GOTREF(__pyx_t_3);
           }
           __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -15647,7 +17921,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
           PyObject *__pyx_callargs[2] = {__pyx_t_7, NULL};
           __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_cleanup_temp_files, __pyx_callargs+__pyx_t_8, (1-__pyx_t_8) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
-          if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 701, __pyx_L1_error)
+          if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 882, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_3);
         }
         __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -15657,7 +17931,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
       }
     }
 
-    /* "hyperoptimized_sort.pyx":694
+    /* "hyperoptimized_sort.pyx":875
  * 
  *     # Handle primitive arrays by converting to dict format
  *     if not isinstance(data[0], dict):             # <<<<<<<<<<<<<<
@@ -15666,7 +17940,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
 */
   }
 
-  /* "hyperoptimized_sort.pyx":704
+  /* "hyperoptimized_sort.pyx":885
  *     else:
  *         # Handle dictionary records
  *         sorter = create_optimized_sorter(memory_limit_mb, temp_dir)             # <<<<<<<<<<<<<<
@@ -15675,7 +17949,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
 */
   /*else*/ {
     __pyx_t_7 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_create_optimized_sorter); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 704, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_create_optimized_sorter); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 885, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __pyx_t_8 = 1;
     #if CYTHON_UNPACK_METHODS
@@ -15694,13 +17968,13 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
       __pyx_t_3 = __Pyx_PyObject_FastCall(__pyx_t_5, __pyx_callargs+__pyx_t_8, (3-__pyx_t_8) | (__pyx_t_8*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 704, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 885, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __pyx_v_sorter = __pyx_t_3;
     __pyx_t_3 = 0;
 
-    /* "hyperoptimized_sort.pyx":705
+    /* "hyperoptimized_sort.pyx":886
  *         # Handle dictionary records
  *         sorter = create_optimized_sorter(memory_limit_mb, temp_dir)
  *         try:             # <<<<<<<<<<<<<<
@@ -15709,7 +17983,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
 */
     /*try:*/ {
 
-      /* "hyperoptimized_sort.pyx":706
+      /* "hyperoptimized_sort.pyx":887
  *         sorter = create_optimized_sorter(memory_limit_mb, temp_dir)
  *         try:
  *             return sorter.sort_records(data, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -15724,7 +17998,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
         PyObject *__pyx_callargs[4] = {__pyx_t_5, __pyx_v_data, __pyx_v_key_column, __pyx_v_reverse};
         __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_sort_records, __pyx_callargs+__pyx_t_8, (4-__pyx_t_8) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
         __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 706, __pyx_L25_error)
+        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 887, __pyx_L25_error)
         __Pyx_GOTREF(__pyx_t_3);
       }
       __pyx_r = __pyx_t_3;
@@ -15732,10 +18006,10 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
       goto __pyx_L24_return;
     }
 
-    /* "hyperoptimized_sort.pyx":709
+    /* "hyperoptimized_sort.pyx":890
  *         finally:
  *             # Ensure cleanup
- *             sorter._cleanup_temp_files()             # <<<<<<<<<<<<<<
+ *             sorter.cleanup_temp_files()             # <<<<<<<<<<<<<<
  * 
  * 
 */
@@ -15765,7 +18039,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
             PyObject *__pyx_callargs[2] = {__pyx_t_5, NULL};
             __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_cleanup_temp_files, __pyx_callargs+__pyx_t_8, (1-__pyx_t_8) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
             __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-            if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 709, __pyx_L28_error)
+            if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 890, __pyx_L28_error)
             __Pyx_GOTREF(__pyx_t_3);
           }
           __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -15802,7 +18076,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
           PyObject *__pyx_callargs[2] = {__pyx_t_5, NULL};
           __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_cleanup_temp_files, __pyx_callargs+__pyx_t_8, (1-__pyx_t_8) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
-          if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 709, __pyx_L1_error)
+          if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 890, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_3);
         }
         __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -15813,7 +18087,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
     }
   }
 
-  /* "hyperoptimized_sort.pyx":675
+  /* "hyperoptimized_sort.pyx":856
  * 
  * # Convenience function for direct sorting
  * def hyperopt_sort(data, key_column: str = 'value', reverse: bool = False,             # <<<<<<<<<<<<<<
@@ -15832,14 +18106,14 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_2hyperopt_sort(CYTHON_UNUSED PyO
   __Pyx_XDECREF(__pyx_v_records);
   __Pyx_XDECREF(__pyx_v_sorter);
   __Pyx_XDECREF(__pyx_v_sorted_records);
-  __Pyx_XDECREF(__pyx_8genexpr7__pyx_v_item);
   __Pyx_XDECREF(__pyx_8genexpr8__pyx_v_item);
+  __Pyx_XDECREF(__pyx_8genexpr9__pyx_v_item);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "hyperoptimized_sort.pyx":713
+/* "hyperoptimized_sort.pyx":894
  * 
  * # Additional convenience function with index tracking
  * def hyperopt_sort_with_indices(data, key_column: str = 'value', reverse: bool = False):             # <<<<<<<<<<<<<<
@@ -15889,44 +18163,44 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_data,&__pyx_mstate_global->__pyx_n_u_key_column,&__pyx_mstate_global->__pyx_n_u_reverse,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 713, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 894, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 713, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 894, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 713, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 894, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 713, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 894, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "hyperopt_sort_with_indices", 0) < 0) __PYX_ERR(0, 713, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "hyperopt_sort_with_indices", 0) < 0) __PYX_ERR(0, 894, __pyx_L3_error)
       if (!values[1]) values[1] = __Pyx_NewRef(((PyObject*)__pyx_mstate_global->__pyx_n_u_value));
       if (!values[2]) values[2] = __Pyx_NewRef(((PyObject *)Py_False));
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("hyperopt_sort_with_indices", 0, 1, 3, i); __PYX_ERR(0, 713, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("hyperopt_sort_with_indices", 0, 1, 3, i); __PYX_ERR(0, 894, __pyx_L3_error) }
       }
     } else {
       switch (__pyx_nargs) {
         case  3:
         values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 713, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 894, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 713, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 894, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 713, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 894, __pyx_L3_error)
         break;
         default: goto __pyx_L5_argtuple_error;
       }
@@ -15939,7 +18213,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("hyperopt_sort_with_indices", 0, 1, 3, __pyx_nargs); __PYX_ERR(0, 713, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("hyperopt_sort_with_indices", 0, 1, 3, __pyx_nargs); __PYX_ERR(0, 894, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -15950,7 +18224,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 0, "key_column", 2))) __PYX_ERR(0, 713, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_key_column), (&PyUnicode_Type), 0, "key_column", 2))) __PYX_ERR(0, 894, __pyx_L1_error)
   __pyx_r = __pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(__pyx_self, __pyx_v_data, __pyx_v_key_column, __pyx_v_reverse);
 
   /* function exit code */
@@ -15977,10 +18251,10 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
   PyObject *__pyx_v_indices = NULL;
   PyObject *__pyx_v_record = NULL;
   PyObject *__pyx_v_result_records = NULL;
-  PyObject *__pyx_8genexpr9__pyx_v_i = NULL;
-  PyObject *__pyx_8genexpr9__pyx_v_value = NULL;
   PyObject *__pyx_9genexpr10__pyx_v_i = NULL;
-  PyObject *__pyx_9genexpr10__pyx_v_record = NULL;
+  PyObject *__pyx_9genexpr10__pyx_v_value = NULL;
+  PyObject *__pyx_9genexpr11__pyx_v_i = NULL;
+  PyObject *__pyx_9genexpr11__pyx_v_record = NULL;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   Py_ssize_t __pyx_t_1;
@@ -15999,18 +18273,18 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("hyperopt_sort_with_indices", 0);
 
-  /* "hyperoptimized_sort.pyx":725
+  /* "hyperoptimized_sort.pyx":906
  *         Tuple of (sorted_records, original_indices)
  *     """
  *     if len(data) == 0:             # <<<<<<<<<<<<<<
  *         return data, []
  * 
 */
-  __pyx_t_1 = PyObject_Length(__pyx_v_data); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 725, __pyx_L1_error)
+  __pyx_t_1 = PyObject_Length(__pyx_v_data); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 906, __pyx_L1_error)
   __pyx_t_2 = (__pyx_t_1 == 0);
   if (__pyx_t_2) {
 
-    /* "hyperoptimized_sort.pyx":726
+    /* "hyperoptimized_sort.pyx":907
  *     """
  *     if len(data) == 0:
  *         return data, []             # <<<<<<<<<<<<<<
@@ -16018,21 +18292,21 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
  *     # Handle primitive arrays
 */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 726, __pyx_L1_error)
+    __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 907, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 726, __pyx_L1_error)
+    __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 907, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_INCREF(__pyx_v_data);
     __Pyx_GIVEREF(__pyx_v_data);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_v_data) != (0)) __PYX_ERR(0, 726, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_v_data) != (0)) __PYX_ERR(0, 907, __pyx_L1_error);
     __Pyx_GIVEREF(__pyx_t_3);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_t_3) != (0)) __PYX_ERR(0, 726, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_t_3) != (0)) __PYX_ERR(0, 907, __pyx_L1_error);
     __pyx_t_3 = 0;
     __pyx_r = __pyx_t_4;
     __pyx_t_4 = 0;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":725
+    /* "hyperoptimized_sort.pyx":906
  *         Tuple of (sorted_records, original_indices)
  *     """
  *     if len(data) == 0:             # <<<<<<<<<<<<<<
@@ -16041,21 +18315,21 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
 */
   }
 
-  /* "hyperoptimized_sort.pyx":729
+  /* "hyperoptimized_sort.pyx":910
  * 
  *     # Handle primitive arrays
  *     if not isinstance(data[0], dict):             # <<<<<<<<<<<<<<
  *         # Add index tracking
  *         indexed_records = [{'__orig_idx__': i, 'value': value} for i, value in enumerate(data)]
 */
-  __pyx_t_4 = __Pyx_GetItemInt(__pyx_v_data, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 729, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_GetItemInt(__pyx_v_data, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 910, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __pyx_t_2 = PyDict_Check(__pyx_t_4); 
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_5 = (!__pyx_t_2);
   if (__pyx_t_5) {
 
-    /* "hyperoptimized_sort.pyx":731
+    /* "hyperoptimized_sort.pyx":912
  *     if not isinstance(data[0], dict):
  *         # Add index tracking
  *         indexed_records = [{'__orig_idx__': i, 'value': value} for i, value in enumerate(data)]             # <<<<<<<<<<<<<<
@@ -16063,7 +18337,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
  *         # Sort with index tracking
 */
     { /* enter inner scope */
-      __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 731, __pyx_L7_error)
+      __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 912, __pyx_L7_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_INCREF(__pyx_mstate_global->__pyx_int_0);
       __pyx_t_3 = __pyx_mstate_global->__pyx_int_0;
@@ -16072,9 +18346,9 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
         __pyx_t_1 = 0;
         __pyx_t_7 = NULL;
       } else {
-        __pyx_t_1 = -1; __pyx_t_6 = PyObject_GetIter(__pyx_v_data); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 731, __pyx_L7_error)
+        __pyx_t_1 = -1; __pyx_t_6 = PyObject_GetIter(__pyx_v_data); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 912, __pyx_L7_error)
         __Pyx_GOTREF(__pyx_t_6);
-        __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 731, __pyx_L7_error)
+        __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 912, __pyx_L7_error)
       }
       for (;;) {
         if (likely(!__pyx_t_7)) {
@@ -16082,7 +18356,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
             {
               Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_6);
               #if !CYTHON_ASSUME_SAFE_SIZE
-              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 731, __pyx_L7_error)
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 912, __pyx_L7_error)
               #endif
               if (__pyx_t_1 >= __pyx_temp) break;
             }
@@ -16092,7 +18366,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
             {
               Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_6);
               #if !CYTHON_ASSUME_SAFE_SIZE
-              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 731, __pyx_L7_error)
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 912, __pyx_L7_error)
               #endif
               if (__pyx_t_1 >= __pyx_temp) break;
             }
@@ -16103,58 +18377,58 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
             #endif
             ++__pyx_t_1;
           }
-          if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 731, __pyx_L7_error)
+          if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 912, __pyx_L7_error)
         } else {
           __pyx_t_8 = __pyx_t_7(__pyx_t_6);
           if (unlikely(!__pyx_t_8)) {
             PyObject* exc_type = PyErr_Occurred();
             if (exc_type) {
-              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 731, __pyx_L7_error)
+              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 912, __pyx_L7_error)
               PyErr_Clear();
             }
             break;
           }
         }
         __Pyx_GOTREF(__pyx_t_8);
-        __Pyx_XDECREF_SET(__pyx_8genexpr9__pyx_v_value, __pyx_t_8);
+        __Pyx_XDECREF_SET(__pyx_9genexpr10__pyx_v_value, __pyx_t_8);
         __pyx_t_8 = 0;
         __Pyx_INCREF(__pyx_t_3);
-        __Pyx_XDECREF_SET(__pyx_8genexpr9__pyx_v_i, __pyx_t_3);
-        __pyx_t_8 = __Pyx_PyLong_AddObjC(__pyx_t_3, __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 731, __pyx_L7_error)
+        __Pyx_XDECREF_SET(__pyx_9genexpr10__pyx_v_i, __pyx_t_3);
+        __pyx_t_8 = __Pyx_PyLong_AddObjC(__pyx_t_3, __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 912, __pyx_L7_error)
         __Pyx_GOTREF(__pyx_t_8);
         __Pyx_DECREF(__pyx_t_3);
         __pyx_t_3 = __pyx_t_8;
         __pyx_t_8 = 0;
-        __pyx_t_8 = __Pyx_PyDict_NewPresized(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 731, __pyx_L7_error)
+        __pyx_t_8 = __Pyx_PyDict_NewPresized(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 912, __pyx_L7_error)
         __Pyx_GOTREF(__pyx_t_8);
-        if (PyDict_SetItem(__pyx_t_8, __pyx_mstate_global->__pyx_n_u_orig_idx, __pyx_8genexpr9__pyx_v_i) < 0) __PYX_ERR(0, 731, __pyx_L7_error)
-        if (PyDict_SetItem(__pyx_t_8, __pyx_mstate_global->__pyx_n_u_value, __pyx_8genexpr9__pyx_v_value) < 0) __PYX_ERR(0, 731, __pyx_L7_error)
-        if (unlikely(__Pyx_ListComp_Append(__pyx_t_4, (PyObject*)__pyx_t_8))) __PYX_ERR(0, 731, __pyx_L7_error)
+        if (PyDict_SetItem(__pyx_t_8, __pyx_mstate_global->__pyx_n_u_orig_idx, __pyx_9genexpr10__pyx_v_i) < 0) __PYX_ERR(0, 912, __pyx_L7_error)
+        if (PyDict_SetItem(__pyx_t_8, __pyx_mstate_global->__pyx_n_u_value, __pyx_9genexpr10__pyx_v_value) < 0) __PYX_ERR(0, 912, __pyx_L7_error)
+        if (unlikely(__Pyx_ListComp_Append(__pyx_t_4, (PyObject*)__pyx_t_8))) __PYX_ERR(0, 912, __pyx_L7_error)
         __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
       }
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      __Pyx_XDECREF(__pyx_8genexpr9__pyx_v_i); __pyx_8genexpr9__pyx_v_i = 0;
-      __Pyx_XDECREF(__pyx_8genexpr9__pyx_v_value); __pyx_8genexpr9__pyx_v_value = 0;
+      __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_i); __pyx_9genexpr10__pyx_v_i = 0;
+      __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_value); __pyx_9genexpr10__pyx_v_value = 0;
       goto __pyx_L11_exit_scope;
       __pyx_L7_error:;
-      __Pyx_XDECREF(__pyx_8genexpr9__pyx_v_i); __pyx_8genexpr9__pyx_v_i = 0;
-      __Pyx_XDECREF(__pyx_8genexpr9__pyx_v_value); __pyx_8genexpr9__pyx_v_value = 0;
+      __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_i); __pyx_9genexpr10__pyx_v_i = 0;
+      __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_value); __pyx_9genexpr10__pyx_v_value = 0;
       goto __pyx_L1_error;
       __pyx_L11_exit_scope:;
     } /* exit inner scope */
     __pyx_v_indexed_records = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":734
+    /* "hyperoptimized_sort.pyx":915
  * 
  *         # Sort with index tracking
- *         sorted_records = hyperopt_sort(indexed_records, '__orig_idx__', reverse)             # <<<<<<<<<<<<<<
+ *         sorted_records = hyperopt_sort(indexed_records, key_column, reverse)             # <<<<<<<<<<<<<<
  * 
  *         # Extract results
 */
     __pyx_t_3 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_hyperopt_sort); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 734, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_hyperopt_sort); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 915, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __pyx_t_9 = 1;
     #if CYTHON_UNPACK_METHODS
@@ -16169,41 +18443,41 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
     }
     #endif
     {
-      PyObject *__pyx_callargs[4] = {__pyx_t_3, __pyx_v_indexed_records, __pyx_mstate_global->__pyx_n_u_orig_idx, __pyx_v_reverse};
+      PyObject *__pyx_callargs[4] = {__pyx_t_3, __pyx_v_indexed_records, __pyx_v_key_column, __pyx_v_reverse};
       __pyx_t_4 = __Pyx_PyObject_FastCall(__pyx_t_6, __pyx_callargs+__pyx_t_9, (4-__pyx_t_9) | (__pyx_t_9*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 734, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 915, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
     }
     __pyx_v_sorted_records = __pyx_t_4;
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":737
+    /* "hyperoptimized_sort.pyx":918
  * 
  *         # Extract results
  *         result_values = []             # <<<<<<<<<<<<<<
  *         indices = []
  * 
 */
-    __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 737, __pyx_L1_error)
+    __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 918, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_v_result_values = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":738
+    /* "hyperoptimized_sort.pyx":919
  *         # Extract results
  *         result_values = []
  *         indices = []             # <<<<<<<<<<<<<<
  * 
  *         for record in sorted_records:
 */
-    __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 738, __pyx_L1_error)
+    __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 919, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_v_indices = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":740
+    /* "hyperoptimized_sort.pyx":921
  *         indices = []
  * 
  *         for record in sorted_records:             # <<<<<<<<<<<<<<
@@ -16215,9 +18489,9 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
       __pyx_t_1 = 0;
       __pyx_t_7 = NULL;
     } else {
-      __pyx_t_1 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_v_sorted_records); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 740, __pyx_L1_error)
+      __pyx_t_1 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_v_sorted_records); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 921, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 740, __pyx_L1_error)
+      __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 921, __pyx_L1_error)
     }
     for (;;) {
       if (likely(!__pyx_t_7)) {
@@ -16225,7 +18499,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
           {
             Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_4);
             #if !CYTHON_ASSUME_SAFE_SIZE
-            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 740, __pyx_L1_error)
+            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 921, __pyx_L1_error)
             #endif
             if (__pyx_t_1 >= __pyx_temp) break;
           }
@@ -16235,7 +18509,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
           {
             Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_4);
             #if !CYTHON_ASSUME_SAFE_SIZE
-            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 740, __pyx_L1_error)
+            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 921, __pyx_L1_error)
             #endif
             if (__pyx_t_1 >= __pyx_temp) break;
           }
@@ -16246,13 +18520,13 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
           #endif
           ++__pyx_t_1;
         }
-        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 740, __pyx_L1_error)
+        if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 921, __pyx_L1_error)
       } else {
         __pyx_t_6 = __pyx_t_7(__pyx_t_4);
         if (unlikely(!__pyx_t_6)) {
           PyObject* exc_type = PyErr_Occurred();
           if (exc_type) {
-            if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 740, __pyx_L1_error)
+            if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 921, __pyx_L1_error)
             PyErr_Clear();
           }
           break;
@@ -16262,31 +18536,31 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
       __Pyx_XDECREF_SET(__pyx_v_record, __pyx_t_6);
       __pyx_t_6 = 0;
 
-      /* "hyperoptimized_sort.pyx":741
+      /* "hyperoptimized_sort.pyx":922
  * 
  *         for record in sorted_records:
  *             indices.append(record['__orig_idx__'])             # <<<<<<<<<<<<<<
  *             result_values.append(record['value'])
  * 
 */
-      __pyx_t_6 = __Pyx_PyObject_Dict_GetItem(__pyx_v_record, __pyx_mstate_global->__pyx_n_u_orig_idx); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 741, __pyx_L1_error)
+      __pyx_t_6 = __Pyx_PyObject_Dict_GetItem(__pyx_v_record, __pyx_mstate_global->__pyx_n_u_orig_idx); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 922, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_indices, __pyx_t_6); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 741, __pyx_L1_error)
+      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_indices, __pyx_t_6); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 922, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
 
-      /* "hyperoptimized_sort.pyx":742
+      /* "hyperoptimized_sort.pyx":923
  *         for record in sorted_records:
  *             indices.append(record['__orig_idx__'])
  *             result_values.append(record['value'])             # <<<<<<<<<<<<<<
  * 
  *         return result_values, indices
 */
-      __pyx_t_6 = __Pyx_PyObject_Dict_GetItem(__pyx_v_record, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 742, __pyx_L1_error)
+      __pyx_t_6 = __Pyx_PyObject_Dict_GetItem(__pyx_v_record, __pyx_mstate_global->__pyx_n_u_value); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 923, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_result_values, __pyx_t_6); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 742, __pyx_L1_error)
+      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_result_values, __pyx_t_6); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 923, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
 
-      /* "hyperoptimized_sort.pyx":740
+      /* "hyperoptimized_sort.pyx":921
  *         indices = []
  * 
  *         for record in sorted_records:             # <<<<<<<<<<<<<<
@@ -16296,7 +18570,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
     }
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":744
+    /* "hyperoptimized_sort.pyx":925
  *             result_values.append(record['value'])
  * 
  *         return result_values, indices             # <<<<<<<<<<<<<<
@@ -16304,19 +18578,19 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
  *         # Handle dictionary records
 */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 744, __pyx_L1_error)
+    __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 925, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_INCREF(__pyx_v_result_values);
     __Pyx_GIVEREF(__pyx_v_result_values);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_v_result_values) != (0)) __PYX_ERR(0, 744, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_v_result_values) != (0)) __PYX_ERR(0, 925, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_indices);
     __Pyx_GIVEREF(__pyx_v_indices);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_v_indices) != (0)) __PYX_ERR(0, 744, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_v_indices) != (0)) __PYX_ERR(0, 925, __pyx_L1_error);
     __pyx_r = __pyx_t_4;
     __pyx_t_4 = 0;
     goto __pyx_L0;
 
-    /* "hyperoptimized_sort.pyx":729
+    /* "hyperoptimized_sort.pyx":910
  * 
  *     # Handle primitive arrays
  *     if not isinstance(data[0], dict):             # <<<<<<<<<<<<<<
@@ -16325,7 +18599,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
 */
   }
 
-  /* "hyperoptimized_sort.pyx":748
+  /* "hyperoptimized_sort.pyx":929
  *         # Handle dictionary records
  *         # Add index tracking
  *         indexed_records = [{'__orig_idx__': i, **record} for i, record in enumerate(data)]             # <<<<<<<<<<<<<<
@@ -16334,7 +18608,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
 */
   /*else*/ {
     { /* enter inner scope */
-      __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 748, __pyx_L17_error)
+      __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 929, __pyx_L17_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_INCREF(__pyx_mstate_global->__pyx_int_0);
       __pyx_t_6 = __pyx_mstate_global->__pyx_int_0;
@@ -16343,9 +18617,9 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
         __pyx_t_1 = 0;
         __pyx_t_7 = NULL;
       } else {
-        __pyx_t_1 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_v_data); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 748, __pyx_L17_error)
+        __pyx_t_1 = -1; __pyx_t_3 = PyObject_GetIter(__pyx_v_data); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 929, __pyx_L17_error)
         __Pyx_GOTREF(__pyx_t_3);
-        __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 748, __pyx_L17_error)
+        __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_3); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 929, __pyx_L17_error)
       }
       for (;;) {
         if (likely(!__pyx_t_7)) {
@@ -16353,7 +18627,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
             {
               Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
               #if !CYTHON_ASSUME_SAFE_SIZE
-              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 748, __pyx_L17_error)
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 929, __pyx_L17_error)
               #endif
               if (__pyx_t_1 >= __pyx_temp) break;
             }
@@ -16363,7 +18637,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
             {
               Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_3);
               #if !CYTHON_ASSUME_SAFE_SIZE
-              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 748, __pyx_L17_error)
+              if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 929, __pyx_L17_error)
               #endif
               if (__pyx_t_1 >= __pyx_temp) break;
             }
@@ -16374,59 +18648,59 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
             #endif
             ++__pyx_t_1;
           }
-          if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 748, __pyx_L17_error)
+          if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 929, __pyx_L17_error)
         } else {
           __pyx_t_8 = __pyx_t_7(__pyx_t_3);
           if (unlikely(!__pyx_t_8)) {
             PyObject* exc_type = PyErr_Occurred();
             if (exc_type) {
-              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 748, __pyx_L17_error)
+              if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 929, __pyx_L17_error)
               PyErr_Clear();
             }
             break;
           }
         }
         __Pyx_GOTREF(__pyx_t_8);
-        __Pyx_XDECREF_SET(__pyx_9genexpr10__pyx_v_record, __pyx_t_8);
+        __Pyx_XDECREF_SET(__pyx_9genexpr11__pyx_v_record, __pyx_t_8);
         __pyx_t_8 = 0;
         __Pyx_INCREF(__pyx_t_6);
-        __Pyx_XDECREF_SET(__pyx_9genexpr10__pyx_v_i, __pyx_t_6);
-        __pyx_t_8 = __Pyx_PyLong_AddObjC(__pyx_t_6, __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 748, __pyx_L17_error)
+        __Pyx_XDECREF_SET(__pyx_9genexpr11__pyx_v_i, __pyx_t_6);
+        __pyx_t_8 = __Pyx_PyLong_AddObjC(__pyx_t_6, __pyx_mstate_global->__pyx_int_1, 1, 0, 0); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 929, __pyx_L17_error)
         __Pyx_GOTREF(__pyx_t_8);
         __Pyx_DECREF(__pyx_t_6);
         __pyx_t_6 = __pyx_t_8;
         __pyx_t_8 = 0;
-        __pyx_t_11 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 748, __pyx_L17_error)
+        __pyx_t_11 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 929, __pyx_L17_error)
         __Pyx_GOTREF(__pyx_t_11);
-        if (PyDict_SetItem(__pyx_t_11, __pyx_mstate_global->__pyx_n_u_orig_idx, __pyx_9genexpr10__pyx_v_i) < 0) __PYX_ERR(0, 748, __pyx_L17_error)
+        if (PyDict_SetItem(__pyx_t_11, __pyx_mstate_global->__pyx_n_u_orig_idx, __pyx_9genexpr11__pyx_v_i) < 0) __PYX_ERR(0, 929, __pyx_L17_error)
         __pyx_t_8 = __pyx_t_11;
         __pyx_t_11 = 0;
-        if (unlikely(__pyx_9genexpr10__pyx_v_record == Py_None)) {
+        if (unlikely(__pyx_9genexpr11__pyx_v_record == Py_None)) {
           PyErr_SetString(PyExc_TypeError, "argument after ** must be a mapping, not NoneType");
-          __PYX_ERR(0, 748, __pyx_L17_error)
+          __PYX_ERR(0, 929, __pyx_L17_error)
         }
-        if (unlikely(PyDict_Update(__pyx_t_8, __pyx_9genexpr10__pyx_v_record) < 0)) {
-          if (PyErr_ExceptionMatches(PyExc_AttributeError)) __Pyx_RaiseMappingExpectedError(__pyx_9genexpr10__pyx_v_record);
-          __PYX_ERR(0, 748, __pyx_L17_error)
+        if (unlikely(PyDict_Update(__pyx_t_8, __pyx_9genexpr11__pyx_v_record) < 0)) {
+          if (PyErr_ExceptionMatches(PyExc_AttributeError)) __Pyx_RaiseMappingExpectedError(__pyx_9genexpr11__pyx_v_record);
+          __PYX_ERR(0, 929, __pyx_L17_error)
         }
-        if (unlikely(__Pyx_ListComp_Append(__pyx_t_4, (PyObject*)__pyx_t_8))) __PYX_ERR(0, 748, __pyx_L17_error)
+        if (unlikely(__Pyx_ListComp_Append(__pyx_t_4, (PyObject*)__pyx_t_8))) __PYX_ERR(0, 929, __pyx_L17_error)
         __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
       }
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_i); __pyx_9genexpr10__pyx_v_i = 0;
-      __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_record); __pyx_9genexpr10__pyx_v_record = 0;
+      __Pyx_XDECREF(__pyx_9genexpr11__pyx_v_i); __pyx_9genexpr11__pyx_v_i = 0;
+      __Pyx_XDECREF(__pyx_9genexpr11__pyx_v_record); __pyx_9genexpr11__pyx_v_record = 0;
       goto __pyx_L21_exit_scope;
       __pyx_L17_error:;
-      __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_i); __pyx_9genexpr10__pyx_v_i = 0;
-      __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_record); __pyx_9genexpr10__pyx_v_record = 0;
+      __Pyx_XDECREF(__pyx_9genexpr11__pyx_v_i); __pyx_9genexpr11__pyx_v_i = 0;
+      __Pyx_XDECREF(__pyx_9genexpr11__pyx_v_record); __pyx_9genexpr11__pyx_v_record = 0;
       goto __pyx_L1_error;
       __pyx_L21_exit_scope:;
     } /* exit inner scope */
     __pyx_v_indexed_records = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":751
+    /* "hyperoptimized_sort.pyx":932
  * 
  *         # Sort with index tracking
  *         sorted_records = hyperopt_sort(indexed_records, key_column, reverse)             # <<<<<<<<<<<<<<
@@ -16434,7 +18708,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
  *         # Extract results
 */
     __pyx_t_6 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_hyperopt_sort); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 751, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_hyperopt_sort); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 932, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __pyx_t_9 = 1;
     #if CYTHON_UNPACK_METHODS
@@ -16453,37 +18727,37 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
       __pyx_t_4 = __Pyx_PyObject_FastCall(__pyx_t_3, __pyx_callargs+__pyx_t_9, (4-__pyx_t_9) | (__pyx_t_9*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 751, __pyx_L1_error)
+      if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 932, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
     }
     __pyx_v_sorted_records = __pyx_t_4;
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":754
+    /* "hyperoptimized_sort.pyx":935
  * 
  *         # Extract results
  *         result_records = []             # <<<<<<<<<<<<<<
  *         indices = []
  * 
 */
-    __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 754, __pyx_L1_error)
+    __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 935, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_v_result_records = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":755
+    /* "hyperoptimized_sort.pyx":936
  *         # Extract results
  *         result_records = []
  *         indices = []             # <<<<<<<<<<<<<<
  * 
  *         for record in sorted_records:
 */
-    __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 755, __pyx_L1_error)
+    __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 936, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_v_indices = ((PyObject*)__pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":757
+    /* "hyperoptimized_sort.pyx":938
  *         indices = []
  * 
  *         for record in sorted_records:             # <<<<<<<<<<<<<<
@@ -16495,9 +18769,9 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
       __pyx_t_1 = 0;
       __pyx_t_7 = NULL;
     } else {
-      __pyx_t_1 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_v_sorted_records); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 757, __pyx_L1_error)
+      __pyx_t_1 = -1; __pyx_t_4 = PyObject_GetIter(__pyx_v_sorted_records); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 938, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 757, __pyx_L1_error)
+      __pyx_t_7 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 938, __pyx_L1_error)
     }
     for (;;) {
       if (likely(!__pyx_t_7)) {
@@ -16505,7 +18779,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
           {
             Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_4);
             #if !CYTHON_ASSUME_SAFE_SIZE
-            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 757, __pyx_L1_error)
+            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 938, __pyx_L1_error)
             #endif
             if (__pyx_t_1 >= __pyx_temp) break;
           }
@@ -16515,7 +18789,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
           {
             Py_ssize_t __pyx_temp = __Pyx_PyTuple_GET_SIZE(__pyx_t_4);
             #if !CYTHON_ASSUME_SAFE_SIZE
-            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 757, __pyx_L1_error)
+            if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 938, __pyx_L1_error)
             #endif
             if (__pyx_t_1 >= __pyx_temp) break;
           }
@@ -16526,13 +18800,13 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
           #endif
           ++__pyx_t_1;
         }
-        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 757, __pyx_L1_error)
+        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 938, __pyx_L1_error)
       } else {
         __pyx_t_3 = __pyx_t_7(__pyx_t_4);
         if (unlikely(!__pyx_t_3)) {
           PyObject* exc_type = PyErr_Occurred();
           if (exc_type) {
-            if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 757, __pyx_L1_error)
+            if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 938, __pyx_L1_error)
             PyErr_Clear();
           }
           break;
@@ -16542,7 +18816,7 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
       __Pyx_XDECREF_SET(__pyx_v_record, __pyx_t_3);
       __pyx_t_3 = 0;
 
-      /* "hyperoptimized_sort.pyx":758
+      /* "hyperoptimized_sort.pyx":939
  * 
  *         for record in sorted_records:
  *             indices.append(record.pop('__orig_idx__'))             # <<<<<<<<<<<<<<
@@ -16556,22 +18830,22 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
         PyObject *__pyx_callargs[2] = {__pyx_t_6, __pyx_mstate_global->__pyx_n_u_orig_idx};
         __pyx_t_3 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_pop, __pyx_callargs+__pyx_t_9, (2-__pyx_t_9) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
         __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
-        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 758, __pyx_L1_error)
+        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 939, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_3);
       }
-      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_indices, __pyx_t_3); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 758, __pyx_L1_error)
+      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_indices, __pyx_t_3); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 939, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-      /* "hyperoptimized_sort.pyx":759
+      /* "hyperoptimized_sort.pyx":940
  *         for record in sorted_records:
  *             indices.append(record.pop('__orig_idx__'))
  *             result_records.append(record)             # <<<<<<<<<<<<<<
  * 
  *         return result_records, indices
 */
-      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_result_records, __pyx_v_record); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 759, __pyx_L1_error)
+      __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_result_records, __pyx_v_record); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 940, __pyx_L1_error)
 
-      /* "hyperoptimized_sort.pyx":757
+      /* "hyperoptimized_sort.pyx":938
  *         indices = []
  * 
  *         for record in sorted_records:             # <<<<<<<<<<<<<<
@@ -16581,26 +18855,26 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
     }
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-    /* "hyperoptimized_sort.pyx":761
+    /* "hyperoptimized_sort.pyx":942
  *             result_records.append(record)
  * 
  *         return result_records, indices             # <<<<<<<<<<<<<<
 */
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 761, __pyx_L1_error)
+    __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 942, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_INCREF(__pyx_v_result_records);
     __Pyx_GIVEREF(__pyx_v_result_records);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_v_result_records) != (0)) __PYX_ERR(0, 761, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_v_result_records) != (0)) __PYX_ERR(0, 942, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_indices);
     __Pyx_GIVEREF(__pyx_v_indices);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_v_indices) != (0)) __PYX_ERR(0, 761, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_v_indices) != (0)) __PYX_ERR(0, 942, __pyx_L1_error);
     __pyx_r = __pyx_t_4;
     __pyx_t_4 = 0;
     goto __pyx_L0;
   }
 
-  /* "hyperoptimized_sort.pyx":713
+  /* "hyperoptimized_sort.pyx":894
  * 
  * # Additional convenience function with index tracking
  * def hyperopt_sort_with_indices(data, key_column: str = 'value', reverse: bool = False):             # <<<<<<<<<<<<<<
@@ -16624,10 +18898,10 @@ static PyObject *__pyx_pf_19hyperoptimized_sort_4hyperopt_sort_with_indices(CYTH
   __Pyx_XDECREF(__pyx_v_indices);
   __Pyx_XDECREF(__pyx_v_record);
   __Pyx_XDECREF(__pyx_v_result_records);
-  __Pyx_XDECREF(__pyx_8genexpr9__pyx_v_i);
-  __Pyx_XDECREF(__pyx_8genexpr9__pyx_v_value);
   __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_i);
-  __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_record);
+  __Pyx_XDECREF(__pyx_9genexpr10__pyx_v_value);
+  __Pyx_XDECREF(__pyx_9genexpr11__pyx_v_i);
+  __Pyx_XDECREF(__pyx_9genexpr11__pyx_v_record);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
@@ -17155,17 +19429,18 @@ static int __pyx_tp_clear_19hyperoptimized_sort_HyperoptimizedSorter(PyObject *o
 }
 
 static PyMethodDef __pyx_methods_19hyperoptimized_sort_HyperoptimizedSorter[] = {
-  {"sort_records", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_5sort_records, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_4sort_records},
-  {"_insertion_sort_records", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_7_insertion_sort_records, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_6_insertion_sort_records},
-  {"_introsort_records", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_9_introsort_records, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_8_introsort_records},
-  {"_radix_sort_records", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_11_radix_sort_records, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_10_radix_sort_records},
-  {"_external_merge_sort_records", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_13_external_merge_sort_records, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_12_external_merge_sort_records},
-  {"_k_way_merge_chunks", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_15_k_way_merge_chunks, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_14_k_way_merge_chunks},
-  {"sort", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_17sort, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_16sort},
-  {"select_algorithm", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_19select_algorithm, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_18select_algorithm},
-  {"get_algorithm_info", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_21get_algorithm_info, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_20get_algorithm_info},
-  {"__reduce_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_23__reduce_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
-  {"__setstate_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_25__setstate_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
+  {"cleanup_temp_files", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_5cleanup_temp_files, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_4cleanup_temp_files},
+  {"sort_records", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_7sort_records, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_6sort_records},
+  {"_insertion_sort_records", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_9_insertion_sort_records, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_8_insertion_sort_records},
+  {"_introsort_records", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_11_introsort_records, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_10_introsort_records},
+  {"_radix_sort_records", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_13_radix_sort_records, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_12_radix_sort_records},
+  {"_external_merge_sort_records", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_15_external_merge_sort_records, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_14_external_merge_sort_records},
+  {"_k_way_merge_chunks", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_17_k_way_merge_chunks, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_16_k_way_merge_chunks},
+  {"sort", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_19sort, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_18sort},
+  {"select_algorithm", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_21select_algorithm, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_20select_algorithm},
+  {"get_algorithm_info", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_23get_algorithm_info, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_19hyperoptimized_sort_20HyperoptimizedSorter_22get_algorithm_info},
+  {"__reduce_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_25__reduce_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
+  {"__setstate_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_19hyperoptimized_sort_20HyperoptimizedSorter_27__setstate_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
   {0, 0, 0, 0}
 };
 #if CYTHON_USE_TYPE_SPECS
@@ -17299,8 +19574,7 @@ static void __pyx_tp_dealloc_19hyperoptimized_sort___pyx_scope_struct__genexpr(P
   #endif
   PyObject_GC_UnTrack(o);
   Py_CLEAR(p->__pyx_genexpr_arg_0);
-  Py_CLEAR(p->__pyx_v_item);
-  Py_CLEAR(p->__pyx_t_0);
+  Py_CLEAR(p->__pyx_v_x);
   #if CYTHON_USE_FREELISTS
   if (((int)(__pyx_mstate_global->__pyx_freecount_19hyperoptimized_sort___pyx_scope_struct__genexpr < 8) & (int)(Py_TYPE(o)->tp_basicsize == sizeof(struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr)))) {
     __pyx_mstate_global->__pyx_freelist_19hyperoptimized_sort___pyx_scope_struct__genexpr[__pyx_mstate_global->__pyx_freecount_19hyperoptimized_sort___pyx_scope_struct__genexpr++] = ((struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct__genexpr *)o);
@@ -17328,11 +19602,8 @@ static int __pyx_tp_traverse_19hyperoptimized_sort___pyx_scope_struct__genexpr(P
   if (p->__pyx_genexpr_arg_0) {
     e = (*v)(p->__pyx_genexpr_arg_0, a); if (e) return e;
   }
-  if (p->__pyx_v_item) {
-    e = (*v)(p->__pyx_v_item, a); if (e) return e;
-  }
-  if (p->__pyx_t_0) {
-    e = (*v)(p->__pyx_t_0, a); if (e) return e;
+  if (p->__pyx_v_x) {
+    e = (*v)(p->__pyx_v_x, a); if (e) return e;
   }
   return 0;
 }
@@ -17430,166 +19701,6 @@ static PyTypeObject __pyx_type_19hyperoptimized_sort___pyx_scope_struct__genexpr
 };
 #endif
 
-static PyObject *__pyx_tp_new_19hyperoptimized_sort___pyx_scope_struct_1_genexpr(PyTypeObject *t, CYTHON_UNUSED PyObject *a, CYTHON_UNUSED PyObject *k) {
-  PyObject *o;
-  #if CYTHON_COMPILING_IN_LIMITED_API
-  allocfunc alloc_func = (allocfunc)PyType_GetSlot(t, Py_tp_alloc);
-  o = alloc_func(t, 0);
-  #else
-  #if CYTHON_USE_FREELISTS
-  if (likely((int)(__pyx_mstate_global->__pyx_freecount_19hyperoptimized_sort___pyx_scope_struct_1_genexpr > 0) & (int)(t->tp_basicsize == sizeof(struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr)))) {
-    o = (PyObject*)__pyx_mstate_global->__pyx_freelist_19hyperoptimized_sort___pyx_scope_struct_1_genexpr[--__pyx_mstate_global->__pyx_freecount_19hyperoptimized_sort___pyx_scope_struct_1_genexpr];
-    memset(o, 0, sizeof(struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr));
-    (void) PyObject_INIT(o, t);
-    PyObject_GC_Track(o);
-  } else
-  #endif
-  {
-    o = (*t->tp_alloc)(t, 0);
-    if (unlikely(!o)) return 0;
-  }
-  #endif
-  return o;
-}
-
-static void __pyx_tp_dealloc_19hyperoptimized_sort___pyx_scope_struct_1_genexpr(PyObject *o) {
-  struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *p = (struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *)o;
-  #if CYTHON_USE_TP_FINALIZE
-  if (unlikely((PY_VERSION_HEX >= 0x03080000 || __Pyx_PyType_HasFeature(Py_TYPE(o), Py_TPFLAGS_HAVE_FINALIZE)) && __Pyx_PyObject_GetSlot(o, tp_finalize, destructor)) && !__Pyx_PyObject_GC_IsFinalized(o)) {
-    if (__Pyx_PyObject_GetSlot(o, tp_dealloc, destructor) == __pyx_tp_dealloc_19hyperoptimized_sort___pyx_scope_struct_1_genexpr) {
-      if (PyObject_CallFinalizerFromDealloc(o)) return;
-    }
-  }
-  #endif
-  PyObject_GC_UnTrack(o);
-  Py_CLEAR(p->__pyx_genexpr_arg_0);
-  Py_CLEAR(p->__pyx_v_x);
-  #if CYTHON_USE_FREELISTS
-  if (((int)(__pyx_mstate_global->__pyx_freecount_19hyperoptimized_sort___pyx_scope_struct_1_genexpr < 8) & (int)(Py_TYPE(o)->tp_basicsize == sizeof(struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr)))) {
-    __pyx_mstate_global->__pyx_freelist_19hyperoptimized_sort___pyx_scope_struct_1_genexpr[__pyx_mstate_global->__pyx_freecount_19hyperoptimized_sort___pyx_scope_struct_1_genexpr++] = ((struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *)o);
-  } else
-  #endif
-  {
-    #if CYTHON_USE_TYPE_SLOTS
-    (*Py_TYPE(o)->tp_free)(o);
-    #else
-    {
-      freefunc tp_free = (freefunc)PyType_GetSlot(Py_TYPE(o), Py_tp_free);
-      if (tp_free) tp_free(o);
-    }
-    #endif
-  }
-}
-
-static int __pyx_tp_traverse_19hyperoptimized_sort___pyx_scope_struct_1_genexpr(PyObject *o, visitproc v, void *a) {
-  int e;
-  struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *p = (struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr *)o;
-  {
-    e = __Pyx_call_type_traverse(o, 1, v, a);
-    if (e) return e;
-  }
-  if (p->__pyx_genexpr_arg_0) {
-    e = (*v)(p->__pyx_genexpr_arg_0, a); if (e) return e;
-  }
-  if (p->__pyx_v_x) {
-    e = (*v)(p->__pyx_v_x, a); if (e) return e;
-  }
-  return 0;
-}
-#if CYTHON_USE_TYPE_SPECS
-static PyType_Slot __pyx_type_19hyperoptimized_sort___pyx_scope_struct_1_genexpr_slots[] = {
-  {Py_tp_dealloc, (void *)__pyx_tp_dealloc_19hyperoptimized_sort___pyx_scope_struct_1_genexpr},
-  {Py_tp_traverse, (void *)__pyx_tp_traverse_19hyperoptimized_sort___pyx_scope_struct_1_genexpr},
-  {Py_tp_new, (void *)__pyx_tp_new_19hyperoptimized_sort___pyx_scope_struct_1_genexpr},
-  {0, 0},
-};
-static PyType_Spec __pyx_type_19hyperoptimized_sort___pyx_scope_struct_1_genexpr_spec = {
-  "hyperoptimized_sort.__pyx_scope_struct_1_genexpr",
-  sizeof(struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr),
-  0,
-  Py_TPFLAGS_DEFAULT|Py_TPFLAGS_HAVE_VERSION_TAG|Py_TPFLAGS_CHECKTYPES|Py_TPFLAGS_HAVE_NEWBUFFER|Py_TPFLAGS_HAVE_GC|Py_TPFLAGS_HAVE_FINALIZE,
-  __pyx_type_19hyperoptimized_sort___pyx_scope_struct_1_genexpr_slots,
-};
-#else
-
-static PyTypeObject __pyx_type_19hyperoptimized_sort___pyx_scope_struct_1_genexpr = {
-  PyVarObject_HEAD_INIT(0, 0)
-  "hyperoptimized_sort.""__pyx_scope_struct_1_genexpr", /*tp_name*/
-  sizeof(struct __pyx_obj_19hyperoptimized_sort___pyx_scope_struct_1_genexpr), /*tp_basicsize*/
-  0, /*tp_itemsize*/
-  __pyx_tp_dealloc_19hyperoptimized_sort___pyx_scope_struct_1_genexpr, /*tp_dealloc*/
-  #if PY_VERSION_HEX < 0x030800b4
-  0, /*tp_print*/
-  #endif
-  #if PY_VERSION_HEX >= 0x030800b4
-  0, /*tp_vectorcall_offset*/
-  #endif
-  0, /*tp_getattr*/
-  0, /*tp_setattr*/
-  0, /*tp_as_async*/
-  0, /*tp_repr*/
-  0, /*tp_as_number*/
-  0, /*tp_as_sequence*/
-  0, /*tp_as_mapping*/
-  0, /*tp_hash*/
-  0, /*tp_call*/
-  0, /*tp_str*/
-  0, /*tp_getattro*/
-  0, /*tp_setattro*/
-  0, /*tp_as_buffer*/
-  Py_TPFLAGS_DEFAULT|Py_TPFLAGS_HAVE_VERSION_TAG|Py_TPFLAGS_CHECKTYPES|Py_TPFLAGS_HAVE_NEWBUFFER|Py_TPFLAGS_HAVE_GC|Py_TPFLAGS_HAVE_FINALIZE, /*tp_flags*/
-  0, /*tp_doc*/
-  __pyx_tp_traverse_19hyperoptimized_sort___pyx_scope_struct_1_genexpr, /*tp_traverse*/
-  0, /*tp_clear*/
-  0, /*tp_richcompare*/
-  0, /*tp_weaklistoffset*/
-  0, /*tp_iter*/
-  0, /*tp_iternext*/
-  0, /*tp_methods*/
-  0, /*tp_members*/
-  0, /*tp_getset*/
-  0, /*tp_base*/
-  0, /*tp_dict*/
-  0, /*tp_descr_get*/
-  0, /*tp_descr_set*/
-  #if !CYTHON_USE_TYPE_SPECS
-  0, /*tp_dictoffset*/
-  #endif
-  0, /*tp_init*/
-  0, /*tp_alloc*/
-  __pyx_tp_new_19hyperoptimized_sort___pyx_scope_struct_1_genexpr, /*tp_new*/
-  0, /*tp_free*/
-  0, /*tp_is_gc*/
-  0, /*tp_bases*/
-  0, /*tp_mro*/
-  0, /*tp_cache*/
-  0, /*tp_subclasses*/
-  0, /*tp_weaklist*/
-  0, /*tp_del*/
-  0, /*tp_version_tag*/
-  #if CYTHON_USE_TP_FINALIZE
-  0, /*tp_finalize*/
-  #else
-  NULL, /*tp_finalize*/
-  #endif
-  #if PY_VERSION_HEX >= 0x030800b1 && (!CYTHON_COMPILING_IN_PYPY || PYPY_VERSION_NUM >= 0x07030800)
-  0, /*tp_vectorcall*/
-  #endif
-  #if __PYX_NEED_TP_PRINT_SLOT == 1
-  0, /*tp_print*/
-  #endif
-  #if PY_VERSION_HEX >= 0x030C0000
-  0, /*tp_watched*/
-  #endif
-  #if PY_VERSION_HEX >= 0x030d00A4
-  0, /*tp_versions_used*/
-  #endif
-  #if CYTHON_COMPILING_IN_PYPY && PY_VERSION_HEX >= 0x03090000 && PY_VERSION_HEX < 0x030a0000
-  0, /*tp_pypy_flags*/
-  #endif
-};
-#endif
-
 static PyMethodDef __pyx_methods[] = {
   {0, 0, 0, 0}
 };
@@ -17653,8 +19764,12 @@ static int __Pyx_modinit_type_init_code(__pyx_mstatetype *__pyx_mstate) {
   __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._heapsort_range = (PyObject *(*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int, int, PyObject *, int))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapsort_range;
   __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._heapify = (void (*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int, int, int, PyObject *, int))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__heapify;
   __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._radix_sort_numeric = (PyObject *(*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sort_numeric;
+  __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._radix_sort_positive = (PyObject *(*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sort_positive;
+  __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._radix_sort_negative = (PyObject *(*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__radix_sort_negative;
   __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._float_to_sortable_int = (PY_LONG_LONG (*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, double))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__float_to_sortable_int;
-  __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._counting_sort_by_digit = (PyObject *(*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int, int))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit;
+  __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._counting_sort_by_digit_positive = (PyObject *(*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, PY_LONG_LONG, int))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit_positive;
+  __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._counting_sort_by_digit_negative = (PyObject *(*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, PY_LONG_LONG, int))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit_negative;
+  __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._counting_sort_by_digit = (PyObject *(*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, PY_LONG_LONG, int))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__counting_sort_by_digit;
   __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._sort_and_write_chunks = (PyObject *(*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, int, PyObject *, int))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__sort_and_write_chunks;
   __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._write_chunk_to_file = (void (*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *, PyObject *))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__write_chunk_to_file;
   __pyx_vtable_19hyperoptimized_sort_HyperoptimizedSorter._read_chunk_from_file = (PyObject *(*)(struct __pyx_obj_19hyperoptimized_sort_HyperoptimizedSorter *, PyObject *))__pyx_f_19hyperoptimized_sort_20HyperoptimizedSorter__read_chunk_from_file;
@@ -17693,35 +19808,19 @@ static int __Pyx_modinit_type_init_code(__pyx_mstatetype *__pyx_mstate) {
   if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_HyperoptimizedSorter, (PyObject *) __pyx_mstate->__pyx_ptype_19hyperoptimized_sort_HyperoptimizedSorter) < 0) __PYX_ERR(0, 66, __pyx_L1_error)
   if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_19hyperoptimized_sort_HyperoptimizedSorter) < 0) __PYX_ERR(0, 66, __pyx_L1_error)
   #if CYTHON_USE_TYPE_SPECS
-  __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_19hyperoptimized_sort___pyx_scope_struct__genexpr_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr)) __PYX_ERR(0, 361, __pyx_L1_error)
-  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_19hyperoptimized_sort___pyx_scope_struct__genexpr_spec, __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr) < 0) __PYX_ERR(0, 361, __pyx_L1_error)
+  __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_19hyperoptimized_sort___pyx_scope_struct__genexpr_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr)) __PYX_ERR(0, 815, __pyx_L1_error)
+  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_19hyperoptimized_sort___pyx_scope_struct__genexpr_spec, __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr) < 0) __PYX_ERR(0, 815, __pyx_L1_error)
   #else
   __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr = &__pyx_type_19hyperoptimized_sort___pyx_scope_struct__genexpr;
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   #endif
   #if !CYTHON_USE_TYPE_SPECS
-  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr) < 0) __PYX_ERR(0, 361, __pyx_L1_error)
+  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr) < 0) __PYX_ERR(0, 815, __pyx_L1_error)
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   if ((CYTHON_USE_TYPE_SLOTS && CYTHON_USE_PYTYPE_LOOKUP) && likely(!__pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr->tp_dictoffset && __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr->tp_getattro == PyObject_GenericGetAttr)) {
     __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct__genexpr->tp_getattro = PyObject_GenericGetAttr;
-  }
-  #endif
-  #if CYTHON_USE_TYPE_SPECS
-  __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_19hyperoptimized_sort___pyx_scope_struct_1_genexpr_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr)) __PYX_ERR(0, 634, __pyx_L1_error)
-  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_19hyperoptimized_sort___pyx_scope_struct_1_genexpr_spec, __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr) < 0) __PYX_ERR(0, 634, __pyx_L1_error)
-  #else
-  __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr = &__pyx_type_19hyperoptimized_sort___pyx_scope_struct_1_genexpr;
-  #endif
-  #if !CYTHON_COMPILING_IN_LIMITED_API
-  #endif
-  #if !CYTHON_USE_TYPE_SPECS
-  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr) < 0) __PYX_ERR(0, 634, __pyx_L1_error)
-  #endif
-  #if !CYTHON_COMPILING_IN_LIMITED_API
-  if ((CYTHON_USE_TYPE_SLOTS && CYTHON_USE_PYTYPE_LOOKUP) && likely(!__pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr->tp_dictoffset && __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr->tp_getattro == PyObject_GenericGetAttr)) {
-    __pyx_mstate->__pyx_ptype_19hyperoptimized_sort___pyx_scope_struct_1_genexpr->tp_getattro = PyObject_GenericGetAttr;
   }
   #endif
   __Pyx_RefNannyFinishContext();
@@ -18373,40 +20472,40 @@ __Pyx_RefNannySetupContext("PyInit_hyperoptimized_sort", 0);
 */
   __pyx_v_19hyperoptimized_sort_MAX_RECURSION_DEPTH = 64;
 
-  /* "hyperoptimized_sort.pyx":658
+  /* "hyperoptimized_sort.pyx":839
  * 
  * # Factory function for easy integration
  * def create_optimized_sorter(memory_limit_mb=512, temp_dir=None, enable_simd=True, enable_parallel=True):             # <<<<<<<<<<<<<<
  *     """
  *     Factory function to create a hyperoptimized sorter instance
 */
-  __pyx_t_3 = PyCFunction_NewEx(&__pyx_mdef_19hyperoptimized_sort_1create_optimized_sorter, NULL, __pyx_mstate_global->__pyx_n_u_hyperoptimized_sort); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 658, __pyx_L1_error)
+  __pyx_t_3 = PyCFunction_NewEx(&__pyx_mdef_19hyperoptimized_sort_1create_optimized_sorter, NULL, __pyx_mstate_global->__pyx_n_u_hyperoptimized_sort); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 839, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_create_optimized_sorter, __pyx_t_3) < 0) __PYX_ERR(0, 658, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_create_optimized_sorter, __pyx_t_3) < 0) __PYX_ERR(0, 839, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "hyperoptimized_sort.pyx":675
+  /* "hyperoptimized_sort.pyx":856
  * 
  * # Convenience function for direct sorting
  * def hyperopt_sort(data, key_column: str = 'value', reverse: bool = False,             # <<<<<<<<<<<<<<
  *                  memory_limit_mb: int = 512, temp_dir: str = None):
  *     """
 */
-  __pyx_t_3 = PyCFunction_NewEx(&__pyx_mdef_19hyperoptimized_sort_3hyperopt_sort, NULL, __pyx_mstate_global->__pyx_n_u_hyperoptimized_sort); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 675, __pyx_L1_error)
+  __pyx_t_3 = PyCFunction_NewEx(&__pyx_mdef_19hyperoptimized_sort_3hyperopt_sort, NULL, __pyx_mstate_global->__pyx_n_u_hyperoptimized_sort); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 856, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_hyperopt_sort, __pyx_t_3) < 0) __PYX_ERR(0, 675, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_hyperopt_sort, __pyx_t_3) < 0) __PYX_ERR(0, 856, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
-  /* "hyperoptimized_sort.pyx":713
+  /* "hyperoptimized_sort.pyx":894
  * 
  * # Additional convenience function with index tracking
  * def hyperopt_sort_with_indices(data, key_column: str = 'value', reverse: bool = False):             # <<<<<<<<<<<<<<
  *     """
  *     Sort records and return both sorted records and original indices
 */
-  __pyx_t_3 = PyCFunction_NewEx(&__pyx_mdef_19hyperoptimized_sort_5hyperopt_sort_with_indices, NULL, __pyx_mstate_global->__pyx_n_u_hyperoptimized_sort); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 713, __pyx_L1_error)
+  __pyx_t_3 = PyCFunction_NewEx(&__pyx_mdef_19hyperoptimized_sort_5hyperopt_sort_with_indices, NULL, __pyx_mstate_global->__pyx_n_u_hyperoptimized_sort); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 894, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_hyperopt_sort_with_indices, __pyx_t_3) < 0) __PYX_ERR(0, 713, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_hyperopt_sort_with_indices, __pyx_t_3) < 0) __PYX_ERR(0, 894, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
   /* "(tree fragment)":1
@@ -18494,7 +20593,6 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_External_Merge_Sort, sizeof(__pyx_k_External_Merge_Sort), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_External_Merge_Sort */
   {__pyx_k_HIGHEST_PROTOCOL, sizeof(__pyx_k_HIGHEST_PROTOCOL), 0, 1, 1}, /* PyObject cname: __pyx_n_u_HIGHEST_PROTOCOL */
   {__pyx_k_HyperoptimizedSorter, sizeof(__pyx_k_HyperoptimizedSorter), 0, 1, 1}, /* PyObject cname: __pyx_n_u_HyperoptimizedSorter */
-  {__pyx_k_HyperoptimizedSorter__radix_sort, sizeof(__pyx_k_HyperoptimizedSorter__radix_sort), 0, 1, 1}, /* PyObject cname: __pyx_n_u_HyperoptimizedSorter__radix_sort */
   {__pyx_k_ImportError, sizeof(__pyx_k_ImportError), 0, 1, 1}, /* PyObject cname: __pyx_n_u_ImportError */
   {__pyx_k_Incompatible_checksums_0x_x_vs_0, sizeof(__pyx_k_Incompatible_checksums_0x_x_vs_0), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Incompatible_checksums_0x_x_vs_0 */
   {__pyx_k_Insertion_Sort, sizeof(__pyx_k_Insertion_Sort), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Insertion_Sort */
@@ -18504,6 +20602,8 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_Note_that_Cython_is_deliberately, sizeof(__pyx_k_Note_that_Cython_is_deliberately), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Note_that_Cython_is_deliberately */
   {__pyx_k_Optional, sizeof(__pyx_k_Optional), 0, 1, 1}, /* PyObject cname: __pyx_n_u_Optional */
   {__pyx_k_PickleError, sizeof(__pyx_k_PickleError), 0, 1, 1}, /* PyObject cname: __pyx_n_u_PickleError */
+  {__pyx_k_Q, sizeof(__pyx_k_Q), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Q */
+  {__pyx_k_Radix_sort_received_non_integer, sizeof(__pyx_k_Radix_sort_received_non_integer), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_Radix_sort_received_non_integer */
   {__pyx_k_StopIteration, sizeof(__pyx_k_StopIteration), 0, 1, 1}, /* PyObject cname: __pyx_n_u_StopIteration */
   {__pyx_k_Tuple, sizeof(__pyx_k_Tuple), 0, 1, 1}, /* PyObject cname: __pyx_n_u_Tuple */
   {__pyx_k_TypeError, sizeof(__pyx_k_TypeError), 0, 1, 1}, /* PyObject cname: __pyx_n_u_TypeError */
@@ -18514,12 +20614,12 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k__2, sizeof(__pyx_k__2), 0, 1, 0}, /* PyObject cname: __pyx_kp_u__2 */
   {__pyx_k_add_note, sizeof(__pyx_k_add_note), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_add_note */
   {__pyx_k_chunk_files, sizeof(__pyx_k_chunk_files), 0, 1, 1}, /* PyObject cname: __pyx_n_u_chunk_files */
-  {__pyx_k_class_getitem, sizeof(__pyx_k_class_getitem), 0, 1, 1}, /* PyObject cname: __pyx_n_u_class_getitem */
   {__pyx_k_cleanup_temp_files, sizeof(__pyx_k_cleanup_temp_files), 0, 1, 1}, /* PyObject cname: __pyx_n_u_cleanup_temp_files */
   {__pyx_k_clear, sizeof(__pyx_k_clear), 0, 1, 1}, /* PyObject cname: __pyx_n_u_clear */
   {__pyx_k_cline_in_traceback, sizeof(__pyx_k_cline_in_traceback), 0, 1, 1}, /* PyObject cname: __pyx_n_u_cline_in_traceback */
   {__pyx_k_close, sizeof(__pyx_k_close), 0, 1, 1}, /* PyObject cname: __pyx_n_u_close */
   {__pyx_k_create_optimized_sorter, sizeof(__pyx_k_create_optimized_sorter), 0, 1, 1}, /* PyObject cname: __pyx_n_u_create_optimized_sorter */
+  {__pyx_k_d, sizeof(__pyx_k_d), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_d */
   {__pyx_k_data, sizeof(__pyx_k_data), 0, 1, 1}, /* PyObject cname: __pyx_n_u_data */
   {__pyx_k_dict, sizeof(__pyx_k_dict), 0, 1, 1}, /* PyObject cname: __pyx_n_u_dict */
   {__pyx_k_disable, sizeof(__pyx_k_disable), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_disable */
@@ -18552,12 +20652,14 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_initializing, sizeof(__pyx_k_initializing), 0, 1, 1}, /* PyObject cname: __pyx_n_u_initializing */
   {__pyx_k_insertion, sizeof(__pyx_k_insertion), 0, 1, 1}, /* PyObject cname: __pyx_n_u_insertion */
   {__pyx_k_insertion_sort_records, sizeof(__pyx_k_insertion_sort_records), 0, 1, 1}, /* PyObject cname: __pyx_n_u_insertion_sort_records */
+  {__pyx_k_int, sizeof(__pyx_k_int), 0, 1, 1}, /* PyObject cname: __pyx_n_u_int */
   {__pyx_k_int32, sizeof(__pyx_k_int32), 0, 1, 1}, /* PyObject cname: __pyx_n_u_int32 */
   {__pyx_k_int64, sizeof(__pyx_k_int64), 0, 1, 1}, /* PyObject cname: __pyx_n_u_int64 */
   {__pyx_k_introsort, sizeof(__pyx_k_introsort), 0, 1, 1}, /* PyObject cname: __pyx_n_u_introsort */
   {__pyx_k_introsort_records, sizeof(__pyx_k_introsort_records), 0, 1, 1}, /* PyObject cname: __pyx_n_u_introsort_records */
   {__pyx_k_isenabled, sizeof(__pyx_k_isenabled), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_isenabled */
-  {__pyx_k_item, sizeof(__pyx_k_item), 0, 1, 1}, /* PyObject cname: __pyx_n_u_item */
+  {__pyx_k_isinf, sizeof(__pyx_k_isinf), 0, 1, 1}, /* PyObject cname: __pyx_n_u_isinf */
+  {__pyx_k_isnan, sizeof(__pyx_k_isnan), 0, 1, 1}, /* PyObject cname: __pyx_n_u_isnan */
   {__pyx_k_join, sizeof(__pyx_k_join), 0, 1, 1}, /* PyObject cname: __pyx_n_u_join */
   {__pyx_k_k_way_merge_chunks, sizeof(__pyx_k_k_way_merge_chunks), 0, 1, 1}, /* PyObject cname: __pyx_n_u_k_way_merge_chunks */
   {__pyx_k_key_column, sizeof(__pyx_k_key_column), 0, 1, 1}, /* PyObject cname: __pyx_n_u_key_column */
@@ -18566,7 +20668,6 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_lower, sizeof(__pyx_k_lower), 0, 1, 1}, /* PyObject cname: __pyx_n_u_lower */
   {__pyx_k_main, sizeof(__pyx_k_main), 0, 1, 1}, /* PyObject cname: __pyx_n_u_main */
   {__pyx_k_math, sizeof(__pyx_k_math), 0, 1, 1}, /* PyObject cname: __pyx_n_u_math */
-  {__pyx_k_max, sizeof(__pyx_k_max), 0, 1, 1}, /* PyObject cname: __pyx_n_u_max */
   {__pyx_k_memory_limit_mb, sizeof(__pyx_k_memory_limit_mb), 0, 1, 1}, /* PyObject cname: __pyx_n_u_memory_limit_mb */
   {__pyx_k_module, sizeof(__pyx_k_module), 0, 1, 1}, /* PyObject cname: __pyx_n_u_module */
   {__pyx_k_name, sizeof(__pyx_k_name), 0, 1, 1}, /* PyObject cname: __pyx_n_u_name */
@@ -18581,6 +20682,7 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_open, sizeof(__pyx_k_open), 0, 1, 1}, /* PyObject cname: __pyx_n_u_open */
   {__pyx_k_orig_idx, sizeof(__pyx_k_orig_idx), 0, 1, 1}, /* PyObject cname: __pyx_n_u_orig_idx */
   {__pyx_k_os, sizeof(__pyx_k_os), 0, 1, 1}, /* PyObject cname: __pyx_n_u_os */
+  {__pyx_k_pack, sizeof(__pyx_k_pack), 0, 1, 1}, /* PyObject cname: __pyx_n_u_pack */
   {__pyx_k_path, sizeof(__pyx_k_path), 0, 1, 1}, /* PyObject cname: __pyx_n_u_path */
   {__pyx_k_pickle, sizeof(__pyx_k_pickle), 0, 1, 1}, /* PyObject cname: __pyx_n_u_pickle */
   {__pyx_k_pop, sizeof(__pyx_k_pop), 0, 1, 1}, /* PyObject cname: __pyx_n_u_pop */
@@ -18611,14 +20713,17 @@ static const __Pyx_StringTabEntry __pyx_string_tab[] = {
   {__pyx_k_sort_records, sizeof(__pyx_k_sort_records), 0, 1, 1}, /* PyObject cname: __pyx_n_u_sort_records */
   {__pyx_k_sorted_chunks, sizeof(__pyx_k_sorted_chunks), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_sorted_chunks */
   {__pyx_k_spec, sizeof(__pyx_k_spec), 0, 1, 1}, /* PyObject cname: __pyx_n_u_spec */
+  {__pyx_k_struct, sizeof(__pyx_k_struct), 0, 1, 1}, /* PyObject cname: __pyx_n_u_struct */
   {__pyx_k_temp_dir, sizeof(__pyx_k_temp_dir), 0, 1, 1}, /* PyObject cname: __pyx_n_u_temp_dir */
   {__pyx_k_tempfile, sizeof(__pyx_k_tempfile), 0, 1, 1}, /* PyObject cname: __pyx_n_u_tempfile */
   {__pyx_k_test, sizeof(__pyx_k_test), 0, 1, 1}, /* PyObject cname: __pyx_n_u_test */
   {__pyx_k_throw, sizeof(__pyx_k_throw), 0, 1, 1}, /* PyObject cname: __pyx_n_u_throw */
   {__pyx_k_tmp, sizeof(__pyx_k_tmp), 0, 1, 0}, /* PyObject cname: __pyx_kp_u_tmp */
+  {__pyx_k_tolist, sizeof(__pyx_k_tolist), 0, 1, 1}, /* PyObject cname: __pyx_n_u_tolist */
   {__pyx_k_typing, sizeof(__pyx_k_typing), 0, 1, 1}, /* PyObject cname: __pyx_n_u_typing */
   {__pyx_k_uint32, sizeof(__pyx_k_uint32), 0, 1, 1}, /* PyObject cname: __pyx_n_u_uint32 */
   {__pyx_k_uint64, sizeof(__pyx_k_uint64), 0, 1, 1}, /* PyObject cname: __pyx_n_u_uint64 */
+  {__pyx_k_unpack, sizeof(__pyx_k_unpack), 0, 1, 1}, /* PyObject cname: __pyx_n_u_unpack */
   {__pyx_k_update, sizeof(__pyx_k_update), 0, 1, 1}, /* PyObject cname: __pyx_n_u_update */
   {__pyx_k_value, sizeof(__pyx_k_value), 0, 1, 1}, /* PyObject cname: __pyx_n_u_value */
   {__pyx_k_wb, sizeof(__pyx_k_wb), 0, 1, 1}, /* PyObject cname: __pyx_n_u_wb */
@@ -18632,13 +20737,12 @@ static int __Pyx_InitStrings(__Pyx_StringTabEntry const *t, PyObject **target, c
 
 static int __Pyx_InitCachedBuiltins(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
-  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_range); if (!__pyx_builtin_range) __PYX_ERR(0, 147, __pyx_L1_error)
-  __pyx_builtin_enumerate = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_enumerate); if (!__pyx_builtin_enumerate) __PYX_ERR(0, 324, __pyx_L1_error)
-  __pyx_builtin_max = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_max); if (!__pyx_builtin_max) __PYX_ERR(0, 361, __pyx_L1_error)
-  __pyx_builtin_open = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_open); if (!__pyx_builtin_open) __PYX_ERR(0, 449, __pyx_L1_error)
-  __pyx_builtin_StopIteration = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_StopIteration); if (!__pyx_builtin_StopIteration) __PYX_ERR(0, 484, __pyx_L1_error)
-  __pyx_builtin_ValueError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_ValueError); if (!__pyx_builtin_ValueError) __PYX_ERR(0, 528, __pyx_L1_error)
-  __pyx_builtin_TypeError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_TypeError); if (!__pyx_builtin_TypeError) __PYX_ERR(0, 528, __pyx_L1_error)
+  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_range); if (!__pyx_builtin_range) __PYX_ERR(0, 151, __pyx_L1_error)
+  __pyx_builtin_enumerate = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_enumerate); if (!__pyx_builtin_enumerate) __PYX_ERR(0, 331, __pyx_L1_error)
+  __pyx_builtin_ValueError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_ValueError); if (!__pyx_builtin_ValueError) __PYX_ERR(0, 368, __pyx_L1_error)
+  __pyx_builtin_open = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_open); if (!__pyx_builtin_open) __PYX_ERR(0, 585, __pyx_L1_error)
+  __pyx_builtin_StopIteration = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_StopIteration); if (!__pyx_builtin_StopIteration) __PYX_ERR(0, 620, __pyx_L1_error)
+  __pyx_builtin_TypeError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_TypeError); if (!__pyx_builtin_TypeError) __PYX_ERR(0, 664, __pyx_L1_error)
   __pyx_builtin_ImportError = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_ImportError); if (!__pyx_builtin_ImportError) __PYX_ERR(1, 1051, __pyx_L1_error)
   return 0;
   __pyx_L1_error:;
@@ -18651,14 +20755,14 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   __Pyx_RefNannySetupContext("__Pyx_InitCachedConstants", 0);
 
-  /* "hyperoptimized_sort.pyx":449
+  /* "hyperoptimized_sort.pyx":585
  *     cdef void _write_chunk_to_file(self, list chunk, str filename):
  *         """Write sorted chunk to temporary file using efficient serialization"""
  *         with open(filename, 'wb') as f:             # <<<<<<<<<<<<<<
  *             pickle.dump(chunk, f, protocol=pickle.HIGHEST_PROTOCOL)
  * 
 */
-  __pyx_mstate_global->__pyx_tuple[0] = PyTuple_Pack(3, Py_None, Py_None, Py_None); if (unlikely(!__pyx_mstate_global->__pyx_tuple[0])) __PYX_ERR(0, 449, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[0] = PyTuple_Pack(3, Py_None, Py_None, Py_None); if (unlikely(!__pyx_mstate_global->__pyx_tuple[0])) __PYX_ERR(0, 585, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[0]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[0]);
 
@@ -18693,6 +20797,7 @@ static int __Pyx_InitConstants(__pyx_mstatetype *__pyx_mstate) {
   __pyx_mstate->__pyx_int_157964483 = PyLong_FromLong(157964483L); if (unlikely(!__pyx_mstate->__pyx_int_157964483)) __PYX_ERR(0, 1, __pyx_L1_error)
   __pyx_mstate->__pyx_int_222248282 = PyLong_FromLong(222248282L); if (unlikely(!__pyx_mstate->__pyx_int_222248282)) __PYX_ERR(0, 1, __pyx_L1_error)
   __pyx_mstate->__pyx_int_0x7fffffffffffffff = PyLong_FromString("0x7fffffffffffffff", 0, 0); if (unlikely(!__pyx_mstate->__pyx_int_0x7fffffffffffffff)) __PYX_ERR(0, 1, __pyx_L1_error)
+  __pyx_mstate->__pyx_int_0x8000000000000000 = PyLong_FromString("0x8000000000000000", 0, 0); if (unlikely(!__pyx_mstate->__pyx_int_0x8000000000000000)) __PYX_ERR(0, 1, __pyx_L1_error)
   return 0;
   __pyx_L1_error:;
   return -1;
@@ -18723,14 +20828,9 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
   PyObject* tuple_dedup_map = PyDict_New();
   if (unlikely(!tuple_dedup_map)) return -1;
   {
-    __Pyx_PyCode_New_function_description descr = {0, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR), 361, 2};
-    PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_item};
-    __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_hyperoptimized_sort_pyx, __pyx_mstate->__pyx_n_u_genexpr, __pyx_k__3, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
-  }
-  {
-    __Pyx_PyCode_New_function_description descr = {0, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR), 634, 2};
+    __Pyx_PyCode_New_function_description descr = {0, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS|CO_GENERATOR), 815, 2};
     PyObject* varnames[] = {__pyx_mstate->__pyx_n_u_x};
-    __pyx_mstate_global->__pyx_codeobj_tab[1] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_hyperoptimized_sort_pyx, __pyx_mstate->__pyx_n_u_genexpr, __pyx_k_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[1])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_hyperoptimized_sort_pyx, __pyx_mstate->__pyx_n_u_genexpr, __pyx_k_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
   }
   Py_DECREF(tuple_dedup_map);
   return 0;
@@ -20371,6 +22471,25 @@ static PyObject *__Pyx_PyObject_FastCallMethod(PyObject *name, PyObject *const *
 }
 #endif
 
+/* RejectKeywords */
+static void __Pyx_RejectKeywords(const char* function_name, PyObject *kwds) {
+    PyObject *key = NULL;
+    if (CYTHON_METH_FASTCALL && likely(PyTuple_Check(kwds))) {
+        key = __Pyx_PySequence_ITEM(kwds, 0);
+    } else {
+        Py_ssize_t pos = 0;
+        if (unlikely(!PyArg_ValidateKeywordArguments(kwds))) return;
+        PyDict_Next(kwds, &pos, &key, NULL);
+        Py_INCREF(key);
+    }
+    if (likely(key)) {
+        PyErr_Format(PyExc_TypeError,
+            "%s() got an unexpected keyword argument '%U'",
+            function_name, key);
+        Py_DECREF(key);
+    }
+}
+
 /* ArgTypeTest */
 static int __Pyx__ArgTypeTest(PyObject *obj, PyTypeObject *type, const char *name, int exact)
 {
@@ -20435,6 +22554,25 @@ static PyObject *__Pyx_PyDict_GetItem(PyObject *d, PyObject* key) {
         }
     }
     return value;
+}
+#endif
+
+/* HasAttr */
+#if __PYX_LIMITED_VERSION_HEX < 0x030d0000
+static CYTHON_INLINE int __Pyx_HasAttr(PyObject *o, PyObject *n) {
+    PyObject *r;
+    if (unlikely(!PyUnicode_Check(n))) {
+        PyErr_SetString(PyExc_TypeError,
+                        "hasattr(): attribute name must be string");
+        return -1;
+    }
+    r = __Pyx_PyObject_GetAttrStrNoError(o, n);
+    if (!r) {
+        return (unlikely(PyErr_Occurred())) ? -1 : 0;
+    } else {
+        Py_DECREF(r);
+        return 1;
+    }
 }
 #endif
 
@@ -21037,71 +23175,6 @@ static CYTHON_INLINE PyObject *__Pyx_GetItemInt_Fast(PyObject *o, Py_ssize_t i, 
     return __Pyx_GetItemInt_Generic(o, PyLong_FromSsize_t(i));
 }
 
-/* RaiseUnboundLocalError */
-static void __Pyx_RaiseUnboundLocalError(const char *varname) {
-    PyErr_Format(PyExc_UnboundLocalError, "local variable '%s' referenced before assignment", varname);
-}
-
-/* py_abs */
-#if CYTHON_USE_PYLONG_INTERNALS
-static PyObject *__Pyx_PyLong_AbsNeg(PyObject *n) {
-#if PY_VERSION_HEX >= 0x030C00A7
-    if (likely(__Pyx_PyLong_IsCompact(n))) {
-        return PyLong_FromSize_t(__Pyx_PyLong_CompactValueUnsigned(n));
-    }
-#else
-    if (likely(Py_SIZE(n) == -1)) {
-        return PyLong_FromUnsignedLong(__Pyx_PyLong_Digits(n)[0]);
-    }
-#endif
-#if CYTHON_COMPILING_IN_CPYTHON
-    {
-        PyObject *copy = _PyLong_Copy((PyLongObject*)n);
-        if (likely(copy)) {
-            #if PY_VERSION_HEX >= 0x030C00A7
-            ((PyLongObject*)copy)->long_value.lv_tag = ((PyLongObject*)copy)->long_value.lv_tag & ~_PyLong_SIGN_MASK;
-            #else
-            __Pyx_SET_SIZE(copy, -Py_SIZE(copy));
-            #endif
-        }
-        return copy;
-    }
-#else
-    return PyNumber_Negative(n);
-#endif
-}
-#endif
-
-/* pep479 */
-static void __Pyx_Generator_Replace_StopIteration(int in_async_gen) {
-    PyObject *exc, *val, *tb, *cur_exc, *new_exc;
-    __Pyx_PyThreadState_declare
-    int is_async_stopiteration = 0;
-    CYTHON_MAYBE_UNUSED_VAR(in_async_gen);
-    __Pyx_PyThreadState_assign
-    cur_exc = __Pyx_PyErr_CurrentExceptionType();
-    if (likely(!__Pyx_PyErr_GivenExceptionMatches(cur_exc, PyExc_StopIteration))) {
-        if (in_async_gen && unlikely(__Pyx_PyErr_GivenExceptionMatches(cur_exc, PyExc_StopAsyncIteration))) {
-            is_async_stopiteration = 1;
-        } else {
-            return;
-        }
-    }
-    __Pyx_GetException(&exc, &val, &tb);
-    Py_XDECREF(exc);
-    Py_XDECREF(tb);
-    new_exc = PyObject_CallFunction(PyExc_RuntimeError, "s",
-        is_async_stopiteration ? "async generator raised StopAsyncIteration" :
-        in_async_gen ? "async generator raised StopIteration" :
-        "generator raised StopIteration");
-    if (!new_exc) {
-        Py_XDECREF(val);
-        return;
-    }
-    PyException_SetCause(new_exc, val); // steals ref to val
-    PyErr_SetObject(PyExc_RuntimeError, new_exc);
-}
-
 /* RaiseTooManyValuesToUnpack */
 static CYTHON_INLINE void __Pyx_RaiseTooManyValuesError(Py_ssize_t expected) {
     PyErr_Format(PyExc_ValueError,
@@ -21138,6 +23211,150 @@ static int __Pyx_IternextUnpackEndCheck(PyObject *retval, Py_ssize_t expected) {
         return -1;
     }
     return __Pyx_IterFinish();
+}
+
+/* Import */
+static PyObject *__Pyx_Import(PyObject *name, PyObject *from_list, int level) {
+    PyObject *module = 0;
+    PyObject *empty_dict = 0;
+    PyObject *empty_list = 0;
+    empty_dict = PyDict_New();
+    if (unlikely(!empty_dict))
+        goto bad;
+    if (level == -1) {
+        if (strchr(__Pyx_MODULE_NAME, '.') != (0)) {
+            module = PyImport_ImportModuleLevelObject(
+                name, __pyx_mstate_global->__pyx_d, empty_dict, from_list, 1);
+            if (unlikely(!module)) {
+                if (unlikely(!PyErr_ExceptionMatches(PyExc_ImportError)))
+                    goto bad;
+                PyErr_Clear();
+            }
+        }
+        level = 0;
+    }
+    if (!module) {
+        module = PyImport_ImportModuleLevelObject(
+            name, __pyx_mstate_global->__pyx_d, empty_dict, from_list, level);
+    }
+bad:
+    Py_XDECREF(empty_dict);
+    Py_XDECREF(empty_list);
+    return module;
+}
+
+/* ImportDottedModule */
+static PyObject *__Pyx__ImportDottedModule_Error(PyObject *name, PyObject *parts_tuple, Py_ssize_t count) {
+    PyObject *partial_name = NULL, *slice = NULL, *sep = NULL;
+    Py_ssize_t size;
+    if (unlikely(PyErr_Occurred())) {
+        PyErr_Clear();
+    }
+#if CYTHON_ASSUME_SAFE_SIZE
+    size = PyTuple_GET_SIZE(parts_tuple);
+#else
+    size = PyTuple_Size(parts_tuple);
+    if (size < 0) goto bad;
+#endif
+    if (likely(size == count)) {
+        partial_name = name;
+    } else {
+        slice = PySequence_GetSlice(parts_tuple, 0, count);
+        if (unlikely(!slice))
+            goto bad;
+        sep = PyUnicode_FromStringAndSize(".", 1);
+        if (unlikely(!sep))
+            goto bad;
+        partial_name = PyUnicode_Join(sep, slice);
+    }
+    PyErr_Format(
+        PyExc_ModuleNotFoundError,
+        "No module named '%U'", partial_name);
+bad:
+    Py_XDECREF(sep);
+    Py_XDECREF(slice);
+    Py_XDECREF(partial_name);
+    return NULL;
+}
+static PyObject *__Pyx__ImportDottedModule_Lookup(PyObject *name) {
+    PyObject *imported_module;
+#if (CYTHON_COMPILING_IN_PYPY && PYPY_VERSION_NUM  < 0x07030400) ||\
+        CYTHON_COMPILING_IN_GRAAL
+    PyObject *modules = PyImport_GetModuleDict();
+    if (unlikely(!modules))
+        return NULL;
+    imported_module = __Pyx_PyDict_GetItemStr(modules, name);
+    Py_XINCREF(imported_module);
+#else
+    imported_module = PyImport_GetModule(name);
+#endif
+    return imported_module;
+}
+static PyObject *__Pyx_ImportDottedModule_WalkParts(PyObject *module, PyObject *name, PyObject *parts_tuple) {
+    Py_ssize_t i, nparts;
+#if CYTHON_ASSUME_SAFE_SIZE
+    nparts = PyTuple_GET_SIZE(parts_tuple);
+#else
+    nparts = PyTuple_Size(parts_tuple);
+    if (nparts < 0) return NULL;
+#endif
+    for (i=1; i < nparts && module; i++) {
+        PyObject *part, *submodule;
+#if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
+        part = PyTuple_GET_ITEM(parts_tuple, i);
+#else
+        part = __Pyx_PySequence_ITEM(parts_tuple, i);
+        if (!part) return NULL;
+#endif
+        submodule = __Pyx_PyObject_GetAttrStrNoError(module, part);
+#if !(CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS)
+        Py_DECREF(part);
+#endif
+        Py_DECREF(module);
+        module = submodule;
+    }
+    if (unlikely(!module)) {
+        return __Pyx__ImportDottedModule_Error(name, parts_tuple, i);
+    }
+    return module;
+}
+static PyObject *__Pyx__ImportDottedModule(PyObject *name, PyObject *parts_tuple) {
+    PyObject *imported_module;
+    PyObject *module = __Pyx_Import(name, NULL, 0);
+    if (!parts_tuple || unlikely(!module))
+        return module;
+    imported_module = __Pyx__ImportDottedModule_Lookup(name);
+    if (likely(imported_module)) {
+        Py_DECREF(module);
+        return imported_module;
+    }
+    PyErr_Clear();
+    return __Pyx_ImportDottedModule_WalkParts(module, name, parts_tuple);
+}
+static PyObject *__Pyx_ImportDottedModule(PyObject *name, PyObject *parts_tuple) {
+#if CYTHON_COMPILING_IN_CPYTHON
+    PyObject *module = __Pyx__ImportDottedModule_Lookup(name);
+    if (likely(module)) {
+        PyObject *spec = __Pyx_PyObject_GetAttrStrNoError(module, __pyx_mstate_global->__pyx_n_u_spec);
+        if (likely(spec)) {
+            PyObject *unsafe = __Pyx_PyObject_GetAttrStrNoError(spec, __pyx_mstate_global->__pyx_n_u_initializing);
+            if (likely(!unsafe || !__Pyx_PyObject_IsTrue(unsafe))) {
+                Py_DECREF(spec);
+                spec = NULL;
+            }
+            Py_XDECREF(unsafe);
+        }
+        if (likely(!spec)) {
+            PyErr_Clear();
+            return module;
+        }
+        Py_DECREF(spec);
+        Py_DECREF(module);
+    } else if (PyErr_Occurred()) {
+        PyErr_Clear();
+    }
+#endif
+    return __Pyx__ImportDottedModule(name, parts_tuple);
 }
 
 /* PyLongBinop */
@@ -21269,62 +23486,6 @@ static CYTHON_INLINE PyObject* __Pyx_PyLong_AddObjC(PyObject *op1, PyObject *op2
 }
 #endif
 
-/* PyObjectCallOneArg */
-static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg) {
-    PyObject *args[2] = {NULL, arg};
-    return __Pyx_PyObject_FastCall(func, args+1, 1 | __Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET);
-}
-
-/* ObjectGetItem */
-#if CYTHON_USE_TYPE_SLOTS
-static PyObject *__Pyx_PyObject_GetIndex(PyObject *obj, PyObject *index) {
-    PyObject *runerr = NULL;
-    Py_ssize_t key_value;
-    key_value = __Pyx_PyIndex_AsSsize_t(index);
-    if (likely(key_value != -1 || !(runerr = PyErr_Occurred()))) {
-        return __Pyx_GetItemInt_Fast(obj, key_value, 0, 1, 1);
-    }
-    if (PyErr_GivenExceptionMatches(runerr, PyExc_OverflowError)) {
-        __Pyx_TypeName index_type_name = __Pyx_PyType_GetFullyQualifiedName(Py_TYPE(index));
-        PyErr_Clear();
-        PyErr_Format(PyExc_IndexError,
-            "cannot fit '" __Pyx_FMT_TYPENAME "' into an index-sized integer", index_type_name);
-        __Pyx_DECREF_TypeName(index_type_name);
-    }
-    return NULL;
-}
-static PyObject *__Pyx_PyObject_GetItem_Slow(PyObject *obj, PyObject *key) {
-    __Pyx_TypeName obj_type_name;
-    if (likely(PyType_Check(obj))) {
-        PyObject *meth = __Pyx_PyObject_GetAttrStrNoError(obj, __pyx_mstate_global->__pyx_n_u_class_getitem);
-        if (!meth) {
-            PyErr_Clear();
-        } else {
-            PyObject *result = __Pyx_PyObject_CallOneArg(meth, key);
-            Py_DECREF(meth);
-            return result;
-        }
-    }
-    obj_type_name = __Pyx_PyType_GetFullyQualifiedName(Py_TYPE(obj));
-    PyErr_Format(PyExc_TypeError,
-        "'" __Pyx_FMT_TYPENAME "' object is not subscriptable", obj_type_name);
-    __Pyx_DECREF_TypeName(obj_type_name);
-    return NULL;
-}
-static PyObject *__Pyx_PyObject_GetItem(PyObject *obj, PyObject *key) {
-    PyTypeObject *tp = Py_TYPE(obj);
-    PyMappingMethods *mm = tp->tp_as_mapping;
-    PySequenceMethods *sm = tp->tp_as_sequence;
-    if (likely(mm && mm->mp_subscript)) {
-        return mm->mp_subscript(obj, key);
-    }
-    if (likely(sm && sm->sq_item)) {
-        return __Pyx_PyObject_GetIndex(obj, key);
-    }
-    return __Pyx_PyObject_GetItem_Slow(obj, key);
-}
-#endif
-
 /* PyLongBinop */
 #if !CYTHON_COMPILING_IN_PYPY
 static PyObject* __Pyx_Fallback___Pyx_PyLong_SubtractObjC(PyObject *op1, PyObject *op2, int inplace) {
@@ -21451,6 +23612,36 @@ static CYTHON_INLINE PyObject* __Pyx_PyLong_SubtractObjC(PyObject *op1, PyObject
         return __Pyx_Float___Pyx_PyLong_SubtractObjC(op1, intval, zerodivision_check);
     }
     return __Pyx_Fallback___Pyx_PyLong_SubtractObjC(op1, op2, inplace);
+}
+#endif
+
+/* py_abs */
+#if CYTHON_USE_PYLONG_INTERNALS
+static PyObject *__Pyx_PyLong_AbsNeg(PyObject *n) {
+#if PY_VERSION_HEX >= 0x030C00A7
+    if (likely(__Pyx_PyLong_IsCompact(n))) {
+        return PyLong_FromSize_t(__Pyx_PyLong_CompactValueUnsigned(n));
+    }
+#else
+    if (likely(Py_SIZE(n) == -1)) {
+        return PyLong_FromUnsignedLong(__Pyx_PyLong_Digits(n)[0]);
+    }
+#endif
+#if CYTHON_COMPILING_IN_CPYTHON
+    {
+        PyObject *copy = _PyLong_Copy((PyLongObject*)n);
+        if (likely(copy)) {
+            #if PY_VERSION_HEX >= 0x030C00A7
+            ((PyLongObject*)copy)->long_value.lv_tag = ((PyLongObject*)copy)->long_value.lv_tag & ~_PyLong_SIGN_MASK;
+            #else
+            __Pyx_SET_SIZE(copy, -Py_SIZE(copy));
+            #endif
+        }
+        return copy;
+    }
+#else
+    return PyNumber_Negative(n);
+#endif
 }
 #endif
 
@@ -21945,6 +24136,12 @@ static CYTHON_INLINE int __Pyx_PyErr_GivenExceptionMatches2(PyObject *err, PyObj
 }
 #endif
 
+/* PyObjectCallOneArg */
+static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg) {
+    PyObject *args[2] = {NULL, arg};
+    return __Pyx_PyObject_FastCall(func, args+1, 1 | __Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET);
+}
+
 /* pyobject_as_double */
 static double __Pyx__PyObject_AsDouble(PyObject* obj) {
     if (PyUnicode_CheckExact(obj)) {
@@ -21983,6 +24180,41 @@ static double __Pyx__PyObject_AsDouble(PyObject* obj) {
     }
 bad:
     return (double)-1;
+}
+
+/* RaiseUnboundLocalError */
+static void __Pyx_RaiseUnboundLocalError(const char *varname) {
+    PyErr_Format(PyExc_UnboundLocalError, "local variable '%s' referenced before assignment", varname);
+}
+
+/* pep479 */
+static void __Pyx_Generator_Replace_StopIteration(int in_async_gen) {
+    PyObject *exc, *val, *tb, *cur_exc, *new_exc;
+    __Pyx_PyThreadState_declare
+    int is_async_stopiteration = 0;
+    CYTHON_MAYBE_UNUSED_VAR(in_async_gen);
+    __Pyx_PyThreadState_assign
+    cur_exc = __Pyx_PyErr_CurrentExceptionType();
+    if (likely(!__Pyx_PyErr_GivenExceptionMatches(cur_exc, PyExc_StopIteration))) {
+        if (in_async_gen && unlikely(__Pyx_PyErr_GivenExceptionMatches(cur_exc, PyExc_StopAsyncIteration))) {
+            is_async_stopiteration = 1;
+        } else {
+            return;
+        }
+    }
+    __Pyx_GetException(&exc, &val, &tb);
+    Py_XDECREF(exc);
+    Py_XDECREF(tb);
+    new_exc = PyObject_CallFunction(PyExc_RuntimeError, "s",
+        is_async_stopiteration ? "async generator raised StopAsyncIteration" :
+        in_async_gen ? "async generator raised StopIteration" :
+        "generator raised StopIteration");
+    if (!new_exc) {
+        Py_XDECREF(val);
+        return;
+    }
+    PyException_SetCause(new_exc, val); // steals ref to val
+    PyErr_SetObject(PyExc_RuntimeError, new_exc);
 }
 
 /* SliceObject */
@@ -22045,25 +24277,6 @@ static CYTHON_INLINE PyObject* __Pyx_PyObject_GetSlice(PyObject* obj,
     __Pyx_DECREF_TypeName(obj_type_name);
 bad:
     return NULL;
-}
-
-/* RejectKeywords */
-static void __Pyx_RejectKeywords(const char* function_name, PyObject *kwds) {
-    PyObject *key = NULL;
-    if (CYTHON_METH_FASTCALL && likely(PyTuple_Check(kwds))) {
-        key = __Pyx_PySequence_ITEM(kwds, 0);
-    } else {
-        Py_ssize_t pos = 0;
-        if (unlikely(!PyArg_ValidateKeywordArguments(kwds))) return;
-        PyDict_Next(kwds, &pos, &key, NULL);
-        Py_INCREF(key);
-    }
-    if (likely(key)) {
-        PyErr_Format(PyExc_TypeError,
-            "%s() got an unexpected keyword argument '%U'",
-            function_name, key);
-        Py_DECREF(key);
-    }
 }
 
 /* GetAttr3 */
@@ -22160,36 +24373,6 @@ static void __Pyx_RaiseMappingExpectedError(PyObject* arg) {
     __Pyx_DECREF_TypeName(arg_type_name);
 }
 
-/* Import */
-static PyObject *__Pyx_Import(PyObject *name, PyObject *from_list, int level) {
-    PyObject *module = 0;
-    PyObject *empty_dict = 0;
-    PyObject *empty_list = 0;
-    empty_dict = PyDict_New();
-    if (unlikely(!empty_dict))
-        goto bad;
-    if (level == -1) {
-        if (strchr(__Pyx_MODULE_NAME, '.') != (0)) {
-            module = PyImport_ImportModuleLevelObject(
-                name, __pyx_mstate_global->__pyx_d, empty_dict, from_list, 1);
-            if (unlikely(!module)) {
-                if (unlikely(!PyErr_ExceptionMatches(PyExc_ImportError)))
-                    goto bad;
-                PyErr_Clear();
-            }
-        }
-        level = 0;
-    }
-    if (!module) {
-        module = PyImport_ImportModuleLevelObject(
-            name, __pyx_mstate_global->__pyx_d, empty_dict, from_list, level);
-    }
-bad:
-    Py_XDECREF(empty_dict);
-    Py_XDECREF(empty_list);
-    return module;
-}
-
 /* ImportFrom */
 static PyObject* __Pyx_ImportFrom(PyObject* module, PyObject* name) {
     PyObject* value = __Pyx_PyObject_GetAttrStr(module, name);
@@ -22228,25 +24411,6 @@ static PyObject* __Pyx_ImportFrom(PyObject* module, PyObject* name) {
     }
     return value;
 }
-
-/* HasAttr */
-#if __PYX_LIMITED_VERSION_HEX < 0x030d0000
-static CYTHON_INLINE int __Pyx_HasAttr(PyObject *o, PyObject *n) {
-    PyObject *r;
-    if (unlikely(!PyUnicode_Check(n))) {
-        PyErr_SetString(PyExc_TypeError,
-                        "hasattr(): attribute name must be string");
-        return -1;
-    }
-    r = __Pyx_PyObject_GetAttrStrNoError(o, n);
-    if (!r) {
-        return (unlikely(PyErr_Occurred())) ? -1 : 0;
-    } else {
-        Py_DECREF(r);
-        return 1;
-    }
-}
-#endif
 
 /* CallTypeTraverse */
 #if !CYTHON_USE_TYPE_SPECS || (!CYTHON_COMPILING_IN_LIMITED_API && PY_VERSION_HEX < 0x03090000)
@@ -23016,120 +25180,6 @@ bad:
     return NULL;
 }
 #endif
-
-/* ImportDottedModule */
-static PyObject *__Pyx__ImportDottedModule_Error(PyObject *name, PyObject *parts_tuple, Py_ssize_t count) {
-    PyObject *partial_name = NULL, *slice = NULL, *sep = NULL;
-    Py_ssize_t size;
-    if (unlikely(PyErr_Occurred())) {
-        PyErr_Clear();
-    }
-#if CYTHON_ASSUME_SAFE_SIZE
-    size = PyTuple_GET_SIZE(parts_tuple);
-#else
-    size = PyTuple_Size(parts_tuple);
-    if (size < 0) goto bad;
-#endif
-    if (likely(size == count)) {
-        partial_name = name;
-    } else {
-        slice = PySequence_GetSlice(parts_tuple, 0, count);
-        if (unlikely(!slice))
-            goto bad;
-        sep = PyUnicode_FromStringAndSize(".", 1);
-        if (unlikely(!sep))
-            goto bad;
-        partial_name = PyUnicode_Join(sep, slice);
-    }
-    PyErr_Format(
-        PyExc_ModuleNotFoundError,
-        "No module named '%U'", partial_name);
-bad:
-    Py_XDECREF(sep);
-    Py_XDECREF(slice);
-    Py_XDECREF(partial_name);
-    return NULL;
-}
-static PyObject *__Pyx__ImportDottedModule_Lookup(PyObject *name) {
-    PyObject *imported_module;
-#if (CYTHON_COMPILING_IN_PYPY && PYPY_VERSION_NUM  < 0x07030400) ||\
-        CYTHON_COMPILING_IN_GRAAL
-    PyObject *modules = PyImport_GetModuleDict();
-    if (unlikely(!modules))
-        return NULL;
-    imported_module = __Pyx_PyDict_GetItemStr(modules, name);
-    Py_XINCREF(imported_module);
-#else
-    imported_module = PyImport_GetModule(name);
-#endif
-    return imported_module;
-}
-static PyObject *__Pyx_ImportDottedModule_WalkParts(PyObject *module, PyObject *name, PyObject *parts_tuple) {
-    Py_ssize_t i, nparts;
-#if CYTHON_ASSUME_SAFE_SIZE
-    nparts = PyTuple_GET_SIZE(parts_tuple);
-#else
-    nparts = PyTuple_Size(parts_tuple);
-    if (nparts < 0) return NULL;
-#endif
-    for (i=1; i < nparts && module; i++) {
-        PyObject *part, *submodule;
-#if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
-        part = PyTuple_GET_ITEM(parts_tuple, i);
-#else
-        part = __Pyx_PySequence_ITEM(parts_tuple, i);
-        if (!part) return NULL;
-#endif
-        submodule = __Pyx_PyObject_GetAttrStrNoError(module, part);
-#if !(CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS)
-        Py_DECREF(part);
-#endif
-        Py_DECREF(module);
-        module = submodule;
-    }
-    if (unlikely(!module)) {
-        return __Pyx__ImportDottedModule_Error(name, parts_tuple, i);
-    }
-    return module;
-}
-static PyObject *__Pyx__ImportDottedModule(PyObject *name, PyObject *parts_tuple) {
-    PyObject *imported_module;
-    PyObject *module = __Pyx_Import(name, NULL, 0);
-    if (!parts_tuple || unlikely(!module))
-        return module;
-    imported_module = __Pyx__ImportDottedModule_Lookup(name);
-    if (likely(imported_module)) {
-        Py_DECREF(module);
-        return imported_module;
-    }
-    PyErr_Clear();
-    return __Pyx_ImportDottedModule_WalkParts(module, name, parts_tuple);
-}
-static PyObject *__Pyx_ImportDottedModule(PyObject *name, PyObject *parts_tuple) {
-#if CYTHON_COMPILING_IN_CPYTHON
-    PyObject *module = __Pyx__ImportDottedModule_Lookup(name);
-    if (likely(module)) {
-        PyObject *spec = __Pyx_PyObject_GetAttrStrNoError(module, __pyx_mstate_global->__pyx_n_u_spec);
-        if (likely(spec)) {
-            PyObject *unsafe = __Pyx_PyObject_GetAttrStrNoError(spec, __pyx_mstate_global->__pyx_n_u_initializing);
-            if (likely(!unsafe || !__Pyx_PyObject_IsTrue(unsafe))) {
-                Py_DECREF(spec);
-                spec = NULL;
-            }
-            Py_XDECREF(unsafe);
-        }
-        if (likely(!spec)) {
-            PyErr_Clear();
-            return module;
-        }
-        Py_DECREF(spec);
-        Py_DECREF(module);
-    } else if (PyErr_Occurred()) {
-        PyErr_Clear();
-    }
-#endif
-    return __Pyx__ImportDottedModule(name, parts_tuple);
-}
 
 /* ListPack */
 static PyObject *__Pyx_PyList_Pack(Py_ssize_t n, ...) {
