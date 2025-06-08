@@ -247,6 +247,23 @@ class SQLGlotParser:
                 result.update(self._parse_replace(original_sql))
             elif "SHOW" in original_sql.upper():
                 result.update(self._parse_show_fallback(original_sql))
+            # Handle stored procedures, functions, triggers, and temporary tables
+            elif "CREATE PROCEDURE" in original_sql.upper():
+                result.update(self._parse_create_procedure(original_sql))
+            elif "CREATE FUNCTION" in original_sql.upper():
+                result.update(self._parse_create_function(original_sql))
+            elif "CREATE TRIGGER" in original_sql.upper():
+                result.update(self._parse_create_trigger(original_sql))
+            elif "CREATE TEMPORARY TABLE" in original_sql.upper() or "CREATE TEMP TABLE" in original_sql.upper():
+                result.update(self._parse_create_temporary_table(original_sql))
+            elif "DROP PROCEDURE" in original_sql.upper():
+                result.update(self._parse_drop_procedure(original_sql))
+            elif "DROP FUNCTION" in original_sql.upper():
+                result.update(self._parse_drop_function(original_sql))
+            elif "DROP TRIGGER" in original_sql.upper():
+                result.update(self._parse_drop_trigger(original_sql))
+            elif "CALL" in original_sql.upper():
+                result.update(self._parse_call_procedure(original_sql))
             else:
                 result["error"] = f"Unsupported command: {original_sql}"
         elif hasattr(exp, 'TruncateTable') and isinstance(parsed, exp.TruncateTable):
@@ -1060,16 +1077,187 @@ class SQLGlotParser:
         if re.search(r'\bNOT\s+NULL\b', col_def, re.IGNORECASE):
             result["nullable"] = False
 
-        # Extract default value
-        default_match = re.search(r'\bDEFAULT\s+([^\s]+)', col_def, re.IGNORECASE)
-        if default_match:
-            result["default"] = default_match.group(1).strip("'\"")
+        return result
 
-        # Check for IDENTITY
-        identity_match = re.search(r'\bIDENTITY\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', col_def, re.IGNORECASE)
-        if identity_match:
-            result["identity"] = True
-            result["identity_seed"] = int(identity_match.group(1))
-            result["identity_increment"] = int(identity_match.group(2))
+    def _parse_create_procedure(self, sql: str) -> Dict[str, Any]:
+        """Parse CREATE PROCEDURE statement."""
+        import re
+        result = {"type": "CREATE_PROCEDURE", "operation": "CREATE_PROCEDURE"}
+        
+        # Pattern to match CREATE PROCEDURE with parameters and body
+        pattern = r'CREATE\s+PROCEDURE\s+(\w+)\s*\(([^)]*)\)\s+AS\s+(.*)'
+        match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
+        
+        if match:
+            result["procedure_name"] = match.group(1)
+            params_str = match.group(2).strip()
+            result["body"] = match.group(3).strip()
+            
+            # Parse parameters
+            parameters = []
+            if params_str:
+                param_list = [p.strip() for p in params_str.split(',')]
+                for param in param_list:
+                    if param:
+                        param_parts = param.split()
+                        if len(param_parts) >= 2:
+                            parameters.append({
+                                "name": param_parts[0],
+                                "type": param_parts[1],
+                                "direction": param_parts[2] if len(param_parts) > 2 else "IN"
+                            })
+            
+            result["parameters"] = parameters
+        else:
+            result["error"] = "Invalid CREATE PROCEDURE syntax"
+        
+        return result
 
+    def _parse_create_function(self, sql: str) -> Dict[str, Any]:
+        """Parse CREATE FUNCTION statement."""
+        import re
+        result = {"type": "CREATE_FUNCTION", "operation": "CREATE_FUNCTION"}
+        
+        # Pattern to match CREATE FUNCTION with parameters, return type, and body
+        pattern = r'CREATE\s+FUNCTION\s+(\w+)\s*\(([^)]*)\)\s+RETURNS\s+(\w+)\s+AS\s+(.*)'
+        match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
+        
+        if match:
+            result["function_name"] = match.group(1)
+            params_str = match.group(2).strip()
+            result["return_type"] = match.group(3).strip()
+            result["body"] = match.group(4).strip()
+            
+            # Parse parameters
+            parameters = []
+            if params_str:
+                param_list = [p.strip() for p in params_str.split(',')]
+                for param in param_list:
+                    if param:
+                        param_parts = param.split()
+                        if len(param_parts) >= 2:
+                            parameters.append({
+                                "name": param_parts[0],
+                                "type": param_parts[1]
+                            })
+            
+            result["parameters"] = parameters
+        else:
+            result["error"] = "Invalid CREATE FUNCTION syntax"
+        
+        return result
+
+    def _parse_create_trigger(self, sql: str) -> Dict[str, Any]:
+        """Parse CREATE TRIGGER statement."""
+        import re
+        result = {"type": "CREATE_TRIGGER", "operation": "CREATE_TRIGGER"}
+        
+        # Pattern to match CREATE TRIGGER
+        pattern = r'CREATE\s+TRIGGER\s+(\w+)\s+(BEFORE|AFTER)\s+(INSERT|UPDATE|DELETE)\s+ON\s+(\w+)\s+FOR\s+EACH\s+ROW\s+(.*)'
+        match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
+        
+        if match:
+            result["trigger_name"] = match.group(1)
+            result["timing"] = match.group(2).upper()
+            result["event"] = match.group(3).upper()
+            result["table"] = match.group(4)
+            result["body"] = match.group(5).strip()
+        else:
+            result["error"] = "Invalid CREATE TRIGGER syntax"
+        
+        return result
+
+    def _parse_create_temporary_table(self, sql: str) -> Dict[str, Any]:
+        """Parse CREATE TEMPORARY TABLE statement."""
+        import re
+        result = {"type": "CREATE_TEMPORARY_TABLE", "operation": "CREATE_TEMPORARY_TABLE"}
+        
+        # Remove TEMPORARY keyword and parse as regular CREATE TABLE
+        cleaned_sql = re.sub(r'CREATE\s+(TEMPORARY|TEMP)\s+TABLE', 'CREATE TABLE', sql, flags=re.IGNORECASE)
+        
+        try:
+            # Use existing CREATE TABLE parsing logic
+            parsed = parse_one(cleaned_sql, dialect=self.dialect)
+            if isinstance(parsed, exp.Create):
+                table_result = self._parse_create(parsed)
+                if table_result.get("type") == "CREATE_TABLE":
+                    result.update(table_result)
+                    result["type"] = "CREATE_TEMPORARY_TABLE"
+                    result["temporary"] = True
+                else:
+                    result["error"] = "Failed to parse temporary table definition"
+            else:
+                result["error"] = "Invalid CREATE TEMPORARY TABLE syntax"
+        except Exception as e:
+            result["error"] = f"Error parsing temporary table: {str(e)}"
+        
+        return result
+
+    def _parse_drop_procedure(self, sql: str) -> Dict[str, Any]:
+        """Parse DROP PROCEDURE statement."""
+        import re
+        result = {"type": "DROP_PROCEDURE", "operation": "DROP_PROCEDURE"}
+        
+        pattern = r'DROP\s+PROCEDURE\s+(\w+)'
+        match = re.search(pattern, sql, re.IGNORECASE)
+        
+        if match:
+            result["procedure_name"] = match.group(1)
+        else:
+            result["error"] = "Invalid DROP PROCEDURE syntax"
+        
+        return result
+
+    def _parse_drop_function(self, sql: str) -> Dict[str, Any]:
+        """Parse DROP FUNCTION statement."""
+        import re
+        result = {"type": "DROP_FUNCTION", "operation": "DROP_FUNCTION"}
+        
+        pattern = r'DROP\s+FUNCTION\s+(\w+)'
+        match = re.search(pattern, sql, re.IGNORECASE)
+        
+        if match:
+            result["function_name"] = match.group(1)
+        else:
+            result["error"] = "Invalid DROP FUNCTION syntax"
+        
+        return result
+
+    def _parse_drop_trigger(self, sql: str) -> Dict[str, Any]:
+        """Parse DROP TRIGGER statement."""
+        import re
+        result = {"type": "DROP_TRIGGER", "operation": "DROP_TRIGGER"}
+        
+        pattern = r'DROP\s+TRIGGER\s+(\w+)'
+        match = re.search(pattern, sql, re.IGNORECASE)
+        
+        if match:
+            result["trigger_name"] = match.group(1)
+        else:
+            result["error"] = "Invalid DROP TRIGGER syntax"
+        
+        return result
+
+    def _parse_call_procedure(self, sql: str) -> Dict[str, Any]:
+        """Parse CALL procedure statement."""
+        import re
+        result = {"type": "CALL_PROCEDURE", "operation": "CALL_PROCEDURE"}
+        
+        pattern = r'CALL\s+(\w+)\s*\(([^)]*)\)'
+        match = re.search(pattern, sql, re.IGNORECASE)
+        
+        if match:
+            result["procedure_name"] = match.group(1)
+            args_str = match.group(2).strip()
+            
+            # Parse arguments
+            arguments = []
+            if args_str:
+                arg_list = [arg.strip() for arg in args_str.split(',')]
+                arguments = [arg for arg in arg_list if arg]
+            
+            result["arguments"] = arguments
+        else:
+            result["error"] = "Invalid CALL syntax"
+        
         return result

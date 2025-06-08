@@ -18,3 +18,5 @@ requests
 prometheus-client
 pyyaml
 aiohttp
+PyJWT
+kubernetes

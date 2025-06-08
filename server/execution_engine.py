@@ -10,6 +10,10 @@ from query_processor.dml_executor import DMLExecutor
 from query_processor.group_by_executor import GroupByExecutor
 from ddl_processor.schema_manager import SchemaManager
 from ddl_processor.view_manager import ViewManager
+from ddl_processor.procedure_manager import ProcedureManager
+from ddl_processor.function_manager import FunctionManager
+from ddl_processor.trigger_manager import TriggerManager
+from ddl_processor.temp_table_manager import TemporaryTableManager
 from transaction.transaction_manager import TransactionManager
 from parsers.condition_parser import ConditionParser
 from utils.visualizer import Visualizer
@@ -41,6 +45,10 @@ class ExecutionEngine:
         self.dml_executor = DMLExecutor(catalog_manager, index_manager)
         self.schema_manager = SchemaManager(catalog_manager)
         self.view_manager = ViewManager(catalog_manager)
+        self.procedure_manager = ProcedureManager(catalog_manager)
+        self.function_manager = FunctionManager(catalog_manager)
+        self.trigger_manager = TriggerManager(catalog_manager)
+        self.temp_table_manager = TemporaryTableManager(catalog_manager)
         self.transaction_manager = TransactionManager(catalog_manager)
         self.visualizer = Visualizer(catalog_manager, index_manager)
 
@@ -55,6 +63,10 @@ class ExecutionEngine:
 
         # Set the transaction manager for DML executor to enable transaction recording
         self.dml_executor.transaction_manager = self.transaction_manager
+        
+        # Set execution_engine reference for managers that need it
+        self.procedure_manager.execution_engine = self
+        self.trigger_manager.execution_engine = self
 
     def execute_distinct(self, plan):
         """
@@ -366,16 +378,32 @@ class ExecutionEngine:
         logging.info("🔍 Executing %s plan", plan_type)
 
         try:
+            # Resolve temporary table names for operations that work with tables
+            if plan_type in ["SELECT", "INSERT", "UPDATE", "DELETE", "JOIN", "DISTINCT"]:
+                plan = self._resolve_plan_table_names(plan)
+
             if plan_type == "SELECT":
                 return self.select_executor.execute_select(plan)
             elif plan_type == "DISTINCT":
                 return self.execute_distinct(plan)
             elif plan_type == "INSERT":
-                return self.dml_executor.execute_insert(plan)
+                result = self.dml_executor.execute_insert(plan)
+                # Fire INSERT triggers if successful
+                if result.get("status") == "success":
+                    self._fire_triggers("INSERT", plan.get("table"), plan)
+                return result
             elif plan_type == "UPDATE":
-                return self.dml_executor.execute_update(plan)
+                result = self.dml_executor.execute_update(plan)
+                # Fire UPDATE triggers if successful
+                if result.get("status") == "success":
+                    self._fire_triggers("UPDATE", plan.get("table"), plan)
+                return result
             elif plan_type == "DELETE":
-                return self.dml_executor.execute_delete(plan)
+                result = self.dml_executor.execute_delete(plan)
+                # Fire DELETE triggers if successful
+                if result.get("status") == "success":
+                    self._fire_triggers("DELETE", plan.get("table"), plan)
+                return result
             elif plan_type == "CREATE_TABLE":
                 return self.schema_manager.execute_create_table(plan)
             elif plan_type == "CREATE_DATABASE":
@@ -388,8 +416,30 @@ class ExecutionEngine:
                 return self.schema_manager.execute_drop_database(plan)
             elif plan_type == "DROP_INDEX":
                 return self.execute_drop_index(plan)
+            elif plan_type == "CREATE_VIEW":
+                return self.view_manager.create_view(plan)
+            elif plan_type == "DROP_VIEW":
+                return self.view_manager.drop_view(plan)
+            elif plan_type == "CREATE_PROCEDURE":
+                return self.create_procedure(plan)
+            elif plan_type == "DROP_PROCEDURE":
+                return self.drop_procedure(plan)
+            elif plan_type == "CALL_PROCEDURE":
+                return self.call_procedure(plan)
+            elif plan_type == "CREATE_FUNCTION":
+                return self.create_function(plan)
+            elif plan_type == "DROP_FUNCTION":
+                return self.drop_function(plan)
+            elif plan_type == "CREATE_TRIGGER":
+                return self.create_trigger(plan)
+            elif plan_type == "DROP_TRIGGER":
+                return self.drop_trigger(plan)
+            elif plan_type == "CREATE_TEMP_TABLE":
+                return self.create_temp_table(plan)
+            elif plan_type == "DROP_TEMP_TABLE":
+                return self.drop_temp_table(plan)
             elif plan_type == "SHOW":
-                return self.schema_manager.execute_show(plan)
+                return self.execute_show(plan)
             elif plan_type == "USE_DATABASE":
                 return self.schema_manager.execute_use_database(plan)
             elif plan_type == "JOIN":
@@ -507,3 +557,135 @@ class ExecutionEngine:
 
     def execute_script(self, plan):
         return {"error": "Script execution not implemented", "status": "error"}
+
+    def execute_show(self, plan):
+        """Execute enhanced SHOW commands with support for new objects."""
+        object_type = plan.get("object", "").upper()
+        
+        # Route to appropriate manager based on object type
+        if object_type in ["DATABASES", "TABLES", "ALL_TABLES", "COLUMNS", "INDEXES"]:
+            return self.schema_manager.execute_show(plan)
+        elif object_type == "VIEWS":
+            return self.view_manager.list_views()
+        elif object_type == "PROCEDURES":
+            return self.procedure_manager.list_procedures()
+        elif object_type == "FUNCTIONS":
+            return self.function_manager.list_functions()
+        elif object_type == "TRIGGERS":
+            return self.trigger_manager.list_triggers()
+        elif object_type == "TEMP_TABLES":
+            session_id = plan.get("session_id", "default")
+            return self.temp_table_manager.list_temp_tables(session_id)
+        else:
+            # Fallback to schema manager for unknown types
+            return self.schema_manager.execute_show(plan)
+
+    def _fire_triggers(self, event_type, table_name, plan):
+        """Fire triggers for DML operations."""
+        if not table_name:
+            return
+            
+        try:
+            # Fire BEFORE triggers
+            self.trigger_manager.fire_triggers(event_type, table_name, "BEFORE")
+            
+            # Fire AFTER triggers  
+            self.trigger_manager.fire_triggers(event_type, table_name, "AFTER")
+            
+        except Exception as e:
+            logging.error(f"Error firing triggers for {event_type} on {table_name}: {str(e)}")
+            # Don't fail the main operation if trigger execution fails
+
+    def create_procedure(self, plan):
+        """Create a procedure via ProcedureManager."""
+        return self.procedure_manager.create_procedure(plan)
+    
+    def drop_procedure(self, plan):
+        """Drop a procedure via ProcedureManager.""" 
+        return self.procedure_manager.drop_procedure(plan)
+    
+    def call_procedure(self, plan):
+        """Call a procedure via ProcedureManager."""
+        return self.procedure_manager.call_procedure(plan)
+    
+    def create_function(self, plan):
+        """Create a function via FunctionManager."""
+        return self.function_manager.create_function(plan)
+    
+    def drop_function(self, plan):
+        """Drop a function via FunctionManager."""
+        return self.function_manager.drop_function(plan)
+    
+    def create_trigger(self, plan):
+        """Create a trigger via TriggerManager."""
+        return self.trigger_manager.create_trigger(plan)
+    
+    def drop_trigger(self, plan):
+        """Drop a trigger via TriggerManager."""
+        return self.trigger_manager.drop_trigger(plan)
+    
+    def create_temp_table(self, plan):
+        """Create a temporary table via TemporaryTableManager."""
+        return self.temp_table_manager.create_temp_table(plan)
+    
+    def drop_temp_table(self, plan):
+        """Drop a temporary table via TemporaryTableManager."""
+        return self.temp_table_manager.drop_temp_table(plan)
+
+    def evaluate_function_call(self, function_name, arguments):
+        """Evaluate a function call and return the result."""
+        try:
+            return self.function_manager.call_function(function_name, arguments)
+        except Exception as e:
+            logging.error(f"Error evaluating function {function_name}: {str(e)}")
+            return {"error": f"Function evaluation failed: {str(e)}", "status": "error"}
+
+    def cleanup_session_resources(self, session_id):
+        """Clean up temporary tables and other session resources."""
+        try:
+            # Clean up temporary tables for this session
+            self.temp_table_manager.cleanup_session_temp_tables(session_id)
+            logging.info(f"Cleaned up resources for session: {session_id}")
+        except Exception as e:
+            logging.error(f"Error cleaning up session {session_id}: {str(e)}")
+
+    def _resolve_temp_table_name(self, table_name, session_id=None):
+        """
+        Resolve a table name, checking for temporary tables first.
+        If a temporary table exists with the given name and session_id,
+        return the internal temp table name, otherwise return the original name.
+        """
+        if not session_id or not table_name:
+            return table_name
+            
+        return self.temp_table_manager.resolve_table_name(table_name, session_id)
+
+    def _resolve_plan_table_names(self, plan):
+        """
+        Resolve table names in a plan to handle temporary tables.
+        This modifies the plan in-place to replace logical temp table names
+        with internal names when a session_id is present.
+        """
+        session_id = plan.get("session_id")
+        if not session_id:
+            return plan
+        
+        # Resolve main table name
+        if "table" in plan:
+            plan["table"] = self._resolve_temp_table_name(plan["table"], session_id)
+        
+        # Resolve table names in JOIN operations
+        if "table1" in plan:
+            plan["table1"] = self._resolve_temp_table_name(plan["table1"], session_id)
+        if "table2" in plan:
+            plan["table2"] = self._resolve_temp_table_name(plan["table2"], session_id)
+            
+        # Resolve table names in join_info
+        if "join_info" in plan and isinstance(plan["join_info"], dict):
+            join_info = plan["join_info"]
+            if "table1" in join_info:
+                join_info["table1"] = self._resolve_temp_table_name(join_info["table1"], session_id)
+            if "table2" in join_info:
+                join_info["table2"] = self._resolve_temp_table_name(join_info["table2"], session_id)
+        
+        return plan

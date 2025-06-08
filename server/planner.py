@@ -275,6 +275,23 @@ class Planner:
                 plan = self.plan_create_view(parsed_query)
             elif parsed_query["type"] == "DROP_VIEW":
                 plan = self.plan_drop_view(parsed_query)
+            # Handle new DDL operations for procedures, functions, triggers, and temporary tables
+            elif parsed_query["type"] == "CREATE_PROCEDURE":
+                plan = self.plan_create_procedure(parsed_query)
+            elif parsed_query["type"] == "DROP_PROCEDURE":
+                plan = self.plan_drop_procedure(parsed_query)
+            elif parsed_query["type"] == "CALL_PROCEDURE":
+                plan = self.plan_call_procedure(parsed_query)
+            elif parsed_query["type"] == "CREATE_FUNCTION":
+                plan = self.plan_create_function(parsed_query)
+            elif parsed_query["type"] == "DROP_FUNCTION":
+                plan = self.plan_drop_function(parsed_query)
+            elif parsed_query["type"] == "CREATE_TRIGGER":
+                plan = self.plan_create_trigger(parsed_query)
+            elif parsed_query["type"] == "DROP_TRIGGER":
+                plan = self.plan_drop_trigger(parsed_query)
+            elif parsed_query["type"] == "CREATE_TEMPORARY_TABLE":
+                plan = self.plan_create_temporary_table(parsed_query)
             elif parsed_query["type"] == "SHOW":
                 plan = self.plan_show(parsed_query)
             elif parsed_query["type"] == "USE":
@@ -818,3 +835,72 @@ class Planner:
         Example: DROP VIEW view_name
         """
         return {"type": "DROP_VIEW", "view_name": parsed_query["view_name"]}
+
+    def plan_create_procedure(self, parsed_query):
+        """Plan for CREATE PROCEDURE queries."""
+        return {
+            "type": "CREATE_PROCEDURE",
+            "procedure_name": parsed_query.get("procedure_name"),
+            "parameters": parsed_query.get("parameters", []),
+            "body": parsed_query.get("body", "")
+        }
+
+    def plan_drop_procedure(self, parsed_query):
+        """Plan for DROP PROCEDURE queries."""
+        return {
+            "type": "DROP_PROCEDURE",
+            "procedure_name": parsed_query.get("procedure_name")
+        }
+
+    def plan_call_procedure(self, parsed_query):
+        """Plan for CALL procedure queries."""
+        return {
+            "type": "CALL_PROCEDURE",
+            "procedure_name": parsed_query.get("procedure_name"),
+            "arguments": parsed_query.get("arguments", [])
+        }
+
+    def plan_create_function(self, parsed_query):
+        """Plan for CREATE FUNCTION queries."""
+        return {
+            "type": "CREATE_FUNCTION",
+            "function_name": parsed_query.get("function_name"),
+            "parameters": parsed_query.get("parameters", []),
+            "return_type": parsed_query.get("return_type", "VARCHAR"),
+            "body": parsed_query.get("body", "")
+        }
+
+    def plan_drop_function(self, parsed_query):
+        """Plan for DROP FUNCTION queries."""
+        return {
+            "type": "DROP_FUNCTION",
+            "function_name": parsed_query.get("function_name")
+        }
+
+    def plan_create_trigger(self, parsed_query):
+        """Plan for CREATE TRIGGER queries."""
+        return {
+            "type": "CREATE_TRIGGER",
+            "trigger_name": parsed_query.get("trigger_name"),
+            "timing": parsed_query.get("timing"),
+            "event": parsed_query.get("event"),
+            "table": parsed_query.get("table"),
+            "body": parsed_query.get("body", "")
+        }
+
+    def plan_drop_trigger(self, parsed_query):
+        """Plan for DROP TRIGGER queries."""
+        return {
+            "type": "DROP_TRIGGER",
+            "trigger_name": parsed_query.get("trigger_name")
+        }
+
+    def plan_create_temporary_table(self, parsed_query):
+        """Plan for CREATE TEMPORARY TABLE queries."""
+        return {
+            "type": "CREATE_TEMPORARY_TABLE",
+            "table": parsed_query.get("table"),
+            "columns": parsed_query.get("columns", []),
+            "constraints": parsed_query.get("constraints", []),
+            "temporary": True
+        }

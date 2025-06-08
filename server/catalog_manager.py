@@ -276,7 +276,7 @@ class CatalogManager:
                         "type": column_info["type"],
                         "primary_key": column_info["primary_key"],
                         "identity": column_info["identity"],
-                        "not_null": column_info["not_null"]
+                        "not_null": not column_info["nullable"]  # Convert nullable to not_null
                     }
 
                     # Add identity seed/increment if present
@@ -2080,6 +2080,240 @@ class CatalogManager:
 
         logging.info("View %s dropped", view_name)
         return f"View %s dropped"
+
+    # Trigger management methods
+    def create_trigger(self, trigger_name, timing, event, table_name, body):
+        """Create a trigger in the catalog."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
+
+        trigger_id = f"{db_name}.{trigger_name}"
+
+        # Check if trigger already exists
+        if trigger_id in self.triggers:
+            return f"Trigger {trigger_name} already exists."
+
+        # Store trigger
+        self.triggers[trigger_id] = {
+            "name": trigger_name,
+            "timing": timing.upper(),
+            "event": event.upper(),
+            "table": table_name,
+            "body": body,
+            "database": db_name,
+            "created_at": datetime.datetime.now().isoformat(),
+        }
+
+        # Save changes
+        self._save_json(self.triggers_file, self.triggers)
+        
+        logging.info("Trigger %s created on table %s", trigger_name, table_name)
+        return True
+
+    def drop_trigger(self, trigger_name):
+        """Drop a trigger from the catalog."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
+
+        trigger_id = f"{db_name}.{trigger_name}"
+
+        # Check if trigger exists
+        if trigger_id not in self.triggers:
+            return f"Trigger {trigger_name} does not exist."
+
+        # Remove trigger
+        del self.triggers[trigger_id]
+
+        # Save changes
+        self._save_json(self.triggers_file, self.triggers)
+        
+        logging.info("Trigger %s dropped", trigger_name)
+        return True
+
+    def get_trigger(self, trigger_name):
+        """Get trigger definition by name."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return None
+
+        trigger_id = f"{db_name}.{trigger_name}"
+        return self.triggers.get(trigger_id)
+
+    def list_triggers(self):
+        """List all triggers in the current database."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return {}
+
+        result = {}
+        for trigger_id, trigger_info in self.triggers.items():
+            if trigger_info.get("database") == db_name:
+                trigger_name = trigger_info["name"]
+                result[trigger_name] = trigger_info
+
+        return result
+
+    def get_triggers_for_table(self, table_name):
+        """Get all triggers for a specific table."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return {}
+
+        result = {}
+        for trigger_id, trigger_info in self.triggers.items():
+            if (trigger_info.get("database") == db_name and 
+                trigger_info.get("table") == table_name):
+                trigger_name = trigger_info["name"]
+                result[trigger_name] = trigger_info
+
+        return result
+
+    # Procedure management methods
+    def create_procedure(self, procedure_name, parameters, body):
+        """Create a procedure in the catalog."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
+
+        procedure_id = f"{db_name}.{procedure_name}"
+
+        # Check if procedure already exists
+        if procedure_id in self.procedures:
+            return f"Procedure {procedure_name} already exists."
+
+        # Store procedure info
+        self.procedures[procedure_id] = {
+            "name": procedure_name,
+            "parameters": parameters,
+            "body": body,
+            "database": db_name,
+            "created_at": datetime.datetime.now().isoformat(),
+        }
+
+        # Save changes
+        self._save_json(self.procedures_file, self.procedures)
+        
+        logging.info("Procedure %s created", procedure_name)
+        return True
+
+    def drop_procedure(self, procedure_name):
+        """Drop a procedure from the catalog."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
+
+        procedure_id = f"{db_name}.{procedure_name}"
+
+        # Check if procedure exists
+        if procedure_id not in self.procedures:
+            return f"Procedure {procedure_name} does not exist."
+
+        # Remove procedure
+        del self.procedures[procedure_id]
+
+        # Save changes
+        self._save_json(self.procedures_file, self.procedures)
+        
+        logging.info("Procedure %s dropped", procedure_name)
+        return True
+
+    def get_procedure(self, procedure_name):
+        """Get procedure definition by name."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return None
+
+        procedure_id = f"{db_name}.{procedure_name}"
+        return self.procedures.get(procedure_id)
+
+    def list_procedures(self):
+        """List all procedures in the current database."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return {}
+
+        result = {}
+        for procedure_id, procedure_info in self.procedures.items():
+            if procedure_info.get("database") == db_name:
+                procedure_name = procedure_info["name"]
+                result[procedure_name] = procedure_info
+
+        return result
+
+    # Function management methods
+    def create_function(self, function_name, parameters, return_type, body):
+        """Create a function in the catalog."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
+
+        function_id = f"{db_name}.{function_name}"
+
+        # Check if function already exists
+        if function_id in self.functions:
+            return f"Function {function_name} already exists."
+
+        # Store function info
+        self.functions[function_id] = {
+            "name": function_name,
+            "parameters": parameters,
+            "return_type": return_type,
+            "body": body,
+            "database": db_name,
+            "created_at": datetime.datetime.now().isoformat(),
+        }
+
+        # Save changes
+        self._save_json(self.functions_file, self.functions)
+        
+        logging.info("Function %s created", function_name)
+        return True
+
+    def drop_function(self, function_name):
+        """Drop a function from the catalog."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return "No database selected."
+
+        function_id = f"{db_name}.{function_name}"
+
+        # Check if function exists
+        if function_id not in self.functions:
+            return f"Function {function_name} does not exist."
+
+        # Remove function
+        del self.functions[function_id]
+
+        # Save changes
+        self._save_json(self.functions_file, self.functions)
+        
+        logging.info("Function %s dropped", function_name)
+        return True
+
+    def get_function(self, function_name):
+        """Get function definition by name."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return None
+
+        function_id = f"{db_name}.{function_name}"
+        return self.functions.get(function_id)
+
+    def list_functions(self):
+        """List all functions in the current database."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return {}
+
+        result = {}
+        for function_id, function_info in self.functions.items():
+            if function_info.get("database") == db_name:
+                function_name = function_info["name"]
+                result[function_name] = function_info
+
+        return result
 
     def get_record_by_key(self, table_name, record_key):
         """
