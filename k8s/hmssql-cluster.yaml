@@ -1,0 +1,300 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hmssql-cluster
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hmssql-config
+  namespace: hmssql-cluster
+data:
+  cluster.yaml: |
+    nodes:
+      node-1:
+        host: hmssql-node-1.hmssql-cluster.svc.cluster.local
+        port: 9999
+        raft_port: 8999
+      node-2:
+        host: hmssql-node-2.hmssql-cluster.svc.cluster.local
+        port: 9999
+        raft_port: 8999
+      node-3:
+        host: hmssql-node-3.hmssql-cluster.svc.cluster.local
+        port: 9999
+        raft_port: 8999
+
+    election_timeout_min: 5.0
+    election_timeout_max: 10.0
+    heartbeat_interval: 2.0
+
+    replication:
+      mode: RAFT
+      failover_policy: AUTOMATIC
+      sync_replicas: 2
+
+    orchestrator:
+      enabled: true
+      discovery_interval: 30
+      health_check_interval: 10
+
+  server.conf: |
+    [server]
+    host = 0.0.0.0
+    port = 9999
+    data_dir = /data
+
+    [logging]
+    level = INFO
+    file = /logs/hmssql.log
+
+    [replication]
+    mode = RAFT
+    server_id = ${HOSTNAME}
+
+    [health]
+    check_interval = 10
+    timeout = 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hmssql-headless
+  namespace: hmssql-cluster
+spec:
+  clusterIP: None
+  selector:
+    app: hmssql
+  ports:
+    - name: database
+      port: 9999
+      targetPort: 9999
+    - name: raft
+      port: 8999
+      targetPort: 8999
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hmssql-primary
+  namespace: hmssql-cluster
+  labels:
+    app: hmssql
+    role: primary
+spec:
+  selector:
+    app: hmssql
+    role: primary
+  ports:
+    - name: database
+      port: 9999
+      targetPort: 9999
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hmssql-replica
+  namespace: hmssql-cluster
+  labels:
+    app: hmssql
+    role: replica
+spec:
+  selector:
+    app: hmssql
+    role: replica
+  ports:
+    - name: database
+      port: 9999
+      targetPort: 9999
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hmssql-cluster
+  namespace: hmssql-cluster
+spec:
+  serviceName: hmssql-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hmssql
+  template:
+    metadata:
+      labels:
+        app: hmssql
+    spec:
+      containers:
+        - name: hmssql
+          image: hmssql:latest
+          ports:
+            - containerPort: 9999
+              name: database
+            - containerPort: 8999
+              name: raft
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: CLUSTER_CONFIG
+              value: "/config/cluster.yaml"
+            - name: SERVER_CONFIG
+              value: "/config/server.conf"
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: logs
+              mountPath: /logs
+            - name: config
+              mountPath: /config
+          livenessProbe:
+            tcpSocket:
+              port: 9999
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9999
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+      volumes:
+        - name: config
+          configMap:
+            name: hmssql-config
+        - name: logs
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hmssql-orchestrator
+  namespace: hmssql-cluster
+spec:
+  selector:
+    app: hmssql-orchestrator
+  ports:
+    - name: web
+      port: 3000
+      targetPort: 3000
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hmssql-orchestrator
+  namespace: hmssql-cluster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hmssql-orchestrator
+  template:
+    metadata:
+      labels:
+        app: hmssql-orchestrator
+    spec:
+      containers:
+        - name: orchestrator
+          image: hmssql-orchestrator:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: CLUSTER_NAMESPACE
+              value: "hmssql-cluster"
+            - name: DATABASE_HEADLESS_SERVICE
+              value: "hmssql-headless"
+          volumeMounts:
+            - name: orchestrator-config
+              mountPath: /config
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+      volumes:
+        - name: orchestrator-config
+          configMap:
+            name: hmssql-config
+---
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: hmssql-monitoring
+  namespace: hmssql-cluster
+spec:
+  selector:
+    matchLabels:
+      app: hmssql
+  endpoints:
+    - port: database
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hmssql-alerts
+  namespace: hmssql-cluster
+spec:
+  groups:
+    - name: hmssql.rules
+      rules:
+        - alert: HMSSQLInstanceDown
+          expr: up{job="hmssql"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "HMSSQL instance is down"
+            description: "HMSSQL instance {{ $labels.instance }} has been down for more than 5 minutes."
+
+        - alert: HMSSQLHighReplicationLag
+          expr: hmssql_replication_lag_seconds > 300
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High replication lag"
+            description: "HMSSQL replication lag is {{ $value }} seconds on {{ $labels.instance }}."
+
+        - alert: HMSSQLNoLeader
+          expr: sum(hmssql_is_leader) == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "No RAFT leader elected"
+            description: "HMSSQL cluster has no elected leader for more than 1 minute."
+
+        - alert: HMSSQLSplitBrain
+          expr: sum(hmssql_is_leader) > 1
+          for: 30s
+          labels:
+            severity: critical
+          annotations:
+            summary: "Split brain detected"
+            description: "Multiple HMSSQL instances claim to be leader."

@@ -1,0 +1,447 @@
+# Network Security Policies for pyHMSSQL Cluster
+# This file contains Kubernetes NetworkPolicies, RBAC, and security configurations
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hmssql-service-account
+  namespace: hmssql-cluster
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: hmssql-cluster
+  name: hmssql-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints", "configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "deployments"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hmssql-role-binding
+  namespace: hmssql-cluster
+subjects:
+  - kind: ServiceAccount
+    name: hmssql-service-account
+    namespace: hmssql-cluster
+roleRef:
+  kind: Role
+  name: hmssql-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hmssql-database-policy
+  namespace: hmssql-cluster
+spec:
+  podSelector:
+    matchLabels:
+      app: hmssql
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow internal cluster communication
+    - from:
+        - podSelector:
+            matchLabels:
+              app: hmssql
+      ports:
+        - protocol: TCP
+          port: 9999 # Database port
+        - protocol: TCP
+          port: 8999 # RAFT port
+        - protocol: TCP
+          port: 8080 # Health check port
+    # Allow orchestrator access
+    - from:
+        - podSelector:
+            matchLabels:
+              app: hmssql-orchestrator
+      ports:
+        - protocol: TCP
+          port: 9999
+        - protocol: TCP
+          port: 8080
+    # Allow monitoring access
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 8080 # Metrics endpoint
+    # Allow external client access (controlled)
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 9999
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow internal cluster communication
+    - to:
+        - podSelector:
+            matchLabels:
+              app: hmssql
+      ports:
+        - protocol: TCP
+          port: 9999
+        - protocol: TCP
+          port: 8999
+    # Allow external backup/restore (if needed)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443 # HTTPS
+        - protocol: TCP
+          port: 80 # HTTP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hmssql-orchestrator-policy
+  namespace: hmssql-cluster
+spec:
+  podSelector:
+    matchLabels:
+      app: hmssql-orchestrator
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow external web UI access
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow monitoring access
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow database communication
+    - to:
+        - podSelector:
+            matchLabels:
+              app: hmssql
+      ports:
+        - protocol: TCP
+          port: 9999
+        - protocol: TCP
+          port: 8080
+    # Allow Kubernetes API access
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hmssql-tls-secret
+  namespace: hmssql-cluster
+type: kubernetes.io/tls
+data:
+  # These will be populated by the deployment script
+  tls.crt: ""
+  tls.key: ""
+  ca.crt: ""
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hmssql-auth-secret
+  namespace: hmssql-cluster
+type: Opaque
+data:
+  # These will be populated by the deployment script
+  jwt-secret: ""
+  admin-password: ""
+  encryption-key: ""
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hmssql-pdb
+  namespace: hmssql-cluster
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: hmssql
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hmssql-security-config
+  namespace: hmssql-cluster
+data:
+  security.yaml: |
+    security:
+      level: production
+      
+      tls:
+        enabled: true
+        cert_file: /certs/tls.crt
+        key_file: /certs/tls.key
+        ca_file: /certs/ca.crt
+        min_version: "1.2"
+        ciphers: "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS"
+      
+      authentication:
+        jwt_expiry_hours: 24
+        max_failed_attempts: 5
+        session_timeout_minutes: 1440
+        require_strong_passwords: true
+        
+      authorization:
+        rbac_enabled: true
+        default_role: "read_only"
+        admin_users: ["admin"]
+        
+      network:
+        allowed_ips: []
+        blocked_ips: []
+        rate_limit_per_minute: 60
+        enable_ip_whitelisting: false
+        
+      audit:
+        enabled: true
+        log_level: "INFO"
+        retain_days: 90
+        include_query_text: false
+        
+      encryption:
+        data_at_rest: true
+        data_in_transit: true
+        key_rotation_days: 90
+
+  firewall-rules.yaml: |
+    # Firewall rules for additional security
+    rules:
+      - name: "allow-internal-db"
+        action: "allow"
+        protocol: "tcp"
+        port: 9999
+        source: "cluster-internal"
+        
+      - name: "allow-internal-raft"
+        action: "allow"
+        protocol: "tcp"
+        port: 8999
+        source: "cluster-internal"
+        
+      - name: "allow-health-checks"
+        action: "allow"
+        protocol: "tcp"
+        port: 8080
+        source: "any"
+        
+      - name: "deny-external-raft"
+        action: "deny"
+        protocol: "tcp"
+        port: 8999
+        source: "external"
+        
+      - name: "rate-limit-db"
+        action: "rate-limit"
+        protocol: "tcp"
+        port: 9999
+        rate: "100/minute"
+
+  password-policy.yaml: |
+    password_policy:
+      min_length: 12
+      require_uppercase: true
+      require_lowercase: true
+      require_digits: true
+      require_special_chars: true
+      max_age_days: 90
+      history_count: 5
+      lockout_attempts: 5
+      lockout_duration_minutes: 30
+      
+    session_policy:
+      max_concurrent_sessions: 5
+      idle_timeout_minutes: 30
+      absolute_timeout_hours: 12
+      require_reauth_for_sensitive: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hmssql-monitoring-config
+  namespace: hmssql-cluster
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      evaluation_interval: 30s
+      
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+      
+    scrape_configs:
+      - job_name: 'hmssql-database'
+        static_configs:
+          - targets: ['hmssql-headless:8080']
+        metrics_path: '/metrics'
+        scrape_interval: 30s
+        
+      - job_name: 'hmssql-orchestrator'
+        static_configs:
+          - targets: ['hmssql-orchestrator:3000']
+        metrics_path: '/metrics'
+        scrape_interval: 30s
+
+  alerting-rules.yml: |
+    groups:
+      - name: hmssql-security
+        rules:
+          - alert: HMSSQLUnauthorizedAccess
+            expr: increase(hmssql_auth_failures_total[5m]) > 10
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High number of authentication failures"
+              description: "{{ $value }} authentication failures in the last 5 minutes"
+              
+          - alert: HMSSQLSuspiciousActivity
+            expr: increase(hmssql_audit_events_total{event_type="unauthorized"}[10m]) > 5
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Suspicious database activity detected"
+              description: "{{ $value }} unauthorized events in the last 10 minutes"
+              
+          - alert: HMSSQLCertificateExpiry
+            expr: (hmssql_certificate_expiry_timestamp - time()) / 86400 < 30
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "TLS certificate expiring soon"
+              description: "Certificate will expire in {{ $value }} days"
+              
+          - alert: HMSSQLHighPrivilegeAccess
+            expr: increase(hmssql_privilege_escalation_total[1h]) > 0
+            for: 0m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Privilege escalation detected"
+              description: "{{ $value }} privilege escalation attempts detected"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hmssql-security-audit
+  namespace: hmssql-cluster
+spec:
+  schedule: "0 2 * * *" # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: hmssql-service-account
+          containers:
+            - name: security-audit
+              image: hmssql:latest
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  echo "Starting security audit..."
+
+                  # Check certificate validity
+                  python3 -c "
+                  from server.security_manager import SecurityManager
+                  sm = SecurityManager()
+                  status = sm.get_security_status()
+                  print(f'Security Status: {status}')
+                  "
+
+                  # Clean up expired sessions
+                  python3 -c "
+                  from server.security_manager import SecurityManager
+                  sm = SecurityManager()
+                  sm.cleanup_expired_sessions()
+                  print('Cleaned up expired sessions')
+                  "
+
+                  # Generate security report
+                  python3 -c "
+                  import json
+                  from datetime import datetime
+                  from server.security_manager import SecurityManager
+
+                  sm = SecurityManager()
+                  report = {
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'security_status': sm.get_security_status(),
+                    'audit_summary': 'Daily security audit completed'
+                  }
+
+                  with open('/logs/audit/daily_security_report.json', 'w') as f:
+                    json.dump(report, f, indent=2)
+
+                  print('Security audit completed')
+                  "
+              volumeMounts:
+                - name: audit-logs
+                  mountPath: /logs/audit
+                - name: certs
+                  mountPath: /certs
+                  readOnly: true
+          volumes:
+            - name: audit-logs
+              persistentVolumeClaim:
+                claimName: hmssql-audit-logs
+            - name: certs
+              secret:
+                secretName: hmssql-tls-secret
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hmssql-audit-logs
+  namespace: hmssql-cluster
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard

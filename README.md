@@ -298,6 +298,241 @@ python server.py --sync-mode semi-sync --sync-replicas 2
 - Enable automatic node discovery
 - Use optimized B+ tree, buffer pool, and cost-based optimization
 
+## 🔄 Horizontal Scaling and Clustering Setup
+
+pyHMSSQL supports horizontal scaling through a sophisticated replication system that allows you to distribute your database workload across multiple server instances. The system supports both read replicas and primary-replica configurations with various consistency levels.
+
+### 🚀 Quick Start: Setting Up a Cluster
+
+#### 1. Start the Primary Server
+
+```bash
+# Start primary server (default configuration)
+python server.py --name "Primary-DB"
+
+# Or with specific replication settings
+python server.py --name "Primary-DB" --sync-mode semi-sync --sync-replicas 2
+```
+
+#### 2. Start Replica Servers
+
+```bash
+# Start first replica
+python server.py --name "Replica-1" --replica-of localhost:9999
+
+# Start second replica (on different port if same machine)
+python server.py --name "Replica-2" --replica-of localhost:9999 --port 9998
+
+# Start third replica
+python server.py --name "Replica-3" --replica-of localhost:9999 --port 9997
+```
+
+### 📊 Horizontal Scaling Architecture
+
+The pyHMSSQL horizontal scaler uses an **EnhancedReplicationManager** that provides:
+
+- **Automatic Node Discovery**: Replicas automatically register with the primary
+- **Health Monitoring**: Continuous health checks and failure detection
+- **Automatic Failover**: Promotes replicas to primary on failures
+- **Load Balancing**: Distributes read queries across healthy replicas
+- **Conflict Resolution**: Handles write conflicts in distributed scenarios
+
+### 🔧 Scaling Configuration Options
+
+| **Parameter**     | **Description**                                           | **Default**  | **Example**                    |
+|-------------------|-----------------------------------------------------------|--------------|--------------------------------|
+| `--replica-of`    | Connect as replica to specified primary                   | None         | `localhost:9999`               |
+| `--sync-mode`     | Replication synchronization mode                          | `semi-sync`  | `sync`, `semi-sync`, `async`   |
+| `--sync-replicas` | Number of replicas to wait for (semi-sync mode)          | `1`          | `2`                            |
+| `--port`          | Server port (useful for multiple instances)              | `9999`       | `9998`                         |
+| `--name`          | Server instance identifier                                | Auto         | `"Primary-Production"`         |
+
+### 🎯 Scaling Scenarios and Examples
+
+#### Scenario 1: High Availability Setup (2 Replicas)
+
+```bash
+# Terminal 1 - Primary server
+python server.py --name "HA-Primary" --sync-mode semi-sync --sync-replicas 1
+
+# Terminal 2 - First replica
+python server.py --name "HA-Replica-1" --replica-of localhost:9999 --port 9998
+
+# Terminal 3 - Second replica  
+python server.py --name "HA-Replica-2" --replica-of localhost:9999 --port 9997
+```
+
+**Result**: Writes require acknowledgment from 1 replica, providing good balance of performance and data safety.
+
+#### Scenario 2: Maximum Performance (Async Replication)
+
+```bash
+# Primary with async replication
+python server.py --name "Async-Primary" --sync-mode async
+
+# Multiple async replicas
+python server.py --name "Async-Replica-1" --replica-of localhost:9999 --port 9998
+python server.py --name "Async-Replica-2" --replica-of localhost:9999 --port 9997
+python server.py --name "Async-Replica-3" --replica-of localhost:9999 --port 9996
+```
+
+**Result**: Maximum write performance, replicas catch up asynchronously.
+
+#### Scenario 3: Maximum Consistency (Sync Replication)
+
+```bash
+# Primary requiring all replicas to acknowledge
+python server.py --name "Sync-Primary" --sync-mode sync
+
+# Replicas (all must be healthy for writes to succeed)
+python server.py --name "Sync-Replica-1" --replica-of localhost:9999 --port 9998
+python server.py --name "Sync-Replica-2" --replica-of localhost:9999 --port 9997
+```
+
+**Result**: Highest consistency, but slower writes and requires all replicas to be available.
+
+#### Scenario 4: Load Balanced Read Scaling
+
+```bash
+# Primary with multiple read replicas
+python server.py --name "Read-Primary" --sync-mode semi-sync --sync-replicas 1
+
+# Multiple read replicas for scaling read operations
+python server.py --name "Read-Replica-1" --replica-of localhost:9999 --port 9998
+python server.py --name "Read-Replica-2" --replica-of localhost:9999 --port 9997
+python server.py --name "Read-Replica-3" --replica-of localhost:9999 --port 9996
+python server.py --name "Read-Replica-4" --replica-of localhost:9999 --port 9995
+```
+
+**Result**: Reads can be distributed across 5 servers (1 primary + 4 replicas).
+
+### 🔍 How the Horizontal Scaler Works
+
+#### 1. **EnhancedReplicationManager Components**
+
+- **NodeRegistry**: Tracks all replicas and their health status
+- **HealthMonitor**: Performs periodic health checks on all nodes
+- **FailoverCoordinator**: Handles primary failures and replica promotion
+- **ReplicationCoordinator**: Manages data synchronization between nodes
+
+#### 2. **Replication Process Flow**
+
+```
+1. Client sends WRITE to Primary
+2. Primary validates and applies changes
+3. Primary forwards changes to replicas based on sync-mode:
+   - sync: Wait for ALL replicas
+   - semi-sync: Wait for specified number (--sync-replicas)
+   - async: Don't wait, send in background
+4. Primary responds to client when condition is met
+5. Remaining replicas catch up asynchronously
+```
+
+#### 3. **Automatic Failover Process**
+
+```
+1. HealthMonitor detects primary failure
+2. FailoverCoordinator selects best replica (most up-to-date)
+3. Selected replica promotes itself to primary
+4. Other replicas redirect to new primary
+5. Clients automatically reconnect to new primary
+```
+
+### 🌐 Multi-Machine Cluster Setup
+
+For production environments spanning multiple machines:
+
+```bash
+# Machine 1 (192.168.1.10) - Primary
+python server.py --name "Prod-Primary" --sync-mode semi-sync --sync-replicas 2
+
+# Machine 2 (192.168.1.11) - Replica 1
+python server.py --name "Prod-Replica-1" --replica-of 192.168.1.10:9999
+
+# Machine 3 (192.168.1.12) - Replica 2
+python server.py --name "Prod-Replica-2" --replica-of 192.168.1.10:9999
+
+# Machine 4 (192.168.1.13) - Replica 3
+python server.py --name "Prod-Replica-3" --replica-of 192.168.1.10:9999
+```
+
+### 🔧 Monitoring and Management
+
+#### Check Cluster Status
+
+Connect to any server and use administrative commands:
+
+```sql
+-- Show cluster topology
+SHOW CLUSTER STATUS;
+
+-- Show replication lag
+SHOW REPLICA STATUS;
+
+-- Show node health
+SHOW NODES;
+```
+
+#### Monitoring Logs
+
+Each server logs replication events:
+
+```bash
+# Primary server logs
+tail -f server.log | grep "Replication"
+
+# Replica server logs  
+tail -f replica.log | grep "Sync"
+```
+
+### ⚡ Performance Tuning
+
+#### Optimize for Write-Heavy Workloads
+
+```bash
+# Use async replication for maximum write throughput
+python server.py --sync-mode async
+```
+
+#### Optimize for Read-Heavy Workloads
+
+```bash
+# Start many read replicas
+for i in {1..5}; do
+    python server.py --name "Read-Replica-$i" --replica-of localhost:9999 --port $((9998+i)) &
+done
+```
+
+#### Balance Performance and Consistency
+
+```bash
+# Semi-sync with reasonable replica count
+python server.py --sync-mode semi-sync --sync-replicas 2
+```
+
+### 🚨 Best Practices
+
+1. **Start Primary First**: Always start the primary server before replicas
+2. **Health Monitoring**: Monitor replica lag and health status regularly
+3. **Network Considerations**: Ensure stable network connections between nodes
+4. **Resource Planning**: Allocate sufficient CPU and memory for each instance
+5. **Backup Strategy**: Regular backups even with replication
+6. **Testing Failover**: Regularly test failover scenarios in staging environments
+
+### 🔄 Dynamic Scaling
+
+Add or remove replicas dynamically:
+
+```bash
+# Add a new replica to existing cluster
+python server.py --name "Dynamic-Replica" --replica-of localhost:9999 --port 9994
+
+# Remove replica (stop the process, primary will detect and update cluster)
+# pkill -f "Dynamic-Replica"
+```
+
+The horizontal scaler automatically adjusts to cluster changes and maintains optimal performance.
+
 ## 📝 Example Commands
 
 ```sql

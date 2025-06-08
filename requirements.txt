@@ -9,5 +9,12 @@ pytest
 pytest-cov
 pytest-xdist
 pytest-mock
+pytest-asyncio
 faker
 pymongo
+flask
+flask-cors
+requests
+prometheus-client
+pyyaml
+aiohttp

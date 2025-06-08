@@ -1,0 +1,45 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional dependencies for orchestrator
+RUN pip install --no-cache-dir \
+    flask \
+    flask-cors \
+    requests \
+    prometheus-client \
+    pyyaml
+
+# Copy the application code
+COPY server/ ./server/
+COPY shared/ ./shared/
+COPY orchestrator/ ./orchestrator/
+
+# Create necessary directories
+RUN mkdir -p data logs
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV HMSSQL_DATA_DIR=/app/data
+ENV HMSSQL_LOG_DIR=/app/logs
+
+# Expose orchestrator port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Run orchestrator
+CMD ["python", "orchestrator/orchestrator.py"]
