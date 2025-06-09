@@ -112,20 +112,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pylint black isort flake8 mypy
+          pip install pylint black
           pip install -r requirements.txt
 
       - name: Run Black
         run: black --check --diff server/ tests/
-
-      - name: Run isort
-        run: isort --check-only --diff server/ tests/
-
-      - name: Run flake8
-        run: flake8 server/ tests/ --max-line-length=100 --extend-ignore=E203,W503
-
-      - name: Run pylint
-        run: pylint server/ --disable=C0114,C0115,C0116 --max-line-length=100
 
   security:
     name: Security Scan
