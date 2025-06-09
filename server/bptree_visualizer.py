@@ -73,8 +73,7 @@ class BPTreeVisualizer:
             try:
                 return self._visualize_matplotlib(tree, output_name)
             except RuntimeError as e:
-                self.logger.warning(
-                    f"Matplotlib visualization failed: {str(e)}")
+                self.logger.warning(f"Matplotlib visualization failed: {str(e)}")
 
         if HAS_GRAPHVIZ:
             try:
@@ -315,8 +314,7 @@ class BPTreeVisualizer:
         # Process child nodes recursively
         if hasattr(node, "children"):
             for i, child in enumerate(node.children):
-                edge_label = (
-                    f"≤ {node.keys[i]}" if i < len(node.keys) else f"> {node.keys[-1]}")
+                edge_label = (f"≤ {node.keys[i]}" if i < len(node.keys) else f"> {node.keys[-1]}")
                 self._add_nodes_to_graph(
                     dot, child, node_id, edge_label, node_counter)
 
@@ -361,9 +359,7 @@ class BPTreeVisualizer:
 
     def _get_tree_text(self, tree):
         """Generate a text representation of the tree"""
-        text = [
-            f"B+ Tree '{tree.name}' (Order: {tree.order if hasattr(tree, 'order') else 'Unknown'})\n"
-        ]
+        text = [f"B+ Tree '{tree.name}' (Order: {tree.order if hasattr(tree, 'order') else 'Unknown'})\n"]
 
         def print_node(node, level=0, prefix="Root: "):
             indent = "  " * level
@@ -376,13 +372,9 @@ class BPTreeVisualizer:
                         key_values.append(f"{item[0]}:{item[1]}")
                     else:
                         key_values.append(str(item))
-                text.append(
-                    f"{indent}{prefix}LEAF {{{', '.join(key_values)}}}")
+                text.append(f"{indent}{prefix}LEAF {{{', '.join(key_values)}}}")
             else:
-                text.append(
-                    f"{indent}{
-                        prefix}NODE {{{', '.join(map(str, node.keys))}}}"
-                )
+                text.append(f"{indent}{prefix}NODE {{{', '.join(map(str, node.keys))}}}")
 
             # Print children recursively
             if hasattr(node, "children"):
