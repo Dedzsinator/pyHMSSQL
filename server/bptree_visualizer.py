@@ -362,9 +362,7 @@ class BPTreeVisualizer:
     def _get_tree_text(self, tree):
         """Generate a text representation of the tree"""
         text = [
-            f"B+ Tree '{tree.name}' (Order: {
-                tree.order if hasattr(tree, 'order') else 'Unknown'
-            })\n"
+            f"B+ Tree '{tree.name}' (Order: {tree.order if hasattr(tree, 'order') else 'Unknown'})\n"
         ]
 
         def print_node(node, level=0, prefix="Root: "):

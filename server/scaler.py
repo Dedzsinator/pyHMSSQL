@@ -17,7 +17,11 @@ from enum import Enum
 from typing import Dict, List, Optional, Any, Callable
 
 # Import RAFT consensus implementation
-from raft_consensus import RaftCluster, RaftNode, NodeState, LogEntry
+try:
+    from .raft_consensus import RaftCluster, RaftNode, NodeState, LogEntry
+except ImportError:
+    # Fallback for when running server.py directly
+    from raft_consensus import RaftCluster, RaftNode, NodeState, LogEntry
 
 class ReplicaRole(Enum):
     """Roles in the replication system"""

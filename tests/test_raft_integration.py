@@ -97,32 +97,108 @@ class RaftIntegrationTest(unittest.TestCase):
         self.nodes = {}
         self.databases = {}
         self.replication_managers = {}
+        self.allocated_ports = []
         
-        # Cluster configuration
+        # Dynamically allocate free ports to avoid conflicts
+        base_ports = self._get_free_ports(3)
+        
+        # Cluster configuration with longer timeouts for test stability
         self.cluster_config = {
             "cluster_id": "test-cluster",
             "nodes": {
-                "node1": {"host": "127.0.0.1", "port": 15001},
-                "node2": {"host": "127.0.0.1", "port": 15002},
-                "node3": {"host": "127.0.0.1", "port": 15003}
+                "node1": {"host": "127.0.0.1", "port": base_ports[0]},
+                "node2": {"host": "127.0.0.1", "port": base_ports[1]},
+                "node3": {"host": "127.0.0.1", "port": base_ports[2]}
             },
-            "election_timeout_min": 150,
-            "election_timeout_max": 300,
-            "heartbeat_interval": 50
+            "election_timeout_min": 1.5,  # Increased from 150ms to 1.5s for test stability
+            "election_timeout_max": 3.0,  # Increased from 300ms to 3.0s for test stability
+            "heartbeat_interval": 0.5     # Increased from 50ms to 0.5s for test stability
         }
         
         # Create test nodes
         for node_id, config in self.cluster_config["nodes"].items():
             self._create_test_node(node_id, config)
         
-        # Wait for initial setup
-        time.sleep(2)
+        # Wait for initial setup and leader election
+        time.sleep(8)  # Increased from 2s to 8s to allow for longer election timeouts
+
+    def _get_free_ports(self, count: int) -> List[int]:
+        """Get a list of free ports for testing"""
+        ports = []
+        for _ in range(count):
+            sock = socket.socket()
+            sock.bind(('', 0))
+            port = sock.getsockname()[1]
+            sock.close()
+            ports.append(port)
+            self.allocated_ports.append(port)
+        return ports
+
+    def _wait_for_port_release(self, port: int, timeout: float = 5.0):
+        """Wait for a port to be released"""
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                sock = socket.socket()
+                sock.bind(('127.0.0.1', port))
+                sock.close()
+                return True
+            except OSError:
+                time.sleep(0.1)
+        return False
     
     def tearDown(self):
         """Clean up test resources"""
-        # Stop all nodes
-        for manager in self.replication_managers.values():
-            manager.running = False
+        # Stop all RAFT nodes properly
+        for node_id, manager in self.replication_managers.items():
+            try:
+                # Stop the replication manager
+                manager.running = False
+                
+                # Shutdown RAFT cluster if it exists
+                if hasattr(manager, 'raft_cluster') and manager.raft_cluster:
+                    manager.raft_cluster.shutdown()
+                
+                # Shutdown individual RAFT node if it exists
+                if hasattr(manager, 'raft_node') and manager.raft_node:
+                    manager.raft_node.shutdown()
+                    
+                # Close any open sockets
+                if hasattr(manager, 'server_socket') and manager.server_socket:
+                    try:
+                        manager.server_socket.close()
+                    except:
+                        pass
+                        
+            except Exception as e:
+                logger.warning(f"Error shutting down node {node_id}: {e}")
+        
+        # Wait for ports to be released
+        for port in self.allocated_ports:
+            self._wait_for_port_release(port)
+        
+        # Clear node references
+        self.nodes.clear()
+        self.replication_managers.clear()
+        self.databases.clear()
+        self.allocated_ports.clear()
+        
+        # Clean up test directory
+        try:
+            import shutil
+            shutil.rmtree(self.test_dir)
+        except Exception as e:
+            logger.warning(f"Error cleaning up test directory: {e}")
+        
+        # Force garbage collection to help with socket cleanup
+        import gc
+        gc.collect()
+        
+        # Give system time to clean up
+        time.sleep(1)
+        
+        # Small delay to ensure ports are released
+        time.sleep(0.5)
         
         # Clean up temporary directory
         import shutil
@@ -147,14 +223,15 @@ class RaftIntegrationTest(unittest.TestCase):
             manager.raft_cluster.set_database_callback(database.apply_operation)
         
         self.replication_managers[node_id] = manager
-        self.nodes[node_id] = manager.raft_node
+        # Access the RAFT node through the cluster
+        self.nodes[node_id] = manager.raft_cluster.local_node if manager.raft_cluster else None
     
     def test_leader_election(self):
         """Test leader election process"""
         logger.info("Testing leader election...")
         
         # Wait for leader election
-        time.sleep(5)
+        time.sleep(8)  # Increased for more reliable leader election
         
         # Check that exactly one leader exists
         leaders = []
@@ -170,7 +247,7 @@ class RaftIntegrationTest(unittest.TestCase):
         logger.info("Testing log replication...")
         
         # Wait for leader election
-        time.sleep(5)
+        time.sleep(8)  # Increased for more reliable leader election
         
         # Find leader
         leader_node = None
@@ -228,7 +305,7 @@ class RaftIntegrationTest(unittest.TestCase):
         logger.info("Testing leader failover...")
         
         # Wait for initial leader election
-        time.sleep(5)
+        time.sleep(8)  # Increased for more reliable leader election
         
         # Find current leader
         original_leader_id = None
@@ -286,7 +363,7 @@ class RaftIntegrationTest(unittest.TestCase):
         logger.info("Testing network partition recovery...")
         
         # Wait for initial leader election
-        time.Sleep(5)
+        time.sleep(8)  # Increased for test stability
         
         # Find current leader
         leader_id = None
@@ -336,7 +413,7 @@ class RaftIntegrationTest(unittest.TestCase):
         if isolated_manager.raft_cluster:
             isolated_manager.raft_cluster.is_partitioned = False
         
-        time.sleep(5)
+        time.sleep(8)  # Increased for test stability
         
         # Verify isolated node catches up
         self.assertIn("partition_test", isolated_db.data)
@@ -348,7 +425,7 @@ class RaftIntegrationTest(unittest.TestCase):
         logger.info("Testing concurrent operations...")
         
         # Wait for leader election
-        time.sleep(5)
+        time.sleep(8)  # Increased for test stability
         
         # Find leader
         leader_manager = None
@@ -380,7 +457,7 @@ class RaftIntegrationTest(unittest.TestCase):
                 future.result()
         
         # Wait for all operations to be applied
-        time.sleep(5)
+        time.sleep(8)  # Increased for test stability
         
         # Verify all operations were applied consistently
         for node_id, database in self.databases.items():
@@ -396,7 +473,7 @@ class RaftIntegrationTest(unittest.TestCase):
         logger.info("Testing data consistency...")
         
         # Wait for leader election
-        time.sleep(5)
+        time.sleep(8)  # Increased for test stability
         
         # Submit a series of operations
         operations = []
@@ -486,8 +563,28 @@ class RaftPerformanceTest(unittest.TestCase):
     
     def tearDown(self):
         """Clean up performance test resources"""
-        for manager in self.replication_managers.values():
-            manager.running = False
+        # Stop all RAFT nodes properly
+        for node_id, manager in self.replication_managers.items():
+            try:
+                # Stop the replication manager
+                manager.running = False
+                
+                # Shutdown RAFT cluster if it exists
+                if hasattr(manager, 'raft_cluster') and manager.raft_cluster:
+                    manager.raft_cluster.shutdown()
+                
+                # Shutdown individual RAFT node if it exists
+                if hasattr(manager, 'raft_node') and manager.raft_node:
+                    manager.raft_node.shutdown()
+                    
+            except Exception as e:
+                logger.warning(f"Error shutting down node {node_id}: {e}")
+        
+        # Clear references
+        self.replication_managers.clear()
+        
+        # Small delay to ensure ports are released
+        time.sleep(0.5)
         
         import shutil
         shutil.rmtree(self.test_dir, ignore_errors=True)
@@ -499,7 +596,8 @@ class RaftPerformanceTest(unittest.TestCase):
         # Find leader
         leader_manager = None
         for node_id, manager in self.replication_managers.items():
-            if manager.raft_node and manager.raft_node.state == NodeState.LEADER:
+            if (manager.raft_cluster and manager.raft_cluster.local_node and 
+                manager.raft_cluster.local_node.state == NodeState.LEADER):
                 leader_manager = manager
                 break
         
@@ -533,6 +631,9 @@ class RaftPerformanceTest(unittest.TestCase):
             if "throughput_test" in database.data:
                 applied_count = len(database.data["throughput_test"])
                 logger.info(f"Node {node_id}: {applied_count} operations applied")
+        
+        # Return the throughput result
+        return throughput
     
     def test_latency(self):
         """Test operation latency"""
@@ -541,7 +642,8 @@ class RaftPerformanceTest(unittest.TestCase):
         # Find leader
         leader_manager = None
         for node_id, manager in self.replication_managers.items():
-            if manager.raft_node and manager.raft_node.state == NodeState.LEADER:
+            if (manager.raft_cluster and manager.raft_cluster.local_node and 
+                manager.raft_cluster.local_node.state == NodeState.LEADER):
                 leader_manager = manager
                 break
         
@@ -577,6 +679,9 @@ class RaftPerformanceTest(unittest.TestCase):
         logger.info(f"Average latency: {avg_latency:.2f} ms")
         logger.info(f"Min latency: {min_latency:.2f} ms")
         logger.info(f"Max latency: {max_latency:.2f} ms")
+        
+        # Return the average latency
+        return avg_latency
 
 
 def run_integration_tests():

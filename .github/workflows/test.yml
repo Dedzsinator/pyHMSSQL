@@ -74,6 +74,7 @@ jobs:
             --maxfail=5
         env:
           PYTHONPATH: ${{ github.workspace }}
+          DISABLE_PROFILING: 1
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

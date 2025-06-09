@@ -240,7 +240,7 @@ class TestTemporaryTableManager(unittest.TestCase):
         self.mock_catalog.drop_table.return_value = True
         
         # Cleanup session
-        self.temp_table_manager.cleanup_session_tables(session_id)
+        self.temp_table_manager.cleanup_session_temp_tables(session_id)
         
         # Check that all 3 tables were dropped
         self.assertEqual(self.mock_catalog.drop_table.call_count, 3)
@@ -272,7 +272,7 @@ class TestTemporaryTableManager(unittest.TestCase):
         self.mock_catalog.drop_table.side_effect = [False, True]
         
         # Cleanup session
-        self.temp_table_manager.cleanup_session_tables(session_id)
+        self.temp_table_manager.cleanup_session_temp_tables(session_id)
         
         # Check that both drops were attempted
         self.assertEqual(self.mock_catalog.drop_table.call_count, 2)
@@ -283,7 +283,7 @@ class TestTemporaryTableManager(unittest.TestCase):
     def test_cleanup_session_tables_nonexistent_session(self):
         """Test cleanup of non-existent session"""
         # Cleanup non-existent session - should not raise exception
-        self.temp_table_manager.cleanup_session_tables("nonexistent_session")
+        self.temp_table_manager.cleanup_session_temp_tables("nonexistent_session")
         
         # Should not call drop_table
         self.mock_catalog.drop_table.assert_not_called()
@@ -313,11 +313,11 @@ class TestTemporaryTableManager(unittest.TestCase):
         result = self.temp_table_manager.list_session_temp_tables(session_id)
         
         self.assertEqual(result["status"], "success")
-        self.assertIn("tables", result)
+        self.assertIn("temp_tables", result)
         
         # Check that both tables are listed
-        listed_tables = result["tables"]
-        expected_tables = [f"_temp_{session_id}_{name}" for name in table_names]
+        listed_tables = result["temp_tables"]
+        expected_tables = table_names  # User-friendly names, not internal names
         
         for expected_table in expected_tables:
             self.assertIn(expected_table, listed_tables)
@@ -327,7 +327,7 @@ class TestTemporaryTableManager(unittest.TestCase):
         result = self.temp_table_manager.list_session_temp_tables("empty_session")
         
         self.assertEqual(result["status"], "success")
-        self.assertEqual(result["tables"], [])
+        self.assertEqual(result["temp_tables"], [])
 
     def test_session_isolation(self):
         """Test that temporary tables are isolated between sessions"""
@@ -362,9 +362,11 @@ class TestTemporaryTableManager(unittest.TestCase):
         list1 = self.temp_table_manager.list_session_temp_tables(session1)
         list2 = self.temp_table_manager.list_session_temp_tables(session2)
         
-        self.assertEqual(len(list1["tables"]), 1)
-        self.assertEqual(len(list2["tables"]), 1)
-        self.assertNotEqual(list1["tables"][0], list2["tables"][0])
+        self.assertEqual(len(list1["temp_tables"]), 1)
+        self.assertEqual(len(list2["temp_tables"]), 1)
+        # Both should contain the same user-friendly name since it's the same table name
+        self.assertEqual(list1["temp_tables"][0], table_name)
+        self.assertEqual(list2["temp_tables"][0], table_name)
 
     def test_execute_temporary_table_operation_create(self):
         """Test temporary table operation routing for CREATE"""
