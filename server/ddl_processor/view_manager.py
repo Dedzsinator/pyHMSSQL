@@ -4,6 +4,7 @@ Returns:
     _type_: _description_
 """
 
+
 class ViewManager:
     """Handles view operations"""
 

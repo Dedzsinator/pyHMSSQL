@@ -18,13 +18,11 @@ try:
         HAS_NETWORKX = True
     except ImportError:
         HAS_NETWORKX = False
-        logging.info(
-            "NetworkX not installed. Using direct matplotlib visualization.")
+        logging.info("NetworkX not installed. Using direct matplotlib visualization.")
 except ImportError:
     HAS_MATPLOTLIB = False
     HAS_NETWORKX = False
-    logging.warning(
-        "Matplotlib not installed. Visualization capabilities limited.")
+    logging.warning("Matplotlib not installed. Visualization capabilities limited.")
 
 try:
     import graphviz
@@ -32,8 +30,7 @@ try:
     HAS_GRAPHVIZ = True
 except ImportError:
     HAS_GRAPHVIZ = False
-    logging.info(
-        "Graphviz not installed. Some visualization features unavailable.")
+    logging.info("Graphviz not installed. Some visualization features unavailable.")
 
 
 class BPTreeVisualizer:
@@ -60,7 +57,8 @@ class BPTreeVisualizer:
             return self._export_text_only(tree, "Invalid tree structure", output_name)
 
         output_name = (
-            output_name or f"{tree.name}_{datetime.now().strftime('%Y%m%d%H%M%S')}")
+            output_name or f"{tree.name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        )
 
         # Try visualizers in order of preference
         if HAS_NETWORKX:
@@ -207,8 +205,7 @@ class BPTreeVisualizer:
         if is_leaf:
             # Format key-value pairs for leaf nodes
             node_text = ", ".join(
-                [f"{k}:{v}" if isinstance(k, tuple) else str(k)
-                 for k in node.keys]
+                [f"{k}:{v}" if isinstance(k, tuple) else str(k) for k in node.keys]
             )
         else:
             # Just keys for internal nodes
@@ -314,9 +311,10 @@ class BPTreeVisualizer:
         # Process child nodes recursively
         if hasattr(node, "children"):
             for i, child in enumerate(node.children):
-                edge_label = (f"≤ {node.keys[i]}" if i < len(node.keys) else f"> {node.keys[-1]}")
-                self._add_nodes_to_graph(
-                    dot, child, node_id, edge_label, node_counter)
+                edge_label = (
+                    f"≤ {node.keys[i]}" if i < len(node.keys) else f"> {node.keys[-1]}"
+                )
+                self._add_nodes_to_graph(dot, child, node_id, edge_label, node_counter)
 
         # Show next pointers in leaf nodes
         if (
@@ -327,8 +325,7 @@ class BPTreeVisualizer:
         ):
             next_id = f"node_{node_counter[0]}"  # ID for the next node
             self._add_nodes_to_graph(dot, node.next, None, None, node_counter)
-            dot.edge(node_id, next_id, style="dashed",
-                     label="next", constraint="false")
+            dot.edge(node_id, next_id, style="dashed", label="next", constraint="false")
 
         return node_id
 
@@ -347,8 +344,7 @@ class BPTreeVisualizer:
 
     def _export_text_only(self, tree, message, output_name):
         """Export a simple text message when tree cannot be visualized"""
-        output_path = os.path.join(
-            self.output_dir, f"{output_name or 'error'}.txt")
+        output_path = os.path.join(self.output_dir, f"{output_name or 'error'}.txt")
 
         with open(output_path, "w") as f:
             f.write(f"Error: {message}\n")
@@ -359,7 +355,9 @@ class BPTreeVisualizer:
 
     def _get_tree_text(self, tree):
         """Generate a text representation of the tree"""
-        text = [f"B+ Tree '{tree.name}' (Order: {tree.order if hasattr(tree, 'order') else 'Unknown'})\n"]
+        text = [
+            f"B+ Tree '{tree.name}' (Order: {tree.order if hasattr(tree, 'order') else 'Unknown'})\n"
+        ]
 
         def print_node(node, level=0, prefix="Root: "):
             indent = "  " * level
@@ -374,7 +372,9 @@ class BPTreeVisualizer:
                         key_values.append(str(item))
                 text.append(f"{indent}{prefix}LEAF {{{', '.join(key_values)}}}")
             else:
-                text.append(f"{indent}{prefix}NODE {{{', '.join(map(str, node.keys))}}}")
+                text.append(
+                    f"{indent}{prefix}NODE {{{', '.join(map(str, node.keys))}}}"
+                )
 
             # Print children recursively
             if hasattr(node, "children"):
@@ -400,8 +400,7 @@ class BPTreeVisualizer:
         child_info = {"height": 0, "leaf_count": 0, "node_count": 0}
         for child in node.children:
             child_result = self._analyze_tree(child, level + 1)
-            child_info["height"] = max(
-                child_info["height"], child_result["height"])
+            child_info["height"] = max(child_info["height"], child_result["height"])
             child_info["leaf_count"] += child_result["leaf_count"]
             child_info["node_count"] += child_result["node_count"]
 

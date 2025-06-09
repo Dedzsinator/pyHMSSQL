@@ -6,6 +6,7 @@ Raises:
 Returns:
     _type_: _description_
 """
+
 import logging
 import re
 
@@ -14,6 +15,7 @@ class JoinExecutor:
     """
     Class to execute JOIN queries using different join algorithms.
     """
+
     def __init__(self, catalog_manager, index_manager):
         self.catalog_manager = catalog_manager
         self.index_manager = index_manager
@@ -30,7 +32,9 @@ class JoinExecutor:
         # CRITICAL FIX: Get WHERE conditions from the correct plan location
         where_conditions = plan.get("where_conditions") or plan.get("parsed_condition")
 
-        logging.info(f"🔍 Executing JOIN plan with WHERE conditions: {where_conditions}")
+        logging.info(
+            f"🔍 Executing JOIN plan with WHERE conditions: {where_conditions}"
+        )
 
         # Parse the join condition
         left_column, right_column = self._parse_join_condition(condition)
@@ -42,20 +46,32 @@ class JoinExecutor:
         # Debug the join algorithm choice
         logging.info(f"🔧 Join algorithm chosen: {join_algorithm}")
         logging.info(f"🔧 Join type: {join_type}")
-        logging.info(f"🔧 About to call join with left_table_data={len(left_table_data)} records, right_table_data={len(right_table_data)} records")
+        logging.info(
+            f"🔧 About to call join with left_table_data={len(left_table_data)} records, right_table_data={len(right_table_data)} records"
+        )
 
         # Execute the join based on algorithm
         if join_algorithm == "HASH":
             logging.info(f"🔧 Calling _execute_hash_join")
             results = self._execute_hash_join(
-                left_table_data, right_table_data,
-                left_column, right_column, table1, table2, join_type
+                left_table_data,
+                right_table_data,
+                left_column,
+                right_column,
+                table1,
+                table2,
+                join_type,
             )
         else:
             logging.info(f"🔧 Calling _execute_nested_loop_join")
             results = self._execute_nested_loop_join(
-                left_table_data, right_table_data,
-                left_column, right_column, table1, table2, join_type
+                left_table_data,
+                right_table_data,
+                left_column,
+                right_column,
+                table1,
+                table2,
+                join_type,
             )
 
         logging.info(f"Hash join produced {len(results)} results")
@@ -68,7 +84,9 @@ class JoinExecutor:
                 if self._evaluate_where_condition(record, where_conditions):
                     filtered_results.append(record)
 
-            logging.info(f"WHERE filtering reduced results from {len(results)} to {len(filtered_results)}")
+            logging.info(
+                f"WHERE filtering reduced results from {len(results)} to {len(filtered_results)}"
+            )
             results = filtered_results
 
         logging.info(f"After WHERE filtering: {len(results)} results")
@@ -88,11 +106,17 @@ class JoinExecutor:
                     if "." in key:
                         simple_name = key.split(".", 1)[1]
                         # Check if this simple name would conflict with other columns
-                        conflicts = [k for k in record.keys() if k != key and k.endswith(f".{simple_name}")]
+                        conflicts = [
+                            k
+                            for k in record.keys()
+                            if k != key and k.endswith(f".{simple_name}")
+                        ]
                         if not conflicts:
                             cleaned_record[simple_name] = value
                         else:
-                            cleaned_record[key] = value  # Keep prefixed if there's a conflict
+                            cleaned_record[key] = (
+                                value  # Keep prefixed if there's a conflict
+                            )
                     else:
                         cleaned_record[key] = value
                 cleaned_results.append(cleaned_record)
@@ -111,14 +135,20 @@ class JoinExecutor:
 
             # Special debug for customers table
             if table_name == "customers":
-                customer_500 = [record for record in data if record.get('id') == 500]
+                customer_500 = [record for record in data if record.get("id") == 500]
                 if customer_500:
-                    logging.info(f"✅ Customer 500 found in fetched data: {customer_500[0]}")
+                    logging.info(
+                        f"✅ Customer 500 found in fetched data: {customer_500[0]}"
+                    )
                 else:
                     logging.warning(f"❌ Customer 500 NOT found in fetched data")
                     # Show all customer IDs for debugging
-                    customer_ids = [record.get('id') for record in data if record.get('id')]
-                    logging.info(f"Customer IDs in fetched data: {sorted(customer_ids)}")
+                    customer_ids = [
+                        record.get("id") for record in data if record.get("id")
+                    ]
+                    logging.info(
+                        f"Customer IDs in fetched data: {sorted(customer_ids)}"
+                    )
 
             return data
         except Exception as e:
@@ -185,7 +215,9 @@ class JoinExecutor:
         """Execute hash join algorithm."""
         results = []
 
-        logging.info(f"Hash join: {len(left_table_data)} left records, {len(right_table_data)} right records")
+        logging.info(
+            f"Hash join: {len(left_table_data)} left records, {len(right_table_data)} right records"
+        )
         logging.info(f"Join condition: {left_column} = {right_column}")
         logging.info(f"Join type: {join_type}")
 
@@ -195,7 +227,9 @@ class JoinExecutor:
             customer_id = self._get_column_value(record, left_column, left_alias)
             if customer_id == 500:
                 customer_500_in_left_data = record
-                logging.info(f"🎯 Customer 500 found at index {i} in left_table_data: {record}")
+                logging.info(
+                    f"🎯 Customer 500 found at index {i} in left_table_data: {record}"
+                )
                 break
 
         if customer_500_in_left_data is None:
@@ -205,10 +239,14 @@ class JoinExecutor:
             for i, record in enumerate(left_table_data[:5]):  # First 5
                 cid = self._get_column_value(record, left_column, left_alias)
                 sample_ids.append(f"[{i}]={cid}")
-            for i, record in enumerate(left_table_data[-5:], len(left_table_data)-5):  # Last 5
+            for i, record in enumerate(
+                left_table_data[-5:], len(left_table_data) - 5
+            ):  # Last 5
                 cid = self._get_column_value(record, left_column, left_alias)
                 sample_ids.append(f"[{i}]={cid}")
-            logging.info(f"Sample customer IDs in left_table_data: {', '.join(sample_ids)}")
+            logging.info(
+                f"Sample customer IDs in left_table_data: {', '.join(sample_ids)}"
+            )
         else:
             logging.info(f"✅ Customer 500 confirmed in left_table_data")
 
@@ -217,7 +255,9 @@ class JoinExecutor:
         for record in right_table_data:
             # Extract the join key value
             key_value = self._get_column_value(record, right_column, right_alias)
-            logging.debug(f"Right record key {right_column}: {key_value}, record: {record}")
+            logging.debug(
+                f"Right record key {right_column}: {key_value}, record: {record}"
+            )
             if key_value is not None:
                 if key_value not in hash_table:
                     hash_table[key_value] = []
@@ -243,16 +283,25 @@ class JoinExecutor:
             # Log first few and last few records to debug
             logging.info(f"First 3 left records: {left_table_data[:3]}")
             logging.info(f"Last 3 left records: {left_table_data[-3:]}")
-            customer_ids = [self._get_column_value(record, left_column, left_alias) for record in left_table_data]
-            logging.info(f"All customer IDs in left table: {sorted([id for id in customer_ids if id is not None])}")
+            customer_ids = [
+                self._get_column_value(record, left_column, left_alias)
+                for record in left_table_data
+            ]
+            logging.info(
+                f"All customer IDs in left table: {sorted([id for id in customer_ids if id is not None])}"
+            )
         else:
-            logging.info(f"✅ Customer 500 found {len(customer_500_records)} times in left table")
+            logging.info(
+                f"✅ Customer 500 found {len(customer_500_records)} times in left table"
+            )
 
         # Probe with left table
         matched_left_records = 0
         unmatched_left_records = 0
         for left_record in left_table_data:
-            left_key_value = self._get_column_value(left_record, left_column, left_alias)
+            left_key_value = self._get_column_value(
+                left_record, left_column, left_alias
+            )
 
             # Special debugging for customer ID 500
             if left_key_value == 500:
@@ -261,7 +310,9 @@ class JoinExecutor:
                 logging.info(f"🔍 Key 500 in hash table: {500 in hash_table}")
                 logging.info(f"🔍 Join type: {join_type}")
 
-            logging.debug(f"Left record key {left_column}: {left_key_value}, record: {left_record}")
+            logging.debug(
+                f"Left record key {left_column}: {left_key_value}, record: {left_record}"
+            )
 
             if left_key_value is not None and left_key_value in hash_table:
                 # Found matching records
@@ -275,16 +326,22 @@ class JoinExecutor:
 
                     # Special debug for customer 500
                     if left_key_value == 500:
-                        logging.info(f"🔍 Customer 500 matched with right record: {right_record}")
+                        logging.info(
+                            f"🔍 Customer 500 matched with right record: {right_record}"
+                        )
             elif join_type in ["LEFT", "FULL"]:
                 # Left/Full join - include left record with null values for right (no match found or left key is NULL)
                 unmatched_left_records += 1
 
                 # Special debug for customer 500
                 if left_key_value == 500:
-                    logging.info(f"🔍 Customer 500 being added as unmatched LEFT JOIN record")
+                    logging.info(
+                        f"🔍 Customer 500 being added as unmatched LEFT JOIN record"
+                    )
 
-                logging.info(f"LEFT/FULL join: Adding unmatched left record {left_record} with key {left_key_value}")
+                logging.info(
+                    f"LEFT/FULL join: Adding unmatched left record {left_record} with key {left_key_value}"
+                )
                 joined_record = self._create_joined_record(
                     left_record, None, left_alias, right_alias
                 )
@@ -292,14 +349,18 @@ class JoinExecutor:
                 logging.debug(f"Added unmatched left record: {joined_record}")
             # For INNER join, we don't include unmatched records
 
-        logging.info(f"LEFT JOIN stats: matched={matched_left_records}, unmatched={unmatched_left_records}, total_left={len(left_table_data)}")
+        logging.info(
+            f"LEFT JOIN stats: matched={matched_left_records}, unmatched={unmatched_left_records}, total_left={len(left_table_data)}"
+        )
 
         # Handle right join case
         if join_type in ["RIGHT", "FULL"]:
             # Add unmatched right records
             matched_right_keys = set()
             for left_record in left_table_data:
-                left_key_value = self._get_column_value(left_record, left_column, left_alias)
+                left_key_value = self._get_column_value(
+                    left_record, left_column, left_alias
+                )
                 if left_key_value in hash_table:
                     matched_right_keys.add(left_key_value)
 
@@ -311,7 +372,9 @@ class JoinExecutor:
                         )
                         results.append(joined_record)
 
-        logging.info(f"Hash join produced {len(results)} results before WHERE filtering")
+        logging.info(
+            f"Hash join produced {len(results)} results before WHERE filtering"
+        )
         return results
 
     def _execute_nested_loop_join(
@@ -329,10 +392,14 @@ class JoinExecutor:
 
         for left_record in left_table_data:
             matched = False
-            left_key_value = self._get_column_value(left_record, left_column, left_alias)
+            left_key_value = self._get_column_value(
+                left_record, left_column, left_alias
+            )
 
             for right_record in right_table_data:
-                right_key_value = self._get_column_value(right_record, right_column, right_alias)
+                right_key_value = self._get_column_value(
+                    right_record, right_column, right_alias
+                )
 
                 if left_key_value == right_key_value:
                     joined_record = self._create_joined_record(
@@ -352,10 +419,14 @@ class JoinExecutor:
         if join_type in ["RIGHT", "FULL"]:
             for right_record in right_table_data:
                 matched = False
-                right_key_value = self._get_column_value(right_record, right_column, right_alias)
+                right_key_value = self._get_column_value(
+                    right_record, right_column, right_alias
+                )
 
                 for left_record in left_table_data:
-                    left_key_value = self._get_column_value(left_record, left_column, left_alias)
+                    left_key_value = self._get_column_value(
+                        left_record, left_column, left_alias
+                    )
                     if left_key_value == right_key_value:
                         matched = True
                         break
@@ -383,9 +454,9 @@ class JoinExecutor:
         # Try different column name formats
         possible_keys = [
             column_name,  # exact match
-            col_part,     # just column name
+            col_part,  # just column name
             f"{table_alias}.{col_part}",  # with alias prefix
-            f"{table_part}.{col_part}"    # with original table prefix
+            f"{table_part}.{col_part}",  # with original table prefix
         ]
 
         for key in possible_keys:
@@ -394,7 +465,9 @@ class JoinExecutor:
                 return record[key]
 
         # Debug: show available keys
-        logging.debug(f"Column {column_name} not found. Available keys: {list(record.keys())}")
+        logging.debug(
+            f"Column {column_name} not found. Available keys: {list(record.keys())}"
+        )
         return None
 
     def _create_joined_record(self, left_record, right_record, left_alias, right_alias):
@@ -460,25 +533,31 @@ class JoinExecutor:
                 logging.debug(f"Found exact match for '{column}': {record_value}")
             else:
                 # Extract just the column name from table.column format
-                if '.' in column:
-                    table_name, col_name = column.split('.', 1)
+                if "." in column:
+                    table_name, col_name = column.split(".", 1)
                     # Try to find the exact table.column match
                     if column in record:
                         record_value = record[column]
-                        logging.debug(f"Found table-qualified match for '{column}': {record_value}")
+                        logging.debug(
+                            f"Found table-qualified match for '{column}': {record_value}"
+                        )
                     else:
                         # Look for any column that ends with this column name
                         for key in record.keys():
                             if key.endswith(f".{col_name}") or key == col_name:
                                 record_value = record[key]
-                                logging.debug(f"Found suffix match for '{column}' using key '{key}': {record_value}")
+                                logging.debug(
+                                    f"Found suffix match for '{column}' using key '{key}': {record_value}"
+                                )
                                 break
                 else:
                     # Column doesn't have table prefix, try to find it with any table prefix
                     for key in record.keys():
                         if key.endswith(f".{column}") or key == column:
                             record_value = record[key]
-                            logging.debug(f"Found prefix match for '{column}' using key '{key}': {record_value}")
+                            logging.debug(
+                                f"Found prefix match for '{column}' using key '{key}': {record_value}"
+                            )
                             break
 
             if record_value is None:
@@ -488,9 +567,17 @@ class JoinExecutor:
             # Apply the operator with type conversion
             try:
                 if op == "=":
-                    if isinstance(value, str) and value.startswith("'") and value.endswith("'"):
+                    if (
+                        isinstance(value, str)
+                        and value.startswith("'")
+                        and value.endswith("'")
+                    ):
                         value = value[1:-1]  # Remove quotes
-                    result = str(record_value).lower() == str(value).lower() if isinstance(record_value, str) else record_value == value
+                    result = (
+                        str(record_value).lower() == str(value).lower()
+                        if isinstance(record_value, str)
+                        else record_value == value
+                    )
                 elif op == ">":
                     # Convert to numbers for comparison
                     try:
@@ -513,22 +600,32 @@ class JoinExecutor:
                     except (ValueError, TypeError):
                         result = str(record_value) <= str(value)
                 elif op == "!=":
-                    if isinstance(value, str) and value.startswith("'") and value.endswith("'"):
+                    if (
+                        isinstance(value, str)
+                        and value.startswith("'")
+                        and value.endswith("'")
+                    ):
                         value = value[1:-1]  # Remove quotes
                     result = record_value != value
                 elif op.upper() == "LIKE":
-                    pattern = str(value).replace('%', '.*').replace('_', '.')
-                    result = re.search(pattern, str(record_value), re.IGNORECASE) is not None
+                    pattern = str(value).replace("%", ".*").replace("_", ".")
+                    result = (
+                        re.search(pattern, str(record_value), re.IGNORECASE) is not None
+                    )
                 elif op.upper() == "IN":
                     result = record_value in value
                 else:
                     result = False
 
-                logging.debug(f"Condition '{column}' {op} '{value}' evaluated to: {result} (record_value: {record_value})")
+                logging.debug(
+                    f"Condition '{column}' {op} '{value}' evaluated to: {result} (record_value: {record_value})"
+                )
                 return result
 
             except Exception as e:
-                logging.error(f"Error evaluating condition '{column}' {op} '{value}': {e}")
+                logging.error(
+                    f"Error evaluating condition '{column}' {op} '{value}': {e}"
+                )
                 return False
 
         return False

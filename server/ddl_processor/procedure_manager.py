@@ -41,10 +41,7 @@ class ProcedureManager:
         body = plan.get("body", "")
 
         if not procedure_name:
-            return {
-                "error": "No procedure name specified",
-                "status": "error"
-            }
+            return {"error": "No procedure name specified", "status": "error"}
 
         db_name, error = get_current_database_or_error(self.catalog_manager)
         if error:
@@ -52,10 +49,7 @@ class ProcedureManager:
 
         # Validate procedure body
         if not body.strip():
-            return {
-                "error": "Procedure body cannot be empty",
-                "status": "error"
-            }
+            return {"error": "Procedure body cannot be empty", "status": "error"}
 
         try:
             # Store procedure in catalog
@@ -66,30 +60,21 @@ class ProcedureManager:
             if result is True:
                 return {
                     "message": f"Procedure '{procedure_name}' created successfully",
-                    "status": "success"
+                    "status": "success",
                 }
             else:
-                return {
-                    "error": str(result),
-                    "status": "error"
-                }
+                return {"error": str(result), "status": "error"}
 
         except Exception as e:
             self.logger.error(f"Error creating procedure: {str(e)}")
-            return {
-                "error": f"Error creating procedure: {str(e)}",
-                "status": "error"
-            }
+            return {"error": f"Error creating procedure: {str(e)}", "status": "error"}
 
     def execute_drop_procedure(self, plan):
         """Execute DROP PROCEDURE operation."""
         procedure_name = plan.get("procedure_name")
 
         if not procedure_name:
-            return {
-                "error": "No procedure name specified",
-                "status": "error"
-            }
+            return {"error": "No procedure name specified", "status": "error"}
 
         db_name, error = get_current_database_or_error(self.catalog_manager)
         if error:
@@ -101,20 +86,14 @@ class ProcedureManager:
             if result is True:
                 return {
                     "message": f"Procedure '{procedure_name}' dropped successfully",
-                    "status": "success"
+                    "status": "success",
                 }
             else:
-                return {
-                    "error": str(result),
-                    "status": "error"
-                }
+                return {"error": str(result), "status": "error"}
 
         except Exception as e:
             self.logger.error(f"Error dropping procedure: {str(e)}")
-            return {
-                "error": f"Error dropping procedure: {str(e)}",
-                "status": "error"
-            }
+            return {"error": f"Error dropping procedure: {str(e)}", "status": "error"}
 
     def execute_call_procedure(self, plan):
         """Execute CALL procedure operation."""
@@ -122,10 +101,7 @@ class ProcedureManager:
         arguments = plan.get("arguments", [])
 
         if not procedure_name:
-            return {
-                "error": "No procedure name specified",
-                "status": "error"
-            }
+            return {"error": "No procedure name specified", "status": "error"}
 
         db_name, error = get_current_database_or_error(self.catalog_manager)
         if error:
@@ -137,7 +113,7 @@ class ProcedureManager:
             if not procedure_def:
                 return {
                     "error": f"Procedure '{procedure_name}' does not exist",
-                    "status": "error"
+                    "status": "error",
                 }
 
             # Validate arguments
@@ -145,7 +121,7 @@ class ProcedureManager:
             if len(arguments) != len(expected_params):
                 return {
                     "error": f"Procedure '{procedure_name}' expects {len(expected_params)} arguments, got {len(arguments)}",
-                    "status": "error"
+                    "status": "error",
                 }
 
             # Execute the procedure body
@@ -155,17 +131,16 @@ class ProcedureManager:
             return {
                 "message": f"Procedure '{procedure_name}' executed successfully",
                 "status": "success",
-                "result": result
+                "result": result,
             }
 
         except Exception as e:
             self.logger.error(f"Error calling procedure: {str(e)}")
-            return {
-                "error": f"Error calling procedure: {str(e)}",
-                "status": "error"
-            }
+            return {"error": f"Error calling procedure: {str(e)}", "status": "error"}
 
-    def _execute_procedure_body(self, body: str, arguments: List[str], parameters: List[Dict]) -> Any:
+    def _execute_procedure_body(
+        self, body: str, arguments: List[str], parameters: List[Dict]
+    ) -> Any:
         """Execute the procedure body with parameter substitution."""
         # Create parameter mapping
         param_map = {}
@@ -185,7 +160,7 @@ class ProcedureManager:
                 formatted_value = f"'{escaped_value}'"
             else:
                 formatted_value = str(param_value)
-            
+
             processed_body = processed_body.replace(f"@{param_name}", formatted_value)
             processed_body = processed_body.replace(f":{param_name}", str(param_value))
 
@@ -200,11 +175,13 @@ class ProcedureManager:
                     if self.execution_engine:
                         # Parse and execute the statement
                         from sqlglot_parser import SQLGlotParser
+
                         parser = SQLGlotParser()
                         parsed = parser.parse(statement)
-                        
+
                         if "error" not in parsed:
                             from planner import Planner
+
                             planner = Planner(self.catalog_manager, None)
                             plan = planner.plan_query(parsed)
                             result = self.execution_engine.execute(plan)
@@ -221,7 +198,7 @@ class ProcedureManager:
     def _split_statements(self, body: str) -> List[str]:
         """Split procedure body into individual SQL statements."""
         # Simple statement splitting by semicolon
-        statements = [stmt.strip() for stmt in body.split(';')]
+        statements = [stmt.strip() for stmt in body.split(";")]
         return [stmt for stmt in statements if stmt]
 
     def list_procedures(self) -> Dict[str, Any]:
@@ -232,25 +209,19 @@ class ProcedureManager:
 
         try:
             procedures = self.catalog_manager.list_procedures()
-            return {
-                "procedures": procedures,
-                "status": "success"
-            }
+            return {"procedures": procedures, "status": "success"}
         except Exception as e:
-            return {
-                "error": f"Error listing procedures: {str(e)}",
-                "status": "error"
-            }
+            return {"error": f"Error listing procedures: {str(e)}", "status": "error"}
 
     # Convenience methods for easier testing and usage
     def create_procedure(self, plan):
         """Create a procedure (convenience method)."""
         return self.execute_create_procedure(plan)
-    
+
     def drop_procedure(self, plan):
         """Drop a procedure (convenience method)."""
         return self.execute_drop_procedure(plan)
-    
+
     def call_procedure(self, plan):
         """Call a procedure (convenience method)."""
         return self.execute_call_procedure(plan)

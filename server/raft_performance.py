@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 class DeploymentType(Enum):
     """Different deployment scenarios"""
+
     DEVELOPMENT = "development"
     TESTING = "testing"
     STAGING = "staging"
@@ -20,11 +21,12 @@ class DeploymentType(Enum):
 
 class WorkloadType(Enum):
     """Different workload characteristics"""
-    OLTP = "oltp"              # Online Transaction Processing
-    OLAP = "olap"              # Online Analytical Processing
-    MIXED = "mixed"            # Mixed workload
+
+    OLTP = "oltp"  # Online Transaction Processing
+    OLAP = "olap"  # Online Analytical Processing
+    MIXED = "mixed"  # Mixed workload
     READ_HEAVY = "read_heavy"  # Read-heavy workload
-    WRITE_HEAVY = "write_heavy" # Write-heavy workload
+    WRITE_HEAVY = "write_heavy"  # Write-heavy workload
 
 
 @dataclass
@@ -87,9 +89,8 @@ class RaftPerformanceTuner:
             async_log_writes=True,
             compression_enabled=False,
             metrics_collection_interval=30,
-            health_check_interval=10
+            health_check_interval=10,
         ),
-
         # Testing configuration - balanced settings
         (DeploymentType.TESTING, WorkloadType.MIXED): RaftPerformanceConfig(
             election_timeout_min=200,
@@ -108,9 +109,8 @@ class RaftPerformanceTuner:
             async_log_writes=True,
             compression_enabled=True,
             metrics_collection_interval=60,
-            health_check_interval=15
+            health_check_interval=15,
         ),
-
         # Production OLTP - optimized for low latency
         (DeploymentType.PRODUCTION, WorkloadType.OLTP): RaftPerformanceConfig(
             election_timeout_min=300,
@@ -129,9 +129,8 @@ class RaftPerformanceTuner:
             async_log_writes=True,
             compression_enabled=True,
             metrics_collection_interval=60,
-            health_check_interval=20
+            health_check_interval=20,
         ),
-
         # Production OLAP - optimized for throughput
         (DeploymentType.PRODUCTION, WorkloadType.OLAP): RaftPerformanceConfig(
             election_timeout_min=500,
@@ -150,9 +149,8 @@ class RaftPerformanceTuner:
             async_log_writes=True,
             compression_enabled=True,
             metrics_collection_interval=120,
-            health_check_interval=30
+            health_check_interval=30,
         ),
-
         # Production Read-Heavy - optimized for read performance
         (DeploymentType.PRODUCTION, WorkloadType.READ_HEAVY): RaftPerformanceConfig(
             election_timeout_min=400,
@@ -171,9 +169,8 @@ class RaftPerformanceTuner:
             async_log_writes=True,
             compression_enabled=True,
             metrics_collection_interval=90,
-            health_check_interval=25
+            health_check_interval=25,
         ),
-
         # Production Write-Heavy - optimized for write performance
         (DeploymentType.PRODUCTION, WorkloadType.WRITE_HEAVY): RaftPerformanceConfig(
             election_timeout_min=250,
@@ -185,16 +182,15 @@ class RaftPerformanceTuner:
             max_retries=4,
             retry_backoff_base=150,
             batch_size=500,  # Large batches for writes
-            batch_timeout=8,   # Quick batching
+            batch_timeout=8,  # Quick batching
             log_cache_size=15000,
             snapshot_threshold=40000,
             parallel_append_entries=True,
             async_log_writes=True,
             compression_enabled=True,
             metrics_collection_interval=45,
-            health_check_interval=15
+            health_check_interval=15,
         ),
-
         # High Availability - optimized for fault tolerance
         (DeploymentType.HIGH_AVAILABILITY, WorkloadType.MIXED): RaftPerformanceConfig(
             election_timeout_min=600,
@@ -213,13 +209,14 @@ class RaftPerformanceTuner:
             async_log_writes=False,  # Synchronous for durability
             compression_enabled=True,
             metrics_collection_interval=30,  # Frequent monitoring
-            health_check_interval=10
-        )
+            health_check_interval=10,
+        ),
     }
 
     @classmethod
-    def get_configuration(cls, deployment_type: DeploymentType,
-                         workload_type: WorkloadType) -> RaftPerformanceConfig:
+    def get_configuration(
+        cls, deployment_type: DeploymentType, workload_type: WorkloadType
+    ) -> RaftPerformanceConfig:
         """Get optimized configuration for deployment and workload type"""
         config_key = (deployment_type, workload_type)
 
@@ -254,27 +251,36 @@ class RaftPerformanceTuner:
             async_log_writes=True,
             compression_enabled=True,
             metrics_collection_interval=60,
-            health_check_interval=20
+            health_check_interval=20,
         )
 
     @classmethod
-    def auto_tune(cls, cluster_size: int, network_latency: float,
-                  cpu_cores: int, memory_gb: int) -> RaftPerformanceConfig:
+    def auto_tune(
+        cls, cluster_size: int, network_latency: float, cpu_cores: int, memory_gb: int
+    ) -> RaftPerformanceConfig:
         """Automatically tune configuration based on system characteristics"""
         base_config = cls._get_default_configuration()
 
         # Adjust for cluster size
         if cluster_size >= 7:
             # Larger clusters need longer timeouts
-            base_config.election_timeout_min = int(base_config.election_timeout_min * 1.5)
-            base_config.election_timeout_max = int(base_config.election_timeout_max * 1.5)
+            base_config.election_timeout_min = int(
+                base_config.election_timeout_min * 1.5
+            )
+            base_config.election_timeout_max = int(
+                base_config.election_timeout_max * 1.5
+            )
             base_config.heartbeat_interval = int(base_config.heartbeat_interval * 1.3)
 
         # Adjust for network latency (in milliseconds)
         if network_latency > 10:  # High latency network
             base_config.network_timeout = int(base_config.network_timeout * 2)
-            base_config.election_timeout_min = int(base_config.election_timeout_min * 1.8)
-            base_config.election_timeout_max = int(base_config.election_timeout_max * 1.8)
+            base_config.election_timeout_min = int(
+                base_config.election_timeout_min * 1.8
+            )
+            base_config.election_timeout_max = int(
+                base_config.election_timeout_max * 1.8
+            )
             base_config.max_retries = min(base_config.max_retries + 3, 15)
 
         # Adjust for CPU cores
@@ -288,24 +294,28 @@ class RaftPerformanceTuner:
         # Adjust for memory
         if memory_gb >= 16:
             base_config.log_cache_size = min(base_config.log_cache_size * 3, 100000)
-            base_config.snapshot_threshold = min(base_config.snapshot_threshold * 2, 200000)
+            base_config.snapshot_threshold = min(
+                base_config.snapshot_threshold * 2, 200000
+            )
         elif memory_gb <= 4:
             base_config.log_cache_size = max(base_config.log_cache_size // 2, 1000)
-            base_config.snapshot_threshold = max(base_config.snapshot_threshold // 2, 10000)
+            base_config.snapshot_threshold = max(
+                base_config.snapshot_threshold // 2, 10000
+            )
 
         return base_config
 
     @classmethod
-    def generate_kubernetes_config(cls, config: RaftPerformanceConfig) -> Dict[str, Any]:
+    def generate_kubernetes_config(
+        cls, config: RaftPerformanceConfig
+    ) -> Dict[str, Any]:
         """Generate Kubernetes ConfigMap for RAFT configuration"""
         return {
             "apiVersion": "v1",
             "kind": "ConfigMap",
             "metadata": {
                 "name": "hmssql-raft-config",
-                "labels": {
-                    "app": "hmssql-cluster"
-                }
+                "labels": {"app": "hmssql-cluster"},
             },
             "data": {
                 "raft-config.yaml": f"""
@@ -343,7 +353,7 @@ monitoring:
   metrics_interval: {config.metrics_collection_interval}
   health_check_interval: {config.health_check_interval}
 """
-            }
+            },
         }
 
 
@@ -352,26 +362,50 @@ def optimize_for_environment():
     import argparse
     import yaml
 
-    parser = argparse.ArgumentParser(description="Generate optimized RAFT configuration")
-    parser.add_argument("--deployment", choices=[e.value for e in DeploymentType],
-                       default="production", help="Deployment type")
-    parser.add_argument("--workload", choices=[e.value for e in WorkloadType],
-                       default="mixed", help="Workload type")
-    parser.add_argument("--cluster-size", type=int, default=3,
-                       help="Number of nodes in cluster")
-    parser.add_argument("--network-latency", type=float, default=1.0,
-                       help="Network latency in milliseconds")
-    parser.add_argument("--cpu-cores", type=int, default=4,
-                       help="CPU cores per node")
-    parser.add_argument("--memory-gb", type=int, default=8,
-                       help="Memory in GB per node")
-    parser.add_argument("--output", choices=["yaml", "json", "k8s"],
-                       default="yaml", help="Output format")
+    parser = argparse.ArgumentParser(
+        description="Generate optimized RAFT configuration"
+    )
+    parser.add_argument(
+        "--deployment",
+        choices=[e.value for e in DeploymentType],
+        default="production",
+        help="Deployment type",
+    )
+    parser.add_argument(
+        "--workload",
+        choices=[e.value for e in WorkloadType],
+        default="mixed",
+        help="Workload type",
+    )
+    parser.add_argument(
+        "--cluster-size", type=int, default=3, help="Number of nodes in cluster"
+    )
+    parser.add_argument(
+        "--network-latency",
+        type=float,
+        default=1.0,
+        help="Network latency in milliseconds",
+    )
+    parser.add_argument("--cpu-cores", type=int, default=4, help="CPU cores per node")
+    parser.add_argument(
+        "--memory-gb", type=int, default=8, help="Memory in GB per node"
+    )
+    parser.add_argument(
+        "--output",
+        choices=["yaml", "json", "k8s"],
+        default="yaml",
+        help="Output format",
+    )
 
     args = parser.parse_args()
 
     # Get configuration
-    if args.cluster_size or args.network_latency != 1.0 or args.cpu_cores != 4 or args.memory_gb != 8:
+    if (
+        args.cluster_size
+        or args.network_latency != 1.0
+        or args.cpu_cores != 4
+        or args.memory_gb != 8
+    ):
         # Use auto-tuning
         config = RaftPerformanceTuner.auto_tune(
             args.cluster_size, args.network_latency, args.cpu_cores, args.memory_gb
@@ -401,12 +435,13 @@ def optimize_for_environment():
             "async_log_writes": config.async_log_writes,
             "compression_enabled": config.compression_enabled,
             "metrics_collection_interval": config.metrics_collection_interval,
-            "health_check_interval": config.health_check_interval
+            "health_check_interval": config.health_check_interval,
         }
         print(yaml.dump(config_dict, default_flow_style=False))
 
     elif args.output == "json":
         import json
+
         config_dict = config.__dict__
         print(json.dumps(config_dict, indent=2))
 

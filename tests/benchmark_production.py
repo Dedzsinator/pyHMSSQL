@@ -30,7 +30,7 @@ import subprocess
 
 class ProductionBenchmark:
     """Comprehensive production performance benchmark suite"""
-    
+
     def __init__(self):
         self.logger = self._setup_logger()
         self.results = {
@@ -38,9 +38,9 @@ class ProductionBenchmark:
             "benchmark_results": {},
             "performance_metrics": {},
             "resource_utilization": {},
-            "overall_score": 0
+            "overall_score": 0,
         }
-        
+
         # Benchmark configuration
         self.config = {
             "test_duration": 300,  # 5 minutes
@@ -48,31 +48,31 @@ class ProductionBenchmark:
             "concurrent_connections": [10, 50, 100, 500, 1000],
             "query_types": ["SELECT", "INSERT", "UPDATE", "DELETE"],
             "data_sizes": [1000, 10000, 100000],  # Number of records
-            "raft_cluster_size": 3
+            "raft_cluster_size": 3,
         }
-        
+
         self.logger.info("ProductionBenchmark initialized")
-    
+
     def _setup_logger(self) -> logging.Logger:
         """Setup benchmark logging"""
-        logger = logging.getLogger('production_benchmark')
+        logger = logging.getLogger("production_benchmark")
         logger.setLevel(logging.INFO)
-        
+
         if not logger.handlers:
             handler = logging.StreamHandler()
             formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
             )
             handler.setFormatter(formatter)
             logger.addHandler(handler)
-        
+
         return logger
-    
+
     async def run_comprehensive_benchmark(self) -> Dict[str, Any]:
         """Run complete production benchmark suite"""
         self.logger.info("🚀 Starting Production Performance Benchmark")
         self.logger.info("=" * 80)
-        
+
         benchmark_phases = [
             ("warmup", self._run_warmup),
             ("throughput_benchmark", self._benchmark_throughput),
@@ -81,41 +81,41 @@ class ProductionBenchmark:
             ("raft_consensus_performance", self._benchmark_raft_consensus),
             ("failover_performance", self._benchmark_failover),
             ("resource_utilization", self._benchmark_resource_utilization),
-            ("scalability_testing", self._benchmark_scalability)
+            ("scalability_testing", self._benchmark_scalability),
         ]
-        
+
         total_score = 0
         max_score = len(benchmark_phases) * 100
-        
+
         for phase_name, phase_function in benchmark_phases:
             try:
                 self.logger.info(f"🔍 Running {phase_name} benchmark...")
                 start_time = time.time()
-                
+
                 result = await phase_function()
                 duration = time.time() - start_time
-                
+
                 self.results["benchmark_results"][phase_name] = result
                 score = result.get("score", 0)
                 total_score += score
-                
+
                 status = "✅ PASSED" if result.get("passed", False) else "⚠️ ATTENTION"
                 self.logger.info(
                     f"{status} {phase_name}: {score}/100 "
                     f"(Duration: {duration:.2f}s)"
                 )
-                
+
             except Exception as e:
                 self.logger.error(f"❌ {phase_name} benchmark failed: {e}")
                 self.results["benchmark_results"][phase_name] = {
                     "passed": False,
                     "score": 0,
-                    "error": str(e)
+                    "error": str(e),
                 }
-        
+
         self.results["overall_score"] = (total_score / max_score) * 100
         self.results["production_ready"] = self.results["overall_score"] >= 80
-        
+
         if self.results["production_ready"]:
             self.logger.info(
                 f"✅ Production benchmark PASSED "
@@ -126,17 +126,17 @@ class ProductionBenchmark:
                 f"⚠️ Production benchmark NEEDS ATTENTION "
                 f"(Score: {self.results['overall_score']:.1f}/100)"
             )
-        
+
         return self.results
-    
+
     async def _run_warmup(self) -> Dict[str, Any]:
         """Warmup phase to prepare system for benchmarking"""
         self.logger.info("   🔥 Warming up system...")
-        
+
         # Simulate warmup operations
         warmup_operations = 1000
         successful_ops = 0
-        
+
         for i in range(warmup_operations):
             try:
                 # Simulate database operations
@@ -144,87 +144,91 @@ class ProductionBenchmark:
                 successful_ops += 1
             except Exception:
                 pass
-        
+
         success_rate = (successful_ops / warmup_operations) * 100
-        
+
         return {
             "passed": success_rate >= 95,
             "score": min(100, success_rate),
             "warmup_operations": warmup_operations,
             "successful_operations": successful_ops,
-            "success_rate": success_rate
+            "success_rate": success_rate,
         }
-    
+
     async def _benchmark_throughput(self) -> Dict[str, Any]:
         """Benchmark query throughput"""
         self.logger.info("   📊 Measuring query throughput...")
-        
+
         throughput_results = {}
-        
+
         for query_type in self.config["query_types"]:
             # Simulate different query types
             operations = 10000
             start_time = time.time()
-            
+
             # Simulate concurrent operations
             tasks = []
             for _ in range(operations):
                 tasks.append(self._simulate_query(query_type))
-            
+
             await asyncio.gather(*tasks)
-            
+
             duration = time.time() - start_time
             qps = operations / duration
-            
+
             throughput_results[query_type] = {
                 "operations": operations,
                 "duration": duration,
-                "qps": qps
+                "qps": qps,
             }
-            
+
             self.logger.info(f"      {query_type}: {qps:.0f} QPS")
-        
+
         # Calculate overall score based on throughput
         avg_qps = statistics.mean([r["qps"] for r in throughput_results.values()])
         target_qps = 10000  # Target 10K QPS
         score = min(100, (avg_qps / target_qps) * 100)
-        
+
         return {
             "passed": avg_qps >= target_qps * 0.8,  # 80% of target
             "score": score,
             "average_qps": avg_qps,
             "target_qps": target_qps,
-            "query_results": throughput_results
+            "query_results": throughput_results,
         }
-    
+
     async def _benchmark_latency(self) -> Dict[str, Any]:
         """Benchmark query latency"""
         self.logger.info("   ⏱️ Measuring query latency...")
-        
+
         latency_measurements = []
         operations = 1000
-        
+
         for _ in range(operations):
             start_time = time.perf_counter()
             await self._simulate_query("SELECT")
             latency = (time.perf_counter() - start_time) * 1000  # Convert to ms
             latency_measurements.append(latency)
-        
+
         # Calculate latency statistics
         avg_latency = statistics.mean(latency_measurements)
         p50_latency = statistics.median(latency_measurements)
-        p95_latency = statistics.quantiles(latency_measurements, n=20)[18]  # 95th percentile
-        p99_latency = statistics.quantiles(latency_measurements, n=100)[98]  # 99th percentile
-        
+        p95_latency = statistics.quantiles(latency_measurements, n=20)[
+            18
+        ]  # 95th percentile
+        p99_latency = statistics.quantiles(latency_measurements, n=100)[
+            98
+        ]  # 99th percentile
+
         self.logger.info(f"      Average: {avg_latency:.2f}ms")
         self.logger.info(f"      P50: {p50_latency:.2f}ms")
         self.logger.info(f"      P95: {p95_latency:.2f}ms")
         self.logger.info(f"      P99: {p99_latency:.2f}ms")
-        
+
         # Score based on P99 latency (target < 25ms)
         target_p99 = 25  # 25ms target for P99
         score = max(0, min(100, (target_p99 - p99_latency) / target_p99 * 100))
-        
+
         return {
             "passed": p99_latency <= target_p99,
             "score": score,
@@ -232,71 +236,69 @@ class ProductionBenchmark:
             "p50_latency": p50_latency,
             "p95_latency": p95_latency,
             "p99_latency": p99_latency,
-            "target_p99": target_p99
+            "target_p99": target_p99,
         }
-    
+
     async def _benchmark_concurrent_connections(self) -> Dict[str, Any]:
         """Benchmark concurrent connection handling"""
         self.logger.info("   🔗 Testing concurrent connections...")
-        
+
         connection_results = {}
-        
+
         for conn_count in self.config["concurrent_connections"]:
             self.logger.info(f"      Testing {conn_count} concurrent connections...")
-            
+
             start_time = time.time()
-            
+
             # Simulate concurrent connections
             tasks = []
             for _ in range(conn_count):
                 tasks.append(self._simulate_connection())
-            
+
             try:
                 results = await asyncio.gather(*tasks, return_exceptions=True)
-                successful_connections = len([r for r in results if not isinstance(r, Exception)])
-                
+                successful_connections = len(
+                    [r for r in results if not isinstance(r, Exception)]
+                )
+
                 duration = time.time() - start_time
                 success_rate = (successful_connections / conn_count) * 100
-                
+
                 connection_results[conn_count] = {
                     "successful_connections": successful_connections,
                     "total_connections": conn_count,
                     "success_rate": success_rate,
-                    "duration": duration
+                    "duration": duration,
                 }
-                
+
                 self.logger.info(f"         Success Rate: {success_rate:.1f}%")
-                
+
             except Exception as e:
-                connection_results[conn_count] = {
-                    "error": str(e),
-                    "success_rate": 0
-                }
-        
+                connection_results[conn_count] = {"error": str(e), "success_rate": 0}
+
         # Score based on highest successful connection count
-        max_successful = max([
-            r.get("successful_connections", 0) 
-            for r in connection_results.values()
-        ])
+        max_successful = max(
+            [r.get("successful_connections", 0) for r in connection_results.values()]
+        )
         target_connections = 1000
         score = min(100, (max_successful / target_connections) * 100)
-        
+
         return {
             "passed": max_successful >= target_connections * 0.8,
             "score": score,
             "max_successful_connections": max_successful,
             "target_connections": target_connections,
-            "connection_results": connection_results
+            "connection_results": connection_results,
         }
-    
+
     async def _benchmark_raft_consensus(self) -> Dict[str, Any]:
         """Benchmark RAFT consensus performance"""
         self.logger.info("   🗳️ Testing RAFT consensus performance...")
-        
+
         # Simulate RAFT operations
         consensus_operations = 1000
         leader_elections = 10
-        
+
         # Leader election timing
         election_times = []
         for _ in range(leader_elections):
@@ -304,9 +306,9 @@ class ProductionBenchmark:
             await self._simulate_leader_election()
             election_time = (time.perf_counter() - start_time) * 1000
             election_times.append(election_time)
-        
+
         avg_election_time = statistics.mean(election_times)
-        
+
         # Log replication timing
         replication_times = []
         for _ in range(consensus_operations):
@@ -314,116 +316,139 @@ class ProductionBenchmark:
             await self._simulate_log_replication()
             replication_time = (time.perf_counter() - start_time) * 1000
             replication_times.append(replication_time)
-        
+
         avg_replication_time = statistics.mean(replication_times)
-        
+
         self.logger.info(f"      Average Election Time: {avg_election_time:.2f}ms")
-        self.logger.info(f"      Average Replication Time: {avg_replication_time:.2f}ms")
-        
+        self.logger.info(
+            f"      Average Replication Time: {avg_replication_time:.2f}ms"
+        )
+
         # Score based on performance targets
         target_election_time = 150  # 150ms target
         target_replication_time = 20  # 20ms target
-        
-        election_score = max(0, min(100, (target_election_time - avg_election_time) / target_election_time * 100))
-        replication_score = max(0, min(100, (target_replication_time - avg_replication_time) / target_replication_time * 100))
-        
+
+        election_score = max(
+            0,
+            min(
+                100,
+                (target_election_time - avg_election_time) / target_election_time * 100,
+            ),
+        )
+        replication_score = max(
+            0,
+            min(
+                100,
+                (target_replication_time - avg_replication_time)
+                / target_replication_time
+                * 100,
+            ),
+        )
+
         overall_score = (election_score + replication_score) / 2
-        
+
         return {
-            "passed": avg_election_time <= target_election_time and avg_replication_time <= target_replication_time,
+            "passed": avg_election_time <= target_election_time
+            and avg_replication_time <= target_replication_time,
             "score": overall_score,
             "average_election_time": avg_election_time,
             "average_replication_time": avg_replication_time,
             "target_election_time": target_election_time,
-            "target_replication_time": target_replication_time
+            "target_replication_time": target_replication_time,
         }
-    
+
     async def _benchmark_failover(self) -> Dict[str, Any]:
         """Benchmark failover performance"""
         self.logger.info("   💥 Testing failover performance...")
-        
+
         failover_tests = 5
         failover_times = []
-        
+
         for i in range(failover_tests):
             self.logger.info(f"      Failover test {i+1}/{failover_tests}...")
-            
+
             # Simulate node failure and measure recovery time
             start_time = time.perf_counter()
-            
+
             # Simulate failure detection and leader re-election
             await self._simulate_node_failure()
             await self._simulate_leader_election()
             await self._simulate_recovery()
-            
+
             failover_time = (time.perf_counter() - start_time) * 1000
             failover_times.append(failover_time)
-            
+
             self.logger.info(f"         Failover time: {failover_time:.2f}ms")
-        
+
         avg_failover_time = statistics.mean(failover_times)
         max_failover_time = max(failover_times)
-        
+
         # Score based on failover time (target < 30 seconds)
         target_failover_time = 30000  # 30 seconds in ms
-        score = max(0, min(100, (target_failover_time - avg_failover_time) / target_failover_time * 100))
-        
+        score = max(
+            0,
+            min(
+                100,
+                (target_failover_time - avg_failover_time) / target_failover_time * 100,
+            ),
+        )
+
         return {
             "passed": avg_failover_time <= target_failover_time,
             "score": score,
             "average_failover_time": avg_failover_time,
             "max_failover_time": max_failover_time,
             "target_failover_time": target_failover_time,
-            "failover_tests": failover_tests
+            "failover_tests": failover_tests,
         }
-    
+
     async def _benchmark_resource_utilization(self) -> Dict[str, Any]:
         """Benchmark resource utilization efficiency"""
         self.logger.info("   🖥️ Monitoring resource utilization...")
-        
+
         # Monitor system resources during load test (simplified version)
         monitoring_duration = 60  # 1 minute
         samples = []
-        
+
         start_time = time.time()
-        
+
         # Start background load
         load_task = asyncio.create_task(self._generate_load())
-        
+
         while time.time() - start_time < monitoring_duration:
             sample = {
                 "timestamp": time.time(),
                 "cpu_percent": self._get_cpu_usage(),
                 "memory_percent": self._get_memory_usage(),
-                "load_average": self._get_load_average()
+                "load_average": self._get_load_average(),
             }
             samples.append(sample)
             await asyncio.sleep(1)
-        
+
         # Stop load generation
         load_task.cancel()
         try:
             await load_task
         except asyncio.CancelledError:
             pass
-        
+
         # Calculate resource utilization statistics
         avg_cpu = statistics.mean([s["cpu_percent"] for s in samples])
         avg_memory = statistics.mean([s["memory_percent"] for s in samples])
         max_cpu = max([s["cpu_percent"] for s in samples])
         max_memory = max([s["memory_percent"] for s in samples])
-        
+
         self.logger.info(f"      Average CPU: {avg_cpu:.1f}%")
         self.logger.info(f"      Average Memory: {avg_memory:.1f}%")
         self.logger.info(f"      Peak CPU: {max_cpu:.1f}%")
         self.logger.info(f"      Peak Memory: {max_memory:.1f}%")
-        
+
         # Score based on efficient resource usage (not too high, not too low)
         cpu_efficiency = 100 - abs(avg_cpu - 70)  # Target ~70% CPU usage
         memory_efficiency = 100 - abs(avg_memory - 60)  # Target ~60% memory usage
-        
+
         overall_score = (cpu_efficiency + memory_efficiency) / 2
-        
+
         return {
             "passed": avg_cpu < 90 and avg_memory < 85,  # Don't exceed limits
             "score": max(0, overall_score),
@@ -431,61 +456,61 @@ class ProductionBenchmark:
             "average_memory_percent": avg_memory,
             "peak_cpu_percent": max_cpu,
             "peak_memory_percent": max_memory,
-            "samples": len(samples)
+            "samples": len(samples),
         }
-    
+
     async def _benchmark_scalability(self) -> Dict[str, Any]:
         """Benchmark system scalability"""
         self.logger.info("   📈 Testing system scalability...")
-        
+
         scalability_results = {}
-        
+
         for data_size in self.config["data_sizes"]:
             self.logger.info(f"      Testing with {data_size} records...")
-            
+
             # Simulate operations with varying data sizes
             start_time = time.time()
-            
+
             # Generate load proportional to data size
             operations = min(1000, data_size // 10)
             tasks = []
-            
+
             for _ in range(operations):
                 tasks.append(self._simulate_scaled_operation(data_size))
-            
+
             await asyncio.gather(*tasks)
-            
+
             duration = time.time() - start_time
             throughput = operations / duration
-            
+
             scalability_results[data_size] = {
                 "operations": operations,
                 "duration": duration,
                 "throughput": throughput,
-                "data_size": data_size
+                "data_size": data_size,
             }
-            
+
             self.logger.info(f"         Throughput: {throughput:.1f} ops/sec")
-        
+
         # Calculate scalability score based on consistent performance
         throughputs = [r["throughput"] for r in scalability_results.values()]
-        
+
         if len(throughputs) > 1:
             # Check if performance degrades significantly with scale
             degradation = (max(throughputs) - min(throughputs)) / max(throughputs)
             score = max(0, (1 - degradation) * 100)
         else:
             score = 100
-        
+
         return {
             "passed": score >= 70,  # Allow some degradation
             "score": score,
             "scalability_results": scalability_results,
-            "performance_degradation": degradation if len(throughputs) > 1 else 0
+            "performance_degradation": degradation if len(throughputs) > 1 else 0,
         }
-    
+
     # Simulation helper methods
-    
+
     async def _simulate_query(self, query_type: str) -> None:
         """Simulate database query execution"""
         # Simulate different query complexities
@@ -493,138 +518,163 @@ class ProductionBenchmark:
             "SELECT": 0.001,  # 1ms
             "INSERT": 0.002,  # 2ms
             "UPDATE": 0.003,  # 3ms
-            "DELETE": 0.002   # 2ms
+            "DELETE": 0.002,  # 2ms
         }
-        
+
         base_delay = complexity_map.get(query_type, 0.001)
         # Add some random variation
         delay = base_delay + random.uniform(0, base_delay * 0.5)
         await asyncio.sleep(delay)
-    
+
     async def _simulate_connection(self) -> bool:
         """Simulate database connection"""
         # Simulate connection establishment time
         await asyncio.sleep(random.uniform(0.001, 0.01))  # 1-10ms
         return True
-    
+
     async def _simulate_leader_election(self) -> None:
         """Simulate RAFT leader election"""
         # Simulate election process
         await asyncio.sleep(random.uniform(0.1, 0.3))  # 100-300ms
-    
+
     async def _simulate_log_replication(self) -> None:
         """Simulate RAFT log replication"""
         # Simulate log append and replication
         await asyncio.sleep(random.uniform(0.01, 0.03))  # 10-30ms
-    
+
     async def _simulate_node_failure(self) -> None:
         """Simulate node failure detection"""
         await asyncio.sleep(random.uniform(0.01, 0.05))  # 10-50ms
-    
+
     async def _simulate_recovery(self) -> None:
         """Simulate cluster recovery after failure"""
         await asyncio.sleep(random.uniform(0.1, 0.5))  # 100-500ms
-    
+
     async def _generate_load(self) -> None:
         """Generate background load for resource monitoring"""
         while True:
             # Simulate continuous database operations
             tasks = []
             for _ in range(10):
-                tasks.append(self._simulate_query(random.choice(self.config["query_types"])))
-            
+                tasks.append(
+                    self._simulate_query(random.choice(self.config["query_types"]))
+                )
+
             await asyncio.gather(*tasks)
             await asyncio.sleep(0.1)  # Brief pause between batches
-    
+
     async def _simulate_scaled_operation(self, data_size: int) -> None:
         """Simulate operation that scales with data size"""
         # Scale operation time with data size (logarithmically)
         import math
+
         base_time = 0.001  # 1ms base
         scale_factor = math.log10(data_size) / 1000  # Logarithmic scaling
-        
+
         delay = base_time + scale_factor
         await asyncio.sleep(delay)
-    
+
     def generate_benchmark_report(self) -> str:
         """Generate detailed benchmark report"""
         report = {
             "benchmark_summary": {
                 "overall_score": self.results["overall_score"],
                 "production_ready": self.results["production_ready"],
-                "timestamp": self.results["timestamp"]
+                "timestamp": self.results["timestamp"],
             },
             "detailed_results": self.results["benchmark_results"],
             "performance_metrics": self.results["performance_metrics"],
             "resource_utilization": self.results["resource_utilization"],
-            "recommendations": self._generate_recommendations()
+            "recommendations": self._generate_recommendations(),
         }
-        
+
         return json.dumps(report, indent=2)
-    
+
     def _generate_recommendations(self) -> List[str]:
         """Generate performance recommendations"""
         recommendations = []
-        
+
         if self.results["overall_score"] < 80:
-            recommendations.append("Overall performance score is below production threshold (80%)")
-        
+            recommendations.append(
+                "Overall performance score is below production threshold (80%)"
+            )
+
         # Check specific performance areas
         if "throughput_benchmark" in self.results["benchmark_results"]:
-            throughput_result = self.results["benchmark_results"]["throughput_benchmark"]
+            throughput_result = self.results["benchmark_results"][
+                "throughput_benchmark"
+            ]
             if throughput_result.get("score", 0) < 70:
-                recommendations.append("Throughput performance is below acceptable levels")
-                recommendations.append("Consider optimizing query execution or adding more CPU resources")
-        
+                recommendations.append(
+                    "Throughput performance is below acceptable levels"
+                )
+                recommendations.append(
+                    "Consider optimizing query execution or adding more CPU resources"
+                )
+
         if "latency_benchmark" in self.results["benchmark_results"]:
             latency_result = self.results["benchmark_results"]["latency_benchmark"]
             if latency_result.get("score", 0) < 70:
                 recommendations.append("Latency is higher than acceptable levels")
-                recommendations.append("Consider optimizing network configuration or reducing replication lag")
-        
+                recommendations.append(
+                    "Consider optimizing network configuration or reducing replication lag"
+                )
+
         if "raft_consensus_performance" in self.results["benchmark_results"]:
-            raft_result = self.results["benchmark_results"]["raft_consensus_performance"]
+            raft_result = self.results["benchmark_results"][
+                "raft_consensus_performance"
+            ]
             if raft_result.get("score", 0) < 70:
                 recommendations.append("RAFT consensus performance needs improvement")
-                recommendations.append("Consider tuning election timeouts or heartbeat intervals")
-        
+                recommendations.append(
+                    "Consider tuning election timeouts or heartbeat intervals"
+                )
+
         if not recommendations:
             recommendations.append("System performance is within acceptable ranges")
-            recommendations.append("Continue monitoring for any performance degradation")
-        
+            recommendations.append(
+                "Continue monitoring for any performance degradation"
+            )
+
         return recommendations
-    
+
     # System monitoring helper methods
-    
+
     def _get_cpu_usage(self) -> float:
         """Get current CPU usage percentage"""
         try:
             import psutil
+
             return psutil.cpu_percent(interval=0.1)
         except ImportError:
             # Fallback simulation if psutil not available
             import random
+
             return random.uniform(30, 80)
-    
+
     def _get_memory_usage(self) -> float:
         """Get current memory usage percentage"""
         try:
             import psutil
+
             return psutil.virtual_memory().percent
         except ImportError:
             # Fallback simulation if psutil not available
             import random
+
             return random.uniform(40, 75)
-    
+
     def _get_load_average(self) -> float:
         """Get system load average"""
         try:
             import os
+
             load_avg = os.getloadavg()[0]  # 1-minute load average
             return load_avg
         except (AttributeError, OSError):
             # Fallback for systems without getloadavg or Windows
             import random
+
             return random.uniform(0.5, 2.0)
 
 
@@ -632,35 +682,35 @@ async def run_production_benchmark():
     """Run production benchmark suite"""
     import asyncio
     import logging
-    
+
     # Setup logging
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
-    
+
     # Create and run benchmark
     benchmark = ProductionBenchmark()
     results = await benchmark.run_comprehensive_benchmark()
-    
+
     # Generate report
     report = benchmark.generate_benchmark_report()
-    
+
     # Save results
-    with open('production_benchmark_results.json', 'w') as f:
+    with open("production_benchmark_results.json", "w") as f:
         f.write(report)
-    
-    print("\n" + "="*80)
+
+    print("\n" + "=" * 80)
     print("PRODUCTION BENCHMARK COMPLETED")
-    print("="*80)
+    print("=" * 80)
     print(f"Overall Score: {results['overall_score']:.1f}/100")
     print(f"Production Ready: {'YES' if results['production_ready'] else 'NO'}")
     print(f"Results saved to: production_benchmark_results.json")
-    print("="*80)
-    
+    print("=" * 80)
+
     return results
 
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(run_production_benchmark())

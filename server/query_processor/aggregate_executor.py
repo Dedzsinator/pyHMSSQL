@@ -1,5 +1,4 @@
-"""Aggregate Executor for handling aggregate functions like COUNT, SUM, AVG, etc.
-"""
+"""Aggregate Executor for handling aggregate functions like COUNT, SUM, AVG, etc."""
 
 import logging
 import random
@@ -49,10 +48,14 @@ class AggregateExecutor:
                 try:
                     # Use SQLGlot-based condition parsing
                     from utils.sql_helpers import parse_condition_with_sqlglot
+
                     conditions = parse_condition_with_sqlglot(condition)
                 except ImportError:
-                    logging.warning("SQLGlot condition parsing not available, using fallback")
+                    logging.warning(
+                        "SQLGlot condition parsing not available, using fallback"
+                    )
                     from utils.sql_helpers import parse_simple_condition
+
                     conditions = parse_simple_condition(condition)
 
             # Verify table exists - CASE INSENSITIVE COMPARISON
@@ -66,8 +69,11 @@ class AggregateExecutor:
             if table_name.lower() in tables_lower:
                 # Use the correct case from the tables list
                 actual_table_name = tables_lower[table_name.lower()]
-                logging.debug("Using case-corrected table name: %s instead of %s",
-                            actual_table_name, table_name)
+                logging.debug(
+                    "Using case-corrected table name: %s instead of %s",
+                    actual_table_name,
+                    table_name,
+                )
             elif table_name not in tables:
                 return {
                     "error": f"Table '{table_name}' does not exist in database '{db_name}'",
@@ -119,7 +125,9 @@ class AggregateExecutor:
                                 try:
                                     values.append(int(val))
                                 except (ValueError, TypeError):
-                                    logging.warning(f"Skipping non-integer value for GCD: {val}")
+                                    logging.warning(
+                                        f"Skipping non-integer value for GCD: {val}"
+                                    )
 
                 if not values:
                     gcd_result = None
@@ -144,7 +152,9 @@ class AggregateExecutor:
                 records = self.catalog_manager.query_with_condition(
                     actual_table_name, conditions, ["*"]
                 )
-                logging.info(f"Found {len(records)} records matching condition: {condition}")
+                logging.info(
+                    f"Found {len(records)} records matching condition: {condition}"
+                )
             else:
                 records = self.catalog_manager.query_with_condition(
                     actual_table_name, [], ["*"]
@@ -160,7 +170,10 @@ class AggregateExecutor:
                     count = 0
                     for record in records:
                         for col_name in record:
-                            if col_name.lower() == column.lower() and record[col_name] is not None:
+                            if (
+                                col_name.lower() == column.lower()
+                                and record[col_name] is not None
+                            ):
                                 count += 1
                                 break
                     result_value = count
@@ -177,14 +190,16 @@ class AggregateExecutor:
                                 try:
                                     # Convert to numeric
                                     if isinstance(val, str):
-                                        if '.' in val:
+                                        if "." in val:
                                             values.append(float(val))
                                         else:
                                             values.append(int(val))
                                     else:
                                         values.append(val)
                                 except (ValueError, TypeError):
-                                    logging.warning(f"Skipping non-numeric value: {val}")
+                                    logging.warning(
+                                        f"Skipping non-numeric value: {val}"
+                                    )
                             break
 
                 if not values:
@@ -269,9 +284,11 @@ class AggregateExecutor:
             if condition:
                 try:
                     from utils.sql_helpers import parse_condition_with_sqlglot
+
                     conditions = parse_condition_with_sqlglot(condition)
                 except ImportError:
                     from utils.sql_helpers import parse_simple_condition
+
                     conditions = parse_simple_condition(condition)
 
             # Verify table exists
@@ -353,8 +370,14 @@ class AggregateExecutor:
 
             # Apply ORDER BY if specified
             if order_by and result_rows:
-                order_column = order_by.get("column") if isinstance(order_by, dict) else order_by
-                direction = order_by.get("direction", "ASC") if isinstance(order_by, dict) else "ASC"
+                order_column = (
+                    order_by.get("column") if isinstance(order_by, dict) else order_by
+                )
+                direction = (
+                    order_by.get("direction", "ASC")
+                    if isinstance(order_by, dict)
+                    else "ASC"
+                )
 
                 if order_column in result_columns:
                     col_index = result_columns.index(order_column)

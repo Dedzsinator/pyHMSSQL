@@ -22,6 +22,7 @@ from hashlib import md5
 from bptree_adapter import BPlusTree
 from table_stats import TableStatistics
 
+
 class BufferManager:
     """
     LRU/LFU hybrid buffer pool for caching query results and frequently accessed data.
@@ -29,6 +30,7 @@ class BufferManager:
     Uses a hybrid approach of LRU (Least Recently Used) and LFU (Least Frequently Used)
     to optimize cache hit ratios for both temporal and frequency access patterns.
     """
+
     def __init__(self, max_size=1000, lru_ratio=0.7):
         """
         Initialize buffer manager with hybrid LRU/LFU strategy.
@@ -61,7 +63,7 @@ class BufferManager:
         self.misses = 0
         self.evictions = 0
 
-    def get(self, key, cache_type='lru'):
+    def get(self, key, cache_type="lru"):
         """
         Get an item from the cache.
 
@@ -72,17 +74,17 @@ class BufferManager:
         Returns:
             The cached value or None if not found
         """
-        if cache_type == 'lru':
+        if cache_type == "lru":
             if key in self.lru_cache:
                 self.hits += 1
                 self.lru_access_time[key] = time.time()
                 return self.lru_cache[key]
-        elif cache_type == 'lfu':
+        elif cache_type == "lfu":
             if key in self.lfu_cache:
                 self.hits += 1
                 self.lfu_counter[key] += 1
                 return self.lfu_cache[key]
-        elif cache_type == 'query':
+        elif cache_type == "query":
             with self.query_cache_lock:
                 if key in self.query_cache:
                     self.hits += 1
@@ -93,7 +95,7 @@ class BufferManager:
         self.misses += 1
         return None
 
-    def put(self, key, value, cache_type='lru'):
+    def put(self, key, value, cache_type="lru"):
         """
         Put an item in the cache.
 
@@ -104,7 +106,7 @@ class BufferManager:
         """
         current_time = time.time()
 
-        if cache_type == 'lru':
+        if cache_type == "lru":
             # Evict if needed
             if len(self.lru_cache) >= self.lru_size:
                 self._evict_lru()
@@ -112,7 +114,7 @@ class BufferManager:
             self.lru_cache[key] = value
             self.lru_access_time[key] = current_time
 
-        elif cache_type == 'lfu':
+        elif cache_type == "lfu":
             # Evict if needed
             if len(self.lfu_cache) >= self.lfu_size:
                 self._evict_lfu()
@@ -120,7 +122,7 @@ class BufferManager:
             self.lfu_cache[key] = value
             self.lfu_counter[key] = 1
 
-        elif cache_type == 'query':
+        elif cache_type == "query":
             with self.query_cache_lock:
                 # Evict if needed
                 if len(self.query_cache) >= self.max_size:
@@ -162,8 +164,14 @@ class BufferManager:
 
         # Get max values for normalization
         now = time.time()
-        max_age = max((now - t) for t in self.query_cache_access_time.values()) if self.query_cache_access_time else 1
-        max_freq = max(self.query_cache_counter.values()) if self.query_cache_counter else 1
+        max_age = (
+            max((now - t) for t in self.query_cache_access_time.values())
+            if self.query_cache_access_time
+            else 1
+        )
+        max_freq = (
+            max(self.query_cache_counter.values()) if self.query_cache_counter else 1
+        )
 
         # Calculate scores
         for key in self.query_cache:
@@ -258,7 +266,7 @@ class BufferManager:
             "hit_ratio": hit_ratio,
             "lru_size": len(self.lru_cache),
             "lfu_size": len(self.lfu_cache),
-            "query_cache_size": len(self.query_cache)
+            "query_cache_size": len(self.query_cache),
         }
 
 
@@ -272,6 +280,7 @@ class ParallelQueryCoordinator:
     3. Resource allocation
     4. Intra-query parallelism
     """
+
     def __init__(self, max_workers=None):
         """
         Initialize the parallel query coordinator.
@@ -298,7 +307,9 @@ class ParallelQueryCoordinator:
         self.cpu_threshold = 90  # Percentage
         self.memory_threshold = 80  # Percentage
 
-        logging.info(f"Initialized ParallelQueryCoordinator with {self.max_workers} workers")
+        logging.info(
+            f"Initialized ParallelQueryCoordinator with {self.max_workers} workers"
+        )
 
     def is_parallelism_beneficial(self, plan):
         """
@@ -324,8 +335,8 @@ class ParallelQueryCoordinator:
 
             # Check for large joins
             if plan.get("type") == "JOIN" and (
-                plan.get("estimated_rows", 0) > 5000 or
-                plan.get("estimated_cost", 0) > 1000
+                plan.get("estimated_rows", 0) > 5000
+                or plan.get("estimated_cost", 0) > 1000
             ):
                 return True
 
@@ -347,7 +358,10 @@ class ParallelQueryCoordinator:
             cpu_percent = psutil.cpu_percent(interval=0.1)
             memory_percent = psutil.virtual_memory().percent
 
-            return cpu_percent > self.cpu_threshold or memory_percent > self.memory_threshold
+            return (
+                cpu_percent > self.cpu_threshold
+                or memory_percent > self.memory_threshold
+            )
         except RuntimeError as e:
             logging.warning(f"Error checking system resources: {e}")
             return False
@@ -373,9 +387,7 @@ class ParallelQueryCoordinator:
             # Submit tasks to thread pool
             futures = []
             for params in task_params:
-                futures.append(
-                    self.thread_pool.submit(table_access_func, *params)
-                )
+                futures.append(self.thread_pool.submit(table_access_func, *params))
 
             # Collect results
             results = []
@@ -414,15 +426,14 @@ class ParallelQueryCoordinator:
             # Use the primary key range for partitioning
             # We'll implement a range-based partitioning
             partitions = [
-                {"start": i/num_partitions, "end": (i+1)/num_partitions}
+                {"start": i / num_partitions, "end": (i + 1) / num_partitions}
                 for i in range(num_partitions)
             ]
         else:
             # Use histogram-based partitioning when a partition key is specified
             # This would be implemented with table statistics
             partitions = [
-                {"key": partition_key, "bucket": i}
-                for i in range(num_partitions)
+                {"key": partition_key, "bucket": i} for i in range(num_partitions)
             ]
 
         return partitions
@@ -439,8 +450,7 @@ class ParallelQueryCoordinator:
         """
         # Calculate base on data size and available cores
         base_partitions = min(
-            self.max_workers,
-            max(2, int(math.sqrt(estimated_rows / 1000)))
+            self.max_workers, max(2, int(math.sqrt(estimated_rows / 1000)))
         )
 
         # Check system load
@@ -595,12 +605,12 @@ class Optimizer:
         key_parts = [f"type:{plan.get('type', 'unknown')}"]
 
         # Add table information
-        for table_key in ('table', 'table1', 'table2'):
+        for table_key in ("table", "table1", "table2"):
             if table_key in plan:
                 key_parts.append(f"table:{plan[table_key]}")
 
         # Add condition information
-        for cond_key in ('condition', 'filter', 'where'):
+        for cond_key in ("condition", "filter", "where"):
             if cond_key in plan:
                 condition = plan[cond_key]
                 # Convert condition to string if it's a dictionary
@@ -609,12 +619,12 @@ class Optimizer:
                 key_parts.append(f"{cond_key}:{condition}")
 
         # Add column information
-        if 'columns' in plan:
-            cols = ','.join(sorted(str(col) for col in plan['columns']))
+        if "columns" in plan:
+            cols = ",".join(sorted(str(col) for col in plan["columns"]))
             key_parts.append(f"columns:{cols}")
 
         # Add session ID to differentiate user-specific queries
-        if 'session_id' in plan:
+        if "session_id" in plan:
             key_parts.append(f"session:{plan['session_id']}")
 
         # Build the key
@@ -648,13 +658,17 @@ class Optimizer:
                 # Apply selectivity for conditions
                 if "condition" in plan:
                     condition = plan["condition"]
-                    selectivity = self._estimate_condition_selectivity(table_name, condition)
+                    selectivity = self._estimate_condition_selectivity(
+                        table_name, condition
+                    )
                     estimated_rows = max(1, int(estimated_rows * selectivity))
 
                 # Calculate cost based on access method
                 if plan.get("use_index"):
                     # Index scan cost model: log(N) for lookup + matching rows
-                    estimated_cost = math.log2(table_stats.get("row_count", 1000)) + estimated_rows
+                    estimated_cost = (
+                        math.log2(table_stats.get("row_count", 1000)) + estimated_rows
+                    )
                 else:
                     # Sequential scan cost model: full table scan
                     estimated_cost = table_stats.get("row_count", 1000)
@@ -681,13 +695,19 @@ class Optimizer:
 
                     if join_cols[0] and join_cols[1]:
                         # Use column statistics if available
-                        col1_distinct = self.statistics.get_column_distinct_values(table1, join_cols[0])
-                        col2_distinct = self.statistics.get_column_distinct_values(table2, join_cols[1])
+                        col1_distinct = self.statistics.get_column_distinct_values(
+                            table1, join_cols[0]
+                        )
+                        col2_distinct = self.statistics.get_column_distinct_values(
+                            table2, join_cols[1]
+                        )
 
                         # Apply join cardinality formula
                         if col1_distinct > 0 and col2_distinct > 0:
                             # Estimated rows = (rows1 * rows2) / max(distinct values)
-                            estimated_rows = int((rows1 * rows2) / max(col1_distinct, col2_distinct))
+                            estimated_rows = int(
+                                (rows1 * rows2) / max(col1_distinct, col2_distinct)
+                            )
                         else:
                             # Fallback estimate
                             estimated_rows = int(math.sqrt(rows1 * rows2))
@@ -703,13 +723,22 @@ class Optimizer:
 
                 if join_algorithm == "NESTED_LOOP":
                     # Cost = outer table scan + (outer rows * inner table lookup)
-                    estimated_cost = rows1 + (rows1 * math.log2(rows2) if plan.get("use_index") else rows1 * rows2)
+                    estimated_cost = rows1 + (
+                        rows1 * math.log2(rows2)
+                        if plan.get("use_index")
+                        else rows1 * rows2
+                    )
                 elif join_algorithm == "HASH":
                     # Cost = build hash table + probe
                     estimated_cost = rows1 + rows2
                 elif join_algorithm == "MERGE":
                     # Cost = sort both relations + merge
-                    estimated_cost = rows1 * math.log2(rows1) + rows2 * math.log2(rows2) + rows1 + rows2
+                    estimated_cost = (
+                        rows1 * math.log2(rows1)
+                        + rows2 * math.log2(rows2)
+                        + rows1
+                        + rows2
+                    )
                 elif join_algorithm == "INDEX":
                     # Cost = outer table scan + (outer rows * index lookup)
                     estimated_cost = rows1 + (rows1 * math.log2(rows2))
@@ -730,7 +759,9 @@ class Optimizer:
                     distinct_groups = 1
 
                     for col in group_cols:
-                        col_distinct = self.statistics.get_column_distinct_values(table_name, col)
+                        col_distinct = self.statistics.get_column_distinct_values(
+                            table_name, col
+                        )
                         if col_distinct > 0:
                             distinct_groups *= col_distinct
 
@@ -786,7 +817,9 @@ class Optimizer:
                 col_name = parts[0].strip()
 
                 # Get column statistics
-                distinct_values = self.statistics.get_column_distinct_values(table_name, col_name)
+                distinct_values = self.statistics.get_column_distinct_values(
+                    table_name, col_name
+                )
                 if distinct_values > 0:
                     # Equality selectivity is 1/distinct_values
                     return 1.0 / distinct_values
@@ -811,7 +844,9 @@ class Optimizer:
                         if const_val:
                             const_val = float(const_val.group(1))
                             # Estimate as (const - min) / range
-                            return min(1.0, max(0.0, (const_val - min_val) / range_width))
+                            return min(
+                                1.0, max(0.0, (const_val - min_val) / range_width)
+                            )
 
                     if ">=" in condition or ">" in condition:
                         # Extract the constant
@@ -819,7 +854,9 @@ class Optimizer:
                         if const_val:
                             const_val = float(const_val.group(1))
                             # Estimate as (max - const) / range
-                            return min(1.0, max(0.0, (max_val - const_val) / range_width))
+                            return min(
+                                1.0, max(0.0, (max_val - const_val) / range_width)
+                            )
 
         # LIKE condition
         if "LIKE" in condition:
@@ -867,7 +904,9 @@ class Optimizer:
                     value_count = len(values[0].split(","))
 
                     # Get column cardinality
-                    distinct_values = self.statistics.get_column_distinct_values(table_name, col_name)
+                    distinct_values = self.statistics.get_column_distinct_values(
+                        table_name, col_name
+                    )
                     if distinct_values > 0:
                         return min(1.0, value_count / distinct_values)
 
@@ -877,7 +916,9 @@ class Optimizer:
             parts = condition.split("AND")
             selectivity = 1.0
             for part in parts:
-                selectivity *= self._estimate_condition_selectivity(table_name, part.strip())
+                selectivity *= self._estimate_condition_selectivity(
+                    table_name, part.strip()
+                )
             return selectivity
 
         if "OR" in condition:
@@ -885,8 +926,12 @@ class Optimizer:
             parts = condition.split("OR")
             selectivity = 0.0
             for part in parts:
-                part_selectivity = self._estimate_condition_selectivity(table_name, part.strip())
-                selectivity = selectivity + part_selectivity - (selectivity * part_selectivity)
+                part_selectivity = self._estimate_condition_selectivity(
+                    table_name, part.strip()
+                )
+                selectivity = (
+                    selectivity + part_selectivity - (selectivity * part_selectivity)
+                )
             return selectivity
 
         # Default selectivity for unknown conditions
@@ -915,7 +960,9 @@ class Optimizer:
 
             if indexed_column:
                 # Check if an index exists for this column
-                index = self.index_manager.get_index(f"{table_name}.idx_{indexed_column}")
+                index = self.index_manager.get_index(
+                    f"{table_name}.idx_{indexed_column}"
+                )
 
                 if index:
                     # Check if using the index would be more efficient
@@ -923,7 +970,9 @@ class Optimizer:
                     total_rows = table_stats.get("row_count", 1000)
 
                     # Estimate selectivity of the condition
-                    selectivity = self._estimate_condition_selectivity(table_name, condition)
+                    selectivity = self._estimate_condition_selectivity(
+                        table_name, condition
+                    )
                     matching_rows = total_rows * selectivity
 
                     # Cost models
@@ -950,8 +999,10 @@ class Optimizer:
         if plan.get("estimated_rows", 0) > 10000:
             # This is a larger table, consider parallel execution
             optimized_plan["parallel_eligible"] = True
-            optimized_plan["parallel_partitions"] = self.parallel_coordinator.get_optimal_partition_count(
-                plan.get("estimated_rows", 10000)
+            optimized_plan["parallel_partitions"] = (
+                self.parallel_coordinator.get_optimal_partition_count(
+                    plan.get("estimated_rows", 10000)
+                )
             )
 
         return optimized_plan
@@ -999,12 +1050,22 @@ class Optimizer:
         if left_index:
             # Outer table is table2, inner is table1 with index
             nl_cost_1 = rows2 + (rows2 * math.log2(rows1))
-            costs["NESTED_LOOP_1"] = {"cost": nl_cost_1, "outer": table2, "inner": table1, "index": left_index}
+            costs["NESTED_LOOP_1"] = {
+                "cost": nl_cost_1,
+                "outer": table2,
+                "inner": table1,
+                "index": left_index,
+            }
 
         if right_index:
             # Outer table is table1, inner is table2 with index
             nl_cost_2 = rows1 + (rows1 * math.log2(rows2))
-            costs["NESTED_LOOP_2"] = {"cost": nl_cost_2, "outer": table1, "inner": table2, "index": right_index}
+            costs["NESTED_LOOP_2"] = {
+                "cost": nl_cost_2,
+                "outer": table1,
+                "inner": table2,
+                "index": right_index,
+            }
 
         # Hash Join - build hash table on smaller relation
         if rows1 <= rows2:
@@ -1034,7 +1095,9 @@ class Optimizer:
             costs["MERGE_SORT_1"] = {"cost": merge_cost, "sort": table1}
         else:
             # Sort both tables
-            merge_cost = rows1 + rows2 + (rows1 * math.log2(rows1)) + (rows2 * math.log2(rows2))
+            merge_cost = (
+                rows1 + rows2 + (rows1 * math.log2(rows1)) + (rows2 * math.log2(rows2))
+            )
             costs["MERGE_SORT_BOTH"] = {"cost": merge_cost}
 
         # Find the lowest cost algorithm
@@ -1052,11 +1115,15 @@ class Optimizer:
                     # Swap tables so we can use the index
                     optimized_plan["table1"] = table2
                     optimized_plan["table2"] = table1
-                    optimized_plan["condition"] = condition.replace(f"{table1}.{left_column}", "TEMP")
+                    optimized_plan["condition"] = condition.replace(
+                        f"{table1}.{left_column}", "TEMP"
+                    )
                     optimized_plan["condition"] = optimized_plan["condition"].replace(
                         f"{table2}.{right_column}", f"{table1}.{left_column}"
                     )
-                    optimized_plan["condition"] = optimized_plan["condition"].replace("TEMP", f"{table2}.{right_column}")
+                    optimized_plan["condition"] = optimized_plan["condition"].replace(
+                        "TEMP", f"{table2}.{right_column}"
+                    )
 
                 optimized_plan["index"] = algorithm_data["index"]
             elif algorithm_name.startswith("HASH"):
@@ -1066,18 +1133,24 @@ class Optimizer:
                 if algorithm_name == "HASH_2":
                     optimized_plan["table1"] = table2
                     optimized_plan["table2"] = table1
-                    optimized_plan["condition"] = condition.replace(f"{table1}.{left_column}", "TEMP")
+                    optimized_plan["condition"] = condition.replace(
+                        f"{table1}.{left_column}", "TEMP"
+                    )
                     optimized_plan["condition"] = optimized_plan["condition"].replace(
                         f"{table2}.{right_column}", f"{table1}.{left_column}"
                     )
-                    optimized_plan["condition"] = optimized_plan["condition"].replace("TEMP", f"{table2}.{right_column}")
+                    optimized_plan["condition"] = optimized_plan["condition"].replace(
+                        "TEMP", f"{table2}.{right_column}"
+                    )
             elif algorithm_name.startswith("MERGE"):
                 optimized_plan["join_algorithm"] = "MERGE"
                 optimized_plan["sort_required"] = not (is_sorted1 and is_sorted2)
 
             # Record estimated cost
             optimized_plan["estimated_cost"] = algorithm_data["cost"]
-            logging.debug(f"Selected join algorithm: {algorithm_name} with cost {algorithm_data['cost']}")
+            logging.debug(
+                f"Selected join algorithm: {algorithm_name} with cost {algorithm_data['cost']}"
+            )
         else:
             # Fallback to hash join
             optimized_plan["join_algorithm"] = "HASH"
@@ -1118,7 +1191,9 @@ class Optimizer:
                 # Update cost estimate
                 table_stats = self.statistics.get_table_statistics(table_name)
                 total_rows = table_stats.get("row_count", 1000)
-                distinct_groups = self.statistics.get_column_distinct_values(table_name, group_column)
+                distinct_groups = self.statistics.get_column_distinct_values(
+                    table_name, group_column
+                )
 
                 # Cost model: index lookup + one pass through data
                 optimized_plan["estimated_cost"] = total_rows + distinct_groups
@@ -1180,7 +1255,9 @@ class Optimizer:
 
         # Process child plans
         if "child" in optimized_plan and isinstance(optimized_plan["child"], dict):
-            optimized_plan["child"] = self._apply_generic_optimizations(optimized_plan["child"])
+            optimized_plan["child"] = self._apply_generic_optimizations(
+                optimized_plan["child"]
+            )
 
         return optimized_plan
 
@@ -1265,7 +1342,9 @@ class Optimizer:
             index_name = str(optimized.get("index", "unknown"))
             if isinstance(optimized.get("index"), dict):
                 index_name = optimized["index"].get("name", "unknown")
-            changes.append(f"Using index {index_name} for table {optimized.get('table', 'unknown')}")
+            changes.append(
+                f"Using index {index_name} for table {optimized.get('table', 'unknown')}"
+            )
 
         # Check for join algorithm changes
         if (
@@ -1289,20 +1368,28 @@ class Optimizer:
             )
 
         # Check for parallelization
-        if optimized.get("parallel_execution") and not original.get("parallel_execution"):
+        if optimized.get("parallel_execution") and not original.get(
+            "parallel_execution"
+        ):
             changes.append(
                 f"Enabled parallel execution with {optimized.get('parallel_partitions', 2)} partitions"
             )
 
         # Check for access method changes
-        if optimized.get("access_method") and original.get("access_method") != optimized.get("access_method"):
+        if optimized.get("access_method") and original.get(
+            "access_method"
+        ) != optimized.get("access_method"):
             changes.append(
                 f"Changed access method from {original.get('access_method', 'unknown')} to {
                     optimized.get('access_method', 'unknown')}"
             )
 
         # Check for index join optimization
-        if original.get("type") == "JOIN" and optimized.get("type") == "JOIN" and optimized.get("join_algorithm") == "INDEX":
+        if (
+            original.get("type") == "JOIN"
+            and optimized.get("type") == "JOIN"
+            and optimized.get("join_algorithm") == "INDEX"
+        ):
             changes.append("Using index-based join strategy")
 
         # Check for filter merging with join
@@ -1350,7 +1437,9 @@ class Optimizer:
             opt_cost = optimized["estimated_cost"]
             if opt_cost < orig_cost:
                 reduction = ((orig_cost - opt_cost) / orig_cost) * 100
-                changes.append(f"Reduced estimated cost by {reduction:.1f}% ({orig_cost:.1f} to {opt_cost:.1f})")
+                changes.append(
+                    f"Reduced estimated cost by {reduction:.1f}% ({orig_cost:.1f} to {opt_cost:.1f})"
+                )
 
         return changes
 
@@ -1389,7 +1478,7 @@ class Optimizer:
             "total_optimizations": self.optimization_count,
             "total_time_ms": self.optimization_time * 1000,
             "avg_time_ms": avg_time * 1000,
-            "cache_stats": self.buffer_manager.get_stats()
+            "cache_stats": self.buffer_manager.get_stats(),
         }
 
     def optimize_query_shape(self, plan):

@@ -9,7 +9,7 @@ import sys
 import os
 
 # Add server directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'server'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "server"))
 
 from sqlglot_parser import SQLGlotParser
 
@@ -198,7 +198,9 @@ class TestUpdateStatements:
 
     def test_update_multiple_columns(self, parser):
         """Test UPDATE with multiple columns."""
-        sql = "UPDATE users SET age = 26, email = 'john@example.com' WHERE name = 'John'"
+        sql = (
+            "UPDATE users SET age = 26, email = 'john@example.com' WHERE name = 'John'"
+        )
         result = parser.parse(sql)
 
         assert result["type"] == "UPDATE"
@@ -334,7 +336,9 @@ class TestColumnDefinitionParsing:
 
     def test_complex_column(self, parser):
         """Test complex column definition."""
-        result = parser.parse_column_definition("email VARCHAR(100) NOT NULL DEFAULT 'user@example.com'")
+        result = parser.parse_column_definition(
+            "email VARCHAR(100) NOT NULL DEFAULT 'user@example.com'"
+        )
 
         assert result["name"] == "email"
         assert result["nullable"] is False

@@ -1,14 +1,17 @@
 """
 B+ tree adapter for seamless integration with the DBMS
 """
+
 from bptree_optimized import BPlusTreeOptimized
 import logging
+
 
 class BPlusTree:
     """
     Adapter class that provides consistent interface for B+ tree
     implementations, but uses the optimized implementation internally.
     """
+
     def __init__(self, order=75, name=None):
         """Initialize with the optimal order based on benchmarking"""
         self.tree = BPlusTreeOptimized(order=order, name=name)
@@ -20,7 +23,9 @@ class BPlusTree:
             numeric_key = float(key) if not isinstance(key, (int, float)) else key
             return self.tree.insert(numeric_key, value)
         except (ValueError, TypeError) as e:
-            logging.warning(f"Key conversion error during insert: {str(e)}. Using fallback key.")
+            logging.warning(
+                f"Key conversion error during insert: {str(e)}. Using fallback key."
+            )
             # Use a fallback strategy - hash the key if it's not numeric
             if not isinstance(key, (int, float)):
                 hash_key = hash(str(key)) % (2**32)
@@ -33,7 +38,9 @@ class BPlusTree:
             numeric_key = float(key) if not isinstance(key, (int, float)) else key
             return self.tree.search(numeric_key)
         except (ValueError, TypeError) as e:
-            logging.warning(f"Key conversion error during search: {str(e)}. Using fallback key.")
+            logging.warning(
+                f"Key conversion error during search: {str(e)}. Using fallback key."
+            )
             # Use a fallback strategy - hash the key if it's not numeric
             if not isinstance(key, (int, float)):
                 hash_key = hash(str(key)) % (2**32)
@@ -43,8 +50,14 @@ class BPlusTree:
     def range_query(self, start_key, end_key):
         """Perform a range query"""
         try:
-            numeric_start = float(start_key) if not isinstance(start_key, (int, float)) else start_key
-            numeric_end = float(end_key) if not isinstance(end_key, (int, float)) else end_key
+            numeric_start = (
+                float(start_key)
+                if not isinstance(start_key, (int, float))
+                else start_key
+            )
+            numeric_end = (
+                float(end_key) if not isinstance(end_key, (int, float)) else end_key
+            )
             return self.tree.range_query(numeric_start, numeric_end)
         except (ValueError, TypeError) as e:
             logging.error(f"Key conversion error during range query: {str(e)}")

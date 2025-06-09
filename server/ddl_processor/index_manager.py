@@ -39,15 +39,14 @@ class IndexManager:
 
         # Load or build the index
         return self.build_index(
-            table_name, index_name, column, index_def.get(
-                "unique", False), db_name
+            table_name, index_name, column, index_def.get("unique", False), db_name
         )
 
     def rebuild_index(self, index_id):
         """Rebuild an index from scratch"""
         try:
             # Parse the index ID to get table and index name
-            parts = index_id.split('.')
+            parts = index_id.split(".")
             if len(parts) != 2:
                 self.logger.error(f"Invalid index ID format: {index_id}")
                 return False
@@ -74,7 +73,9 @@ class IndexManager:
                         break
 
             if not index_def:
-                self.logger.error(f"Index definition not found for {index_name}. Available indexes: {list(indexes.keys())}")
+                self.logger.error(
+                    f"Index definition not found for {index_name}. Available indexes: {list(indexes.keys())}"
+                )
                 return False
 
             # Get the column name - handle both single and multiple columns
@@ -99,7 +100,9 @@ class IndexManager:
                 del self.indexes[full_index_name]
 
             # Rebuild the index
-            rebuilt_index = self.build_index(table_name, index_name, main_column, is_unique)
+            rebuilt_index = self.build_index(
+                table_name, index_name, main_column, is_unique
+            )
 
             if rebuilt_index:
                 self.logger.info(f"Successfully rebuilt index {index_id}")
@@ -123,8 +126,9 @@ class IndexManager:
 
         # Check if index file exists
         index_file = os.path.join(
-            self.catalog_manager.indexes_dir, f"{
-                db_name}_{table_name}_{column}.idx"
+            self.catalog_manager.indexes_dir,
+            f"{
+                db_name}_{table_name}_{column}.idx",
         )
 
         # If file exists, load it
@@ -140,8 +144,7 @@ class IndexManager:
         # Build the index from table data
         try:
             # Get table data
-            records = self.catalog_manager.query_with_condition(
-                table_name, [], ["*"])
+            records = self.catalog_manager.query_with_condition(table_name, [], ["*"])
             if not records:
                 return None
 

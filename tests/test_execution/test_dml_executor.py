@@ -1,7 +1,9 @@
 """
 Tests for DML execution operations (INSERT, UPDATE, DELETE).
 """
+
 import pytest
+
 
 class TestInsertExecution:
     """Test INSERT statement execution."""
@@ -13,7 +15,7 @@ class TestInsertExecution:
             "table": test_table,
             "columns": ["id", "name", "email", "age"],
             "values": [[4, "Alex Wilson", "alex@example.com", 35]],
-            "session_id": "test_session"
+            "session_id": "test_session",
         }
 
         result = execution_engine.execute(plan)
@@ -34,13 +36,16 @@ class TestInsertExecution:
             "table": test_table,
             "columns": ["id", "name", "email", "age"],
             "values": [[1, "Duplicate", "duplicate@example.com", 50]],
-            "session_id": "test_session"
+            "session_id": "test_session",
         }
 
         result = execution_engine.execute(plan)
 
         assert result["status"] == "error"
-        assert "duplicate" in result["error"].lower() or "primary key" in result["error"].lower()
+        assert (
+            "duplicate" in result["error"].lower()
+            or "primary key" in result["error"].lower()
+        )
 
     def test_insert_invalid_column(self, execution_engine, test_table):
         """Test inserting with an invalid column."""
@@ -49,11 +54,12 @@ class TestInsertExecution:
             "table": test_table,
             "columns": ["id", "name", "invalid_column"],
             "values": [[5, "Test User", "test"]],
-            "session_id": "test_session"
+            "session_id": "test_session",
         }
 
         result = execution_engine.execute(plan)
         assert result["status"] == "error"
+
 
 class TestUpdateExecution:
     """Test UPDATE statement execution."""
@@ -65,7 +71,7 @@ class TestUpdateExecution:
             "table": test_table,
             "set": [("name", "'Updated Name'"), ("age", 45)],
             "condition": "id = 1",
-            "session_id": "test_session"
+            "session_id": "test_session",
         }
 
         result = execution_engine.execute(plan)
@@ -80,14 +86,16 @@ class TestUpdateExecution:
         assert records[0]["name"] == "Updated Name"
         assert records[0]["age"] == 45
 
-    def test_update_multiple_records(self, execution_engine, catalog_manager, test_table):
+    def test_update_multiple_records(
+        self, execution_engine, catalog_manager, test_table
+    ):
         """Test updating multiple records."""
         plan = {
             "type": "UPDATE",
             "table": test_table,
             "set": [("age", 50)],
             "condition": "age < 40",
-            "session_id": "test_session"
+            "session_id": "test_session",
         }
 
         result = execution_engine.execute(plan)
@@ -102,6 +110,7 @@ class TestUpdateExecution:
         )
         assert len(records) > 0
 
+
 class TestDeleteExecution:
     """Test DELETE statement execution."""
 
@@ -111,7 +120,7 @@ class TestDeleteExecution:
             "type": "DELETE",
             "table": test_table,
             "condition": "id = 2",
-            "session_id": "test_session"
+            "session_id": "test_session",
         }
 
         result = execution_engine.execute(plan)
@@ -125,13 +134,15 @@ class TestDeleteExecution:
         )
         assert len(records) == 0
 
-    def test_delete_multiple_records(self, execution_engine, catalog_manager, test_table):
+    def test_delete_multiple_records(
+        self, execution_engine, catalog_manager, test_table
+    ):
         """Test deleting multiple records."""
         plan = {
             "type": "DELETE",
             "table": test_table,
             "condition": "age >= 30",
-            "session_id": "test_session"
+            "session_id": "test_session",
         }
 
         result = execution_engine.execute(plan)
@@ -146,11 +157,7 @@ class TestDeleteExecution:
 
     def test_delete_all_records(self, execution_engine, catalog_manager, test_table):
         """Test deleting all records."""
-        plan = {
-            "type": "DELETE",
-            "table": test_table,
-            "session_id": "test_session"
-        }
+        plan = {"type": "DELETE", "table": test_table, "session_id": "test_session"}
 
         result = execution_engine.execute(plan)
 

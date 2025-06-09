@@ -3,6 +3,7 @@
 Returns:
     _type_: _description_
 """
+
 from query_processor.join_executor import JoinExecutor
 from query_processor.aggregate_executor import AggregateExecutor
 from query_processor.select_executor import SelectExecutor
@@ -20,6 +21,7 @@ from utils.visualizer import Visualizer
 from utils.sql_helpers import parse_simple_condition, check_database_selected
 import logging
 import traceback
+
 
 class ExecutionEngine:
     """Main execution engine that coordinates between different modules"""
@@ -63,7 +65,7 @@ class ExecutionEngine:
 
         # Set the transaction manager for DML executor to enable transaction recording
         self.dml_executor.transaction_manager = self.transaction_manager
-        
+
         # Set execution_engine reference for managers that need it
         self.procedure_manager.execution_engine = self
         self.trigger_manager.execution_engine = self
@@ -105,7 +107,8 @@ class ExecutionEngine:
 
         # Use catalog manager to get data
         results = self.catalog_manager.query_with_condition(
-            actual_table_name, [], [column])
+            actual_table_name, [], [column]
+        )
 
         # Extract distinct values
         distinct_values = set()
@@ -160,13 +163,19 @@ class ExecutionEngine:
 
         # Validate that table and index are specified
         if not table_name or not index_name:
-            return {"error": "Table name and index name required for VISUALIZE BPTREE", "status": "error"}
+            return {
+                "error": "Table name and index name required for VISUALIZE BPTREE",
+                "status": "error",
+            }
 
         try:
             return self.visualizer.visualize_bptree(table_name, index_name)
 
         except Exception as e:
-            return {"error": f"Failed to visualize B+ tree: {str(e)}", "status": "error"}
+            return {
+                "error": f"Failed to visualize B+ tree: {str(e)}",
+                "status": "error",
+            }
 
     def execute_batch_insert(self, plan):
         """Execute a batch insert operation with optimizations."""
@@ -184,10 +193,14 @@ class ExecutionEngine:
         # Get optimal batch size (increase default for better performance)
         batch_size = plan.get("batch_size", 5000)  # Increased from 1000 to 5000
 
-        logging.info(f"Starting batch insert of {len(records)} records into {table_name} with batch size {batch_size}")
+        logging.info(
+            f"Starting batch insert of {len(records)} records into {table_name} with batch size {batch_size}"
+        )
 
         try:
-            return self.dml_executor.execute_batch_insert(table_name, records, batch_size)
+            return self.dml_executor.execute_batch_insert(
+                table_name, records, batch_size
+            )
 
         except Exception as e:
             return {"error": f"Batch insert failed: {str(e)}", "status": "error"}
@@ -248,7 +261,10 @@ class ExecutionEngine:
 
         elif operation == "INTERSECT":
             # Find common rows
-            left_set = {tuple(row) if isinstance(row, list) else tuple(row.values()) for row in left_rows}
+            left_set = {
+                tuple(row) if isinstance(row, list) else tuple(row.values())
+                for row in left_rows
+            }
             for row in right_rows:
                 row_tuple = tuple(row) if isinstance(row, list) else tuple(row.values())
                 if row_tuple in left_set:
@@ -256,7 +272,10 @@ class ExecutionEngine:
 
         elif operation == "EXCEPT":
             # Find rows in left but not in right
-            right_set = {tuple(row) if isinstance(row, list) else tuple(row.values()) for row in right_rows}
+            right_set = {
+                tuple(row) if isinstance(row, list) else tuple(row.values())
+                for row in right_rows
+            }
             for row in left_rows:
                 row_tuple = tuple(row) if isinstance(row, list) else tuple(row.values())
                 if row_tuple not in right_set:
@@ -268,7 +287,7 @@ class ExecutionEngine:
             "rows": result_rows,
             "status": "success",
             "type": f"{operation.lower()}_result",
-            "rowCount": len(result_rows)
+            "rowCount": len(result_rows),
         }
 
     def _has_subquery(self, condition):
@@ -296,7 +315,10 @@ class ExecutionEngine:
             if isinstance(value, dict):
                 condition[key] = self._resolve_subqueries(value)
             elif isinstance(value, list):
-                condition[key] = [self._resolve_subqueries(item) if isinstance(item, dict) else item for item in value]
+                condition[key] = [
+                    self._resolve_subqueries(item) if isinstance(item, dict) else item
+                    for item in value
+                ]
 
     def _evaluate_condition(self, record, condition):
         """
@@ -313,10 +335,16 @@ class ExecutionEngine:
             return True
 
         if condition.get("operator") == "AND":
-            return all(self._evaluate_condition(record, cond) for cond in condition.get("operands", []))
+            return all(
+                self._evaluate_condition(record, cond)
+                for cond in condition.get("operands", [])
+            )
 
         if condition.get("operator") == "OR":
-            return any(self._evaluate_condition(record, cond) for cond in condition.get("operands", []))
+            return any(
+                self._evaluate_condition(record, cond)
+                for cond in condition.get("operands", [])
+            )
 
         column = condition.get("column")
         operator = condition.get("operator")
@@ -350,7 +378,7 @@ class ExecutionEngine:
         elif operator == "<=":
             return record_value <= value
         elif operator.upper() == "LIKE":
-            return str(value).replace('%', '.*') in str(record_value)
+            return str(value).replace("%", ".*") in str(record_value)
         elif operator.upper() == "IN":
             return record_value in value
 
@@ -379,7 +407,14 @@ class ExecutionEngine:
 
         try:
             # Resolve temporary table names for operations that work with tables
-            if plan_type in ["SELECT", "INSERT", "UPDATE", "DELETE", "JOIN", "DISTINCT"]:
+            if plan_type in [
+                "SELECT",
+                "INSERT",
+                "UPDATE",
+                "DELETE",
+                "JOIN",
+                "DISTINCT",
+            ]:
                 plan = self._resolve_plan_table_names(plan)
 
             if plan_type == "SELECT":
@@ -444,10 +479,14 @@ class ExecutionEngine:
                 return self.schema_manager.execute_use_database(plan)
             elif plan_type == "JOIN":
                 # Fix: Properly extract and pass WHERE conditions for JOIN queries
-                where_conditions = plan.get("where_conditions") or plan.get("parsed_condition")
+                where_conditions = plan.get("where_conditions") or plan.get(
+                    "parsed_condition"
+                )
                 join_info = plan.get("join_info", {})
 
-                logging.info("🔍 Executing JOIN plan with WHERE conditions: %s", where_conditions)
+                logging.info(
+                    "🔍 Executing JOIN plan with WHERE conditions: %s", where_conditions
+                )
 
                 # Extract and clean table names from join_info
                 table1 = join_info.get("table1", "") or plan.get("table1", "")
@@ -458,9 +497,13 @@ class ExecutionEngine:
                 join_algorithm = "HASH"  # Default
                 if self.planner and table1 and table2 and condition:
                     try:
-                        join_algorithm = self.planner._choose_join_algorithm([table1, table2], condition)
+                        join_algorithm = self.planner._choose_join_algorithm(
+                            [table1, table2], condition
+                        )
                     except Exception as e:
-                        logging.warning(f"Failed to determine join algorithm, using HASH: {e}")
+                        logging.warning(
+                            f"Failed to determine join algorithm, using HASH: {e}"
+                        )
                         join_algorithm = "HASH"
 
                 # Pass all necessary information to the join executor including WHERE conditions
@@ -472,7 +515,9 @@ class ExecutionEngine:
                     "condition": condition,
                     "where_conditions": where_conditions,  # Pass WHERE conditions properly
                     "join_info": join_info,
-                    "columns": plan.get("columns", ["*"])  # Also pass requested columns
+                    "columns": plan.get(
+                        "columns", ["*"]
+                    ),  # Also pass requested columns
                 }
 
                 # Update the original plan with the join algorithm used
@@ -489,7 +534,7 @@ class ExecutionEngine:
                             "columns": [],
                             "rows": [],
                             "status": "success",
-                            "type": "join_result"
+                            "type": "join_result",
                         }
 
                     # Get all unique columns from all records
@@ -514,7 +559,7 @@ class ExecutionEngine:
                         "columns": columns,
                         "rows": rows,
                         "status": "success",
-                        "type": "join_result"
+                        "type": "join_result",
                     }
                 else:
                     # If join_results is already in the correct format, return it
@@ -530,11 +575,17 @@ class ExecutionEngine:
             elif plan_type in ["UNION", "INTERSECT", "EXCEPT"]:
                 return self.execute_set_operation(plan)
             elif plan_type == "BEGIN_TRANSACTION":
-                return self.transaction_manager.execute_transaction_operation("BEGIN_TRANSACTION")
+                return self.transaction_manager.execute_transaction_operation(
+                    "BEGIN_TRANSACTION"
+                )
             elif plan_type == "COMMIT":
-                return self.transaction_manager.execute_transaction_operation("COMMIT", plan.get("transaction_id"))
+                return self.transaction_manager.execute_transaction_operation(
+                    "COMMIT", plan.get("transaction_id")
+                )
             elif plan_type == "ROLLBACK":
-                return self.transaction_manager.execute_transaction_operation("ROLLBACK", plan.get("transaction_id"))
+                return self.transaction_manager.execute_transaction_operation(
+                    "ROLLBACK", plan.get("transaction_id")
+                )
             elif plan_type == "SET_PREFERENCE":
                 return self.execute_set_preference(plan)
             elif plan_type == "SCRIPT":
@@ -545,7 +596,10 @@ class ExecutionEngine:
                 result = self.group_by_executor.execute_group_by(plan)
                 return result
             else:
-                return {"error": f"Unsupported plan type: {plan_type}", "status": "error"}
+                return {
+                    "error": f"Unsupported plan type: {plan_type}",
+                    "status": "error",
+                }
 
         except Exception as e:
             logging.error("Error executing plan: %s", str(e))
@@ -561,7 +615,7 @@ class ExecutionEngine:
     def execute_show(self, plan):
         """Execute enhanced SHOW commands with support for new objects."""
         object_type = plan.get("object", "").upper()
-        
+
         # Route to appropriate manager based on object type
         if object_type in ["DATABASES", "TABLES", "ALL_TABLES", "COLUMNS", "INDEXES"]:
             return self.schema_manager.execute_show(plan)
@@ -584,50 +638,52 @@ class ExecutionEngine:
         """Fire triggers for DML operations."""
         if not table_name:
             return
-            
+
         try:
             # Fire BEFORE triggers
             self.trigger_manager.fire_triggers(event_type, table_name, "BEFORE")
-            
-            # Fire AFTER triggers  
+
+            # Fire AFTER triggers
             self.trigger_manager.fire_triggers(event_type, table_name, "AFTER")
-            
+
         except Exception as e:
-            logging.error(f"Error firing triggers for {event_type} on {table_name}: {str(e)}")
+            logging.error(
+                f"Error firing triggers for {event_type} on {table_name}: {str(e)}"
+            )
             # Don't fail the main operation if trigger execution fails
 
     def create_procedure(self, plan):
         """Create a procedure via ProcedureManager."""
         return self.procedure_manager.create_procedure(plan)
-    
+
     def drop_procedure(self, plan):
-        """Drop a procedure via ProcedureManager.""" 
+        """Drop a procedure via ProcedureManager."""
         return self.procedure_manager.drop_procedure(plan)
-    
+
     def call_procedure(self, plan):
         """Call a procedure via ProcedureManager."""
         return self.procedure_manager.call_procedure(plan)
-    
+
     def create_function(self, plan):
         """Create a function via FunctionManager."""
         return self.function_manager.create_function(plan)
-    
+
     def drop_function(self, plan):
         """Drop a function via FunctionManager."""
         return self.function_manager.drop_function(plan)
-    
+
     def create_trigger(self, plan):
         """Create a trigger via TriggerManager."""
         return self.trigger_manager.create_trigger(plan)
-    
+
     def drop_trigger(self, plan):
         """Drop a trigger via TriggerManager."""
         return self.trigger_manager.drop_trigger(plan)
-    
+
     def create_temp_table(self, plan):
         """Create a temporary table via TemporaryTableManager."""
         return self.temp_table_manager.create_temp_table(plan)
-    
+
     def drop_temp_table(self, plan):
         """Drop a temporary table via TemporaryTableManager."""
         return self.temp_table_manager.drop_temp_table(plan)
@@ -657,7 +713,7 @@ class ExecutionEngine:
         """
         if not session_id or not table_name:
             return table_name
-            
+
         return self.temp_table_manager.resolve_table_name(table_name, session_id)
 
     def _resolve_plan_table_names(self, plan):
@@ -669,23 +725,27 @@ class ExecutionEngine:
         session_id = plan.get("session_id")
         if not session_id:
             return plan
-        
+
         # Resolve main table name
         if "table" in plan:
             plan["table"] = self._resolve_temp_table_name(plan["table"], session_id)
-        
+
         # Resolve table names in JOIN operations
         if "table1" in plan:
             plan["table1"] = self._resolve_temp_table_name(plan["table1"], session_id)
         if "table2" in plan:
             plan["table2"] = self._resolve_temp_table_name(plan["table2"], session_id)
-            
+
         # Resolve table names in join_info
         if "join_info" in plan and isinstance(plan["join_info"], dict):
             join_info = plan["join_info"]
             if "table1" in join_info:
-                join_info["table1"] = self._resolve_temp_table_name(join_info["table1"], session_id)
+                join_info["table1"] = self._resolve_temp_table_name(
+                    join_info["table1"], session_id
+                )
             if "table2" in join_info:
-                join_info["table2"] = self._resolve_temp_table_name(join_info["table2"], session_id)
-        
+                join_info["table2"] = self._resolve_temp_table_name(
+                    join_info["table2"], session_id
+                )
+
         return plan

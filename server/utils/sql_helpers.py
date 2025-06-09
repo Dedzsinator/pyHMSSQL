@@ -1,5 +1,6 @@
 """Utility functions for SQL operations."""
 
+
 def parse_simple_condition(condition):
     """Parse a simple condition string in format "column = value" or "condition1 AND condition2".
 
@@ -13,7 +14,10 @@ def parse_simple_condition(condition):
         list: List of condition dictionaries
     """
     import logging
-    logging.warning("parse_simple_condition() is deprecated. Use SQLGlot parsing instead.")
+
+    logging.warning(
+        "parse_simple_condition() is deprecated. Use SQLGlot parsing instead."
+    )
 
     conditions = []
     if not condition:
@@ -27,7 +31,7 @@ def parse_simple_condition(condition):
         return conditions
 
     # Handle simple equality condition
-    parts = condition.split('=')
+    parts = condition.split("=")
     if len(parts) == 2:
         col = parts[0].strip()
         val = parts[1].strip()
@@ -39,17 +43,15 @@ def parse_simple_condition(condition):
                 val = float(val)
             except ValueError:
                 # Remove quotes if present
-                if (val.startswith("'") and val.endswith("'")) or \
-                   (val.startswith('"') and val.endswith('"')):
+                if (val.startswith("'") and val.endswith("'")) or (
+                    val.startswith('"') and val.endswith('"')
+                ):
                     val = val[1:-1]
 
-        conditions.append({
-            "column": col,
-            "operator": "=",
-            "value": val
-        })
+        conditions.append({"column": col, "operator": "=", "value": val})
 
     return conditions
+
 
 def check_database_selected(catalog_manager):
     """Check if a database is selected and return error if not.
@@ -67,6 +69,7 @@ def check_database_selected(catalog_manager):
             "status": "error",
         }
     return None
+
 
 def parse_condition_with_sqlglot(condition_string):
     """Parse a condition string using SQLGlot.
@@ -90,7 +93,10 @@ def parse_condition_with_sqlglot(condition_string):
             return parser._parse_condition(where_clause.this)
     except Exception as e:
         import logging
-        logging.warning(f"SQLGlot condition parsing failed: {e}, falling back to simple parsing")
+
+        logging.warning(
+            f"SQLGlot condition parsing failed: {e}, falling back to simple parsing"
+        )
         return parse_simple_condition(condition_string)
 
     return []

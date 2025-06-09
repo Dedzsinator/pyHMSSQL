@@ -3,17 +3,21 @@
 This module provides memory-efficient caching of B+ tree pages
 and query results to improve performance.
 """
+
 import logging
 import threading
 import time
 from collections import OrderedDict, defaultdict
 from enum import Enum
 
+
 class CacheStrategy(Enum):
     """Cache eviction strategies"""
+
     LRU = 1  # Least Recently Used
     LFU = 2  # Least Frequently Used
     HYBRID = 3  # Hybrid approach (frequency and recency)
+
 
 class BufferPool:
     """Buffer pool manager to cache frequently accessed data"""
@@ -27,12 +31,12 @@ class BufferPool:
 
         # Cache metadata
         self.last_access_time = {}  # Maps page_id to last access time
-        self.access_counts = {}     # Maps page_id to access count
-        self.dirty_pages = set()    # Set of dirty page_ids
+        self.access_counts = {}  # Maps page_id to access count
+        self.dirty_pages = set()  # Set of dirty page_ids
 
         # Index cache - store loaded B+ tree indexes
-        self.index_cache = {}       # Maps index_id to loaded index object
-        self.index_last_access = {} # Maps index_id to last access time
+        self.index_cache = {}  # Maps index_id to loaded index object
+        self.index_last_access = {}  # Maps index_id to last access time
 
         # Thread synchronization
         self.global_lock = threading.RLock()
@@ -45,7 +49,7 @@ class BufferPool:
             "evictions": 0,
             "writes": 0,
             "index_hits": 0,
-            "index_misses": 0
+            "index_misses": 0,
         }
 
     def get_index(self, index_id):
@@ -88,7 +92,9 @@ class BufferPool:
                 return True
 
             # If cache is full, evict least recently used index
-            if len(self.index_cache) >= self.capacity // 10:  # Use 10% of capacity for indexes
+            if (
+                len(self.index_cache) >= self.capacity // 10
+            ):  # Use 10% of capacity for indexes
                 oldest_id = min(self.index_last_access.items(), key=lambda x: x[1])[0]
                 del self.index_cache[oldest_id]
                 del self.index_last_access[oldest_id]
@@ -207,9 +213,9 @@ class BufferPool:
             victim_id = min(
                 self.pages.keys(),
                 key=lambda k: (
-                    self.access_counts[k] * 0.7 +
-                    (current_time - self.last_access_time[k]) * 0.3
-                )
+                    self.access_counts[k] * 0.7
+                    + (current_time - self.last_access_time[k]) * 0.3
+                ),
             )
             victim_data = self.pages[victim_id]
 
@@ -240,7 +246,7 @@ class BufferPool:
 
         try:
             # Parse the page ID to determine file path and offset
-            parts = page_id.split('.')
+            parts = page_id.split(".")
             if len(parts) < 2:
                 self.logger.error(f"Invalid page ID format: {page_id}")
                 return False
@@ -251,7 +257,9 @@ class BufferPool:
             else:
                 # Default to current database if not specified
                 table_name, page_num = parts[0], int(parts[1])
-                db_name = "default"  # This should come from the current database context
+                db_name = (
+                    "default"  # This should come from the current database context
+                )
 
             # Construct file path
             import os
@@ -265,15 +273,16 @@ class BufferPool:
             os.makedirs(table_path, exist_ok=True)
 
             # Write the page data to file
-            with open(page_file, 'wb') as f:
+            with open(page_file, "wb") as f:
                 f.write(page_data)
 
             # Optionally update a page metadata file with timestamp
             metadata_file = table_path / "page_metadata.json"
             if os.path.exists(metadata_file):
                 import json
+
                 try:
-                    with open(metadata_file, 'r') as f:
+                    with open(metadata_file, "r") as f:
                         metadata = json.load(f)
                 except json.JSONDecodeError:
                     metadata = {}
@@ -287,11 +296,11 @@ class BufferPool:
             metadata["pages"][str(page_num)] = {
                 "last_modified": time.time(),
                 "size": len(page_data),
-                "checksum": self._calculate_checksum(page_data)
+                "checksum": self._calculate_checksum(page_data),
             }
 
             # Write updated metadata
-            with open(metadata_file, 'w') as f:
+            with open(metadata_file, "w") as f:
                 json.dump(metadata, f, indent=2)
 
             self.logger.info(f"Successfully wrote page {page_id} to {page_file}")
@@ -304,6 +313,7 @@ class BufferPool:
     def _calculate_checksum(self, data):
         """Calculate a simple checksum for data integrity verification."""
         import hashlib
+
         return hashlib.md5(data).hexdigest()
 
     def get_stats(self):
@@ -317,7 +327,7 @@ class BufferPool:
             "size": len(self.pages),
             "capacity": self.capacity,
             "dirty_pages": len(self.dirty_pages),
-            "hit_rate": hit_rate
+            "hit_rate": hit_rate,
         }
 
     def flush_all(self):
@@ -343,7 +353,7 @@ class BufferPool:
             pages_to_invalidate = []
             for page_id in list(self.pages.keys()):
                 # Check if page is from this table - page ID format is db.table.page_num
-                parts = page_id.split('.')
+                parts = page_id.split(".")
                 if len(parts) >= 2:
                     page_table = parts[1] if len(parts) >= 3 else parts[0]
                     if page_table.lower() == table_name.lower():
@@ -365,6 +375,7 @@ class BufferPool:
 
             self.logger.info(f"Invalidated {count} pages for table {table_name}")
             return count
+
 
 class QueryResultCache:
     """Cache for query results to avoid redundant computation."""
@@ -389,12 +400,7 @@ class QueryResultCache:
         self.lock = threading.Lock()
 
         # Statistics
-        self.stats = {
-            "hits": 0,
-            "misses": 0,
-            "invalidations": 0,
-            "entries": 0
-        }
+        self.stats = {"hits": 0, "misses": 0, "invalidations": 0, "entries": 0}
 
     def get(self, query_hash):
         """Get cached result if still valid based on row versions."""
@@ -407,8 +413,16 @@ class QueryResultCache:
 
             # Try looking for pattern matches (for queries with pagination/sorting variations)
             # This is a simple approach - in a real system, you'd use a more sophisticated method
-            base_hash = query_hash.split("_limit:")[0] if "_limit:" in query_hash else query_hash
-            base_hash = base_hash.split("_orderby:")[0] if "_orderby:" in base_hash else base_hash
+            base_hash = (
+                query_hash.split("_limit:")[0]
+                if "_limit:" in query_hash
+                else query_hash
+            )
+            base_hash = (
+                base_hash.split("_orderby:")[0]
+                if "_orderby:" in base_hash
+                else base_hash
+            )
 
             # Just to avoid full iteration in most cases
             if base_hash != query_hash:
@@ -440,7 +454,9 @@ class QueryResultCache:
                 cached_version = versions.get(normalized_table, 0)
                 if current_version > cached_version:
                     # Table has been modified since last cache
-                    logging.info(f"Cache miss due to version change for table {table} ({cached_version} -> {current_version})")
+                    logging.info(
+                        f"Cache miss due to version change for table {table} ({cached_version} -> {current_version})"
+                    )
                     self._remove_entry(query_hash)
                     return None
 
@@ -459,7 +475,9 @@ class QueryResultCache:
             current = self.table_versions.get(normalized_table, 0)
             new_version = current + 1
             self.table_versions[normalized_table] = new_version
-            logging.info(f"Updated version for table {table_name}: {current} -> {new_version}")
+            logging.info(
+                f"Updated version for table {table_name}: {current} -> {new_version}"
+            )
             return new_version
 
     def invalidate(self, table_name):
@@ -489,7 +507,11 @@ class QueryResultCache:
                 # Include by query text search
                 elif isinstance(result, dict) and "query" in result:
                     raw_query = result["query"].lower()
-                    if normalized_table in raw_query or f"{normalized_table}." in raw_query or f"from {normalized_table}" in raw_query:
+                    if (
+                        normalized_table in raw_query
+                        or f"{normalized_table}." in raw_query
+                        or f"from {normalized_table}" in raw_query
+                    ):
                         queries_to_invalidate.add(query_hash)
 
             # Remove each invalid cache entry
@@ -505,9 +527,12 @@ class QueryResultCache:
     def put(self, query_hash, result, affected_tables=None):
         """Cache a query result with current row versions."""
         # Don't cache DML operation results
-        if result and isinstance(result, dict) and result.get("type") in [
-            "insert_result", "update_result", "delete_result"
-        ]:
+        if (
+            result
+            and isinstance(result, dict)
+            and result.get("type")
+            in ["insert_result", "update_result", "delete_result"]
+        ):
             return
 
         # Check if this is a query with pagination or sorting
@@ -525,10 +550,18 @@ class QueryResultCache:
 
             # Enhance the hash with pagination/sorting info to avoid incorrect cache hits
             if has_pagination or has_sorting:
-                pagination_info = f"_limit:{result.get('limit')}_offset:{result.get('offset')}"
-                sorting_info = f"_orderby:{result.get('order_by')}" if result.get('order_by') else ""
+                pagination_info = (
+                    f"_limit:{result.get('limit')}_offset:{result.get('offset')}"
+                )
+                sorting_info = (
+                    f"_orderby:{result.get('order_by')}"
+                    if result.get("order_by")
+                    else ""
+                )
                 query_hash = f"{query_hash}{pagination_info}{sorting_info}"
-                logging.info(f"Enhanced query hash with pagination/sorting info: {query_hash}")
+                logging.info(
+                    f"Enhanced query hash with pagination/sorting info: {query_hash}"
+                )
 
         if not affected_tables:
             affected_tables = self._extract_tables_from_result(result)
@@ -615,6 +648,7 @@ class QueryResultCache:
                             tables.add(table["name"])
 
         return list(tables)
+
     def clear(self):
         """Clear the entire cache."""
         with self.lock:
@@ -627,18 +661,21 @@ class QueryResultCache:
         with self.lock:
             hit_rate = 0
             if (self.stats["hits"] + self.stats["misses"]) > 0:
-                hit_rate = self.stats["hits"] / (self.stats["hits"] + self.stats["misses"])
+                hit_rate = self.stats["hits"] / (
+                    self.stats["hits"] + self.stats["misses"]
+                )
 
             return {
                 **self.stats,
                 "hit_rate": hit_rate,
                 "table_count": len(self.table_queries),
-                "memory_usage": self._estimate_memory_usage()
+                "memory_usage": self._estimate_memory_usage(),
             }
 
     def _estimate_memory_usage(self):
         """Estimate memory usage of the cache in bytes."""
         import sys
+
         total_size = 0
 
         # Sample a few entries to estimate average size

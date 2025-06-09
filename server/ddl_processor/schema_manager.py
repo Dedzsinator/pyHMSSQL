@@ -3,6 +3,7 @@
 Returns:
     _type_: _description_
 """
+
 import logging
 import traceback
 import re
@@ -44,7 +45,7 @@ class SchemaManager:
             return {
                 "error": f"Unsupported table operation: {plan_type}",
                 "status": "error",
-                "type": "error"
+                "type": "error",
             }
 
     def execute_index_operation(self, plan):
@@ -177,7 +178,7 @@ class SchemaManager:
             if not db_name:
                 return {
                     "error": "No database selected. Use 'USE database_name' first.",
-                    "status": "error"
+                    "status": "error",
                 }
 
             tables = self.catalog_manager.list_tables(db_name)
@@ -197,7 +198,7 @@ class SchemaManager:
                 "rows": all_tables,
                 "status": "success",
                 "execution_time_ms": 0.001 * 1000,
-                "message": f"Retrieved {len(all_tables)} tables across all databases"
+                "message": f"Retrieved {len(all_tables)} tables across all databases",
             }
 
         elif object_type.upper() == "INDEXES":
@@ -207,7 +208,7 @@ class SchemaManager:
             if not db_name:
                 return {
                     "error": "No database selected. Use 'USE database_name' first.",
-                    "status": "error"
+                    "status": "error",
                 }
 
             if table_name:
@@ -215,7 +216,12 @@ class SchemaManager:
                 indexes = self.catalog_manager.get_indexes_for_table(table_name)
                 if not indexes:
                     return {
-                        "columns": ["Table", "Column", "Index Name (use this for DROP INDEX)", "Type"],
+                        "columns": [
+                            "Table",
+                            "Column",
+                            "Index Name (use this for DROP INDEX)",
+                            "Type",
+                        ],
                         "rows": [],
                         "status": "success",
                         "message": f"No indexes found for table '{table_name}'",
@@ -224,15 +230,22 @@ class SchemaManager:
                 rows = []
                 for idx_name, idx_info in indexes.items():
                     column_name = idx_info.get("column", "")
-                    rows.append([
-                        table_name,
-                        column_name,
-                        f"{idx_name}",  # Highlight the exact name to use with DROP INDEX
-                        idx_info.get("type", "BTREE"),
-                    ])
+                    rows.append(
+                        [
+                            table_name,
+                            column_name,
+                            f"{idx_name}",  # Highlight the exact name to use with DROP INDEX
+                            idx_info.get("type", "BTREE"),
+                        ]
+                    )
 
                 return {
-                    "columns": ["Table", "Column", "Index Name (use this for DROP INDEX)", "Type"],
+                    "columns": [
+                        "Table",
+                        "Column",
+                        "Index Name (use this for DROP INDEX)",
+                        "Type",
+                    ],
                     "rows": rows,
                     "status": "success",
                 }
@@ -247,15 +260,22 @@ class SchemaManager:
                             column = index_info.get("column", "")
                             index_name = parts[2]
                             index_type = index_info.get("type", "BTREE")
-                            all_indexes.append([
-                                table,
-                                column,
-                                f"{index_name}",  # Highlight the exact name to use
-                                index_type
-                            ])
+                            all_indexes.append(
+                                [
+                                    table,
+                                    column,
+                                    f"{index_name}",  # Highlight the exact name to use
+                                    index_type,
+                                ]
+                            )
 
                 return {
-                    "columns": ["Table", "Column", "Index Name (use this for DROP INDEX)", "Type"],
+                    "columns": [
+                        "Table",
+                        "Column",
+                        "Index Name (use this for DROP INDEX)",
+                        "Type",
+                    ],
                     "rows": all_indexes,
                     "status": "success",
                 }
@@ -266,49 +286,48 @@ class SchemaManager:
             if not table_name:
                 return {
                     "error": "Table name required for SHOW COLUMNS",
-                    "status": "error"
+                    "status": "error",
                 }
 
             db_name = self.catalog_manager.get_current_database()
             if not db_name:
                 return {
                     "error": "No database selected. Use 'USE database_name' first.",
-                    "status": "error"
+                    "status": "error",
                 }
 
             # Get table schema
             table_schema = self.catalog_manager.get_table_schema(table_name)
             if not table_schema:
-                return {
-                    "error": f"Table '{table_name}' not found",
-                    "status": "error"
-                }
+                return {"error": f"Table '{table_name}' not found", "status": "error"}
 
             rows = []
             for col_info in table_schema:
                 if isinstance(col_info, dict):
-                    col_name = col_info.get('name', '')
-                    col_type = col_info.get('type', '')
-                    is_pk = col_info.get('primary_key', False)
-                    is_nullable = not col_info.get('not_null', False)
+                    col_name = col_info.get("name", "")
+                    col_type = col_info.get("type", "")
+                    is_pk = col_info.get("primary_key", False)
+                    is_nullable = not col_info.get("not_null", False)
 
-                    rows.append([
-                        col_name,
-                        col_type,
-                        "YES" if is_nullable else "NO",
-                        "PRI" if is_pk else ""
-                    ])
+                    rows.append(
+                        [
+                            col_name,
+                            col_type,
+                            "YES" if is_nullable else "NO",
+                            "PRI" if is_pk else "",
+                        ]
+                    )
 
             return {
                 "columns": ["Column", "Type", "Null", "Key"],
                 "rows": rows,
-                "status": "success"
+                "status": "success",
             }
 
         else:
             return {
                 "error": f"Unsupported SHOW object type: {object_type}",
-                "status": "error"
+                "status": "error",
             }
 
     def execute_create_table(self, plan):
@@ -318,7 +337,9 @@ class SchemaManager:
         # Get constraints from the plan (including compound PRIMARY KEY)
         table_level_constraints_from_plan = plan.get("constraints", [])
 
-        logging.info(f"SchemaManager: Received plan for CREATE TABLE {table_name}. Table-level constraints from plan: {table_level_constraints_from_plan}")
+        logging.info(
+            f"SchemaManager: Received plan for CREATE TABLE {table_name}. Table-level constraints from plan: {table_level_constraints_from_plan}"
+        )
 
         if not table_name:
             return {
@@ -346,11 +367,13 @@ class SchemaManager:
         for col_str in column_strings:
             # Skip table-level constraints (they start with constraint keywords)
             col_str_upper = col_str.upper().strip()
-            if (col_str_upper.startswith("FOREIGN KEY") or
-                col_str_upper.startswith("PRIMARY KEY") or
-                col_str_upper.startswith("UNIQUE") or
-                col_str_upper.startswith("CHECK") or
-                col_str_upper.startswith("CONSTRAINT")):
+            if (
+                col_str_upper.startswith("FOREIGN KEY")
+                or col_str_upper.startswith("PRIMARY KEY")
+                or col_str_upper.startswith("UNIQUE")
+                or col_str_upper.startswith("CHECK")
+                or col_str_upper.startswith("CONSTRAINT")
+            ):
                 # This is a table-level constraint, add to constraints list
                 final_constraints_for_catalog.append(col_str)
                 continue
@@ -377,9 +400,7 @@ class SchemaManager:
         try:
             # Pass the parsed column definitions and constraints
             result = self.catalog_manager.create_table(
-                table_name,
-                parsed_column_definitions,
-                final_constraints_for_catalog
+                table_name, parsed_column_definitions, final_constraints_for_catalog
             )
 
             if result is True:
@@ -477,7 +498,10 @@ class SchemaManager:
         is_unique = plan.get("unique", False)
 
         if not index_name or not table_name or not columns:
-            return {"error": "Missing required parameters for CREATE INDEX", "status": "error"}
+            return {
+                "error": "Missing required parameters for CREATE INDEX",
+                "status": "error",
+            }
 
         # Create compound index key if multiple columns
         if len(columns) > 1:
@@ -493,16 +517,20 @@ class SchemaManager:
                 column_name=column_key,  # Use compound column key
                 index_name=index_name,
                 is_unique=is_unique,
-                columns=columns  # Pass original columns list
+                columns=columns,  # Pass original columns list
             )
 
             if isinstance(result, dict) and result.get("status") == "success":
                 return {
                     "message": f"Index '{index_name}' created on {table_name}{index_display}",
-                    "status": "success"
+                    "status": "success",
                 }
             else:
-                error_msg = result.get("error", str(result)) if isinstance(result, dict) else str(result)
+                error_msg = (
+                    result.get("error", str(result))
+                    if isinstance(result, dict)
+                    else str(result)
+                )
                 return {"error": error_msg, "status": "error"}
 
         except Exception as e:
@@ -514,18 +542,12 @@ class SchemaManager:
         table_name = plan.get("table")
 
         if not index_name or not table_name:
-            return {
-                "error": "Missing index name or table name",
-                "status": "error"
-            }
+            return {"error": "Missing index name or table name", "status": "error"}
 
         # Make sure we have a current database selected
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
-            return {
-                "error": "No database selected",
-                "status": "error"
-            }
+            return {"error": "No database selected", "status": "error"}
 
         # Call the catalog manager to drop the index
         try:
@@ -533,21 +555,15 @@ class SchemaManager:
 
             # If result is a string, it's an error message
             if isinstance(result, str) and "does not exist" in result:
-                return {
-                    "error": result,
-                    "status": "error"
-                }
+                return {"error": result, "status": "error"}
 
             return {
                 "message": f"Index {index_name} dropped successfully from {table_name}",
-                "status": "success"
+                "status": "success",
             }
         except RuntimeError as e:
             logging.error("Error dropping index: %s", str(e))
-            return {
-                "error": f"Error dropping index: {str(e)}",
-                "status": "error"
-            }
+            return {"error": f"Error dropping index: {str(e)}", "status": "error"}
 
     def get_table_schema(self, table_name):
         """Get the schema for a table.

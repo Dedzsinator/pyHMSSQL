@@ -2,6 +2,7 @@
 Adapter module to provide API compatibility between original BPlusTree
 and optimized BPlusTreeOptimized implementations.
 """
+
 import logging
 import os
 from typing import Optional, Union
@@ -13,14 +14,13 @@ from bptree_optimized import BPlusTreeOptimized
 # Setup logging
 logger = logging.getLogger("bptree_adapter")
 
+
 class BPlusTreeFactory:
     """Factory for creating B+ trees with automatic selection of implementation"""
 
     @staticmethod
     def create(
-        order: int = 50,
-        name: Optional[str] = None,
-        use_optimized: bool = True
+        order: int = 50, name: Optional[str] = None, use_optimized: bool = True
     ) -> Union[BPlusTreeOptimized, OriginalBPlusTree]:
         """
         Create a new B+ tree with the specified implementation
@@ -42,8 +42,7 @@ class BPlusTreeFactory:
 
     @staticmethod
     def load_from_file(
-        file_path: str,
-        prefer_optimized: bool = True
+        file_path: str, prefer_optimized: bool = True
     ) -> Union[BPlusTreeOptimized, OriginalBPlusTree]:
         """
         Load a B+ tree from a file, attempting to use the specified implementation
@@ -69,7 +68,7 @@ class BPlusTreeFactory:
                 logger.warning(
                     "Failed to load with optimized implementation: %s. "
                     "Falling back to original implementation.",
-                    str(e)
+                    str(e),
                 )
 
             # Fall back to original implementation

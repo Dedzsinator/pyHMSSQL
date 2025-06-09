@@ -51,6 +51,7 @@ class ConditionParser:
                             return record_val <= value
                         elif operator.upper() == "LIKE":
                             import fnmatch
+
                             pattern = str(value).replace("%", "*")
                             return fnmatch.fnmatch(str(record_val), pattern)
                         elif operator.upper() == "IN":

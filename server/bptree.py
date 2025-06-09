@@ -3,6 +3,7 @@
 Returns:
     _type_: _description_
 """
+
 import pickle
 import logging
 import json
@@ -19,11 +20,13 @@ def setup_bptree_logger():
     # Don't set level or handlers - inherit from root
     return logger
 
+
 bptree_logger = setup_bptree_logger()
 
+
 class BPlusTreeNode:
-    """_summary_
-    """
+    """_summary_"""
+
     def __init__(self, leaf=False):
         self.keys = []
         self.leaf = leaf
@@ -32,15 +35,14 @@ class BPlusTreeNode:
 
 
 class BPlusTree:
-    """_summary_
-    """
+    """_summary_"""
+
     def __init__(self, order=50, name=None):
         self.root = BPlusTreeNode(leaf=True)
         self.order = order  # Maximum number of keys per node
         self.name = name or f"tree_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         self.operation_counter = 0
-        bptree_logger.info(
-            "Created new B+ tree '%s' with order %s", self.name, order)
+        bptree_logger.info("Created new B+ tree '%s' with order %s", self.name, order)
 
     def insert(self, key, value):
         """_summary_
@@ -52,19 +54,22 @@ class BPlusTree:
         self.operation_counter += 1
         bptree_logger.debug(
             "[%s][%s] INSERT - key: %s, value: %s",
-            self.name, self.operation_counter, key, value
+            self.name,
+            self.operation_counter,
+            key,
+            value,
         )
 
         # Log tree state before insert if debugging detail needed
         if bptree_logger.level <= logging.DEBUG:
             bptree_logger.debug(
-                "Tree before insert: %s",self._get_tree_structure_json())
+                "Tree before insert: %s", self._get_tree_structure_json()
+            )
 
         # Original insert logic
         root = self.root
         if len(root.keys) == (2 * self.order) - 1:
-            bptree_logger.debug(
-                "[%s] Root node is full, creating new root")
+            bptree_logger.debug("[%s] Root node is full, creating new root")
             new_root = BPlusTreeNode(leaf=False)
             self.root = new_root
             new_root.children.append(root)
@@ -75,7 +80,9 @@ class BPlusTree:
 
         # Log tree state after insert if debugging detail needed
         if bptree_logger.level <= logging.DEBUG:
-            bptree_logger.debug("Tree after insert: %s", self._get_tree_structure_json())
+            bptree_logger.debug(
+                "Tree after insert: %s", self._get_tree_structure_json()
+            )
 
     def _split_child(self, parent, index):
         self.operation_counter += 1
@@ -85,7 +92,9 @@ class BPlusTree:
 
         bptree_logger.debug(
             "[%s][%s] SPLIT - Splitting child at index: %s",
-            self.name, self.operation_counter, index
+            self.name,
+            self.operation_counter,
+            index,
         )
         bptree_logger.debug("[%s] Parent keys: %s", self.name, parent.keys)
         bptree_logger.debug("[%s] Child keys before split: %s", self.name, y.keys)
@@ -102,35 +111,39 @@ class BPlusTree:
             z.next = y.next
             y.next = z
 
+            bptree_logger.debug("[%s] Leaf node split - mid point: %s", self.name, mid)
             bptree_logger.debug(
-                "[%s] Leaf node split - mid point: %s", self.name, mid)
+                "[%s] Left node keys after split: %s", self.name, y.keys
+            )
             bptree_logger.debug(
-                "[%s] Left node keys after split: %s", self.name, y.keys)
-            bptree_logger.debug(
-                "[%s] Right node keys after split: %s", self.name, z.keys)
+                "[%s] Right node keys after split: %s", self.name, z.keys
+            )
         else:
             # For internal nodes, we move the middle key up
             middle_key = y.keys[mid]
-            z.keys = y.keys[mid + 1:]
+            z.keys = y.keys[mid + 1 :]
             parent.keys.insert(index, middle_key)
             y.keys = y.keys[:mid]
 
             # Move the corresponding children
-            z.children = y.children[mid + 1:]
+            z.children = y.children[mid + 1 :]
             y.children = y.children[: mid + 1]
 
             bptree_logger.debug(
-                "[%s] Internal node split - mid key moving up: %s", self.name, middle_key
+                "[%s] Internal node split - mid key moving up: %s",
+                self.name,
+                middle_key,
             )
             bptree_logger.debug(
-                "[%s] Left node keys after split: %s", self.name, y.keys)
+                "[%s] Left node keys after split: %s", self.name, y.keys
+            )
             bptree_logger.debug(
-                "[%s] Right node keys after split: %s", self.name, z.keys)
+                "[%s] Right node keys after split: %s", self.name, z.keys
+            )
 
         # Insert z as a child of parent
         parent.children.insert(index + 1, z)
-        bptree_logger.debug(
-            "[%s] Parent keys after split: %s", self.name, parent.keys)
+        bptree_logger.debug("[%s] Parent keys after split: %s", self.name, parent.keys)
 
     def _insert_non_full(self, node, key, value):
         """Insert a key-value pair into a non-full node"""
@@ -150,14 +163,21 @@ class BPlusTree:
                     node.keys[idx] = (key, value)
                     bptree_logger.debug(
                         "[%s] UPDATE - key: %s, old value: %s, new value: %s",
-                        self.name, key, old_value, value)
+                        self.name,
+                        key,
+                        old_value,
+                        value,
+                    )
                     return
 
             # Insert the new key-value pair
             node.keys.insert(i + 1, (key, value))
             bptree_logger.debug(
                 "[%s] INSERT LEAF - key: %s, value: %s, position: %s",
-                self.name, key, value, i + 1
+                self.name,
+                key,
+                value,
+                i + 1,
             )
         else:
             # Find the child which will have the new key
@@ -175,15 +195,13 @@ class BPlusTree:
                 i = len(node.children) - 1
 
             bptree_logger.debug(
-                "[%s] INSERT INTERNAL - traversing to child at index %s",
-                self.name, i
+                "[%s] INSERT INTERNAL - traversing to child at index %s", self.name, i
             )
 
             # Check if the child is full
             if len(node.children[i].keys) == (2 * self.order) - 1:
                 bptree_logger.debug(
-                    "[%s] Child node at index %s is full, needs splitting",
-                    self.name, i
+                    "[%s] Child node at index %s is full, needs splitting", self.name, i
                 )
                 # Split the child
                 self._split_child(node, i)
@@ -192,8 +210,7 @@ class BPlusTree:
                 if i < len(node.keys) and key > node.keys[i]:
                     i += 1
                     bptree_logger.debug(
-                        "[%s] After split, moving to child at index %s",
-                        self.name, i
+                        "[%s] After split, moving to child at index %s", self.name, i
                     )
 
                 # Ensure i is within bounds after potentially incrementing
@@ -234,7 +251,9 @@ class BPlusTree:
             # For leaf nodes, keys are (key, value) tuples
             for i, (k, v) in enumerate(node.keys):
                 if k == key:
-                    bptree_logger.debug("[%s] FOUND - key: %s, value: %s", self.name, key, v)
+                    bptree_logger.debug(
+                        "[%s] FOUND - key: %s, value: %s", self.name, key, v
+                    )
                     return v
             bptree_logger.debug("[%s] NOT FOUND - key: %s", self.name, key)
             return None  # Key not found
@@ -249,20 +268,22 @@ class BPlusTree:
                 return self._search(node.children[i], key)
             else:
                 # If key equals key at position i, go to child i+1
-                return self._search(node.children[i+1], key)
+                return self._search(node.children[i + 1], key)
 
     def range_query(self, start_key, end_key):
         """Get all values with keys between start_key and end_key."""
         self.operation_counter += 1
         bptree_logger.debug(
             "[%s][%s] RANGE QUERY - from %s to %s",
-            self.name, self.operation_counter, start_key, end_key
+            self.name,
+            self.operation_counter,
+            start_key,
+            end_key,
         )
         result = []
         self._range_query(self.root, start_key, end_key, result)
         bptree_logger.debug(
-            "[%s] RANGE QUERY RESULT - found %s entries",
-            self.name, len(result)
+            "[%s] RANGE QUERY RESULT - found %s entries", self.name, len(result)
         )
         return result
 
@@ -290,9 +311,11 @@ class BPlusTree:
             node_data = {
                 "id": node_id,
                 "leaf": node.leaf,
-                "keys": [k[0] if node.leaf else k for k in node.keys]
-                if node.leaf
-                else node.keys,
+                "keys": (
+                    [k[0] if node.leaf else k for k in node.keys]
+                    if node.leaf
+                    else node.keys
+                ),
                 "children": [],
             }
 
@@ -380,7 +403,7 @@ class BPlusTree:
             The loaded B+ tree or None if unsuccessful
         """
         try:
-            with open(file_path, 'rb') as file:
+            with open(file_path, "rb") as file:
                 tree_data = pickle.load(file)
 
                 # Make sure we have a proper tree structure
@@ -389,7 +412,7 @@ class BPlusTree:
                     return None
 
                 # Verify the tree structure is intact
-                if not hasattr(tree_data, 'root') or not tree_data.root:
+                if not hasattr(tree_data, "root") or not tree_data.root:
                     logging.error("Loaded B+ tree from %s has no root node", file_path)
                     return None
 

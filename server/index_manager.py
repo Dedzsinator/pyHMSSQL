@@ -3,10 +3,12 @@ Index manager to handle B+ tree indexing with proper caching support.
 
 This module provides enhanced caching for B+ tree indexes to improve performance.
 """
+
 import logging
 from collections import OrderedDict
 import time
 import threading
+
 
 class IndexManager:
     """Manage indexes with caching support"""

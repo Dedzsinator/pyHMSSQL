@@ -9,28 +9,43 @@ import os
 import logging
 
 # Configuration flags
-DISABLE_PROFILING = os.environ.get('DISABLE_PROFILING', '0').lower() in ('1', 'true', 'yes', 'on')
-QUICK_TESTS_ONLY = os.environ.get('QUICK_TESTS_ONLY', '0').lower() in ('1', 'true', 'yes', 'on')
-VERBOSE_OUTPUT = os.environ.get('VERBOSE_TESTS', '0').lower() in ('1', 'true', 'yes', 'on')
+DISABLE_PROFILING = os.environ.get("DISABLE_PROFILING", "0").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+QUICK_TESTS_ONLY = os.environ.get("QUICK_TESTS_ONLY", "0").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+VERBOSE_OUTPUT = os.environ.get("VERBOSE_TESTS", "0").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
 
 # Test data sizes for different modes
 if QUICK_TESTS_ONLY:
     # Smaller datasets for quick testing
     TEST_SIZES = {
-        'small': 50,
-        'medium': 200,
-        'large': 500,
-        'grid_size': 10,
-        'stress_size': 100
+        "small": 50,
+        "medium": 200,
+        "large": 500,
+        "grid_size": 10,
+        "stress_size": 100,
     }
 else:
     # Full test datasets
     TEST_SIZES = {
-        'small': 100,
-        'medium': 500,
-        'large': 1000,
-        'grid_size': 20,
-        'stress_size': 1000
+        "small": 100,
+        "medium": 500,
+        "large": 1000,
+        "grid_size": 20,
+        "stress_size": 1000,
     }
 
 # B+ tree orders to test
@@ -41,6 +56,7 @@ TEST_DIMENSIONS = [2, 3] if QUICK_TESTS_ONLY else [2, 3, 5]
 
 # Performance test timeouts
 PERFORMANCE_TIMEOUT = 2.0 if QUICK_TESTS_ONLY else 10.0
+
 
 def log_test_config():
     """Log the current test configuration."""
@@ -56,25 +72,25 @@ def log_test_config():
 
 class MockProfiler:
     """Mock profiler for when profiling is disabled."""
-    
+
     def __init__(self, *args, **kwargs):
         pass
-    
+
     def start_profiling(self):
         pass
-    
+
     def stop_profiling(self):
         pass
-    
+
     def start_operation(self, operation_name, **kwargs):
         pass
-    
+
     def end_operation(self):
         pass
-    
+
     def get_metrics(self):
         return {}
-    
+
     def export_report(self, filename):
         pass
 
@@ -86,6 +102,7 @@ def get_profiler(*args, **kwargs):
     else:
         try:
             from profiler import SystemProfiler
+
             return SystemProfiler(*args, **kwargs)
         except ImportError:
             logging.warning("System profiler not available, using mock profiler")

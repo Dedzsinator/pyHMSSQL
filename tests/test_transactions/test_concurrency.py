@@ -1,6 +1,7 @@
 """
 Tests for concurrency control in the DBMS.
 """
+
 import pytest
 import threading
 import time
@@ -8,14 +9,17 @@ import sys
 import os
 
 # Add server directory to path
-project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
-server_dir = os.path.join(project_root, 'server')
+project_root = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "..")
+)
+server_dir = os.path.join(project_root, "server")
 if server_dir not in sys.path:
     sys.path.insert(0, server_dir)
 
 # Now import directly from the modules
 from execution_engine import ExecutionEngine
 from ddl_processor.index_manager import IndexManager
+
 
 class TestConcurrencyControl:
     """Test concurrency control mechanisms."""
@@ -36,7 +40,7 @@ class TestConcurrencyControl:
                 "table": test_table,
                 "set": [("name", "'Thread 1 Update'"), ("age", 55)],
                 "condition": "id = 1",
-                "session_id": "session1"
+                "session_id": "session1",
             }
 
             # Signal ready to execute
@@ -61,7 +65,7 @@ class TestConcurrencyControl:
                 "table": test_table,
                 "set": [("name", "'Thread 2 Update'"), ("age", 60)],
                 "condition": "id = 1",
-                "session_id": "session2"
+                "session_id": "session2",
             }
 
             return execution_engine2.execute(plan)
@@ -92,7 +96,7 @@ class TestConcurrencyControl:
         # Create additional tables
         columns = [
             {"name": "id", "type": "INT", "primary_key": True},
-            {"name": "value", "type": "TEXT"}
+            {"name": "value", "type": "TEXT"},
         ]
         catalog_manager.create_table("table_a", columns)
         catalog_manager.create_table("table_b", columns)
@@ -120,7 +124,7 @@ class TestConcurrencyControl:
                 "table": "table_a",
                 "set": [("value", "'Updated A'")],
                 "condition": "id = 1",
-                "session_id": "thread1"
+                "session_id": "thread1",
             }
             result1 = engine1.execute(plan1)
 
@@ -136,7 +140,7 @@ class TestConcurrencyControl:
                 "table": "table_b",
                 "set": [("value", "'Updated B from thread1'")],
                 "condition": "id = 1",
-                "session_id": "thread1"
+                "session_id": "thread1",
             }
             result2 = engine1.execute(plan2)
 
@@ -152,7 +156,7 @@ class TestConcurrencyControl:
                 "table": "table_b",
                 "set": [("value", "'Updated B'")],
                 "condition": "id = 1",
-                "session_id": "thread2"
+                "session_id": "thread2",
             }
             result1 = engine2.execute(plan1)
 
@@ -165,7 +169,7 @@ class TestConcurrencyControl:
                 "table": "table_a",
                 "set": [("value", "'Updated A from thread2'")],
                 "condition": "id = 1",
-                "session_id": "thread2"
+                "session_id": "thread2",
             }
             result2 = engine2.execute(plan2)
 
@@ -190,5 +194,6 @@ class TestConcurrencyControl:
         )[0]
 
         # Check that at least one update was successful
-        assert (record_a["value"].startswith("Updated") or
-                record_b["value"].startswith("Updated"))
+        assert record_a["value"].startswith("Updated") or record_b["value"].startswith(
+            "Updated"
+        )

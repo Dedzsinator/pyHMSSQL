@@ -1,22 +1,27 @@
 """
 Tests for complex and obscure SQL query parsing.
 """
+
 import pytest
 import sys
 import os
 
 # Add server directory to path
-project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
-server_dir = os.path.join(project_root, 'server')
+project_root = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "..")
+)
+server_dir = os.path.join(project_root, "server")
 if server_dir not in sys.path:
     sys.path.insert(0, server_dir)
 
 from parser import SQLParser
 
+
 @pytest.fixture
 def parser():
     """Create a parser instance for testing."""
     return SQLParser()
+
 
 class TestJoinQueries:
     """Test complex JOIN queries."""
@@ -88,6 +93,7 @@ class TestJoinQueries:
         assert parsed["type"] == "JOIN"
         assert "where_conditions" in parsed or "condition" in parsed
 
+
 class TestSubqueries:
     """Test subquery parsing."""
 
@@ -128,6 +134,7 @@ class TestSubqueries:
         # Should parse as a SELECT with subquery
         assert parsed["type"] == "SELECT"
 
+
 class TestAggregateQueries:
     """Test aggregate function parsing."""
 
@@ -165,8 +172,11 @@ class TestAggregateQueries:
         """
         parsed = parser.parse_sql(query)
 
-        assert parsed["type"] == "AGGREGATE"  # SQLGlot correctly identifies this as an aggregate operation
+        assert (
+            parsed["type"] == "AGGREGATE"
+        )  # SQLGlot correctly identifies this as an aggregate operation
         assert "group_by" in parsed or "GROUP BY" in str(parsed)
+
 
 class TestSetOperations:
     """Test set operations (UNION, INTERSECT, EXCEPT)."""
@@ -217,6 +227,7 @@ class TestSetOperations:
 
         assert parsed["type"] == "EXCEPT"
 
+
 class TestWindowFunctions:
     """Test window function parsing."""
 
@@ -253,6 +264,7 @@ class TestWindowFunctions:
         parsed = parser.parse_sql(query)
 
         assert parsed["type"] == "SELECT"
+
 
 class TestObscureQueries:
     """Test obscure and edge case queries."""
@@ -337,7 +349,9 @@ class TestObscureQueries:
         """
         parsed = parser.parse_sql(query)
 
-        assert parsed["type"] == "AGGREGATE"  # SQLGlot correctly identifies this as an aggregate operation
+        assert (
+            parsed["type"] == "AGGREGATE"
+        )  # SQLGlot correctly identifies this as an aggregate operation
 
     def test_json_operations(self, parser):
         """Test JSON operations (MySQL/PostgreSQL style)."""
@@ -353,6 +367,7 @@ class TestObscureQueries:
 
         assert parsed["type"] == "SELECT"
 
+
 class TestSpecialStatements:
     """Test special statement types."""
 
@@ -363,7 +378,7 @@ class TestSpecialStatements:
             "SHOW TABLES",
             "SHOW COLUMNS FROM users",
             "SHOW INDEXES FROM users",
-            "SHOW CREATE TABLE users"
+            "SHOW CREATE TABLE users",
         ]
 
         for query in queries:
@@ -394,7 +409,7 @@ class TestSpecialStatements:
             "ROLLBACK",
             "START TRANSACTION",
             "COMMIT TRANSACTION",
-            "ROLLBACK TRANSACTION"
+            "ROLLBACK TRANSACTION",
         ]
 
         for query in queries:
@@ -411,15 +426,13 @@ class TestSpecialStatements:
 
     def test_visualize_statement(self, parser):
         """Test custom VISUALIZE statement."""
-        queries = [
-            "VISUALIZE BPTREE ON users",
-            "VISUALIZE BPTREE idx_name ON users"
-        ]
+        queries = ["VISUALIZE BPTREE ON users", "VISUALIZE BPTREE idx_name ON users"]
 
         for query in queries:
             parsed = parser.parse_sql(query)
             assert parsed["type"] == "VISUALIZE"
             assert parsed["object"] == "BPTREE"
+
 
 class TestErrorHandling:
     """Test parser error handling."""
@@ -446,6 +459,7 @@ class TestErrorHandling:
         query = "SELECT * FROM users JOIN ON orders"
         parsed = parser.parse_sql(query)
         assert "error" in parsed
+
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
@@ -484,7 +498,7 @@ class TestEdgeCases:
 
     def test_special_characters_in_identifiers(self, parser):
         """Test parsing with special characters in identifiers."""
-        query = 'SELECT `weird-column`, `table with spaces`.`another-column` FROM `table with spaces`'
+        query = "SELECT `weird-column`, `table with spaces`.`another-column` FROM `table with spaces`"
         parsed = parser.parse_sql(query)
 
         assert parsed["type"] == "SELECT"

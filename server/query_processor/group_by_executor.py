@@ -26,7 +26,11 @@ class GroupByExecutor:
             return {"error": "No table specified", "status": "error", "type": "error"}
 
         if not group_by_columns:
-            return {"error": "No GROUP BY columns specified", "status": "error", "type": "error"}
+            return {
+                "error": "No GROUP BY columns specified",
+                "status": "error",
+                "type": "error",
+            }
 
         # Get current database
         db_name = self.catalog_manager.get_current_database()
@@ -41,7 +45,11 @@ class GroupByExecutor:
         if table_name.lower() in tables_lower:
             actual_table_name = tables_lower[table_name.lower()]
         elif table_name not in tables:
-            return {"error": f"Table '{table_name}' does not exist", "status": "error", "type": "error"}
+            return {
+                "error": f"Table '{table_name}' does not exist",
+                "status": "error",
+                "type": "error",
+            }
 
         try:
             # Parse conditions if present
@@ -54,8 +62,10 @@ class GroupByExecutor:
                 # Clean quoted values
                 for cond in conditions:
                     val = cond.get("value")
-                    if isinstance(val, str) and ((val.startswith("'") and val.endswith("'")) or
-                                               (val.startswith('"') and val.endswith('"'))):
+                    if isinstance(val, str) and (
+                        (val.startswith("'") and val.endswith("'"))
+                        or (val.startswith('"') and val.endswith('"'))
+                    ):
                         cond["value"] = val[1:-1]
 
             # Get all records
@@ -68,7 +78,7 @@ class GroupByExecutor:
                     "columns": [],
                     "rows": [],
                     "status": "success",
-                    "type": "select_result"
+                    "type": "select_result",
                 }
 
             # Group records by the GROUP BY columns
@@ -109,28 +119,26 @@ class GroupByExecutor:
 
                         if func_name in ("COUNT", "SUM", "AVG", "MIN", "MAX"):
                             result_columns.append(f"{func_name}({col_name})")
-                            column_specs.append({
-                                "type": "aggregate",
-                                "function": func_name,
-                                "column": col_name,
-                                "original": col
-                            })
+                            column_specs.append(
+                                {
+                                    "type": "aggregate",
+                                    "function": func_name,
+                                    "column": col_name,
+                                    "original": col,
+                                }
+                            )
                         else:
                             # Not an aggregate, treat as group column
                             result_columns.append(col)
-                            column_specs.append({
-                                "type": "group",
-                                "column": col,
-                                "original": col
-                            })
+                            column_specs.append(
+                                {"type": "group", "column": col, "original": col}
+                            )
                     else:
                         # Regular column, should be in GROUP BY
                         result_columns.append(col)
-                        column_specs.append({
-                            "type": "group",
-                            "column": col,
-                            "original": col
-                        })
+                        column_specs.append(
+                            {"type": "group", "column": col, "original": col}
+                        )
 
             # Calculate results for each group
             result_rows = []
@@ -171,7 +179,11 @@ class GroupByExecutor:
                             if col == "*":
                                 row.append(len(group_records))
                             elif actual_col:
-                                count = sum(1 for r in group_records if r.get(actual_col) is not None)
+                                count = sum(
+                                    1
+                                    for r in group_records
+                                    if r.get(actual_col) is not None
+                                )
                                 row.append(count)
                             else:
                                 row.append(0)
@@ -210,14 +222,22 @@ class GroupByExecutor:
 
                         elif func == "MIN":
                             if actual_col:
-                                values = [r.get(actual_col) for r in group_records if r.get(actual_col) is not None]
+                                values = [
+                                    r.get(actual_col)
+                                    for r in group_records
+                                    if r.get(actual_col) is not None
+                                ]
                                 row.append(min(values) if values else None)
                             else:
                                 row.append(None)
 
                         elif func == "MAX":
                             if actual_col:
-                                values = [r.get(actual_col) for r in group_records if r.get(actual_col) is not None]
+                                values = [
+                                    r.get(actual_col)
+                                    for r in group_records
+                                    if r.get(actual_col) is not None
+                                ]
                                 row.append(max(values) if values else None)
                             else:
                                 row.append(None)
@@ -232,7 +252,11 @@ class GroupByExecutor:
                 else:
                     parts = order_by.strip().split()
                     order_column = parts[0]
-                    direction = "DESC" if len(parts) > 1 and parts[1].upper() == "DESC" else "ASC"
+                    direction = (
+                        "DESC"
+                        if len(parts) > 1 and parts[1].upper() == "DESC"
+                        else "ASC"
+                    )
 
                 # Find column index for sorting
                 order_col_index = None
@@ -243,7 +267,12 @@ class GroupByExecutor:
 
                 if order_col_index is not None:
                     reverse = direction == "DESC"
-                    result_rows.sort(key=lambda x: x[order_col_index] if x[order_col_index] is not None else "", reverse=reverse)
+                    result_rows.sort(
+                        key=lambda x: (
+                            x[order_col_index] if x[order_col_index] is not None else ""
+                        ),
+                        reverse=reverse,
+                    )
 
             # Apply LIMIT if specified
             if limit is not None:
@@ -254,15 +283,23 @@ class GroupByExecutor:
                 except (ValueError, TypeError):
                     pass
 
-            logging.info("GROUP BY result: %d rows with columns: %s", len(result_rows), result_columns)
+            logging.info(
+                "GROUP BY result: %d rows with columns: %s",
+                len(result_rows),
+                result_columns,
+            )
 
             return {
                 "columns": result_columns,
                 "rows": result_rows,
                 "status": "success",
-                "type": "select_result"
+                "type": "select_result",
             }
 
         except Exception as e:
             logging.error("Error executing GROUP BY: %s", str(e))
-            return {"error": f"Error executing GROUP BY: {str(e)}", "status": "error", "type": "error"}
+            return {
+                "error": f"Error executing GROUP BY: {str(e)}",
+                "status": "error",
+                "type": "error",
+            }

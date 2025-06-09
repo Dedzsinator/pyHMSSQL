@@ -1,22 +1,27 @@
 """
 Shared configuration for parser tests.
 """
+
 import pytest
 import sys
 import os
 
 # Add server directory to path
-project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
-server_dir = os.path.join(project_root, 'server')
+project_root = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "..")
+)
+server_dir = os.path.join(project_root, "server")
 if server_dir not in sys.path:
     sys.path.insert(0, server_dir)
 
 from parser import SQLParser
 
+
 @pytest.fixture(scope="session")
 def parser():
     """Create a parser instance for testing."""
     return SQLParser()
+
 
 @pytest.fixture(scope="session")
 def sample_queries():
@@ -71,8 +76,9 @@ def sample_queries():
             GROUP BY user_id
             HAVING SUM(amount) > 1000
             ORDER BY SUM(amount) DESC
-        """
+        """,
     }
+
 
 # Add markers for different test categories
 def pytest_configure(config):

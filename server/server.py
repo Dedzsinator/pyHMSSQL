@@ -3,6 +3,7 @@
 Returns:
     _type_: _description_
 """
+
 from logging.handlers import RotatingFileHandler
 import datetime
 import re
@@ -33,6 +34,7 @@ from ddl_processor.index_manager import IndexManager  # noqa: E402
 from catalog_manager import CatalogManager  # noqa: E402
 from scaler import ReplicationManager, ReplicationMode, ReplicaRole  # noqa: E402
 
+
 def setup_logging():
     """
     Configure logging with output only to a log file, not to console.
@@ -41,8 +43,7 @@ def setup_logging():
         str: Path to the log file
     """
     # Create logs directory if it doesn't exist
-    logs_dir = os.path.join(os.path.dirname(
-        os.path.abspath(__file__)), "../logs")
+    logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../logs")
     os.makedirs(logs_dir, exist_ok=True)
 
     # Generate log filename with timestamp
@@ -77,11 +78,13 @@ def setup_logging():
 
     return log_file
 
+
 # Initialize logging
 log_file = setup_logging()
 
 DISCOVERY_PORT = 9998
 BROADCAST_INTERVAL = 5  # seconds
+
 
 class DBMSServer:
     """_summary_"""
@@ -100,9 +103,7 @@ class DBMSServer:
         self.planner = Planner(self.catalog_manager, self.index_manager)
 
         self.execution_engine = ExecutionEngine(
-            self.catalog_manager,
-            self.index_manager,
-            self.planner
+            self.catalog_manager, self.index_manager, self.planner
         )
 
         # Initialize parser
@@ -110,8 +111,7 @@ class DBMSServer:
 
         # Initialize replication manager (start as primary)
         self.replication_manager = ReplicationManager(
-            mode=ReplicationMode.SEMI_SYNC,
-            sync_replicas=1
+            mode=ReplicationMode.SEMI_SYNC, sync_replicas=1
         )
 
         self.host = host
@@ -144,7 +144,9 @@ class DBMSServer:
         os.makedirs(logs_dir, exist_ok=True)
 
         # Start the discovery broadcast thread
-        self.discovery_thread = threading.Thread(target=self._broadcast_presence, daemon=True)
+        self.discovery_thread = threading.Thread(
+            target=self._broadcast_presence, daemon=True
+        )
         self.discovery_thread.start()
         logging.info("Discovery broadcast started for server: %s", self.server_name)
 
@@ -152,7 +154,9 @@ class DBMSServer:
         """Store a transaction ID for a session."""
         if transaction_id:
             self.active_transactions[session_id] = transaction_id
-            logging.info(f"Stored transaction {transaction_id} for session {session_id}")
+            logging.info(
+                f"Stored transaction {transaction_id} for session {session_id}"
+            )
 
     def _get_transaction_id(self, session_id):
         """Get the active transaction ID for a session."""
@@ -162,7 +166,9 @@ class DBMSServer:
         """Clear the transaction ID for a session after commit/rollback."""
         if session_id in self.active_transactions:
             transaction_id = self.active_transactions.pop(session_id)
-            logging.info(f"Cleared transaction {transaction_id} for session {session_id}")
+            logging.info(
+                f"Cleared transaction {transaction_id} for session {session_id}"
+            )
 
     def _log_query_audit(self, username, query):
         """
@@ -174,8 +180,7 @@ class DBMSServer:
         """
         try:
             timestamp = datetime.datetime.now().isoformat()
-            log_entry = {"timestamp": timestamp,
-                         "username": username, "query": query}
+            log_entry = {"timestamp": timestamp, "username": username, "query": query}
 
             # Log to the audit log file
             logs_dir = os.path.join(
@@ -205,18 +210,21 @@ class DBMSServer:
         # Prepare server info
         server_info = {
             "name": self.server_name,
-            "host": self.host if self.host != "localhost" else\
-                socket.gethostbyname(socket.gethostname()),
+            "host": (
+                self.host
+                if self.host != "localhost"
+                else socket.gethostbyname(socket.gethostname())
+            ),
             "port": self.port,
-            "service": "HMSSQL"
+            "service": "HMSSQL",
         }
 
-        encoded_info = json.dumps(server_info).encode('utf-8')
+        encoded_info = json.dumps(server_info).encode("utf-8")
 
         while True:
             try:
                 # Broadcast to the network
-                discovery_socket.sendto(encoded_info, ('<broadcast>', DISCOVERY_PORT))
+                discovery_socket.sendto(encoded_info, ("<broadcast>", DISCOVERY_PORT))
                 logging.debug("Broadcast server info: %s", server_info)
             except RuntimeError as e:
                 logging.error("Error broadcasting presence: %s", str(e))
@@ -273,7 +281,10 @@ class DBMSServer:
             request_type = data.get("action", data.get("type"))  # Try both fields
 
             if not request_type:
-                return {"error": "Invalid request: missing action/type", "status": "error"}
+                return {
+                    "error": "Invalid request: missing action/type",
+                    "status": "error",
+                }
 
             # Extract query for multiple handlers that need it
             query = data.get("query", "")
@@ -289,7 +300,9 @@ class DBMSServer:
                     user = self.sessions[session_id].get("username")
 
                 # Check if this is a VISUALIZE query and redirect
-                if isinstance(query, str) and query.strip().upper().startswith("VISUALIZE"):
+                if isinstance(query, str) and query.strip().upper().startswith(
+                    "VISUALIZE"
+                ):
                     return self.handle_visualize(data)
 
                 # Pass the extracted query string instead of the whole data dictionary
@@ -303,7 +316,7 @@ class DBMSServer:
             if request_type == "node":
                 # New handler for node management commands
                 return self.handle_node_command(data)
-            
+
             logging.error("Unknown request type: %s", request_type)
             return {
                 "error": f"Unknown request type: {request_type}",
@@ -327,8 +340,7 @@ class DBMSServer:
         user = self.sessions[session_id]
         query = data.get("query", "")
         logging.info(
-            "Visualization request from %s: %s", user.get(
-                "username", "Unknown"), query
+            "Visualization request from %s: %s", user.get("username", "Unknown"), query
         )
 
         # Parse as a visualization command using the parser
@@ -428,8 +440,7 @@ class DBMSServer:
             logging.info("User %s logged out successfully", username)
             return {"message": "Logged out successfully.", "status": "success"}
         else:
-            logging.warning(
-                "Invalid logout attempt with session ID: %s", session_id)
+            logging.warning("Invalid logout attempt with session ID: %s", session_id)
             return {"error": "Invalid session ID.", "status": "error"}
 
     def handle_register(self, data):
@@ -450,8 +461,7 @@ class DBMSServer:
                 "status": "success",
             }
         else:
-            logging.warning(
-                "Failed registration for user %s: %s", username, result)
+            logging.warning("Failed registration for user %s: %s", username, result)
             if isinstance(result, str):
                 return {"error": result, "status": "error"}
             return result
@@ -466,8 +476,7 @@ class DBMSServer:
         """
         try:
             timestamp = datetime.datetime.now().isoformat()
-            log_entry = {"timestamp": timestamp,
-                         "username": username, "query": query}
+            log_entry = {"timestamp": timestamp, "username": username, "query": query}
 
             # Log to the audit log file
             logs_dir = os.path.join(
@@ -521,12 +530,14 @@ class DBMSServer:
                 return {"error": "Missing primary host or port", "status": "error"}
 
             # Try to register with the primary
-            success = self.replication_manager.register_as_replica(primary_host, primary_port)
+            success = self.replication_manager.register_as_replica(
+                primary_host, primary_port
+            )
 
             if success:
                 return {
                     "status": "success",
-                    "message": f"Registered as replica to {primary_host}:{primary_port}"
+                    "message": f"Registered as replica to {primary_host}:{primary_port}",
                 }
             else:
                 return {"error": "Failed to register as replica", "status": "error"}
@@ -539,14 +550,14 @@ class DBMSServer:
                     "status": "success",
                     "role": "primary",
                     "replicas": replicas,
-                    "server_id": self.replication_manager.server_id
+                    "server_id": self.replication_manager.server_id,
                 }
             else:
                 return {
                     "status": "success",
                     "role": "replica",
                     "primary_id": self.replication_manager.primary_id,
-                    "lag": self.replication_manager.oplog_position
+                    "lag": self.replication_manager.oplog_position,
                 }
 
         elif command == "promote_to_primary":
@@ -578,7 +589,7 @@ class DBMSServer:
                 if primary_alive:
                     return {
                         "error": "Cannot promote to primary: current primary is still active",
-                        "status": "error"
+                        "status": "error",
                     }
             except RuntimeError as e:
                 logging.error(f"Error checking primary status: {str(e)}")
@@ -591,10 +602,7 @@ class DBMSServer:
             # Start accepting write operations
             logging.info(f"Promoted from replica to primary server")
 
-            return {
-                "status": "success",
-                "message": "Promoted to primary"
-            }
+            return {"status": "success", "message": "Promoted to primary"}
 
         return {"error": "Unknown node command", "status": "error"}
 
@@ -634,17 +642,19 @@ class DBMSServer:
                 for table in tables:
                     logging.info(f"Invalidating cache for table: {table}")
                     # Check if the method exists before calling it
-                    if hasattr(self.catalog_manager, '_invalidate_table_cache'):
+                    if hasattr(self.catalog_manager, "_invalidate_table_cache"):
                         self.catalog_manager._invalidate_table_cache(table)
         except Exception as e:
             logging.error(f"Error invalidating cache: {str(e)}")
 
         # Check if this is a DML query that modifies data
         is_modifying_query = (
-            query.strip().upper().startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER")) or
-            "INSERT INTO" in query.upper() or
-            "UPDATE " in query.upper() or
-            "DELETE FROM" in query.upper()
+            query.strip()
+            .upper()
+            .startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER"))
+            or "INSERT INTO" in query.upper()
+            or "UPDATE " in query.upper()
+            or "DELETE FROM" in query.upper()
         )
 
         # Extract table name from modification queries for cache invalidation
@@ -665,10 +675,14 @@ class DBMSServer:
                     target_table = match.group(1)
 
             if target_table:
-                logging.info(f"Identified target table for modification: {target_table}")
+                logging.info(
+                    f"Identified target table for modification: {target_table}"
+                )
 
         # Current database is useful for debugging
-        logging.info("Current database: %s", self.catalog_manager.get_current_database())
+        logging.info(
+            "Current database: %s", self.catalog_manager.get_current_database()
+        )
 
         try:
             # Parse and execute the query
@@ -683,7 +697,7 @@ class DBMSServer:
             plan = self.planner.plan_query(parsed_query)
 
             # Optimize the plan
-            if hasattr(self, 'optimizer'):
+            if hasattr(self, "optimizer"):
                 plan_type = plan.get("type")
                 optimized_plan = self.optimizer.optimize(plan, plan_type)
                 logging.info("✅ Optimized query plan")
@@ -732,11 +746,7 @@ class DBMSServer:
                             row.append(str(value))
                     rows.append(row)
 
-                return {
-                    "rows": rows,
-                    "columns": columns,
-                    "status": "success"
-                }
+                return {"rows": rows, "columns": columns, "status": "success"}
 
             return result
 
@@ -759,16 +769,16 @@ class DBMSServer:
             # Extract filename from the SCRIPT command
             parts = query.strip().split(None, 1)  # Split at first whitespace
             if len(parts) < 2:
-                return {"error": "Invalid SCRIPT command. Usage: SCRIPT filename.sql", "status": "error"}
+                return {
+                    "error": "Invalid SCRIPT command. Usage: SCRIPT filename.sql",
+                    "status": "error",
+                }
 
-            filename = parts[1].strip().rstrip(';')  # Remove semicolon if present
+            filename = parts[1].strip().rstrip(";")  # Remove semicolon if present
             logging.info(f"Executing script: {filename}")
 
             # Create a simple plan for script execution
-            script_plan = {
-                "type": "SCRIPT",
-                "filename": filename
-            }
+            script_plan = {"type": "SCRIPT", "filename": filename}
 
             # Use the existing method to execute the script
             return self._execute_script_plan(script_plan, user)
@@ -782,7 +792,7 @@ class DBMSServer:
         """Find the script file in various locations."""
         # Remove leading ./ if present
         clean_filename = filename
-        if filename.startswith('./'):
+        if filename.startswith("./"):
             clean_filename = filename[2:]
 
         # Get the current working directory (where client was started)
@@ -798,17 +808,34 @@ class DBMSServer:
             # Absolute path if provided
             filename if os.path.isabs(filename) else None,
             # Relative to project root
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filename),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), clean_filename),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filename
+            ),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                clean_filename,
+            ),
             # Relative to server directory
             os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
             os.path.join(os.path.dirname(os.path.abspath(__file__)), clean_filename),
             # In scripts subdirectory of project root
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", filename),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", clean_filename),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "scripts",
+                filename,
+            ),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "scripts",
+                clean_filename,
+            ),
             # In scripts subdirectory of server directory
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", filename),
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", clean_filename),
+            os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "scripts", filename
+            ),
+            os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "scripts", clean_filename
+            ),
         ]
 
         # Filter out None values
@@ -820,7 +847,9 @@ class DBMSServer:
                 return path
 
         # Log all attempted paths for debugging
-        logging.warning(f"Script file '{filename}' not found in any of these locations:")
+        logging.warning(
+            f"Script file '{filename}' not found in any of these locations:"
+        )
         for path in potential_paths:
             logging.warning(f"  - {path}")
 
@@ -831,21 +860,30 @@ class DBMSServer:
         try:
             filename = plan.get("filename")
             if not filename:
-                return {"error": "No filename specified in SCRIPT command", "status": "error"}
+                return {
+                    "error": "No filename specified in SCRIPT command",
+                    "status": "error",
+                }
 
             # Find the script file
             script_path = self._find_script_file(filename)
             if not script_path:
-                return {"error": f"Script file '{filename}' not found", "status": "error"}
+                return {
+                    "error": f"Script file '{filename}' not found",
+                    "status": "error",
+                }
 
             logging.info(f"Executing script file: {script_path}")
 
             # Read the script file
             try:
-                with open(script_path, 'r', encoding='utf-8') as f:
+                with open(script_path, "r", encoding="utf-8") as f:
                     script_content = f.read()
             except IOError as e:
-                return {"error": f"Failed to read script file '{filename}': {str(e)}", "status": "error"}
+                return {
+                    "error": f"Failed to read script file '{filename}': {str(e)}",
+                    "status": "error",
+                }
 
             # Execute the script
             results = self._execute_sql_script(script_content, user)
@@ -856,27 +894,45 @@ class DBMSServer:
                 if result["status"] == "success":
                     if result["result"]["type"] == "data":
                         # For data results, include the actual data
-                        formatted_results.append({
-                            "statement": result["statement"],
-                            "sql": result["sql"][:100] + "..." if len(result["sql"]) > 100 else result["sql"],
-                            "status": "success",
-                            "data": result["result"]
-                        })
+                        formatted_results.append(
+                            {
+                                "statement": result["statement"],
+                                "sql": (
+                                    result["sql"][:100] + "..."
+                                    if len(result["sql"]) > 100
+                                    else result["sql"]
+                                ),
+                                "status": "success",
+                                "data": result["result"],
+                            }
+                        )
                     else:
                         # For message results
-                        formatted_results.append({
-                            "statement": result["statement"],
-                            "sql": result["sql"][:100] + "..." if len(result["sql"]) > 100 else result["sql"],
-                            "status": "success",
-                            "message": result["result"]["message"]
-                        })
+                        formatted_results.append(
+                            {
+                                "statement": result["statement"],
+                                "sql": (
+                                    result["sql"][:100] + "..."
+                                    if len(result["sql"]) > 100
+                                    else result["sql"]
+                                ),
+                                "status": "success",
+                                "message": result["result"]["message"],
+                            }
+                        )
                 else:
-                    formatted_results.append({
-                        "statement": result["statement"],
-                        "sql": result["sql"][:100] + "..." if len(result["sql"]) > 100 else result["sql"],
-                        "status": "error",
-                        "error": result["error"]
-                    })
+                    formatted_results.append(
+                        {
+                            "statement": result["statement"],
+                            "sql": (
+                                result["sql"][:100] + "..."
+                                if len(result["sql"]) > 100
+                                else result["sql"]
+                            ),
+                            "status": "error",
+                            "error": result["error"],
+                        }
+                    )
 
             successful_count = sum(1 for r in results if r["status"] == "success")
 
@@ -886,7 +942,7 @@ class DBMSServer:
                 "script_file": filename,
                 "statements_executed": len(results),
                 "successful_statements": successful_count,
-                "results": formatted_results
+                "results": formatted_results,
             }
 
         except Exception as e:
@@ -899,17 +955,17 @@ class DBMSServer:
         statements = []
         current_statement = ""
 
-        for line in script_content.split('\n'):
+        for line in script_content.split("\n"):
             line = line.strip()
 
             # Skip empty lines and comments
-            if not line or line.startswith('--'):
+            if not line or line.startswith("--"):
                 continue
 
             current_statement += line + "\n"
 
             # Check if statement is complete (ends with semicolon)
-            if line.endswith(';'):
+            if line.endswith(";"):
                 statements.append(current_statement.strip())
                 current_statement = ""
 
@@ -933,114 +989,128 @@ class DBMSServer:
                 # Format result for display
                 if isinstance(result, dict):
                     if result.get("status") == "error":
-                        logging.warning(f"Statement {i} failed: {result.get('error', 'Unknown error')}")
-                        results.append({
-                            "statement": i,
-                            "sql": statement,
-                            "status": "error",
-                            "error": result.get('error', 'Unknown error')
-                        })
+                        logging.warning(
+                            f"Statement {i} failed: {result.get('error', 'Unknown error')}"
+                        )
+                        results.append(
+                            {
+                                "statement": i,
+                                "sql": statement,
+                                "status": "error",
+                                "error": result.get("error", "Unknown error"),
+                            }
+                        )
                     else:
                         logging.info(f"Statement {i} executed successfully")
 
                         # Create a user-friendly result
                         formatted_result = self._format_script_result(statement, result)
-                        results.append({
-                            "statement": i,
-                            "sql": statement,
-                            "status": "success",
-                            "result": formatted_result
-                        })
+                        results.append(
+                            {
+                                "statement": i,
+                                "sql": statement,
+                                "status": "success",
+                                "result": formatted_result,
+                            }
+                        )
                         successful_statements += 1
                 else:
                     logging.info(f"Statement {i} executed successfully")
                     formatted_result = self._format_script_result(statement, result)
-                    results.append({
-                        "statement": i,
-                        "sql": statement,
-                        "status": "success",
-                        "result": formatted_result
-                    })
+                    results.append(
+                        {
+                            "statement": i,
+                            "sql": statement,
+                            "status": "success",
+                            "result": formatted_result,
+                        }
+                    )
                     successful_statements += 1
 
             except Exception as e:
                 error_msg = f"Execution error: {str(e)}"
                 logging.warning(f"Statement {i} failed: {error_msg}")
-                results.append({
-                    "statement": i,
-                    "sql": statement,
-                    "status": "error",
-                    "error": error_msg
-                })
+                results.append(
+                    {
+                        "statement": i,
+                        "sql": statement,
+                        "status": "error",
+                        "error": error_msg,
+                    }
+                )
 
-        logging.info(f"Script execution completed: {successful_statements}/{len(statements)} statements successful")
+        logging.info(
+            f"Script execution completed: {successful_statements}/{len(statements)} statements successful"
+        )
         return results
 
     def _format_script_result(self, statement, result):
         """Format query result for script output."""
         stmt_type = statement.strip().upper().split()[0]
 
-        if stmt_type in ['SELECT', 'SHOW']:
+        if stmt_type in ["SELECT", "SHOW"]:
             # For SELECT and SHOW statements, return the data
             if isinstance(result, dict):
-                if 'rows' in result and 'columns' in result:
+                if "rows" in result and "columns" in result:
                     return {
                         "type": "data",
-                        "columns": result['columns'],
-                        "rows": result['rows'],
-                        "row_count": len(result['rows'])
+                        "columns": result["columns"],
+                        "rows": result["rows"],
+                        "row_count": len(result["rows"]),
                     }
-                elif 'data' in result:
-                    return {
-                        "type": "data",
-                        "data": result['data']
-                    }
+                elif "data" in result:
+                    return {"type": "data", "data": result["data"]}
             elif isinstance(result, list):
-                return {
-                    "type": "data",
-                    "rows": result,
-                    "row_count": len(result)
-                }
+                return {"type": "data", "rows": result, "row_count": len(result)}
             return {"type": "data", "message": "Query executed successfully"}
 
-        elif stmt_type in ['INSERT']:
+        elif stmt_type in ["INSERT"]:
             # For INSERT statements
-            if isinstance(result, dict) and 'rows_affected' in result:
-                return {"type": "message", "message": f"Inserted {result['rows_affected']} rows"}
-            elif isinstance(result, dict) and result.get('status') == 'success':
+            if isinstance(result, dict) and "rows_affected" in result:
+                return {
+                    "type": "message",
+                    "message": f"Inserted {result['rows_affected']} rows",
+                }
+            elif isinstance(result, dict) and result.get("status") == "success":
                 return {"type": "message", "message": "Insert completed successfully"}
             return {"type": "message", "message": "Insert executed"}
 
-        elif stmt_type in ['UPDATE']:
-            if isinstance(result, dict) and 'rows_affected' in result:
-                return {"type": "message", "message": f"Updated {result['rows_affected']} rows"}
-            elif isinstance(result, dict) and result.get('status') == 'success':
+        elif stmt_type in ["UPDATE"]:
+            if isinstance(result, dict) and "rows_affected" in result:
+                return {
+                    "type": "message",
+                    "message": f"Updated {result['rows_affected']} rows",
+                }
+            elif isinstance(result, dict) and result.get("status") == "success":
                 return {"type": "message", "message": "Update completed successfully"}
             return {"type": "message", "message": "Update executed"}
 
-        elif stmt_type in ['DELETE']:
-            if isinstance(result, dict) and 'rows_affected' in result:
-                return {"type": "message", "message": f"Deleted {result['rows_affected']} rows"}
-            elif isinstance(result, dict) and result.get('status') == 'success':
+        elif stmt_type in ["DELETE"]:
+            if isinstance(result, dict) and "rows_affected" in result:
+                return {
+                    "type": "message",
+                    "message": f"Deleted {result['rows_affected']} rows",
+                }
+            elif isinstance(result, dict) and result.get("status") == "success":
                 return {"type": "message", "message": "Delete completed successfully"}
             return {"type": "message", "message": "Delete executed"}
 
-        elif stmt_type == 'CREATE':
-            if 'TABLE' in statement.upper():
+        elif stmt_type == "CREATE":
+            if "TABLE" in statement.upper():
                 return {"type": "message", "message": "Table created successfully"}
-            elif 'DATABASE' in statement.upper():
+            elif "DATABASE" in statement.upper():
                 return {"type": "message", "message": "Database created successfully"}
-            elif 'INDEX' in statement.upper():
+            elif "INDEX" in statement.upper():
                 return {"type": "message", "message": "Index created successfully"}
             return {"type": "message", "message": "Create operation completed"}
 
-        elif stmt_type == 'DROP':
+        elif stmt_type == "DROP":
             return {"type": "message", "message": "Drop operation completed"}
 
-        elif stmt_type in ['BEGIN', 'COMMIT', 'ROLLBACK']:
+        elif stmt_type in ["BEGIN", "COMMIT", "ROLLBACK"]:
             return {"type": "message", "message": f"{stmt_type} transaction executed"}
 
-        elif stmt_type == 'USE':
+        elif stmt_type == "USE":
             return {"type": "message", "message": "Database changed successfully"}
 
         else:
@@ -1051,7 +1121,7 @@ class DBMSServer:
         logging.info("Server shutting down, performing cleanup...")
 
         # Close any database connections
-        if hasattr(self, 'catalog_manager'):
+        if hasattr(self, "catalog_manager"):
             try:
                 self.catalog_manager.close_all_connections()
                 logging.info("Closed all database connections")
@@ -1059,7 +1129,7 @@ class DBMSServer:
                 logging.error(f"Error closing database connections: {str(e)}")
 
         # Stop replication
-        if hasattr(self, 'replication_manager'):
+        if hasattr(self, "replication_manager"):
             try:
                 self.replication_manager.shutdown()
                 logging.info("Shut down replication manager")
@@ -1156,7 +1226,11 @@ class DBMSServer:
             print(row_str)
 
         print(f"\n{len(rows)} row(s) returned")
-def start_server(server_name=None, replication_mode=ReplicationMode.SEMI_SYNC, sync_replicas=1):
+
+
+def start_server(
+    server_name=None, replication_mode=ReplicationMode.SEMI_SYNC, sync_replicas=1
+):
     """Start the DBMS server with the specified configuration."""
     server = DBMSServer(data_dir="data", server_name=server_name)
 
@@ -1174,12 +1248,14 @@ def start_server(server_name=None, replication_mode=ReplicationMode.SEMI_SYNC, s
     print(f"Server listening on {SERVER_HOST}:{SERVER_PORT}...")
 
     # Start a thread to listen for incoming connections - NON-DAEMON thread
-    server_thread = threading.Thread(target=_server_connection_handler,
-                                    args=(sock, server), daemon=False)
+    server_thread = threading.Thread(
+        target=_server_connection_handler, args=(sock, server), daemon=False
+    )
     server_thread.start()
 
     # Return server instance for further configuration
     return server
+
 
 def _server_connection_handler(sock, server):
     """Handle incoming connections to the server."""
@@ -1194,7 +1270,9 @@ def _server_connection_handler(sock, server):
                 size_bytes = client.recv(4)
                 if not size_bytes:
                     client.close()
-                    logging.warning("Empty size received from %s, closing connection", address)
+                    logging.warning(
+                        "Empty size received from %s, closing connection", address
+                    )
                     continue
 
                 size = int.from_bytes(size_bytes, byteorder="big")
@@ -1202,7 +1280,9 @@ def _server_connection_handler(sock, server):
 
                 if not data_bytes:
                     client.close()
-                    logging.warning("Empty data received from %s, closing connection", address)
+                    logging.warning(
+                        "Empty data received from %s, closing connection", address
+                    )
                     continue
 
                 # Parse the JSON data
@@ -1248,30 +1328,49 @@ def _server_connection_handler(sock, server):
         sock.close()
         logging.info("Server socket closed")
 
+
 if __name__ == "__main__":
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Start the HMSSQL server')
-    parser.add_argument('--name', help='Custom server name')
+    parser = argparse.ArgumentParser(description="Start the HMSSQL server")
+    parser.add_argument("--name", help="Custom server name")
     # Add REST API related arguments
-    parser.add_argument('--use-api', action='store_true', help='Start the REST API server')
-    parser.add_argument('--api-host', default='0.0.0.0', help='Host address for REST API to bind')
-    parser.add_argument('--api-port', type=int, default=5000, help='Port for REST API to bind')
-    parser.add_argument('--api-debug', action='store_true', help='Run REST API in debug mode')
+    parser.add_argument(
+        "--use-api", action="store_true", help="Start the REST API server"
+    )
+    parser.add_argument(
+        "--api-host", default="0.0.0.0", help="Host address for REST API to bind"
+    )
+    parser.add_argument(
+        "--api-port", type=int, default=5000, help="Port for REST API to bind"
+    )
+    parser.add_argument(
+        "--api-debug", action="store_true", help="Run REST API in debug mode"
+    )
 
     # Add replication arguments
-    parser.add_argument('--replica-of', help='Primary server to replicate from (host:port)')
-    parser.add_argument('--sync-mode', choices=['sync', 'semi-sync', 'async'], default='semi-sync',
-                       help='Replication synchronization mode')
-    parser.add_argument('--sync-replicas', type=int, default=1,
-                       help='Number of replicas to wait for in semi-sync mode')
+    parser.add_argument(
+        "--replica-of", help="Primary server to replicate from (host:port)"
+    )
+    parser.add_argument(
+        "--sync-mode",
+        choices=["sync", "semi-sync", "async"],
+        default="semi-sync",
+        help="Replication synchronization mode",
+    )
+    parser.add_argument(
+        "--sync-replicas",
+        type=int,
+        default=1,
+        help="Number of replicas to wait for in semi-sync mode",
+    )
 
     args = parser.parse_args()
 
     # Configure replication mode
     replication_mode = ReplicationMode.SEMI_SYNC
-    if args.sync_mode == 'sync':
+    if args.sync_mode == "sync":
         replication_mode = ReplicationMode.SYNC
-    elif args.sync_mode == 'async':
+    elif args.sync_mode == "async":
         replication_mode = ReplicationMode.ASYNC
 
     # Check if we should start the REST API server
@@ -1281,7 +1380,9 @@ if __name__ == "__main__":
             from rest_api import app
 
             print(f"Starting HMSSQL REST API server on {args.api_host}:{args.api_port}")
-            logging.info(f"Starting HMSSQL REST API server on {args.api_host}:{args.api_port}")
+            logging.info(
+                f"Starting HMSSQL REST API server on {args.api_host}:{args.api_port}"
+            )
             app.run(host=args.api_host, port=args.api_port, debug=args.api_debug)
         except ImportError as e:
             logging.critical(f"Failed to import REST API module: {str(e)}")
@@ -1289,32 +1390,53 @@ if __name__ == "__main__":
             print(f"Error details: {str(e)}")
             sys.exit(1)
     else:
-        server = start_server(server_name=args.name, replication_mode=replication_mode,
-                            sync_replicas=args.sync_replicas)
+        server = start_server(
+            server_name=args.name,
+            replication_mode=replication_mode,
+            sync_replicas=args.sync_replicas,
+        )
 
         # If configured as replica, register with primary
         if args.replica_of and server:
             try:
-                primary_host, primary_port = args.replica_of.split(':')
+                primary_host, primary_port = args.replica_of.split(":")
                 primary_port = int(primary_port)
 
                 # Register with primary
-                SUCCESS = server.replication_manager.\
-                    register_as_replica(primary_host, primary_port)
+                SUCCESS = server.replication_manager.register_as_replica(
+                    primary_host, primary_port
+                )
 
                 if SUCCESS:
-                    logging.info("Successfully registered \
-                        as replica of %s:%s", primary_host, primary_port)
-                    print(f"Successfully registered as replica of {primary_host}:{primary_port}")
+                    logging.info(
+                        "Successfully registered \
+                        as replica of %s:%s",
+                        primary_host,
+                        primary_port,
+                    )
+                    print(
+                        f"Successfully registered as replica of {primary_host}:{primary_port}"
+                    )
                 else:
-                    logging.error("Failed to register \
-                        as replica of %s:%s", primary_host, primary_port)
-                    print(f"Failed to register as replica of {primary_host}:{primary_port}")
+                    logging.error(
+                        "Failed to register \
+                        as replica of %s:%s",
+                        primary_host,
+                        primary_port,
+                    )
+                    print(
+                        f"Failed to register as replica of {primary_host}:{primary_port}"
+                    )
             except ValueError:
-                logging.error("Invalid primary server \
-                    specification: %s. Use host:port format.", args.replica_of)
-                print(f"Invalid primary server specification:\
-                    {args.replica_of}. Use host:port format.")
+                logging.error(
+                    "Invalid primary server \
+                    specification: %s. Use host:port format.",
+                    args.replica_of,
+                )
+                print(
+                    f"Invalid primary server specification:\
+                    {args.replica_of}. Use host:port format."
+                )
 
         try:
             # This is an infinite loop that keeps the main thread alive

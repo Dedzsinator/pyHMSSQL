@@ -3,6 +3,7 @@
 This module implements the Data Manipulation Language (DML) operations,
 including INSERT, UPDATE, and DELETE, with concurrency control.
 """
+
 import logging
 import os
 from bptree import BPlusTree
@@ -56,13 +57,19 @@ class DMLExecutor:
             # Get table schema to determine columns if not specified
             table_id = f"{db_name}.{table_name}"
             if table_id not in self.catalog_manager.tables:
-                return {"error": f"Table '{table_name}' does not exist", "status": "error"}
+                return {
+                    "error": f"Table '{table_name}' does not exist",
+                    "status": "error",
+                }
 
             table_schema = self.catalog_manager.tables[table_id]
             table_columns_dict = table_schema.get("columns", {})
 
             if not table_columns_dict:
-                return {"error": f"Table '{table_name}' has no columns defined", "status": "error"}
+                return {
+                    "error": f"Table '{table_name}' has no columns defined",
+                    "status": "error",
+                }
 
             # Get ordered list of NON-IDENTITY columns from schema
             all_table_columns = []
@@ -70,7 +77,9 @@ class DMLExecutor:
 
             for col_name, col_info in table_columns_dict.items():
                 if not isinstance(col_info, dict):
-                    logging.warning(f"Column info for {col_name} is not a dict: {type(col_info)} - {col_info}")
+                    logging.warning(
+                        f"Column info for {col_name} is not a dict: {type(col_info)} - {col_info}"
+                    )
                     all_table_columns.append(col_name)
                     continue
 
@@ -82,7 +91,9 @@ class DMLExecutor:
             # If no columns specified, use non-identity columns in order
             if specified_columns is None:
                 columns = all_table_columns
-                logging.info(f"No columns specified, using non-identity columns: {columns}")
+                logging.info(
+                    f"No columns specified, using non-identity columns: {columns}"
+                )
             else:
                 columns = specified_columns
 
@@ -90,7 +101,7 @@ class DMLExecutor:
             if values_list and len(values_list[0]) != len(columns):
                 return {
                     "error": f"Number of values ({len(values_list[0])}) does not match number of columns ({len(columns)}). Available non-identity columns: {all_table_columns}",
-                    "status": "error"
+                    "status": "error",
                 }
 
             # CRITICAL OPTIMIZATION: Use batch insert for multiple records
@@ -114,7 +125,7 @@ class DMLExecutor:
                     return {
                         "message": f"Inserted {inserted_count} record(s) into {table_name}",
                         "status": "success",
-                        "count": inserted_count
+                        "count": inserted_count,
                     }
                 else:
                     return result
@@ -132,24 +143,36 @@ class DMLExecutor:
                 if isinstance(result, dict) and result.get("status") == "success":
                     # Check if this is part of a transaction and record the operation
                     transaction_id = plan.get("transaction_id")
-                    if transaction_id and hasattr(self, 'transaction_manager') and self.transaction_manager:
+                    if (
+                        transaction_id
+                        and hasattr(self, "transaction_manager")
+                        and self.transaction_manager
+                    ):
                         record_id = result.get("record_key")
                         if record_id:
                             operation = {
                                 "type": "INSERT",
                                 "table": table_name,
-                                "record_id": record_id
+                                "record_id": record_id,
                             }
-                            self.transaction_manager.record_operation(transaction_id, operation)
-                            logging.info(f"Recorded INSERT operation for transaction {transaction_id}: {table_name}.{record_id}")
+                            self.transaction_manager.record_operation(
+                                transaction_id, operation
+                            )
+                            logging.info(
+                                f"Recorded INSERT operation for transaction {transaction_id}: {table_name}.{record_id}"
+                            )
 
                     return {
                         "message": f"Inserted 1 record into {table_name}",
                         "status": "success",
-                        "count": 1
+                        "count": 1,
                     }
                 else:
-                    return result if isinstance(result, dict) else {"error": str(result), "status": "error"}
+                    return (
+                        result
+                        if isinstance(result, dict)
+                        else {"error": str(result), "status": "error"}
+                    )
 
         except Exception as e:
             logging.error(f"Error in execute_insert: {str(e)}")
@@ -173,11 +196,7 @@ class DMLExecutor:
                 # Remove quotes if present
                 if value.startswith(("'", '"')) and value.endswith(("'", '"')):
                     value = value[1:-1]
-                conditions.append({
-                    "column": column,
-                    "operator": "=",
-                    "value": value
-                })
+                conditions.append({"column": column, "operator": "=", "value": value})
 
         return conditions
 
@@ -203,20 +222,22 @@ class DMLExecutor:
                         if len(parts) >= 3:
                             column = parts[0]
                             op = parts[1]
-                            value_str = ' '.join(parts[2:]).strip(';')
+                            value_str = " ".join(parts[2:]).strip(";")
 
                             # Try to convert value to appropriate type
                             try:
                                 if value_str.isdigit():
                                     value = int(value_str)
-                                elif value_str.replace('.', '', 1).isdigit():
+                                elif value_str.replace(".", "", 1).isdigit():
                                     value = float(value_str)
                                 else:
                                     value = value_str
                             except:
                                 value = value_str
 
-                            parsed_conditions = [{"column": column, "operator": op, "value": value}]
+                            parsed_conditions = [
+                                {"column": column, "operator": op, "value": value}
+                            ]
                 except Exception as e:
                     logging.error(f"Error parsing delete condition: {str(e)}")
 
@@ -248,7 +269,9 @@ class DMLExecutor:
 
             # First, retrieve actual data structure of the tables to inspect
             other_schema = self.catalog_manager.get_table_schema(other_table)
-            logging.info(f"Checking constraints in {other_table} schema: {other_schema}")
+            logging.info(
+                f"Checking constraints in {other_table} schema: {other_schema}"
+            )
 
             # Detect all possible foreign key constraints (more comprehensive)
             fk_relationships = []
@@ -258,37 +281,51 @@ class DMLExecutor:
                 for col in other_schema["columns"]:
                     if isinstance(col, dict) and "constraints" in col:
                         for constraint in col["constraints"]:
-                            if isinstance(constraint, str) and "REFERENCES" in constraint.upper():
-                                fk_relationships.append({
-                                    "referencing_column": col["name"],
-                                    "constraint": constraint
-                                })
+                            if (
+                                isinstance(constraint, str)
+                                and "REFERENCES" in constraint.upper()
+                            ):
+                                fk_relationships.append(
+                                    {
+                                        "referencing_column": col["name"],
+                                        "constraint": constraint,
+                                    }
+                                )
 
             # Check if it's a list of column definitions
             elif isinstance(other_schema, list):
                 for col in other_schema:
                     if isinstance(col, dict) and "constraints" in col:
                         for constraint in col["constraints"]:
-                            if isinstance(constraint, str) and "REFERENCES" in constraint.upper():
-                                fk_relationships.append({
-                                    "referencing_column": col["name"],
-                                    "constraint": constraint
-                                })
+                            if (
+                                isinstance(constraint, str)
+                                and "REFERENCES" in constraint.upper()
+                            ):
+                                fk_relationships.append(
+                                    {
+                                        "referencing_column": col["name"],
+                                        "constraint": constraint,
+                                    }
+                                )
                     elif isinstance(col, str) and "REFERENCES" in col.upper():
                         col_parts = col.split()
-                        fk_relationships.append({
-                            "referencing_column": col_parts[0],
-                            "constraint": col
-                        })
+                        fk_relationships.append(
+                            {"referencing_column": col_parts[0], "constraint": col}
+                        )
 
             # Check for table-level constraints
             if isinstance(other_schema, dict) and "constraints" in other_schema:
                 for constraint in other_schema["constraints"]:
-                    if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
-                        fk_relationships.append({
-                            "referencing_column": None,  # Will extract from constraint
-                            "constraint": constraint
-                        })
+                    if (
+                        isinstance(constraint, str)
+                        and "FOREIGN KEY" in constraint.upper()
+                    ):
+                        fk_relationships.append(
+                            {
+                                "referencing_column": None,  # Will extract from constraint
+                                "constraint": constraint,
+                            }
+                        )
 
             # Process all found relationships
             for relationship in fk_relationships:
@@ -297,7 +334,9 @@ class DMLExecutor:
                 logging.info(f"Processing potential FK constraint: {constraint_str}")
 
                 # Extract the referenced table and columns with multiple patterns
-                fk_column = referencing_column  # Default if not extracted from constraint
+                fk_column = (
+                    referencing_column  # Default if not extracted from constraint
+                )
                 ref_table = None
                 ref_column = None
 
@@ -305,7 +344,7 @@ class DMLExecutor:
                 patterns = [
                     r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
                     r"REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
-                    r"FOREIGN\s+KEY\s*[\(\s](\w+)[\)\s]+REFERENCES\s+(\w+)\s*[\(\s](\w+)"
+                    r"FOREIGN\s+KEY\s*[\(\s](\w+)[\)\s]+REFERENCES\s+(\w+)\s*[\(\s](\w+)",
                 ]
 
                 for pattern in patterns:
@@ -322,7 +361,9 @@ class DMLExecutor:
 
                 # If we found a reference to the table we're deleting from
                 if ref_table and ref_table.lower() == table_name.lower():
-                    logging.info(f"Found FK reference: {other_table}.{fk_column} -> {table_name}.{ref_column}")
+                    logging.info(
+                        f"Found FK reference: {other_table}.{fk_column} -> {table_name}.{ref_column}"
+                    )
 
                     # For each record we're trying to delete
                     for record in records_to_delete:
@@ -332,20 +373,38 @@ class DMLExecutor:
                             logging.info(f"Checking references to value: {ref_value}")
 
                             # Check for references with type handling
-                            conditions = [{"column": fk_column, "operator": "=", "value": ref_value}]
+                            conditions = [
+                                {
+                                    "column": fk_column,
+                                    "operator": "=",
+                                    "value": ref_value,
+                                }
+                            ]
 
                             # Convert string values for comparison if needed
-                            if isinstance(ref_value, (int, float)) and not isinstance(ref_value, bool):
+                            if isinstance(ref_value, (int, float)) and not isinstance(
+                                ref_value, bool
+                            ):
                                 str_value = str(ref_value)
-                                conditions.append({"column": fk_column, "operator": "=", "value": str_value})
+                                conditions.append(
+                                    {
+                                        "column": fk_column,
+                                        "operator": "=",
+                                        "value": str_value,
+                                    }
+                                )
 
                             # Check if any records reference this value
-                            referencing_records = self.catalog_manager.query_with_condition(
-                                other_table, conditions, ["*"]
+                            referencing_records = (
+                                self.catalog_manager.query_with_condition(
+                                    other_table, conditions, ["*"]
+                                )
                             )
 
                             if referencing_records:
-                                logging.info(f"Found {len(referencing_records)} referencing records: {referencing_records}")
+                                logging.info(
+                                    f"Found {len(referencing_records)} referencing records: {referencing_records}"
+                                )
                                 error_msg = f"Cannot delete from {table_name} because records in {other_table} reference it via foreign key {fk_column}->{ref_column}"
                                 return error_msg
 
@@ -384,7 +443,7 @@ class DMLExecutor:
                 "status": "success",
                 "message": "0 records updated - no matching records found",
                 "type": "update_result",
-                "rowCount": 0
+                "rowCount": 0,
             }
 
         # Check if any primary key columns are being updated
@@ -406,11 +465,7 @@ class DMLExecutor:
                     db_name, table_name, update_col, records_to_update
                 )
                 if fk_violation:
-                    return {
-                        "error": fk_violation,
-                        "status": "error",
-                        "type": "error"
-                    }
+                    return {"error": fk_violation, "status": "error", "type": "error"}
 
         # Update each matching record
         updated_count = 0
@@ -421,30 +476,34 @@ class DMLExecutor:
                 record_id = record[pk_columns[0]]
             else:
                 # If no primary key, try using 'id' field
-                record_id = record.get('id')
+                record_id = record.get("id")
 
             if record_id is not None:
                 # Call update_record with the correct parameters
                 result = self.catalog_manager.update_record(
-                    table_name,
-                    record_id,
-                    updates
+                    table_name, record_id, updates
                 )
 
                 if result:
                     updated_count += 1
-                    logging.info(f"Updated record with ID {record_id} in table {table_name}")
+                    logging.info(
+                        f"Updated record with ID {record_id} in table {table_name}"
+                    )
             else:
-                logging.warning(f"Could not determine record ID for update in table {table_name}")
+                logging.warning(
+                    f"Could not determine record ID for update in table {table_name}"
+                )
 
         return {
             "status": "success",
             "message": f"Updated {updated_count} records",
             "type": "update_result",
-            "count": updated_count
+            "count": updated_count,
         }
 
-    def _check_fk_constraints_for_update(self, db_name, table_name, pk_column, records_to_update):
+    def _check_fk_constraints_for_update(
+        self, db_name, table_name, pk_column, records_to_update
+    ):
         """
         Check if updating primary key would violate foreign key constraints.
 
@@ -484,8 +543,11 @@ class DMLExecutor:
             # Check each constraint
             for constraint in constraints:
                 if isinstance(constraint, str) and "FOREIGN KEY" in constraint.upper():
-                    fk_match = re.search(r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
-                                        constraint, re.IGNORECASE)
+                    fk_match = re.search(
+                        r"FOREIGN\s+KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s+(\w+)\s*\(\s*(\w+)\s*\)",
+                        constraint,
+                        re.IGNORECASE,
+                    )
 
                     if fk_match:
                         fk_column = fk_match.group(1)
@@ -493,20 +555,27 @@ class DMLExecutor:
                         ref_column = fk_match.group(3)
 
                         # Check if this constraint references the column we're updating
-                        if ref_table.lower() == table_name.lower() and ref_column.lower() == pk_column.lower():
+                        if (
+                            ref_table.lower() == table_name.lower()
+                            and ref_column.lower() == pk_column.lower()
+                        ):
                             # Check if any of our to-be-updated records are referenced
                             for record in records_to_update:
                                 record_value = record.get(pk_column)
 
                                 # Check if any records in other_table reference this value
-                                referencing_records = self.catalog_manager.query_with_condition(
-                                    other_table,
-                                    [{
-                                        "column": fk_column,
-                                        "operator": "=",
-                                        "value": record_value
-                                    }],
-                                    ["*"]
+                                referencing_records = (
+                                    self.catalog_manager.query_with_condition(
+                                        other_table,
+                                        [
+                                            {
+                                                "column": fk_column,
+                                                "operator": "=",
+                                                "value": record_value,
+                                            }
+                                        ],
+                                        ["*"],
+                                    )
                                 )
 
                                 if referencing_records:
@@ -538,7 +607,9 @@ class DMLExecutor:
         for index_id, index_def in table_indexes:
             column_name = index_def.get("column")
             if not column_name:
-                logging.warning("No column specified for index %s, skipping rebuild", index_id)
+                logging.warning(
+                    "No column specified for index %s, skipping rebuild", index_id
+                )
                 continue
 
             try:
@@ -548,7 +619,9 @@ class DMLExecutor:
                 )
 
                 # Create a new index tree
-                index_tree = BPlusTree(order=50, name=f"{table_name}_{column_name}_index")
+                index_tree = BPlusTree(
+                    order=50, name=f"{table_name}_{column_name}_index"
+                )
 
                 # Populate the index with current records
                 for record_key, record in current_records:
@@ -559,7 +632,9 @@ class DMLExecutor:
                 index_tree.save_to_file(index_file)
                 logging.debug(
                     "Successfully rebuilt index %s for %s.%s",
-                    index_id, table_name, column_name
+                    index_id,
+                    table_name,
+                    column_name,
                 )
             except RuntimeError as e:
-                logging.error("Error rebuilding index %index_id: %s",index_id, str(e))
+                logging.error("Error rebuilding index %index_id: %s", index_id, str(e))

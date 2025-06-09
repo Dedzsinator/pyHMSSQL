@@ -6,6 +6,7 @@ for robust and standardized SQL statement analysis.
 """
 
 import logging
+
 try:
     from .sqlglot_parser import SQLGlotParser
 except ImportError:
@@ -61,7 +62,9 @@ class SQLParser:
             return result
 
         except Exception as e:
-            logging.error(f"❌ SQLGlot parsing failed for query: {sql[:50]}... Error: {e}")
+            logging.error(
+                f"❌ SQLGlot parsing failed for query: {sql[:50]}... Error: {e}"
+            )
             return {"error": f"Parse error: {str(e)}", "query": sql}
 
     def parse(self, sql):

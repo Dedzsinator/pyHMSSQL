@@ -44,8 +44,7 @@ class Planner:
             if columns:
                 if isinstance(columns[0], dict):
                     cols_str = ", ".join(
-                        [f"{col.get('name')} {col.get(
-                            'type')}" for col in columns]
+                        [f"{col.get('name')} {col.get('type')}" for col in columns]
                     )
                 else:
                     cols_str = ", ".join(columns)
@@ -124,14 +123,14 @@ class Planner:
         # Special handling for DISTINCT queries
         if query_type == "DISTINCT":
             logging.info("Planning DISTINCT query")
-            table = parsed_query.get("tables", [""])[0] if parsed_query.get("tables") else ""
+            table = (
+                parsed_query.get("tables", [""])[0]
+                if parsed_query.get("tables")
+                else ""
+            )
             column = parsed_query.get("column", "")
 
-            return {
-                "type": "DISTINCT",
-                "table": table,
-                "column": column
-            }
+            return {"type": "DISTINCT", "table": table, "column": column}
 
         # Simple key for common query types
         if query_type in ("SELECT", "SHOW"):
@@ -139,7 +138,9 @@ class Planner:
 
             # Add table information for SELECT
             if query_type == "SELECT" and "tables" in parsed_query:
-                key_parts.append(",".join(sorted(str(t) for t in parsed_query["tables"])))
+                key_parts.append(
+                    ",".join(sorted(str(t) for t in parsed_query["tables"]))
+                )
 
                 # Add important variations to the cache key
                 if "limit" in parsed_query:
@@ -147,7 +148,9 @@ class Planner:
 
                 if "order_by" in parsed_query:
                     if isinstance(parsed_query["order_by"], dict):
-                        key_parts.append(f"orderby:{parsed_query['order_by'].get('column')}:{parsed_query['order_by'].get('direction', 'ASC')}")
+                        key_parts.append(
+                            f"orderby:{parsed_query['order_by'].get('column')}:{parsed_query['order_by'].get('direction', 'ASC')}"
+                        )
                     else:
                         key_parts.append(f"orderby:{parsed_query['order_by']}")
 
@@ -180,8 +183,7 @@ class Planner:
             columns = parsed_query.get("columns", [])
             if columns:
                 col_str = str(columns[0])
-                logging.error(
-                    "Analyzing first column for aggregation: '%s'", col_str)
+                logging.error("Analyzing first column for aggregation: '%s'", col_str)
 
                 is_aggregate, func_name, col_name = self.detect_aggregate_function(
                     col_str
@@ -219,7 +221,7 @@ class Planner:
                 "type": parsed_query["type"],  # Preserve the set operation type
                 "left": left_plan,
                 "right": right_plan,
-                "query": parsed_query.get("query", "")
+                "query": parsed_query.get("query", ""),
             }
             return self.log_execution_plan(plan)
 
@@ -334,10 +336,7 @@ class Planner:
     def plan_script(self, parsed_query):
         """Plan for SCRIPT execution."""
         logging.debug("Planning SCRIPT query: %s", parsed_query)
-        return {
-            "type": "SCRIPT",
-            "filename": parsed_query.get("filename")
-        }
+        return {"type": "SCRIPT", "filename": parsed_query.get("filename")}
 
     def plan_transaction_operation(self, parsed_query):
         """
@@ -348,7 +347,7 @@ class Planner:
         # Simply pass through the transaction type
         return {
             "type": parsed_query["type"],
-            "transaction_id": parsed_query.get("transaction_id")
+            "transaction_id": parsed_query.get("transaction_id"),
         }
 
     def plan_use_database(self, parsed_query):
@@ -446,7 +445,7 @@ class Planner:
         for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD"]:
             if column_str.upper().startswith(f"{func_name}("):
                 # Extract column name between parentheses
-                col_name = column_str[len(func_name) + 1:].rstrip(")")
+                col_name = column_str[len(func_name) + 1 :].rstrip(")")
                 logging.info("DIRECTLY MATCHED %s(%s)", func_name, col_name)
                 return (True, func_name, col_name)
 
@@ -459,7 +458,11 @@ class Planner:
         tables = parsed_query.get("tables", [])
 
         # If there are multiple tables or a join condition, this is a JOIN query
-        if len(tables) > 1 or parsed_query.get("join_condition") or parsed_query.get("join_info"):
+        if (
+            len(tables) > 1
+            or parsed_query.get("join_condition")
+            or parsed_query.get("join_info")
+        ):
             return self.plan_join(parsed_query)
 
         table = tables[0] if tables else None
@@ -485,7 +488,7 @@ class Planner:
                 "order_by": order_by,
                 "limit": limit,
                 "tables": tables,
-                "operation": "GROUP_BY"
+                "operation": "GROUP_BY",
             }
 
         # Extract and fix ORDER BY clause
@@ -498,7 +501,9 @@ class Planner:
                 # Convert string to proper structure
                 parts = order_by.strip().split()
                 column_name = parts[0]
-                direction = "DESC" if len(parts) > 1 and parts[1].upper() == "DESC" else "ASC"
+                direction = (
+                    "DESC" if len(parts) > 1 and parts[1].upper() == "DESC" else "ASC"
+                )
                 order_by = {"column": column_name, "direction": direction}
             elif isinstance(order_by, dict) and "column" not in order_by:
                 # Handle missing column key
@@ -546,7 +551,7 @@ class Planner:
             for func_name in ["COUNT", "SUM", "AVG", "MIN", "MAX", "RAND", "GCD"]:
                 if col_str.upper().startswith(f"{func_name}("):
                     # Extract the column name between parentheses
-                    col_name = col_str[len(func_name) + 1:].rstrip(")")
+                    col_name = col_str[len(func_name) + 1 :].rstrip(")")
                     logging.error(
                         "Direct match! Creating AGGREGATE plan for %s(%s)",
                         func_name,
@@ -564,11 +569,11 @@ class Planner:
                     }
 
             if "(" in col_str and ")" in col_str:
-                logging.error(
-                    "Potential aggregate function found: %s", col_str)
+                logging.error("Potential aggregate function found: %s", col_str)
 
                 # Try all possible patterns for maximum compatibility
                 import re
+
                 patterns = [
                     r"(\w+)\(([^)]*)\)",  # Basic: COUNT(*)
                     r"(\w+)\s*\(\s*(.*?)\s*\)",  # With spaces: COUNT( * )
@@ -627,7 +632,7 @@ class Planner:
             "limit": limit,
             "offset": offset,
             "tables": tables,  # Include tables list for compatibility
-            "operation": "SELECT"  # Added to maintain consistency with other code
+            "operation": "SELECT",  # Added to maintain consistency with other code
         }
 
     def plan_join(self, parsed_query):
@@ -644,7 +649,9 @@ class Planner:
         join_type = join_info.get("type", "INNER").upper()
 
         # CRITICAL FIX: Extract WHERE conditions properly
-        where_conditions = parsed_query.get("parsed_condition") or parsed_query.get("condition")
+        where_conditions = parsed_query.get("parsed_condition") or parsed_query.get(
+            "condition"
+        )
 
         # Choose the best join algorithm based on available indexes and table statistics
         table1 = join_info.get("table1") or (tables[0] if len(tables) > 0 else "")
@@ -664,7 +671,7 @@ class Planner:
             "condition": join_condition,
             "columns": columns,
             "where_conditions": where_conditions,  # Add WHERE conditions
-            "tables": tables
+            "tables": tables,
         }
 
         return plan
@@ -694,13 +701,11 @@ class Planner:
             return "NESTED_LOOP"  # For cross joins, use nested loop
 
         # Extract column names from join condition (assuming format: col1 = col2)
-        column_match = re.search(
-            r"(\w+\.\w+)\s*=\s*(\w+\.\w+)", join_condition)
+        column_match = re.search(r"(\w+\.\w+)\s*=\s*(\w+\.\w+)", join_condition)
         if not column_match:
             return "HASH"
 
-        left_col = column_match.group(1).split(
-            ".")[-1]  # Get column name without table
+        left_col = column_match.group(1).split(".")[-1]  # Get column name without table
         right_col = column_match.group(2).split(".")[-1]
 
         # Check for indexes on join columns
@@ -723,10 +728,8 @@ class Planner:
         # If tables are small, nested loop might be efficient
         # In a real system, you would use statistics to make this decision
         try:
-            table1_data = self.catalog_manager.query_with_condition(table1, [], [
-                                                                    "*"])
-            table2_data = self.catalog_manager.query_with_condition(table2, [], [
-                                                                    "*"])
+            table1_data = self.catalog_manager.query_with_condition(table1, [], ["*"])
+            table2_data = self.catalog_manager.query_with_condition(table2, [], ["*"])
 
             table1_size = len(table1_data) if table1_data else 0
             table2_size = len(table2_data) if table2_data else 0
@@ -776,8 +779,7 @@ class Planner:
         Example: UPDATE table1 SET name = 'Bob' WHERE id = 1
         """
         logging.debug("Planning UPDATE query: %s", parsed_query)
-        where_clause = parsed_query.get(
-            "condition") or parsed_query.get("where")
+        where_clause = parsed_query.get("condition") or parsed_query.get("where")
 
         return {
             "type": "UPDATE",
@@ -802,7 +804,7 @@ class Planner:
         return {
             "type": "DELETE",
             "table": parsed_query["table"],
-            "condition": condition
+            "condition": condition,
         }
 
     def plan_create_table(self, parsed_query):
@@ -815,7 +817,7 @@ class Planner:
             "type": "CREATE_TABLE",
             "table": parsed_query.get("table"),
             "columns": parsed_query.get("columns"),
-            "constraints": parsed_query.get("constraints", [])
+            "constraints": parsed_query.get("constraints", []),
         }
 
     def plan_create_view(self, parsed_query):
@@ -842,14 +844,14 @@ class Planner:
             "type": "CREATE_PROCEDURE",
             "procedure_name": parsed_query.get("procedure_name"),
             "parameters": parsed_query.get("parameters", []),
-            "body": parsed_query.get("body", "")
+            "body": parsed_query.get("body", ""),
         }
 
     def plan_drop_procedure(self, parsed_query):
         """Plan for DROP PROCEDURE queries."""
         return {
             "type": "DROP_PROCEDURE",
-            "procedure_name": parsed_query.get("procedure_name")
+            "procedure_name": parsed_query.get("procedure_name"),
         }
 
     def plan_call_procedure(self, parsed_query):
@@ -857,7 +859,7 @@ class Planner:
         return {
             "type": "CALL_PROCEDURE",
             "procedure_name": parsed_query.get("procedure_name"),
-            "arguments": parsed_query.get("arguments", [])
+            "arguments": parsed_query.get("arguments", []),
         }
 
     def plan_create_function(self, parsed_query):
@@ -867,14 +869,14 @@ class Planner:
             "function_name": parsed_query.get("function_name"),
             "parameters": parsed_query.get("parameters", []),
             "return_type": parsed_query.get("return_type", "VARCHAR"),
-            "body": parsed_query.get("body", "")
+            "body": parsed_query.get("body", ""),
         }
 
     def plan_drop_function(self, parsed_query):
         """Plan for DROP FUNCTION queries."""
         return {
             "type": "DROP_FUNCTION",
-            "function_name": parsed_query.get("function_name")
+            "function_name": parsed_query.get("function_name"),
         }
 
     def plan_create_trigger(self, parsed_query):
@@ -885,14 +887,14 @@ class Planner:
             "timing": parsed_query.get("timing"),
             "event": parsed_query.get("event"),
             "table": parsed_query.get("table"),
-            "body": parsed_query.get("body", "")
+            "body": parsed_query.get("body", ""),
         }
 
     def plan_drop_trigger(self, parsed_query):
         """Plan for DROP TRIGGER queries."""
         return {
             "type": "DROP_TRIGGER",
-            "trigger_name": parsed_query.get("trigger_name")
+            "trigger_name": parsed_query.get("trigger_name"),
         }
 
     def plan_create_temporary_table(self, parsed_query):
@@ -902,5 +904,5 @@ class Planner:
             "table": parsed_query.get("table"),
             "columns": parsed_query.get("columns", []),
             "constraints": parsed_query.get("constraints", []),
-            "temporary": True
+            "temporary": True,
         }

@@ -1,23 +1,28 @@
 """
 Tests for SQL DML statement parsing (SELECT, INSERT, UPDATE, DELETE).
 """
+
 import pytest
 import sys
 import os
 
 # Add server directory to path
-project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
-server_dir = os.path.join(project_root, 'server')
+project_root = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "..")
+)
+server_dir = os.path.join(project_root, "server")
 if server_dir not in sys.path:
     sys.path.insert(0, server_dir)
 
 # Now import directly from the modules
 from parser import SQLParser  # Direct import instead of from server.parser
 
+
 @pytest.fixture
 def parser():
     """Create a parser instance for testing."""
     return SQLParser()
+
 
 class TestSelectParser:
     """Test SELECT statement parsing."""
@@ -177,7 +182,9 @@ class TestSelectParser:
         query = "SELECT department, COUNT(*) FROM employees GROUP BY department"
         parsed = parser.parse_sql(query)
 
-        assert parsed["type"] == "AGGREGATE"  # SQLGlot correctly identifies this as an aggregate operation
+        assert (
+            parsed["type"] == "AGGREGATE"
+        )  # SQLGlot correctly identifies this as an aggregate operation
         assert "group_by" in parsed or "GROUP BY" in str(parsed)
 
     def test_select_with_having(self, parser):
@@ -185,8 +192,11 @@ class TestSelectParser:
         query = "SELECT department, COUNT(*) FROM employees GROUP BY department HAVING COUNT(*) > 5"
         parsed = parser.parse_sql(query)
 
-        assert parsed["type"] == "AGGREGATE"  # SQLGlot correctly identifies this as an aggregate operation
+        assert (
+            parsed["type"] == "AGGREGATE"
+        )  # SQLGlot correctly identifies this as an aggregate operation
         assert "HAVING" in str(parsed)
+
 
 class TestInsertParser:
     """Test INSERT statement parsing."""
@@ -244,6 +254,7 @@ class TestInsertParser:
 
         assert parsed["type"] == "INSERT"
         assert parsed["table"] == "archive_users"
+
 
 class TestUpdateParser:
     """Test UPDATE statement parsing."""
@@ -315,6 +326,7 @@ class TestUpdateParser:
         assert parsed["table"] == "products"
         assert "condition" not in parsed or parsed["condition"] is None
 
+
 class TestDeleteParser:
     """Test DELETE statement parsing."""
 
@@ -328,7 +340,11 @@ class TestDeleteParser:
         # SQLGlot returns structured condition format, not literal string
         condition = parsed.get("condition", [])
         assert isinstance(condition, list) and len(condition) > 0
-        assert condition[0]["column"] == "id" and condition[0]["operator"] == "=" and condition[0]["value"] == 3
+        assert (
+            condition[0]["column"] == "id"
+            and condition[0]["operator"] == "="
+            and condition[0]["value"] == 3
+        )
 
     def test_delete_with_complex_where(self, parser):
         """Test DELETE with complex WHERE clause."""
@@ -378,11 +394,14 @@ class TestDeleteParser:
 
     def test_delete_with_order_by_limit(self, parser):
         """Test DELETE with ORDER BY and LIMIT."""
-        query = "DELETE FROM logs WHERE level = 'debug' ORDER BY created_at ASC LIMIT 100"
+        query = (
+            "DELETE FROM logs WHERE level = 'debug' ORDER BY created_at ASC LIMIT 100"
+        )
         parsed = parser.parse_sql(query)
 
         assert parsed["type"] == "DELETE"
         assert parsed["table"] == "logs"
+
 
 class TestAdvancedDMLFeatures:
     """Test advanced DML features."""
@@ -438,6 +457,7 @@ class TestAdvancedDMLFeatures:
 
         # Should parse as some type of statement
         assert "type" in parsed
+
 
 class TestDataTypeHandling:
     """Test handling of various data types in DML."""

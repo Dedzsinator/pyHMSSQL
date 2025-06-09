@@ -1,6 +1,7 @@
 """
 Focused benchmark script for the optimized B+ tree implementation only
 """
+
 import time
 import random
 import logging
@@ -9,7 +10,7 @@ import matplotlib.pyplot as plt
 
 # Configure minimal logging for benchmarks
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('benchmark')
+logger = logging.getLogger("benchmark")
 
 
 def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50):
@@ -25,8 +26,12 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
     batch_size = batch_size_param
     order = order_param
 
-    logger.info("Starting benchmark with %d keys, batch_size %d, order %d",
-                num_keys, batch_size, order)
+    logger.info(
+        "Starting benchmark with %d keys, batch_size %d, order %d",
+        num_keys,
+        batch_size,
+        order,
+    )
 
     # Setup tree
     try:
@@ -47,7 +52,7 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
     insertion_rates = []
 
     for i in range(0, num_keys, batch_size):
-        batch = keys[i:i+batch_size]
+        batch = keys[i : i + batch_size]
         batch_size_actual = len(batch)
 
         # Time insertion
@@ -64,8 +69,12 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
             if batch_time > 0:
                 rate = batch_size_actual / batch_time
                 insertion_rates.append(rate)
-                logger.debug("Batch %d: %.3fs (%.0f ops/s)",
-                           i//batch_size + 1, batch_time, rate)
+                logger.debug(
+                    "Batch %d: %.3fs (%.0f ops/s)",
+                    i // batch_size + 1,
+                    batch_time,
+                    rate,
+                )
             else:
                 insertion_rates.append(0)  # Avoid division by zero
         except Exception as exc:
@@ -81,8 +90,9 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
         value = optimized_tree.search(key)
         expected = f"value_{key}"
         if value != expected:
-            logger.warning("Invalid result for key %d: got %s, expected %s",
-                         key, value, expected)
+            logger.warning(
+                "Invalid result for key %d: got %s, expected %s", key, value, expected
+            )
             all_valid = False
 
     if all_valid:
@@ -96,7 +106,7 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
     # Run search in smaller batches for more detailed timing
     search_batch_size = 1000
     for i in range(0, len(search_keys), search_batch_size):
-        batch = search_keys[i:i+search_batch_size]
+        batch = search_keys[i : i + search_batch_size]
         start = time.time()
         for key in batch:
             result = optimized_tree.search(key)
@@ -107,12 +117,17 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
         search_times.append(batch_time)
         if batch_time > 0:
             rate = len(batch) / batch_time
-            logger.debug("Search batch %d: %.3fs (%.0f ops/s)",
-                       i//search_batch_size + 1, batch_time, rate)
+            logger.debug(
+                "Search batch %d: %.3fs (%.0f ops/s)",
+                i // search_batch_size + 1,
+                batch_time,
+                rate,
+            )
 
     total_search_time = sum(search_times)
-    avg_search_rate = (len(search_keys) / total_search_time
-                      if total_search_time > 0 else 0)
+    avg_search_rate = (
+        len(search_keys) / total_search_time if total_search_time > 0 else 0
+    )
 
     # Benchmark range queries
     logger.info("Benchmarking range queries...")
@@ -126,7 +141,7 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
     # Run range queries in smaller batches
     range_batch_size = 10
     for i in range(0, len(ranges), range_batch_size):
-        batch = ranges[i:i+range_batch_size]
+        batch = ranges[i : i + range_batch_size]
         start = time.time()
         total_results = 0
         for start_key, end_key in batch:
@@ -137,14 +152,17 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
         range_times.append(batch_time)
         if batch_time > 0:
             rate = len(batch) / batch_time
-            avg_results = total_results/len(batch)
-            logger.debug("Range query batch %d: %.3fs (%.0f queries/s)",
-                       i//range_batch_size + 1, batch_time, rate)
+            avg_results = total_results / len(batch)
+            logger.debug(
+                "Range query batch %d: %.3fs (%.0f queries/s)",
+                i // range_batch_size + 1,
+                batch_time,
+                rate,
+            )
             logger.debug("Average results per query: %.1f", avg_results)
 
     total_range_time = sum(range_times)
-    avg_range_rate = (len(ranges) / total_range_time
-                     if total_range_time > 0 else 0)
+    avg_range_rate = len(ranges) / total_range_time if total_range_time > 0 else 0
 
     # Log results
     logger.info("=== BENCHMARK RESULTS ===")
@@ -152,8 +170,7 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
 
     logger.info("Insertion Performance:")
     logger.info("Total time: %.3f seconds", sum(insert_times))
-    logger.info("Average rate: %.0f insertions/second",
-                num_keys/sum(insert_times))
+    logger.info("Average rate: %.0f insertions/second", num_keys / sum(insert_times))
 
     logger.info("Search Performance:")
     logger.info("Total time: %.3f seconds", total_search_time)
@@ -166,63 +183,71 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
     logger.info("=== END OF BENCHMARK ===")
 
     # Generate plots
-    _generate_plots(insert_times, insertion_rates, num_keys,
-                   avg_search_rate, avg_range_rate)
+    _generate_plots(
+        insert_times, insertion_rates, num_keys, avg_search_rate, avg_range_rate
+    )
 
     logger.info("Benchmark completed successfully!")
     return {
-        'insertion_rate': num_keys/sum(insert_times) if insert_times else 0,
-        'search_rate': avg_search_rate,
-        'range_rate': avg_range_rate
+        "insertion_rate": num_keys / sum(insert_times) if insert_times else 0,
+        "search_rate": avg_search_rate,
+        "range_rate": avg_range_rate,
     }
 
 
-def _generate_plots(insert_times, insertion_rates, num_keys,
-                   avg_search_rate, avg_range_rate):
+def _generate_plots(
+    insert_times, insertion_rates, num_keys, avg_search_rate, avg_range_rate
+):
     """Generate benchmark visualization plots"""
     try:
         # Plot insertion performance over time (batch number)
         plt.figure(figsize=(10, 6))
-        plt.plot(range(1, len(insert_times) + 1), insert_times,
-                marker='o', linestyle='-')
-        plt.title('Insertion Time per Batch')
-        plt.xlabel('Batch Number')
-        plt.ylabel('Time (seconds)')
+        plt.plot(
+            range(1, len(insert_times) + 1), insert_times, marker="o", linestyle="-"
+        )
+        plt.title("Insertion Time per Batch")
+        plt.xlabel("Batch Number")
+        plt.ylabel("Time (seconds)")
         plt.grid(True)
-        plt.savefig('insertion_time_by_batch.png')
+        plt.savefig("insertion_time_by_batch.png")
         plt.close()
 
         # Plot insertion rates
         plt.figure(figsize=(10, 6))
-        plt.plot(range(1, len(insertion_rates) + 1), insertion_rates,
-                marker='o', linestyle='-', color='green')
-        plt.title('Insertion Rate by Batch')
-        plt.xlabel('Batch Number')
-        plt.ylabel('Rate (operations/second)')
+        plt.plot(
+            range(1, len(insertion_rates) + 1),
+            insertion_rates,
+            marker="o",
+            linestyle="-",
+            color="green",
+        )
+        plt.title("Insertion Rate by Batch")
+        plt.xlabel("Batch Number")
+        plt.ylabel("Rate (operations/second)")
         plt.grid(True)
-        plt.savefig('insertion_rate_by_batch.png')
+        plt.savefig("insertion_rate_by_batch.png")
         plt.close()
 
         # Plot operation rates comparison
         plt.figure(figsize=(8, 6))
-        operation_types = ['Insertion', 'Search', 'Range Query']
+        operation_types = ["Insertion", "Search", "Range Query"]
         rates = [
-            num_keys/sum(insert_times) if sum(insert_times) > 0 else 0,
+            num_keys / sum(insert_times) if sum(insert_times) > 0 else 0,
             avg_search_rate,
-            avg_range_rate
+            avg_range_rate,
         ]
 
-        plt.bar(operation_types, rates, color=['blue', 'green', 'red'])
-        plt.title('Performance by Operation Type')
-        plt.ylabel('Rate (operations/second)')
-        plt.grid(axis='y', alpha=0.3)
+        plt.bar(operation_types, rates, color=["blue", "green", "red"])
+        plt.title("Performance by Operation Type")
+        plt.ylabel("Rate (operations/second)")
+        plt.grid(axis="y", alpha=0.3)
 
         # Add rate values on top of bars
         for i, val in enumerate(rates):
-            plt.text(i, val + 0.1, f"{val:.0f}/s", ha='center')
+            plt.text(i, val + 0.1, f"{val:.0f}/s", ha="center")
 
         plt.tight_layout()
-        plt.savefig('operation_rates.png')
+        plt.savefig("operation_rates.png")
         plt.close()
         logger.info("Benchmark visualization plots saved successfully")
     except Exception as exc:
@@ -234,21 +259,23 @@ def main():
     """Main function for benchmark script"""
     try:
         if len(sys.argv) != 4:
-            logger.error("Usage: python optimized_benchmark.py "
-                        "<num_keys> <batch_size> <order>")
-            num_keys = int(input("Enter number of keys (default: 100000): ")
-                          or "100000")
-            batch_size = int(input("Enter batch size (default: 10000): ")
-                            or "10000")
+            logger.error(
+                "Usage: python optimized_benchmark.py "
+                "<num_keys> <batch_size> <order>"
+            )
+            num_keys = int(
+                input("Enter number of keys (default: 100000): ") or "100000"
+            )
+            batch_size = int(input("Enter batch size (default: 10000): ") or "10000")
             order = int(input("Enter tree order (default: 50): ") or "50")
         else:
             num_keys = int(sys.argv[1])
             batch_size = int(sys.argv[2])
             order = int(sys.argv[3])
 
-        result = run_benchmark(num_keys_param=num_keys,
-                              batch_size_param=batch_size,
-                              order_param=order)
+        result = run_benchmark(
+            num_keys_param=num_keys, batch_size_param=batch_size, order_param=order
+        )
         if result:
             logger.info("Benchmark script executed successfully!")
         else:

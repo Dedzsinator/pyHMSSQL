@@ -11,6 +11,7 @@ from typing import List, Dict, Any, Callable, Optional
 
 try:
     from hyperoptimized_sort import HyperoptimizedSorter, hyperopt_sort
+
     HYPEROPT_AVAILABLE = True
     logger = logging.getLogger(__name__)
     logger.info("Hyperoptimized sorting engine loaded successfully")
@@ -21,13 +22,15 @@ except ImportError as e:
     HYPEROPT_AVAILABLE = False
 
 
-def hyperopt_list_sort(data: List[Dict[str, Any]], 
-                      key_func: Optional[Callable] = None,
-                      reverse: bool = False,
-                      threshold: int = 50000) -> None:
+def hyperopt_list_sort(
+    data: List[Dict[str, Any]],
+    key_func: Optional[Callable] = None,
+    reverse: bool = False,
+    threshold: int = 50000,
+) -> None:
     """
     Drop-in replacement for list.sort() that uses hyperoptimized sorting.
-    
+
     Args:
         data: List of dictionaries to sort (modified in-place)
         key_func: Function to extract sort key from each record
@@ -41,17 +44,19 @@ def hyperopt_list_sort(data: List[Dict[str, Any]],
 
     # For smaller datasets, use built-in sort to avoid Python-Cython overhead
     if len(data) < threshold:
-        logger.debug(f"Using built-in sort for small dataset ({len(data)} < {threshold})")
+        logger.debug(
+            f"Using built-in sort for small dataset ({len(data)} < {threshold})"
+        )
         data.sort(key=key_func, reverse=reverse)
         return
-    
+
     # Try hyperoptimized sorting
     try:
         # Use hyperoptimized sorting for better performance
         if key_func is None:
             # If no key function, assume we're sorting by the dictionary values directly
             sorter = HyperoptimizedSorter()
-            sorted_data = sorter.sort_records(data, '__default__', reverse)
+            sorted_data = sorter.sort_records(data, "__default__", reverse)
             data[:] = sorted_data
         else:
             # Check if the key function returns complex keys (tuples, etc.)
@@ -63,74 +68,81 @@ def hyperopt_list_sort(data: List[Dict[str, Any]],
                     logger.debug("Using built-in sort for complex tuple/list sort keys")
                     data.sort(key=key_func, reverse=reverse)
                     return
-            
+
             # Apply key function to create sortable records
             keyed_records = []
             for i, record in enumerate(data):
                 sort_key = key_func(record)
-                keyed_records.append({
-                    '__sort_key__': sort_key,
-                    '__original_record__': record,
-                    '__index__': i
-                })
-            
+                keyed_records.append(
+                    {
+                        "__sort_key__": sort_key,
+                        "__original_record__": record,
+                        "__index__": i,
+                    }
+                )
+
             # Sort by the extracted key
             sorter = HyperoptimizedSorter()
-            sorted_records = sorter.sort_records(keyed_records, '__sort_key__', reverse)
-            
+            sorted_records = sorter.sort_records(keyed_records, "__sort_key__", reverse)
+
             # Extract the original records in sorted order
-            data[:] = [r['__original_record__'] for r in sorted_records]
-            
+            data[:] = [r["__original_record__"] for r in sorted_records]
+
         logger.debug(f"Hyperoptimized sorting completed for {len(data)} records")
-        
+
     except Exception as e:
-        logger.warning(f"Hyperoptimized sorting failed: {e}, falling back to built-in sort")
+        logger.warning(
+            f"Hyperoptimized sorting failed: {e}, falling back to built-in sort"
+        )
         data.sort(key=key_func, reverse=reverse)
 
 
-def hyperopt_sorted(data: List[Dict[str, Any]], 
-                   key_func: Optional[Callable] = None,
-                   reverse: bool = False) -> List[Dict[str, Any]]:
+def hyperopt_sorted(
+    data: List[Dict[str, Any]],
+    key_func: Optional[Callable] = None,
+    reverse: bool = False,
+) -> List[Dict[str, Any]]:
     """
     Drop-in replacement for sorted() that uses hyperoptimized sorting.
-    
+
     Args:
         data: List of dictionaries to sort
-        key_func: Function to extract sort key from each record  
+        key_func: Function to extract sort key from each record
         reverse: True for descending order
-        
+
     Returns:
         New sorted list
     """
     if not HYPEROPT_AVAILABLE or not data:
         # Fallback to built-in sorted
         return sorted(data, key=key_func, reverse=reverse)
-    
+
     try:
         # Make a copy and sort it
         data_copy = list(data)
         hyperopt_list_sort(data_copy, key_func, reverse, threshold=50000)
         return data_copy
-        
+
     except Exception as e:
-        logger.warning(f"Hyperoptimized sorting failed: {e}, falling back to built-in sorted")
+        logger.warning(
+            f"Hyperoptimized sorting failed: {e}, falling back to built-in sorted"
+        )
         return sorted(data, key=key_func, reverse=reverse)
 
 
 def get_performance_stats() -> Dict[str, Any]:
     """
     Get performance statistics from the hyperoptimized sorting engine.
-    
+
     Returns:
         Dictionary containing performance metrics
     """
     return {
         "hyperopt_available": HYPEROPT_AVAILABLE,
         "engine_version": "1.0.0",
-        "algorithms_available": [
-            "radix_sort",
-            "introsort", 
-            "external_merge_sort",
-            "insertion_sort"
-        ] if HYPEROPT_AVAILABLE else []
+        "algorithms_available": (
+            ["radix_sort", "introsort", "external_merge_sort", "insertion_sort"]
+            if HYPEROPT_AVAILABLE
+            else []
+        ),
     }

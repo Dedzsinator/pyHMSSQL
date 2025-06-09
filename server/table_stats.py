@@ -11,11 +11,13 @@ import threading
 import numpy as np
 from collections import defaultdict
 
+
 class TableStatistics:
     """
     Manages statistics about tables and columns for cost-based query optimization.
     Uses sampling and histogram-based approaches for accuracy and efficiency.
     """
+
     def __init__(self, catalog_manager, stats_dir="data/statistics"):
         """
         Initialize with a reference to the catalog manager.
@@ -63,20 +65,28 @@ class TableStatistics:
                             # Load the statistics
                             filepath = os.path.join(self.stats_dir, filename)
                             try:
-                                with open(filepath, 'r') as f:
+                                with open(filepath, "r") as f:
                                     stats_data = json.load(f)
 
                                 self.statistics[f"{db_name}.{table_name}"] = stats_data
-                                self.last_refresh[f"{db_name}.{table_name}"] = stats_data.get("timestamp", 0)
+                                self.last_refresh[f"{db_name}.{table_name}"] = (
+                                    stats_data.get("timestamp", 0)
+                                )
                                 loaded_count += 1
 
                                 # Load histograms if they exist
-                                hist_file = os.path.join(self.stats_dir, f"{db_name}_{table_name}.hist.json")
+                                hist_file = os.path.join(
+                                    self.stats_dir, f"{db_name}_{table_name}.hist.json"
+                                )
                                 if os.path.exists(hist_file):
-                                    with open(hist_file, 'r') as f:
-                                        self.histograms[f"{db_name}.{table_name}"] = json.load(f)
+                                    with open(hist_file, "r") as f:
+                                        self.histograms[f"{db_name}.{table_name}"] = (
+                                            json.load(f)
+                                        )
                             except RuntimeError as e:
-                                logging.error(f"Error loading statistics for {db_name}.{table_name}: {e}")
+                                logging.error(
+                                    f"Error loading statistics for {db_name}.{table_name}: {e}"
+                                )
 
                 logging.info(f"Loaded statistics for {loaded_count} tables")
             except RuntimeError as e:
@@ -89,7 +99,6 @@ class TableStatistics:
             self.histograms.clear()
             self.last_refresh.clear()
             logging.info("Invalidated all cached statistics")
-
 
     def get_table_statistics(self, table_name):
         """
@@ -112,9 +121,9 @@ class TableStatistics:
             # Check if we need to refresh the statistics
             current_time = time.time()
             if (
-                table_key not in self.statistics or
-                table_key not in self.last_refresh or
-                current_time - self.last_refresh[table_key] > self.refresh_interval
+                table_key not in self.statistics
+                or table_key not in self.last_refresh
+                or current_time - self.last_refresh[table_key] > self.refresh_interval
             ):
                 # Statistics are missing or outdated, collect them
                 self.collect_table_statistics(table_name)
@@ -122,7 +131,7 @@ class TableStatistics:
             # Return the statistics (or defaults if collection failed)
             return self.statistics.get(
                 table_key,
-                {"row_count": 1000, "avg_row_size": 100, "approx_size_kb": 100}
+                {"row_count": 1000, "avg_row_size": 100, "approx_size_kb": 100},
             )
 
     def collect_table_statistics(self, table_name):
@@ -160,7 +169,9 @@ class TableStatistics:
 
                 # Query the table to get all records
                 # For very large tables, we might want to use sampling instead
-                all_records = self.catalog_manager.query_with_condition(table_name, None, columns)
+                all_records = self.catalog_manager.query_with_condition(
+                    table_name, None, columns
+                )
 
                 # Count rows
                 row_count = len(all_records)
@@ -169,7 +180,7 @@ class TableStatistics:
                 stats = {
                     "row_count": row_count,
                     "timestamp": time.time(),
-                    "columns": {}
+                    "columns": {},
                 }
 
                 # If table is empty, save minimal statistics
@@ -185,9 +196,7 @@ class TableStatistics:
                 for i in range(sample_size):
                     record = all_records[i]
                     # Estimate row size (this is a rough approximation)
-                    record_size = sum(
-                        len(str(value)) for value in record.values()
-                    )
+                    record_size = sum(len(str(value)) for value in record.values())
                     total_size += record_size
 
                 avg_row_size = total_size / sample_size
@@ -230,19 +239,21 @@ class TableStatistics:
                             "min": min_val,
                             "max": max_val,
                             "avg": avg_val,
-                            "null_count": row_count - len(values)
+                            "null_count": row_count - len(values),
                         }
 
                         # Create histogram for numeric columns
                         if len(set(values)) > self.min_distinct_values:
                             try:
-                                hist, bin_edges = np.histogram(values, bins='auto')
+                                hist, bin_edges = np.histogram(values, bins="auto")
                                 histograms[column] = {
                                     "counts": hist.tolist(),
-                                    "bins": bin_edges.tolist()
+                                    "bins": bin_edges.tolist(),
                                 }
                             except RuntimeError as e:
-                                logging.error(f"Error creating histogram for {column}: {e}")
+                                logging.error(
+                                    f"Error creating histogram for {column}: {e}"
+                                )
                     else:
                         # For string columns, collect distinct values and top values
                         distinct_values = set(values)
@@ -253,21 +264,27 @@ class TableStatistics:
                             freq[v] += 1
 
                         # Get top 10 most common values
-                        top_values = sorted(freq.items(), key=lambda x: x[1], reverse=True)[:10]
+                        top_values = sorted(
+                            freq.items(), key=lambda x: x[1], reverse=True
+                        )[:10]
 
                         column_stats[column] = {
                             "type": col_type,
                             "distinct_count": len(distinct_values),
                             "null_count": row_count - len(values),
-                            "top_values": [{"value": str(v), "count": c} for v, c in top_values]
+                            "top_values": [
+                                {"value": str(v), "count": c} for v, c in top_values
+                            ],
                         }
 
                         # For low-cardinality string columns, create a value distribution
-                        if len(distinct_values) <= 100:  # Only for reasonable number of distinct values
+                        if (
+                            len(distinct_values) <= 100
+                        ):  # Only for reasonable number of distinct values
                             value_dist = {str(k): v for k, v in freq.items()}
                             histograms[column] = {
                                 "type": "categorical",
-                                "distribution": value_dist
+                                "distribution": value_dist,
                             }
 
                 # Update the statistics
@@ -292,7 +309,7 @@ class TableStatistics:
         filepath = os.path.join(self.stats_dir, filename)
 
         try:
-            with open(filepath, 'w') as f:
+            with open(filepath, "w") as f:
                 json.dump(stats, f, indent=2)
         except RuntimeError as e:
             logging.error(f"Error saving statistics for {table_name}: {e}")
@@ -303,7 +320,7 @@ class TableStatistics:
         filepath = os.path.join(self.stats_dir, filename)
 
         try:
-            with open(filepath, 'w') as f:
+            with open(filepath, "w") as f:
                 json.dump(histograms, f, indent=2)
         except RuntimeError as e:
             logging.error(f"Error saving histograms for {table_name}: {e}")
@@ -332,7 +349,9 @@ class TableStatistics:
 
             # Return column statistics if available
             if table_key in self.statistics:
-                return self.statistics[table_key].get("columns", {}).get(column_name, {})
+                return (
+                    self.statistics[table_key].get("columns", {}).get(column_name, {})
+                )
 
             return {}
 
@@ -507,11 +526,7 @@ class TableStatistics:
         Returns:
             dict: Schema statistics
         """
-        result = {
-            "tables": {},
-            "total_rows": 0,
-            "total_size_kb": 0
-        }
+        result = {"tables": {}, "total_rows": 0, "total_size_kb": 0}
 
         db_name = self.catalog_manager.get_current_database()
         if not db_name:
@@ -523,7 +538,7 @@ class TableStatistics:
                     table_name = key.split(".", 1)[1]
                     result["tables"][table_name] = {
                         "row_count": stats.get("row_count", 0),
-                        "size_kb": stats.get("approx_size_kb", 0)
+                        "size_kb": stats.get("approx_size_kb", 0),
                     }
                     result["total_rows"] += stats.get("row_count", 0)
                     result["total_size_kb"] += stats.get("approx_size_kb", 0)

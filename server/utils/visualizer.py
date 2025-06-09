@@ -6,6 +6,7 @@ from bptree import BPlusTree
 from bptree_optimized import BPlusTreeOptimized
 from bptree_visualizer import BPTreeVisualizer
 
+
 class Visualizer:
     """Visualization utilities for database structures."""
 
@@ -27,7 +28,7 @@ class Visualizer:
         else:
             return {
                 "error": f"Unsupported visualization object: {object_type}",
-                "status": "error"
+                "status": "error",
             }
 
     def execute_visualize_bptree(self, plan):
@@ -47,18 +48,20 @@ class Visualizer:
         if not table_name or not index_name:
             return {
                 "error": "Both table name and index name must be specified",
-                "status": "error"
+                "status": "error",
             }
 
         try:
             # Check if the index exists in the catalog
             indexes = self.catalog_manager.get_indexes_for_table(table_name)
-            logging.info(f"Available indexes for table {table_name}: {list(indexes.keys())}")
+            logging.info(
+                f"Available indexes for table {table_name}: {list(indexes.keys())}"
+            )
 
             if index_name not in indexes:
                 return {
                     "error": f"Index '{index_name}' not found for table '{table_name}'. Available indexes: {list(indexes.keys())}",
-                    "status": "error"
+                    "status": "error",
                 }
 
             # Get the index definition
@@ -69,7 +72,7 @@ class Visualizer:
                 f"data/indexes/{db_name}_{table_name}_{index_name}.idx",
                 f"data/indexes/{db_name}_{table_name}_{index_def.get('column', 'unknown')}.idx",
                 f"data/indexes/{table_name}_{index_name}.idx",
-                f"data/indexes/{index_name}.idx"
+                f"data/indexes/{index_name}.idx",
             ]
 
             index_file_path = None
@@ -82,10 +85,12 @@ class Visualizer:
             if not index_file_path:
                 # Try to rebuild the index using the DDL index manager
                 full_index_name = f"{table_name}.{index_name}"
-                logging.info(f"Index file not found, attempting to rebuild: {full_index_name}")
+                logging.info(
+                    f"Index file not found, attempting to rebuild: {full_index_name}"
+                )
 
                 # Use the index manager to rebuild
-                if hasattr(self.index_manager, 'rebuild_index'):
+                if hasattr(self.index_manager, "rebuild_index"):
                     success = self.index_manager.rebuild_index(full_index_name)
                     if success:
                         # Try to find the file again after rebuild
@@ -97,7 +102,7 @@ class Visualizer:
                 if not index_file_path:
                     return {
                         "error": f"Index file not found and could not be rebuilt. Tried: {possible_files}",
-                        "status": "error"
+                        "status": "error",
                     }
 
             # Try to load the B+ tree from file
@@ -115,57 +120,68 @@ class Visualizer:
                         index_obj = BPlusTree.load_from_file(index_file_path)
                         logging.info(f"Loaded regular B+ tree from {index_file_path}")
                     except Exception as fallback_error:
-                        logging.error(f"Failed to load as regular B+ tree: {fallback_error}")
+                        logging.error(
+                            f"Failed to load as regular B+ tree: {fallback_error}"
+                        )
                         # Last resort: try to get from index manager
                         full_index_name = f"{table_name}.{index_name}"
                         index_obj = self.index_manager.get_index(full_index_name)
                         if not index_obj:
-                            raise Exception(f"Could not load index from file or index manager: {fallback_error}")
+                            raise Exception(
+                                f"Could not load index from file or index manager: {fallback_error}"
+                            )
 
             except Exception as load_error:
-                logging.error(f"Failed to load index file {index_file_path}: {str(load_error)}")
+                logging.error(
+                    f"Failed to load index file {index_file_path}: {str(load_error)}"
+                )
                 return {
                     "error": f"Failed to load index file: {str(load_error)}",
-                    "status": "error"
+                    "status": "error",
                 }
 
             # Generate visualization
             output_name = f"{table_name}_{index_name}_bptree"
 
             # Check if it's an optimized B+ tree
-            if hasattr(index_obj, '__class__') and 'Optimized' in index_obj.__class__.__name__:
-                visualization_path = self._visualize_optimized_bptree(index_obj, output_name)
+            if (
+                hasattr(index_obj, "__class__")
+                and "Optimized" in index_obj.__class__.__name__
+            ):
+                visualization_path = self._visualize_optimized_bptree(
+                    index_obj, output_name
+                )
             else:
-                visualization_path = self.visualizer.visualize_tree(index_obj, output_name)
+                visualization_path = self.visualizer.visualize_tree(
+                    index_obj, output_name
+                )
 
             if visualization_path:
                 # Generate HTML content for web display
-                html_content = self._generate_html_visualization(visualization_path, index_obj)
+                html_content = self._generate_html_visualization(
+                    visualization_path, index_obj
+                )
 
                 return {
                     "message": f"B+ tree visualization generated successfully",
                     "visualization": html_content,
                     "visualization_path": visualization_path,
-                    "status": "success"
+                    "status": "success",
                 }
             else:
-                return {
-                    "error": "Failed to generate visualization",
-                    "status": "error"
-                }
+                return {"error": "Failed to generate visualization", "status": "error"}
 
         except Exception as e:
             logging.error(f"Error visualizing B+ tree: {str(e)}")
-            return {
-                "error": f"Error visualizing B+ tree: {str(e)}",
-                "status": "error"
-            }
+            return {"error": f"Error visualizing B+ tree: {str(e)}", "status": "error"}
 
     def _visualize_optimized_bptree(self, tree, output_name):
         """Visualize an optimized B+ tree."""
         try:
             logging.info(f"Visualizing optimized B+ tree: {tree.name}")
-            logging.info(f"Tree has {len(getattr(tree, 'value_store', {}))} items in value store")
+            logging.info(
+                f"Tree has {len(getattr(tree, 'value_store', {}))} items in value store"
+            )
 
             # Try direct text visualization first to see if there's data
             text_path = self._create_text_visualization(tree, output_name)
@@ -190,39 +206,41 @@ class Visualizer:
 
         try:
             # Get tree information
-            tree_name = getattr(tree, 'name', 'Unknown')
-            tree_order = getattr(tree, 'order', 'Unknown')
+            tree_name = getattr(tree, "name", "Unknown")
+            tree_order = getattr(tree, "order", "Unknown")
 
             # Try multiple ways to get items
             items = []
 
-            if hasattr(tree, '_get_all_items'):
+            if hasattr(tree, "_get_all_items"):
                 try:
                     items = tree._get_all_items()
                     logging.info(f"Got {len(items)} items from _get_all_items")
                 except Exception as e:
                     logging.error(f"Error calling _get_all_items: {e}")
 
-            if not items and hasattr(tree, 'value_store'):
+            if not items and hasattr(tree, "value_store"):
                 try:
-                    value_store = getattr(tree, 'value_store', {})
+                    value_store = getattr(tree, "value_store", {})
                     logging.info(f"Value store has {len(value_store)} entries")
                     for key, value_holder in value_store.items():
-                        if hasattr(value_holder, 'value'):
+                        if hasattr(value_holder, "value"):
                             items.append((key, value_holder.value))
                         else:
                             items.append((key, value_holder))
                 except Exception as e:
                     logging.error(f"Error extracting from value_store: {e}")
 
-            with open(output_path, 'w') as f:
+            with open(output_path, "w") as f:
                 f.write(f"Optimized B+ Tree Visualization: {tree_name}\n")
                 f.write(f"Order: {tree_order}\n")
                 f.write(f"Total items: {len(items)}\n\n")
 
                 if items:
                     f.write("Tree contents:\n")
-                    for i, (key, value) in enumerate(items[:50]):  # Limit to first 50 items
+                    for i, (key, value) in enumerate(
+                        items[:50]
+                    ):  # Limit to first 50 items
                         f.write(f"  {key}: {value}\n")
                     if len(items) > 50:
                         f.write(f"  ... and {len(items) - 50} more items\n")
@@ -233,7 +251,7 @@ class Visualizer:
                     f.write("\nDebug Information:\n")
                     f.write(f"Tree type: {type(tree).__name__}\n")
                     f.write(f"Tree attributes: {dir(tree)}\n")
-                    if hasattr(tree, 'root'):
+                    if hasattr(tree, "root"):
                         f.write(f"Root is null: {tree.root is None}\n")
 
             logging.info(f"Text visualization saved to: {output_path}")
@@ -249,15 +267,15 @@ class Visualizer:
             return self._generate_fallback_html(tree)
 
         # Check if it's an image file
-        if visualization_path.endswith(('.png', '.jpg', '.jpeg', '.svg')):
+        if visualization_path.endswith((".png", ".jpg", ".jpeg", ".svg")):
             # Read the image file and encode it as base64
             import base64
 
             try:
-                with open(visualization_path, 'rb') as f:
-                    image_data = base64.b64encode(f.read()).decode('utf-8')
+                with open(visualization_path, "rb") as f:
+                    image_data = base64.b64encode(f.read()).decode("utf-8")
 
-                file_ext = visualization_path.split('.')[-1]
+                file_ext = visualization_path.split(".")[-1]
                 mime_type = f"image/{file_ext}"
 
                 return f"""
@@ -288,9 +306,9 @@ class Visualizer:
                 return self._generate_fallback_html(tree)
 
         # Check if it's a text file
-        elif visualization_path.endswith('.txt'):
+        elif visualization_path.endswith(".txt"):
             try:
-                with open(visualization_path, 'r') as f:
+                with open(visualization_path, "r") as f:
                     content = f.read()
 
                 return f"""
@@ -324,15 +342,15 @@ class Visualizer:
         try:
             # Get basic tree information safely
             tree_info = {
-                'name': getattr(tree, 'name', 'Unknown'),
-                'order': getattr(tree, 'order', 'Unknown'),
-                'type': type(tree).__name__
+                "name": getattr(tree, "name", "Unknown"),
+                "order": getattr(tree, "order", "Unknown"),
+                "type": type(tree).__name__,
             }
 
             # Try to get some sample data
             sample_data = ""
             try:
-                if hasattr(tree, '_get_all_items'):
+                if hasattr(tree, "_get_all_items"):
                     items = tree._get_all_items()
                     if items:
                         sample_data = f"Sample data ({len(items)} items):\n"
@@ -393,13 +411,14 @@ class Visualizer:
         # Redirect to the B+ tree visualization
         return self.execute_visualize_bptree(plan)
 
+
 class OptimizedTreeWrapper:
     """Wrapper to make optimized B+ tree compatible with the standard visualizer."""
 
     def __init__(self, optimized_tree):
         self.optimized_tree = optimized_tree
-        self.name = getattr(optimized_tree, 'name', 'Unknown')
-        self.order = getattr(optimized_tree, 'order', 50)
+        self.name = getattr(optimized_tree, "name", "Unknown")
+        self.order = getattr(optimized_tree, "order", 50)
         self.root = self._create_compatible_root()
 
     def _create_compatible_root(self):
@@ -407,12 +426,24 @@ class OptimizedTreeWrapper:
         try:
             # Try to get all items from the optimized tree
             items = []
-            if hasattr(self.optimized_tree, '_get_all_items'):
+            if hasattr(self.optimized_tree, "_get_all_items"):
                 items = self.optimized_tree._get_all_items()
-            elif hasattr(self.optimized_tree, 'value_store') and self.optimized_tree.value_store:
+            elif (
+                hasattr(self.optimized_tree, "value_store")
+                and self.optimized_tree.value_store
+            ):
                 # Extract from value store if available
                 for value_ptr, value_holder in self.optimized_tree.value_store.items():
-                    items.append((value_ptr, value_holder.value if hasattr(value_holder, 'value') else value_holder))
+                    items.append(
+                        (
+                            value_ptr,
+                            (
+                                value_holder.value
+                                if hasattr(value_holder, "value")
+                                else value_holder
+                            ),
+                        )
+                    )
 
             logging.info(f"OptimizedTreeWrapper found {len(items)} items in tree")
 
@@ -444,6 +475,7 @@ class OptimizedTreeWrapper:
             root.keys = [f"Error: {str(e)}"]
             root.children = []
             return root
+
 
 class CompatibleNode:
     """Compatible node structure for visualization."""

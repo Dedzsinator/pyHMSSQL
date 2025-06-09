@@ -23,5 +23,7 @@ class HaskellParser:
 
     def parse(self, sql: str) -> Dict[str, Any]:
         """Parse method - now deprecated."""
-        logging.warning("⚠️  HaskellParser.parse() is deprecated. Use SQLGlotParser instead.")
+        logging.warning(
+            "⚠️  HaskellParser.parse() is deprecated. Use SQLGlotParser instead."
+        )
         return {"error": "HaskellParser is deprecated. Use SQLGlotParser instead."}

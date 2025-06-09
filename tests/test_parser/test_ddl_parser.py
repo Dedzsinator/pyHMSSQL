@@ -1,22 +1,27 @@
 """
 Tests for SQL DDL statement parsing (CREATE, DROP, ALTER).
 """
+
 import pytest
 import sys
 import os
 
 # Add server directory to path
-project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
-server_dir = os.path.join(project_root, 'server')
+project_root = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "..")
+)
+server_dir = os.path.join(project_root, "server")
 if server_dir not in sys.path:
     sys.path.insert(0, server_dir)
 
 from parser import SQLParser
 
+
 @pytest.fixture
 def parser():
     """Create a parser instance for testing."""
     return SQLParser()
+
 
 class TestCreateTableParser:
     """Test CREATE TABLE statement parsing."""
@@ -66,6 +71,7 @@ class TestCreateTableParser:
         assert parsed["type"] == "CREATE_TABLE"
         assert parsed["table"] == "temp_table"
 
+
 class TestCreateIndexParser:
     """Test CREATE INDEX statement parsing."""
 
@@ -98,6 +104,7 @@ class TestCreateIndexParser:
         assert parsed["table"] == "users"
         assert len(parsed.get("columns", [])) >= 1
 
+
 class TestCreateDatabaseParser:
     """Test CREATE DATABASE statement parsing."""
 
@@ -116,6 +123,7 @@ class TestCreateDatabaseParser:
 
         assert parsed["type"] == "CREATE_DATABASE"
         assert parsed["database"] == "testdb"
+
 
 class TestDropStatements:
     """Test DROP statement parsing."""
@@ -152,6 +160,7 @@ class TestDropStatements:
 
         assert parsed["type"] == "DROP_DATABASE"
         assert parsed["database"] == "testdb"
+
 
 class TestAlterStatements:
     """Test ALTER statement parsing."""

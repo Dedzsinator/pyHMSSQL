@@ -62,7 +62,7 @@ class SQLGlotParser:
                 return {"error": "Empty query"}
 
             # Remove trailing semicolon
-            if sql.endswith(';'):
+            if sql.endswith(";"):
                 sql = sql[:-1]
 
             # Parse with SQLGlot
@@ -117,7 +117,9 @@ class SQLGlotParser:
             logging.warning(f"SQLGlot transpilation failed: {e}")
             return sql  # Return original if transpilation fails
 
-    def _try_fallback_parsing(self, sql: str, error_msg: str) -> Optional[Dict[str, Any]]:
+    def _try_fallback_parsing(
+        self, sql: str, error_msg: str
+    ) -> Optional[Dict[str, Any]]:
         """Try fallback parsing for SQL constructs that SQLGlot can't handle.
 
         Args:
@@ -142,7 +144,7 @@ class SQLGlotParser:
             match = re.match(
                 r"DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+?))?\s+ORDER\s+BY\s+(.+?)(?:\s+LIMIT\s+(\d+))?\s*$",
                 sql.strip(),
-                re.IGNORECASE | re.DOTALL
+                re.IGNORECASE | re.DOTALL,
             )
             if match:
                 table_name = match.group(1)
@@ -154,12 +156,14 @@ class SQLGlotParser:
                     "type": "DELETE",
                     "operation": "DELETE",
                     "query": sql,
-                    "table": table_name
+                    "table": table_name,
                 }
 
                 if where_clause:
                     # Simple condition parsing for WHERE clause
-                    result["condition"] = self._parse_simple_condition(where_clause.strip())
+                    result["condition"] = self._parse_simple_condition(
+                        where_clause.strip()
+                    )
                     result["where"] = where_clause.strip()
 
                 if order_by:
@@ -168,7 +172,9 @@ class SQLGlotParser:
                 if limit:
                     result["limit"] = int(limit)
 
-                logging.info(f"✅ Fallback parsing successful for DELETE with ORDER BY/LIMIT")
+                logging.info(
+                    f"✅ Fallback parsing successful for DELETE with ORDER BY/LIMIT"
+                )
                 return result
 
         return None
@@ -187,25 +193,27 @@ class SQLGlotParser:
         # Handle simple conditions like "column = 'value'"
         match = re.match(r"(\w+)\s*=\s*'([^']+)'", condition_str.strip())
         if match:
-            return [{
-                "column": match.group(1),
-                "operator": "=",
-                "value": match.group(2)
-            }]
+            return [
+                {"column": match.group(1), "operator": "=", "value": match.group(2)}
+            ]
 
         # Handle numeric conditions like "column = 123"
         match = re.match(r"(\w+)\s*=\s*(\d+)", condition_str.strip())
         if match:
-            return [{
-                "column": match.group(1),
-                "operator": "=",
-                "value": int(match.group(2))
-            }]
+            return [
+                {
+                    "column": match.group(1),
+                    "operator": "=",
+                    "value": int(match.group(2)),
+                }
+            ]
 
         # For complex conditions, return the original string
         return [{"raw": condition_str}]
 
-    def _convert_to_internal_format(self, parsed: exp.Expression, original_sql: str) -> Dict[str, Any]:
+    def _convert_to_internal_format(
+        self, parsed: exp.Expression, original_sql: str
+    ) -> Dict[str, Any]:
         """Convert SQLGlot AST to our internal format.
 
         Args:
@@ -254,7 +262,10 @@ class SQLGlotParser:
                 result.update(self._parse_create_function(original_sql))
             elif "CREATE TRIGGER" in original_sql.upper():
                 result.update(self._parse_create_trigger(original_sql))
-            elif "CREATE TEMPORARY TABLE" in original_sql.upper() or "CREATE TEMP TABLE" in original_sql.upper():
+            elif (
+                "CREATE TEMPORARY TABLE" in original_sql.upper()
+                or "CREATE TEMP TABLE" in original_sql.upper()
+            ):
                 result.update(self._parse_create_temporary_table(original_sql))
             elif "DROP PROCEDURE" in original_sql.upper():
                 result.update(self._parse_drop_procedure(original_sql))
@@ -266,7 +277,7 @@ class SQLGlotParser:
                 result.update(self._parse_call_procedure(original_sql))
             else:
                 result["error"] = f"Unsupported command: {original_sql}"
-        elif hasattr(exp, 'TruncateTable') and isinstance(parsed, exp.TruncateTable):
+        elif hasattr(exp, "TruncateTable") and isinstance(parsed, exp.TruncateTable):
             result.update(self._parse_truncate(parsed))
         elif isinstance(parsed, exp.Describe):
             result.update(self._parse_describe(parsed, original_sql))
@@ -280,10 +291,20 @@ class SQLGlotParser:
                 result.update(self._parse_visualize(original_sql))
             elif "SHOW" in original_sql.upper():
                 result.update(self._parse_show_fallback(original_sql))
-            elif "BEGIN" in original_sql.upper() and "TRANSACTION" in original_sql.upper():
-                result.update({"type": "BEGIN_TRANSACTION", "operation": "BEGIN_TRANSACTION"})
-            elif "START" in original_sql.upper() and "TRANSACTION" in original_sql.upper():
-                result.update({"type": "BEGIN_TRANSACTION", "operation": "BEGIN_TRANSACTION"})
+            elif (
+                "BEGIN" in original_sql.upper()
+                and "TRANSACTION" in original_sql.upper()
+            ):
+                result.update(
+                    {"type": "BEGIN_TRANSACTION", "operation": "BEGIN_TRANSACTION"}
+                )
+            elif (
+                "START" in original_sql.upper()
+                and "TRANSACTION" in original_sql.upper()
+            ):
+                result.update(
+                    {"type": "BEGIN_TRANSACTION", "operation": "BEGIN_TRANSACTION"}
+                )
             elif "COMMIT" in original_sql.upper():
                 result.update({"type": "COMMIT", "operation": "COMMIT"})
             elif "ROLLBACK" in original_sql.upper():
@@ -383,7 +404,9 @@ class SQLGlotParser:
 
         return result
 
-    def _parse_join_select(self, select: exp.Select, joins: List[exp.Join]) -> Dict[str, Any]:
+    def _parse_join_select(
+        self, select: exp.Select, joins: List[exp.Join]
+    ) -> Dict[str, Any]:
         """Parse SELECT statement with JOIN operations."""
         result = {"type": "JOIN", "operation": "JOIN"}
 
@@ -416,7 +439,7 @@ class SQLGlotParser:
 
         # Extract join condition
         join_condition = None
-        if hasattr(join_expr, 'on') and join_expr.on:
+        if hasattr(join_expr, "on") and join_expr.on:
             join_condition = str(join_expr.on)
 
         # Store join info
@@ -425,7 +448,7 @@ class SQLGlotParser:
             "condition": join_condition,
             "table1": left_table,
             "table2": right_table,
-            "join_algorithm": "HASH"  # Default
+            "join_algorithm": "HASH",  # Default
         }
 
         # Extract columns (if any)
@@ -469,7 +492,9 @@ class SQLGlotParser:
         """Check if an expression contains aggregate functions."""
         if isinstance(expr, (exp.Count, exp.Sum, exp.Avg, exp.Min, exp.Max)):
             return True
-        if isinstance(expr, exp.Alias) and isinstance(expr.this, (exp.Count, exp.Sum, exp.Avg, exp.Min, exp.Max)):
+        if isinstance(expr, exp.Alias) and isinstance(
+            expr.this, (exp.Count, exp.Sum, exp.Avg, exp.Min, exp.Max)
+        ):
             return True
         return False
 
@@ -501,22 +526,61 @@ class SQLGlotParser:
             return left_conds + right_conds
         elif isinstance(condition, exp.Or):
             # Handle OR conditions
-            return [{
-                "operator": "OR",
-                "operands": self._parse_condition(condition.left) + self._parse_condition(condition.right)
-            }]
+            return [
+                {
+                    "operator": "OR",
+                    "operands": self._parse_condition(condition.left)
+                    + self._parse_condition(condition.right),
+                }
+            ]
         elif isinstance(condition, exp.EQ):
-            return [{"column": str(condition.left), "operator": "=", "value": self._extract_value(condition.right)}]
+            return [
+                {
+                    "column": str(condition.left),
+                    "operator": "=",
+                    "value": self._extract_value(condition.right),
+                }
+            ]
         elif isinstance(condition, exp.NEQ):
-            return [{"column": str(condition.left), "operator": "!=", "value": self._extract_value(condition.right)}]
+            return [
+                {
+                    "column": str(condition.left),
+                    "operator": "!=",
+                    "value": self._extract_value(condition.right),
+                }
+            ]
         elif isinstance(condition, exp.GT):
-            return [{"column": str(condition.left), "operator": ">", "value": self._extract_value(condition.right)}]
+            return [
+                {
+                    "column": str(condition.left),
+                    "operator": ">",
+                    "value": self._extract_value(condition.right),
+                }
+            ]
         elif isinstance(condition, exp.GTE):
-            return [{"column": str(condition.left), "operator": ">=", "value": self._extract_value(condition.right)}]
+            return [
+                {
+                    "column": str(condition.left),
+                    "operator": ">=",
+                    "value": self._extract_value(condition.right),
+                }
+            ]
         elif isinstance(condition, exp.LT):
-            return [{"column": str(condition.left), "operator": "<", "value": self._extract_value(condition.right)}]
+            return [
+                {
+                    "column": str(condition.left),
+                    "operator": "<",
+                    "value": self._extract_value(condition.right),
+                }
+            ]
         elif isinstance(condition, exp.LTE):
-            return [{"column": str(condition.left), "operator": "<=", "value": self._extract_value(condition.right)}]
+            return [
+                {
+                    "column": str(condition.left),
+                    "operator": "<=",
+                    "value": self._extract_value(condition.right),
+                }
+            ]
         else:
             # Fallback for complex conditions
             return [{"column": "unknown", "operator": "RAW", "value": str(condition)}]
@@ -541,14 +605,14 @@ class SQLGlotParser:
         # Extract table name - SQLGlot structure: insert.this.this.name
         table_name = None
         if insert.this:
-            if hasattr(insert.this, 'this') and hasattr(insert.this.this, 'name'):
+            if hasattr(insert.this, "this") and hasattr(insert.this.this, "name"):
                 table_name = insert.this.this.name
-            elif hasattr(insert.this, 'name'):
+            elif hasattr(insert.this, "name"):
                 table_name = insert.this.name
             else:
                 table_name = str(insert.this)
-        elif hasattr(insert, 'table') and insert.table:
-            if hasattr(insert.table, 'name'):
+        elif hasattr(insert, "table") and insert.table:
+            if hasattr(insert.table, "name"):
                 table_name = insert.table.name
             else:
                 table_name = str(insert.table)
@@ -558,21 +622,25 @@ class SQLGlotParser:
 
         # Extract columns - handle different SQLGlot versions
         columns = []
-        if hasattr(insert, 'columns') and insert.columns:
+        if hasattr(insert, "columns") and insert.columns:
             columns = [col.name for col in insert.columns]
-        elif hasattr(insert, 'this') and hasattr(insert.this, 'expressions'):
+        elif hasattr(insert, "this") and hasattr(insert.this, "expressions"):
             # SQLGlot structure: insert.this.expressions contains the column identifiers
             for expr in insert.this.expressions:
-                if hasattr(expr, 'name'):
+                if hasattr(expr, "name"):
                     columns.append(expr.name)
-                elif hasattr(expr, 'this'):
+                elif hasattr(expr, "this"):
                     columns.append(expr.this)
                 else:
                     columns.append(str(expr))
-        elif hasattr(insert, 'expression') and hasattr(insert.expression, 'this') and hasattr(insert.expression.this, 'expressions'):
+        elif (
+            hasattr(insert, "expression")
+            and hasattr(insert.expression, "this")
+            and hasattr(insert.expression.this, "expressions")
+        ):
             # Alternative approach for different SQLGlot structure
             for expr in insert.expression.this.expressions:
-                if hasattr(expr, 'name'):
+                if hasattr(expr, "name"):
                     columns.append(expr.name)
 
         if columns:
@@ -580,15 +648,19 @@ class SQLGlotParser:
 
         # Extract values
         values = []
-        if hasattr(insert, 'expression') and insert.expression:
+        if hasattr(insert, "expression") and insert.expression:
             if isinstance(insert.expression, exp.Values):
                 for tuple_expr in insert.expression.expressions:
                     if isinstance(tuple_expr, exp.Tuple):
-                        row_values = [self._extract_value(expr) for expr in tuple_expr.expressions]
+                        row_values = [
+                            self._extract_value(expr) for expr in tuple_expr.expressions
+                        ]
                         values.append(row_values)
-            elif hasattr(insert.expression, 'expressions'):
+            elif hasattr(insert.expression, "expressions"):
                 # Handle direct tuple insertion
-                row_values = [self._extract_value(expr) for expr in insert.expression.expressions]
+                row_values = [
+                    self._extract_value(expr) for expr in insert.expression.expressions
+                ]
                 values.append(row_values)
 
         if values:
@@ -664,31 +736,33 @@ class SQLGlotParser:
             result["constraints"] = constraints
             return result
 
-        elif hasattr(create, 'kind') and create.kind == "DATABASE":
+        elif hasattr(create, "kind") and create.kind == "DATABASE":
             # CREATE DATABASE
             return {
                 "type": "CREATE_DATABASE",
                 "operation": "CREATE_DATABASE",
-                "database": create.this.name
+                "database": create.this.name,
             }
 
-        elif hasattr(create, 'kind') and create.kind == "INDEX":
+        elif hasattr(create, "kind") and create.kind == "INDEX":
             # CREATE INDEX
             result = {"type": "CREATE_INDEX", "operation": "CREATE_INDEX"}
             if create.this:
-                if hasattr(create.this, 'this') and hasattr(create.this.this, 'name'):
+                if hasattr(create.this, "this") and hasattr(create.this.this, "name"):
                     result["index_name"] = create.this.this.name
-                elif hasattr(create.this, 'name'):
+                elif hasattr(create.this, "name"):
                     result["index_name"] = create.this.name
                 else:
                     result["index_name"] = str(create.this)
 
             # Extract table name - SQLGlot structure: create.this.table.name
             table_name = None
-            if hasattr(create.this, 'table') and create.this.table:
-                if hasattr(create.this.table, 'name'):
+            if hasattr(create.this, "table") and create.this.table:
+                if hasattr(create.this.table, "name"):
                     table_name = create.this.table.name
-                elif hasattr(create.this.table, 'this') and hasattr(create.this.table.this, 'name'):
+                elif hasattr(create.this.table, "this") and hasattr(
+                    create.this.table.this, "name"
+                ):
                     table_name = create.this.table.this.name
                 else:
                     table_name = str(create.this.table)
@@ -703,17 +777,19 @@ class SQLGlotParser:
 
             # Extract columns from index parameters
             columns = []
-            if hasattr(create.this, 'args') and create.this.args.get('params'):
-                params = create.this.args['params']
-                if hasattr(params, 'args') and params.args.get('columns'):
-                    for col_expr in params.args['columns']:
+            if hasattr(create.this, "args") and create.this.args.get("params"):
+                params = create.this.args["params"]
+                if hasattr(params, "args") and params.args.get("columns"):
+                    for col_expr in params.args["columns"]:
                         # Handle Ordered expressions that wrap Column expressions
-                        if hasattr(col_expr, 'this') and isinstance(col_expr.this, exp.Column):
-                            if hasattr(col_expr.this, 'name'):
+                        if hasattr(col_expr, "this") and isinstance(
+                            col_expr.this, exp.Column
+                        ):
+                            if hasattr(col_expr.this, "name"):
                                 columns.append(col_expr.this.name)
                             else:
                                 columns.append(str(col_expr.this))
-                        elif hasattr(col_expr, 'name'):
+                        elif hasattr(col_expr, "name"):
                             columns.append(col_expr.name)
                         else:
                             columns.append(str(col_expr))
@@ -726,7 +802,7 @@ class SQLGlotParser:
             if columns:
                 result["columns"] = columns
 
-            result["unique"] = create.args.get('unique', False)
+            result["unique"] = create.args.get("unique", False)
             return result
 
         return {"error": "Unsupported CREATE statement"}
@@ -737,22 +813,22 @@ class SQLGlotParser:
             return {
                 "type": "DROP_TABLE",
                 "operation": "DROP_TABLE",
-                "table": drop.this.name
+                "table": drop.this.name,
             }
         elif drop.kind == "DATABASE":
             return {
                 "type": "DROP_DATABASE",
                 "operation": "DROP_DATABASE",
-                "database": drop.this.name
+                "database": drop.this.name,
             }
         elif drop.kind == "INDEX":
             result = {"type": "DROP_INDEX", "operation": "DROP_INDEX"}
             result["index_name"] = drop.this.name
 
             # Extract table name from cluster argument
-            if hasattr(drop, 'args') and drop.args.get('cluster'):
-                cluster = drop.args['cluster']
-                if hasattr(cluster, 'this') and hasattr(cluster.this, 'name'):
+            if hasattr(drop, "args") and drop.args.get("cluster"):
+                cluster = drop.args["cluster"]
+                if hasattr(cluster, "this") and hasattr(cluster.this, "name"):
                     result["table"] = cluster.this.name
 
             return result
@@ -763,14 +839,14 @@ class SQLGlotParser:
         """Parse SHOW statement."""
         result = {"type": "SHOW", "operation": "SHOW"}
 
-        if hasattr(show, 'kind'):
+        if hasattr(show, "kind"):
             if show.kind == "DATABASES":
                 result["object"] = "DATABASES"
             elif show.kind == "TABLES":
                 result["object"] = "TABLES"
             elif show.kind == "INDEXES":
                 result["object"] = "INDEXES"
-                if hasattr(show, 'this') and show.this:
+                if hasattr(show, "this") and show.this:
                     result["table"] = show.this.name
 
         return result
@@ -780,7 +856,7 @@ class SQLGlotParser:
         return {
             "type": "USE_DATABASE",
             "operation": "USE_DATABASE",
-            "database": use.this.name
+            "database": use.this.name,
         }
 
     def _parse_union(self, union: exp.Union) -> Dict[str, Any]:
@@ -789,7 +865,7 @@ class SQLGlotParser:
             "type": "UNION",
             "operation": "UNION",
             "left": self._convert_to_internal_format(union.left, str(union.left)),
-            "right": self._convert_to_internal_format(union.right, str(union.right))
+            "right": self._convert_to_internal_format(union.right, str(union.right)),
         }
 
     def _parse_intersect(self, intersect: exp.Intersect) -> Dict[str, Any]:
@@ -797,8 +873,12 @@ class SQLGlotParser:
         return {
             "type": "INTERSECT",
             "operation": "INTERSECT",
-            "left": self._convert_to_internal_format(intersect.left, str(intersect.left)),
-            "right": self._convert_to_internal_format(intersect.right, str(intersect.right))
+            "left": self._convert_to_internal_format(
+                intersect.left, str(intersect.left)
+            ),
+            "right": self._convert_to_internal_format(
+                intersect.right, str(intersect.right)
+            ),
         }
 
     def _parse_except(self, except_expr: exp.Except) -> Dict[str, Any]:
@@ -806,8 +886,12 @@ class SQLGlotParser:
         return {
             "type": "EXCEPT",
             "operation": "EXCEPT",
-            "left": self._convert_to_internal_format(except_expr.left, str(except_expr.left)),
-            "right": self._convert_to_internal_format(except_expr.right, str(except_expr.right))
+            "left": self._convert_to_internal_format(
+                except_expr.left, str(except_expr.left)
+            ),
+            "right": self._convert_to_internal_format(
+                except_expr.right, str(except_expr.right)
+            ),
         }
 
     def _parse_merge(self, merge: exp.Merge) -> Dict[str, Any]:
@@ -815,29 +899,29 @@ class SQLGlotParser:
         result = {"type": "MERGE", "operation": "MERGE"}
 
         # Extract target table
-        if hasattr(merge, 'this') and merge.this:
+        if hasattr(merge, "this") and merge.this:
             result["target_table"] = merge.this.name
 
         # Extract source table/query
-        if hasattr(merge, 'using') and merge.using:
-            if hasattr(merge.using, 'name'):
+        if hasattr(merge, "using") and merge.using:
+            if hasattr(merge.using, "name"):
                 result["source_table"] = merge.using.name
             else:
                 result["source"] = str(merge.using)
 
         # Extract join condition
-        if hasattr(merge, 'on') and merge.on:
+        if hasattr(merge, "on") and merge.on:
             result["on_condition"] = str(merge.on)
 
         # Extract WHEN clauses
         when_clauses = []
-        if hasattr(merge, 'expressions') and merge.expressions:
+        if hasattr(merge, "expressions") and merge.expressions:
             for expr in merge.expressions:
-                if hasattr(expr, 'kind'):
+                if hasattr(expr, "kind"):
                     when_clause = {
                         "type": expr.kind,
-                        "condition": str(expr.this) if hasattr(expr, 'this') else None,
-                        "action": str(expr.then) if hasattr(expr, 'then') else None
+                        "condition": str(expr.this) if hasattr(expr, "this") else None,
+                        "action": str(expr.then) if hasattr(expr, "then") else None,
                     }
                     when_clauses.append(when_clause)
 
@@ -851,20 +935,27 @@ class SQLGlotParser:
         result = {"type": "REPLACE", "operation": "REPLACE"}
 
         import re
+
         # Parse REPLACE INTO table_name (columns) VALUES (values)
-        match = re.match(r"REPLACE\s+INTO\s+(\w+)(?:\s*\(([^)]+)\))?\s+VALUES\s*\((.+)\)", sql.strip(), re.IGNORECASE | re.DOTALL)
+        match = re.match(
+            r"REPLACE\s+INTO\s+(\w+)(?:\s*\(([^)]+)\))?\s+VALUES\s*\((.+)\)",
+            sql.strip(),
+            re.IGNORECASE | re.DOTALL,
+        )
         if match:
             result["table"] = match.group(1)
 
             if match.group(2):  # columns specified
-                columns = [col.strip().strip("'\"") for col in match.group(2).split(',')]
+                columns = [
+                    col.strip().strip("'\"") for col in match.group(2).split(",")
+                ]
                 result["columns"] = columns
 
             # Parse values
             values_str = match.group(3)
             values = []
             # Simple parsing - can be enhanced for complex values
-            for val in values_str.split(','):
+            for val in values_str.split(","):
                 val = val.strip()
                 if val.startswith("'") and val.endswith("'"):
                     values.append(val[1:-1])  # Remove quotes
@@ -881,15 +972,15 @@ class SQLGlotParser:
         result = {"type": "TRUNCATE", "operation": "TRUNCATE"}
 
         # Extract table name
-        if hasattr(truncate, 'this') and truncate.this:
-            if hasattr(truncate.this, 'name'):
+        if hasattr(truncate, "this") and truncate.this:
+            if hasattr(truncate.this, "name"):
                 result["table"] = truncate.this.name
             else:
                 # Handle case where this is a list of tables
                 if isinstance(truncate.this, list):
                     tables = []
                     for table in truncate.this:
-                        if hasattr(table, 'name'):
+                        if hasattr(table, "name"):
                             tables.append(table.name)
                         else:
                             tables.append(str(table))
@@ -902,30 +993,32 @@ class SQLGlotParser:
     def _parse_script(self, sql: str) -> Dict[str, Any]:
         """Parse SCRIPT statement."""
         import re
+
         match = re.match(r"SCRIPT\s+(.+)", sql.strip(), re.IGNORECASE)
         if match:
-            filename = match.group(1).strip().strip('"\'')
-            return {
-                "type": "SCRIPT",
-                "operation": "SCRIPT",
-                "filename": filename
-            }
+            filename = match.group(1).strip().strip("\"'")
+            return {"type": "SCRIPT", "operation": "SCRIPT", "filename": filename}
         return {"error": "Invalid SCRIPT statement"}
 
     def _parse_visualize(self, sql: str) -> Dict[str, Any]:
         """Parse VISUALIZE statement."""
         import re
+
         result = {"type": "VISUALIZE", "operation": "VISUALIZE"}
 
         if "BPTREE" in sql.upper():
             result["object"] = "BPTREE"
 
-            match = re.search(r"VISUALIZE\s+BPTREE\s+(\w+)\s+ON\s+(\w+)", sql, re.IGNORECASE)
+            match = re.search(
+                r"VISUALIZE\s+BPTREE\s+(\w+)\s+ON\s+(\w+)", sql, re.IGNORECASE
+            )
             if match:
                 result["index_name"] = match.group(1)
                 result["table"] = match.group(2)
             else:
-                match = re.search(r"VISUALIZE\s+BPTREE\s+ON\s+(\w+)", sql, re.IGNORECASE)
+                match = re.search(
+                    r"VISUALIZE\s+BPTREE\s+ON\s+(\w+)", sql, re.IGNORECASE
+                )
                 if match:
                     result["table"] = match.group(1)
 
@@ -934,6 +1027,7 @@ class SQLGlotParser:
     def _parse_show_fallback(self, sql: str) -> Dict[str, Any]:
         """Parse SHOW statement using regex fallback."""
         import re
+
         result = {"type": "SHOW", "operation": "SHOW"}
 
         sql_upper = sql.upper().strip()
@@ -964,12 +1058,14 @@ class SQLGlotParser:
 
         return result
 
-    def _parse_describe(self, describe: exp.Describe, original_sql: str) -> Dict[str, Any]:
+    def _parse_describe(
+        self, describe: exp.Describe, original_sql: str
+    ) -> Dict[str, Any]:
         """Parse DESCRIBE/EXPLAIN statement."""
         result = {"type": "EXPLAIN", "operation": "EXPLAIN"}
 
         # If it's EXPLAIN with a query, try to parse the inner query
-        if hasattr(describe, 'this') and describe.this:
+        if hasattr(describe, "this") and describe.this:
             if isinstance(describe.this, exp.Select):
                 result["explained_query"] = self._parse_select(describe.this)
             else:
@@ -977,7 +1073,9 @@ class SQLGlotParser:
 
         return result
 
-    def _parse_transaction(self, transaction: exp.Transaction, original_sql: str) -> Dict[str, Any]:
+    def _parse_transaction(
+        self, transaction: exp.Transaction, original_sql: str
+    ) -> Dict[str, Any]:
         """Parse transaction statement."""
         sql_upper = original_sql.upper().strip()
 
@@ -1010,36 +1108,70 @@ class SQLGlotParser:
 
                     if isinstance(col_expr, exp.ColumnDef):
                         column_info = {
-                            "name": col_expr.this.name if hasattr(col_expr.this, 'name') else str(col_expr.this),
+                            "name": (
+                                col_expr.this.name
+                                if hasattr(col_expr.this, "name")
+                                else str(col_expr.this)
+                            ),
                             "type": str(col_expr.kind) if col_expr.kind else "UNKNOWN",
                             "nullable": True,  # Default
                             "primary_key": False,
                             "default": None,
-                            "identity": False
+                            "identity": False,
                         }
 
                         # Check for constraints
                         if col_expr.constraints:
                             for constraint in col_expr.constraints:
-                                if hasattr(constraint, 'kind'):
-                                    if hasattr(exp, 'NotNullColumnConstraint') and isinstance(constraint.kind, exp.NotNullColumnConstraint):
+                                if hasattr(constraint, "kind"):
+                                    if hasattr(
+                                        exp, "NotNullColumnConstraint"
+                                    ) and isinstance(
+                                        constraint.kind, exp.NotNullColumnConstraint
+                                    ):
                                         column_info["nullable"] = False
-                                    elif hasattr(exp, 'PrimaryKeyColumnConstraint') and isinstance(constraint.kind, exp.PrimaryKeyColumnConstraint):
+                                    elif hasattr(
+                                        exp, "PrimaryKeyColumnConstraint"
+                                    ) and isinstance(
+                                        constraint.kind, exp.PrimaryKeyColumnConstraint
+                                    ):
                                         column_info["primary_key"] = True
                                         column_info["nullable"] = False
-                                    elif hasattr(exp, 'DefaultColumnConstraint') and isinstance(constraint.kind, exp.DefaultColumnConstraint):
-                                        column_info["default"] = str(constraint.kind.this) if constraint.kind.this else None
-                                    elif hasattr(exp, 'GeneratedAsIdentityColumnConstraint') and isinstance(constraint.kind, exp.GeneratedAsIdentityColumnConstraint):
+                                    elif hasattr(
+                                        exp, "DefaultColumnConstraint"
+                                    ) and isinstance(
+                                        constraint.kind, exp.DefaultColumnConstraint
+                                    ):
+                                        column_info["default"] = (
+                                            str(constraint.kind.this)
+                                            if constraint.kind.this
+                                            else None
+                                        )
+                                    elif hasattr(
+                                        exp, "GeneratedAsIdentityColumnConstraint"
+                                    ) and isinstance(
+                                        constraint.kind,
+                                        exp.GeneratedAsIdentityColumnConstraint,
+                                    ):
                                         column_info["identity"] = True
                                         # Try to extract seed and increment values
                                         identity_str = str(constraint.kind)
                                         import re
-                                        start_match = re.search(r'START WITH (\d+)', identity_str)
-                                        increment_match = re.search(r'INCREMENT BY (\d+)', identity_str)
+
+                                        start_match = re.search(
+                                            r"START WITH (\d+)", identity_str
+                                        )
+                                        increment_match = re.search(
+                                            r"INCREMENT BY (\d+)", identity_str
+                                        )
                                         if start_match:
-                                            column_info["identity_seed"] = int(start_match.group(1))
+                                            column_info["identity_seed"] = int(
+                                                start_match.group(1)
+                                            )
                                         if increment_match:
-                                            column_info["identity_increment"] = int(increment_match.group(1))
+                                            column_info["identity_increment"] = int(
+                                                increment_match.group(1)
+                                            )
 
                         return column_info
 
@@ -1056,7 +1188,7 @@ class SQLGlotParser:
             "nullable": True,
             "primary_key": False,
             "default": None,
-            "identity": False
+            "identity": False,
         }
 
         # Extract column name (first word)
@@ -1065,16 +1197,20 @@ class SQLGlotParser:
             result["name"] = parts[0]
 
         # Extract data type
-        type_match = re.search(r'\b(INT|INTEGER|VARCHAR|CHAR|TEXT|DECIMAL|FLOAT|DOUBLE|BOOLEAN|DATE|DATETIME|TIME|TIMESTAMP)\b(?:\(\d+(?:,\d+)?\))?', col_def, re.IGNORECASE)
+        type_match = re.search(
+            r"\b(INT|INTEGER|VARCHAR|CHAR|TEXT|DECIMAL|FLOAT|DOUBLE|BOOLEAN|DATE|DATETIME|TIME|TIMESTAMP)\b(?:\(\d+(?:,\d+)?\))?",
+            col_def,
+            re.IGNORECASE,
+        )
         if type_match:
             result["type"] = type_match.group(0).upper()
 
         # Check for constraints
-        if re.search(r'\bPRIMARY\s+KEY\b', col_def, re.IGNORECASE):
+        if re.search(r"\bPRIMARY\s+KEY\b", col_def, re.IGNORECASE):
             result["primary_key"] = True
             result["nullable"] = False
 
-        if re.search(r'\bNOT\s+NULL\b', col_def, re.IGNORECASE):
+        if re.search(r"\bNOT\s+NULL\b", col_def, re.IGNORECASE):
             result["nullable"] = False
 
         return result
@@ -1082,80 +1218,88 @@ class SQLGlotParser:
     def _parse_create_procedure(self, sql: str) -> Dict[str, Any]:
         """Parse CREATE PROCEDURE statement."""
         import re
+
         result = {"type": "CREATE_PROCEDURE", "operation": "CREATE_PROCEDURE"}
-        
+
         # Pattern to match CREATE PROCEDURE with parameters and body
-        pattern = r'CREATE\s+PROCEDURE\s+(\w+)\s*\(([^)]*)\)\s+AS\s+(.*)'
+        pattern = r"CREATE\s+PROCEDURE\s+(\w+)\s*\(([^)]*)\)\s+AS\s+(.*)"
         match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
-        
+
         if match:
             result["procedure_name"] = match.group(1)
             params_str = match.group(2).strip()
             result["body"] = match.group(3).strip()
-            
+
             # Parse parameters
             parameters = []
             if params_str:
-                param_list = [p.strip() for p in params_str.split(',')]
+                param_list = [p.strip() for p in params_str.split(",")]
                 for param in param_list:
                     if param:
                         param_parts = param.split()
                         if len(param_parts) >= 2:
-                            parameters.append({
-                                "name": param_parts[0],
-                                "type": param_parts[1],
-                                "direction": param_parts[2] if len(param_parts) > 2 else "IN"
-                            })
-            
+                            parameters.append(
+                                {
+                                    "name": param_parts[0],
+                                    "type": param_parts[1],
+                                    "direction": (
+                                        param_parts[2] if len(param_parts) > 2 else "IN"
+                                    ),
+                                }
+                            )
+
             result["parameters"] = parameters
         else:
             result["error"] = "Invalid CREATE PROCEDURE syntax"
-        
+
         return result
 
     def _parse_create_function(self, sql: str) -> Dict[str, Any]:
         """Parse CREATE FUNCTION statement."""
         import re
+
         result = {"type": "CREATE_FUNCTION", "operation": "CREATE_FUNCTION"}
-        
+
         # Pattern to match CREATE FUNCTION with parameters, return type, and body
-        pattern = r'CREATE\s+FUNCTION\s+(\w+)\s*\(([^)]*)\)\s+RETURNS\s+(\w+)\s+AS\s+(.*)'
+        pattern = (
+            r"CREATE\s+FUNCTION\s+(\w+)\s*\(([^)]*)\)\s+RETURNS\s+(\w+)\s+AS\s+(.*)"
+        )
         match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
-        
+
         if match:
             result["function_name"] = match.group(1)
             params_str = match.group(2).strip()
             result["return_type"] = match.group(3).strip()
             result["body"] = match.group(4).strip()
-            
+
             # Parse parameters
             parameters = []
             if params_str:
-                param_list = [p.strip() for p in params_str.split(',')]
+                param_list = [p.strip() for p in params_str.split(",")]
                 for param in param_list:
                     if param:
                         param_parts = param.split()
                         if len(param_parts) >= 2:
-                            parameters.append({
-                                "name": param_parts[0],
-                                "type": param_parts[1]
-                            })
-            
+                            parameters.append(
+                                {"name": param_parts[0], "type": param_parts[1]}
+                            )
+
             result["parameters"] = parameters
         else:
             result["error"] = "Invalid CREATE FUNCTION syntax"
-        
+
         return result
 
     def _parse_create_trigger(self, sql: str) -> Dict[str, Any]:
         """Parse CREATE TRIGGER statement."""
         import re
+
         result = {"type": "CREATE_TRIGGER", "operation": "CREATE_TRIGGER"}
-        
+
         # Pattern to match CREATE TRIGGER
-        pattern = r'CREATE\s+TRIGGER\s+(\w+)\s+(BEFORE|AFTER)\s+(INSERT|UPDATE|DELETE)\s+ON\s+(\w+)\s+FOR\s+EACH\s+ROW\s+(.*)'
+        pattern = r"CREATE\s+TRIGGER\s+(\w+)\s+(BEFORE|AFTER)\s+(INSERT|UPDATE|DELETE)\s+ON\s+(\w+)\s+FOR\s+EACH\s+ROW\s+(.*)"
         match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
-        
+
         if match:
             result["trigger_name"] = match.group(1)
             result["timing"] = match.group(2).upper()
@@ -1164,17 +1308,26 @@ class SQLGlotParser:
             result["body"] = match.group(5).strip()
         else:
             result["error"] = "Invalid CREATE TRIGGER syntax"
-        
+
         return result
 
     def _parse_create_temporary_table(self, sql: str) -> Dict[str, Any]:
         """Parse CREATE TEMPORARY TABLE statement."""
         import re
-        result = {"type": "CREATE_TEMPORARY_TABLE", "operation": "CREATE_TEMPORARY_TABLE"}
-        
+
+        result = {
+            "type": "CREATE_TEMPORARY_TABLE",
+            "operation": "CREATE_TEMPORARY_TABLE",
+        }
+
         # Remove TEMPORARY keyword and parse as regular CREATE TABLE
-        cleaned_sql = re.sub(r'CREATE\s+(TEMPORARY|TEMP)\s+TABLE', 'CREATE TABLE', sql, flags=re.IGNORECASE)
-        
+        cleaned_sql = re.sub(
+            r"CREATE\s+(TEMPORARY|TEMP)\s+TABLE",
+            "CREATE TABLE",
+            sql,
+            flags=re.IGNORECASE,
+        )
+
         try:
             # Use existing CREATE TABLE parsing logic
             parsed = parse_one(cleaned_sql, dialect=self.dialect)
@@ -1190,74 +1343,78 @@ class SQLGlotParser:
                 result["error"] = "Invalid CREATE TEMPORARY TABLE syntax"
         except Exception as e:
             result["error"] = f"Error parsing temporary table: {str(e)}"
-        
+
         return result
 
     def _parse_drop_procedure(self, sql: str) -> Dict[str, Any]:
         """Parse DROP PROCEDURE statement."""
         import re
+
         result = {"type": "DROP_PROCEDURE", "operation": "DROP_PROCEDURE"}
-        
-        pattern = r'DROP\s+PROCEDURE\s+(\w+)'
+
+        pattern = r"DROP\s+PROCEDURE\s+(\w+)"
         match = re.search(pattern, sql, re.IGNORECASE)
-        
+
         if match:
             result["procedure_name"] = match.group(1)
         else:
             result["error"] = "Invalid DROP PROCEDURE syntax"
-        
+
         return result
 
     def _parse_drop_function(self, sql: str) -> Dict[str, Any]:
         """Parse DROP FUNCTION statement."""
         import re
+
         result = {"type": "DROP_FUNCTION", "operation": "DROP_FUNCTION"}
-        
-        pattern = r'DROP\s+FUNCTION\s+(\w+)'
+
+        pattern = r"DROP\s+FUNCTION\s+(\w+)"
         match = re.search(pattern, sql, re.IGNORECASE)
-        
+
         if match:
             result["function_name"] = match.group(1)
         else:
             result["error"] = "Invalid DROP FUNCTION syntax"
-        
+
         return result
 
     def _parse_drop_trigger(self, sql: str) -> Dict[str, Any]:
         """Parse DROP TRIGGER statement."""
         import re
+
         result = {"type": "DROP_TRIGGER", "operation": "DROP_TRIGGER"}
-        
-        pattern = r'DROP\s+TRIGGER\s+(\w+)'
+
+        pattern = r"DROP\s+TRIGGER\s+(\w+)"
         match = re.search(pattern, sql, re.IGNORECASE)
-        
+
         if match:
             result["trigger_name"] = match.group(1)
         else:
             result["error"] = "Invalid DROP TRIGGER syntax"
-        
+
         return result
 
     def _parse_call_procedure(self, sql: str) -> Dict[str, Any]:
         """Parse CALL procedure statement."""
         import re
+
         result = {"type": "CALL_PROCEDURE", "operation": "CALL_PROCEDURE"}
-        
-        pattern = r'CALL\s+(\w+)\s*\(([^)]*)\)'
+
+        pattern = r"CALL\s+(\w+)\s*\(([^)]*)\)"
         match = re.search(pattern, sql, re.IGNORECASE)
-        
+
         if match:
             result["procedure_name"] = match.group(1)
             args_str = match.group(2).strip()
-            
+
             # Parse arguments
             arguments = []
             if args_str:
-                arg_list = [arg.strip() for arg in args_str.split(',')]
+                arg_list = [arg.strip() for arg in args_str.split(",")]
                 arguments = [arg for arg in arg_list if arg]
-            
+
             result["arguments"] = arguments
         else:
             result["error"] = "Invalid CALL syntax"
-        
+
         return result

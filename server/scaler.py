@@ -4,6 +4,7 @@ This module handles data replication across multiple database instances
 for improved read scalability and fault tolerance, with RAFT consensus
 for automatic failover similar to GitHub's Orchestrator.
 """
+
 import logging
 import threading
 import time
@@ -23,31 +24,44 @@ except ImportError:
     # Fallback for when running server.py directly
     from raft_consensus import RaftCluster, RaftNode, NodeState, LogEntry
 
+
 class ReplicaRole(Enum):
     """Roles in the replication system"""
+
     PRIMARY = 1
     REPLICA = 2
     CANDIDATE = 3  # For leader election
-    WITNESS = 4   # For monitoring and orchestration
+    WITNESS = 4  # For monitoring and orchestration
+
 
 class ReplicationMode(Enum):
     """Replication modes for different consistency guarantees"""
-    SYNC = 1         # Fully synchronous - wait for all replicas
-    SEMI_SYNC = 2    # Semi-synchronous - wait for some replicas
-    ASYNC = 3        # Asynchronous - don't wait for replicas
-    RAFT = 4         # RAFT consensus based replication
+
+    SYNC = 1  # Fully synchronous - wait for all replicas
+    SEMI_SYNC = 2  # Semi-synchronous - wait for some replicas
+    ASYNC = 3  # Asynchronous - don't wait for replicas
+    RAFT = 4  # RAFT consensus based replication
+
 
 class FailoverPolicy(Enum):
     """Failover policies"""
-    AUTOMATIC = 1    # Automatic failover using RAFT
-    MANUAL = 2       # Manual failover only
-    ORCHESTRATED = 3 # GitHub Orchestrator-style failover
+
+    AUTOMATIC = 1  # Automatic failover using RAFT
+    MANUAL = 2  # Manual failover only
+    ORCHESTRATED = 3  # GitHub Orchestrator-style failover
+
 
 class EnhancedReplicationManager:
     """Enhanced replication manager with RAFT consensus and orchestration capabilities"""
 
-    def __init__(self, server_id=None, mode=ReplicationMode.RAFT, sync_replicas=1,
-                 failover_policy=FailoverPolicy.AUTOMATIC, cluster_config=None):
+    def __init__(
+        self,
+        server_id=None,
+        mode=ReplicationMode.RAFT,
+        sync_replicas=1,
+        failover_policy=FailoverPolicy.AUTOMATIC,
+        cluster_config=None,
+    ):
         """Initialize the enhanced replication manager.
 
         Args:
@@ -61,52 +75,57 @@ class EnhancedReplicationManager:
         self.mode = mode
         self.sync_replicas = sync_replicas
         self.failover_policy = failover_policy
-        
+
         # Traditional replication state
-        self.role = ReplicaRole.REPLICA  # Start as replica, RAFT will determine leadership
+        self.role = (
+            ReplicaRole.REPLICA
+        )  # Start as replica, RAFT will determine leadership
         self.primary_id = None
         self.replicas = {}  # {replica_id: {host, port, last_seen, lag, health}}
         self.oplog = []  # Operation log for traditional replication
         self.oplog_position = 0  # Current position in oplog
         self.replication_queue = queue.Queue()  # Queue for async replication
-        
+
         # RAFT consensus integration
         self.raft_cluster = None
         self.raft_node = None
         self.is_raft_enabled = mode == ReplicationMode.RAFT
-        
+
         if self.is_raft_enabled and cluster_config:
             self.raft_cluster = RaftCluster(cluster_config)
             node_info = cluster_config.get("nodes", {}).get(self.server_id)
             if node_info:
                 self.raft_node = self.raft_cluster.add_node(
-                    self.server_id,
-                    node_info["host"],
-                    node_info["port"],
-                    is_local=True
+                    self.server_id, node_info["host"], node_info["port"], is_local=True
                 )
-                
+
                 # Set up RAFT callbacks
                 self.raft_cluster.set_database_callback(self._apply_raft_operation)
-                self.raft_cluster.set_leadership_change_callback(self._on_leadership_change)
-        
+                self.raft_cluster.set_leadership_change_callback(
+                    self._on_leadership_change
+                )
+
         # Threading and synchronization
         self.lock = threading.RLock()
         self.logger = logging.getLogger("enhanced_replication")
         self.running = True
-        
+
         # Database integration
         self.catalog_manager = None
         self.execution_engine = None
         self.sql_parser = None
-        
+
         # Health monitoring and metrics
         self.health_monitor = HealthMonitor(self)
         self.metrics = ReplicationMetrics()
-        
+
         # Orchestration features
-        self.orchestrator = DatabaseOrchestrator(self) if failover_policy == FailoverPolicy.ORCHESTRATED else None
-        
+        self.orchestrator = (
+            DatabaseOrchestrator(self)
+            if failover_policy == FailoverPolicy.ORCHESTRATED
+            else None
+        )
+
         # Start background workers
         self._start_background_workers()
 
@@ -114,38 +133,48 @@ class EnhancedReplicationManager:
         """Start background worker threads"""
         if not self.is_raft_enabled:
             # Traditional replication workers
-            self.worker_thread = threading.Thread(target=self._replication_worker, daemon=True)
+            self.worker_thread = threading.Thread(
+                target=self._replication_worker, daemon=True
+            )
             self.worker_thread.start()
-            
-            self.heartbeat_thread = threading.Thread(target=self._heartbeat_worker, daemon=True)
+
+            self.heartbeat_thread = threading.Thread(
+                target=self._heartbeat_worker, daemon=True
+            )
             self.heartbeat_thread.start()
-        
+
         # Health monitoring (always active)
-        self.health_thread = threading.Thread(target=self.health_monitor.monitor_loop, daemon=True)
+        self.health_thread = threading.Thread(
+            target=self.health_monitor.monitor_loop, daemon=True
+        )
         self.health_thread.start()
-        
+
         # Orchestrator (if enabled)
         if self.orchestrator:
-            self.orchestrator_thread = threading.Thread(target=self.orchestrator.orchestration_loop, daemon=True)
+            self.orchestrator_thread = threading.Thread(
+                target=self.orchestrator.orchestration_loop, daemon=True
+            )
             self.orchestrator_thread.start()
 
     def _apply_raft_operation(self, operation: Dict[str, Any]):
         """Apply RAFT operation to local database"""
         try:
             if not self.catalog_manager:
-                self.logger.error("Cannot apply RAFT operation: catalog_manager not set")
+                self.logger.error(
+                    "Cannot apply RAFT operation: catalog_manager not set"
+                )
                 return
-            
+
             op_type = operation.get("type")
             self.logger.info(f"Applying RAFT operation: {op_type}")
-            
+
             if op_type == "INSERT":
                 table_name = operation.get("table")
                 record = operation.get("record")
                 if table_name and record:
                     self.catalog_manager.insert_record(table_name, record)
                     self.metrics.increment("raft_operations_applied")
-            
+
             elif op_type == "UPDATE":
                 table_name = operation.get("table")
                 condition = operation.get("condition")
@@ -153,23 +182,28 @@ class EnhancedReplicationManager:
                 if table_name and condition:
                     self.catalog_manager.update_records(table_name, condition, updates)
                     self.metrics.increment("raft_operations_applied")
-            
+
             elif op_type == "DELETE":
                 table_name = operation.get("table")
                 condition = operation.get("condition")
                 if table_name and condition:
                     self.catalog_manager.delete_records(table_name, condition)
                     self.metrics.increment("raft_operations_applied")
-            
-            elif op_type in ("CREATE_TABLE", "DROP_TABLE", "CREATE_INDEX", "DROP_INDEX"):
+
+            elif op_type in (
+                "CREATE_TABLE",
+                "DROP_TABLE",
+                "CREATE_INDEX",
+                "DROP_INDEX",
+            ):
                 query = operation.get("query")
                 if query and self.sql_parser and self.execution_engine:
                     parsed = self.sql_parser.parse_sql(query)
                     self.execution_engine.execute(parsed)
                     self.metrics.increment("raft_operations_applied")
-            
+
             self.metrics.increment("total_operations_applied")
-            
+
         except Exception as e:
             self.logger.error(f"Error applying RAFT operation: {e}")
             self.metrics.increment("operation_errors")
@@ -238,10 +272,10 @@ class EnhancedReplicationManager:
             # In RAFT mode, leadership is determined by election
             self.logger.warning("Cannot manually promote to primary in RAFT mode")
             return False
-        
+
         if not force and self.role == ReplicaRole.PRIMARY:
             return True
-        
+
         with self.lock:
             self.role = ReplicaRole.PRIMARY
             self.primary_id = self.server_id
@@ -254,7 +288,7 @@ class EnhancedReplicationManager:
         if self.is_raft_enabled:
             self.logger.warning("Cannot manually demote in RAFT mode")
             return False
-        
+
         with self.lock:
             if self.role == ReplicaRole.PRIMARY:
                 self.role = ReplicaRole.REPLICA
@@ -275,15 +309,15 @@ class EnhancedReplicationManager:
             "is_raft_enabled": self.is_raft_enabled,
             "traditional_replicas": len(self.replicas),
             "health": self.health_monitor.get_health_status(),
-            "metrics": self.metrics.get_all_metrics()
+            "metrics": self.metrics.get_all_metrics(),
         }
-        
+
         if self.is_raft_enabled and self.raft_cluster:
             status["raft_status"] = self.raft_cluster.get_cluster_status()
-        
+
         if self.orchestrator:
             status["orchestrator"] = self.orchestrator.get_status()
-        
+
         return status
 
     def add_replica(self, replica_id: str, host: str, port: int) -> bool:
@@ -299,16 +333,16 @@ class EnhancedReplicationManager:
             with self.lock:
                 if self.role != ReplicaRole.PRIMARY:
                     return False
-                
+
                 self.replicas[replica_id] = {
                     "host": host,
                     "port": port,
                     "last_seen": time.time(),
                     "lag": 0,
                     "status": "online",
-                    "health_score": 100.0
+                    "health_score": 100.0,
                 }
-                
+
                 self.logger.info(f"Added replica: {replica_id} at {host}:{port}")
                 return True
 
@@ -325,28 +359,31 @@ class EnhancedReplicationManager:
         """Shutdown the replication manager"""
         self.logger.info("Shutting down enhanced replication manager")
         self.running = False
-        
+
         # Shutdown RAFT cluster
         if self.raft_cluster:
             self.raft_cluster.shutdown()
-        
+
         # Shutdown orchestrator
         if self.orchestrator:
             self.orchestrator.shutdown()
-        
+
         # Shutdown health monitor
         if self.health_monitor:
             self.health_monitor.shutdown()
-        
+
         # Wait for threads
         try:
-            if hasattr(self, 'worker_thread') and self.worker_thread.is_alive():
+            if hasattr(self, "worker_thread") and self.worker_thread.is_alive():
                 self.worker_thread.join(timeout=5)
-            if hasattr(self, 'heartbeat_thread') and self.heartbeat_thread.is_alive():
+            if hasattr(self, "heartbeat_thread") and self.heartbeat_thread.is_alive():
                 self.heartbeat_thread.join(timeout=5)
-            if hasattr(self, 'health_thread') and self.health_thread.is_alive():
+            if hasattr(self, "health_thread") and self.health_thread.is_alive():
                 self.health_thread.join(timeout=5)
-            if hasattr(self, 'orchestrator_thread') and self.orchestrator_thread.is_alive():
+            if (
+                hasattr(self, "orchestrator_thread")
+                and self.orchestrator_thread.is_alive()
+            ):
                 self.orchestrator_thread.join(timeout=5)
         except Exception as e:
             self.logger.error(f"Error during shutdown: {e}")
@@ -357,7 +394,7 @@ class EnhancedReplicationManager:
         pass
 
     def _semi_sync_replicate(self, operation, min_replicas):
-        # ... existing implementation  
+        # ... existing implementation
         pass
 
     def _replication_worker(self):
@@ -371,13 +408,13 @@ class EnhancedReplicationManager:
 
 class HealthMonitor:
     """Monitors health of database nodes and cluster"""
-    
+
     def __init__(self, replication_manager):
         self.replication_manager = replication_manager
         self.logger = logging.getLogger("health_monitor")
         self.running = True
         self.health_metrics = {}
-        
+
     def monitor_loop(self):
         """Main health monitoring loop"""
         while self.running:
@@ -389,7 +426,7 @@ class HealthMonitor:
             except Exception as e:
                 self.logger.error(f"Health monitor error: {e}")
                 time.sleep(5)
-    
+
     def _check_node_health(self):
         """Check health of individual nodes"""
         for replica_id, replica_info in self.replication_manager.replicas.items():
@@ -399,57 +436,73 @@ class HealthMonitor:
                 sock.settimeout(3)
                 result = sock.connect_ex((replica_info["host"], replica_info["port"]))
                 sock.close()
-                
+
                 if result == 0:
                     replica_info["status"] = "online"
                     replica_info["last_seen"] = time.time()
                 else:
                     replica_info["status"] = "offline"
-                    
+
             except Exception as e:
                 self.logger.debug(f"Health check failed for {replica_id}: {e}")
                 replica_info["status"] = "offline"
-    
+
     def _check_replication_lag(self):
         """Monitor replication lag"""
         if self.replication_manager.role == ReplicaRole.PRIMARY:
             for replica_id, replica_info in self.replication_manager.replicas.items():
-                lag = len(self.replication_manager.oplog) - replica_info.get("oplog_position", 0)
+                lag = len(self.replication_manager.oplog) - replica_info.get(
+                    "oplog_position", 0
+                )
                 replica_info["lag"] = lag
-                
+
                 if lag > 100:  # High lag threshold
                     self.logger.warning(f"High replication lag for {replica_id}: {lag}")
-    
+
     def _check_consensus_health(self):
         """Check RAFT consensus health"""
-        if self.replication_manager.is_raft_enabled and self.replication_manager.raft_node:
+        if (
+            self.replication_manager.is_raft_enabled
+            and self.replication_manager.raft_node
+        ):
             status = self.replication_manager.raft_node.get_status()
-            
+
             # Check for split brain or leadership issues
-            if status["state"] == "candidate" and time.time() - status.get("election_start", 0) > 30:
+            if (
+                status["state"] == "candidate"
+                and time.time() - status.get("election_start", 0) > 30
+            ):
                 self.logger.error("Prolonged election detected - possible split brain")
-    
+
     def get_health_status(self) -> Dict[str, Any]:
         """Get overall health status"""
-        online_replicas = sum(1 for r in self.replication_manager.replicas.values() if r["status"] == "online")
+        online_replicas = sum(
+            1
+            for r in self.replication_manager.replicas.values()
+            if r["status"] == "online"
+        )
         total_replicas = len(self.replication_manager.replicas)
-        
+
         return {
-            "overall_health": "healthy" if online_replicas > total_replicas // 2 else "degraded",
+            "overall_health": (
+                "healthy" if online_replicas > total_replicas // 2 else "degraded"
+            ),
             "online_replicas": online_replicas,
             "total_replicas": total_replicas,
             "primary_healthy": self.replication_manager.role == ReplicaRole.PRIMARY,
-            "average_lag": self._calculate_average_lag()
+            "average_lag": self._calculate_average_lag(),
         }
-    
+
     def _calculate_average_lag(self) -> float:
         """Calculate average replication lag"""
         if not self.replication_manager.replicas:
             return 0.0
-        
-        total_lag = sum(r.get("lag", 0) for r in self.replication_manager.replicas.values())
+
+        total_lag = sum(
+            r.get("lag", 0) for r in self.replication_manager.replicas.values()
+        )
         return total_lag / len(self.replication_manager.replicas)
-    
+
     def shutdown(self):
         """Shutdown health monitor"""
         self.running = False
@@ -457,7 +510,7 @@ class HealthMonitor:
 
 class ReplicationMetrics:
     """Tracks replication metrics and statistics"""
-    
+
     def __init__(self):
         self.metrics = {
             "raft_operations_submitted": 0,
@@ -470,25 +523,25 @@ class ReplicationMetrics:
             "failovers_performed": 0,
             "total_operations_applied": 0,
             "operation_errors": 0,
-            "network_errors": 0
+            "network_errors": 0,
         }
         self.lock = threading.Lock()
-    
+
     def increment(self, metric: str, value: int = 1):
         """Increment a metric"""
         with self.lock:
             self.metrics[metric] = self.metrics.get(metric, 0) + value
-    
+
     def set_metric(self, metric: str, value: Any):
         """Set a metric value"""
         with self.lock:
             self.metrics[metric] = value
-    
+
     def get_metric(self, metric: str) -> Any:
         """Get a metric value"""
         with self.lock:
             return self.metrics.get(metric, 0)
-    
+
     def get_all_metrics(self) -> Dict[str, Any]:
         """Get all metrics"""
         with self.lock:
@@ -497,14 +550,14 @@ class ReplicationMetrics:
 
 class DatabaseOrchestrator:
     """GitHub Orchestrator-style database cluster management"""
-    
+
     def __init__(self, replication_manager):
         self.replication_manager = replication_manager
         self.logger = logging.getLogger("orchestrator")
         self.running = True
         self.discovery_interval = 30  # seconds
         self.topology = {}
-        
+
     def orchestration_loop(self):
         """Main orchestration loop"""
         while self.running:
@@ -516,52 +569,54 @@ class DatabaseOrchestrator:
             except Exception as e:
                 self.logger.error(f"Orchestration error: {e}")
                 time.sleep(10)
-    
+
     def _discover_topology(self):
         """Discover cluster topology"""
         # Implementation for topology discovery
         pass
-    
+
     def _analyze_cluster_health(self):
         """Analyze cluster health and perform actions"""
         # Implementation for health analysis
         pass
-    
+
     def _perform_maintenance_tasks(self):
         """Perform routine maintenance tasks"""
         # Implementation for maintenance
         pass
-    
+
     def trigger_failover(self, failed_primary_id: str, new_primary_id: str) -> bool:
         """Trigger a coordinated failover"""
         try:
-            self.logger.info(f"Triggering failover from {failed_primary_id} to {new_primary_id}")
-            
+            self.logger.info(
+                f"Triggering failover from {failed_primary_id} to {new_primary_id}"
+            )
+
             # In RAFT mode, failover is automatic
             if self.replication_manager.is_raft_enabled:
                 self.logger.info("RAFT will handle failover automatically")
                 return True
-            
+
             # Manual failover for traditional replication
             success = self.replication_manager.promote_to_primary()
             if success:
                 self.replication_manager.metrics.increment("failovers_performed")
-            
+
             return success
-            
+
         except Exception as e:
             self.logger.error(f"Failover failed: {e}")
             return False
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get orchestrator status"""
         return {
             "running": self.running,
             "topology_size": len(self.topology),
             "last_discovery": time.time(),
-            "discovery_interval": self.discovery_interval
+            "discovery_interval": self.discovery_interval,
         }
-    
+
     def shutdown(self):
         """Shutdown orchestrator"""
         self.running = False
@@ -570,7 +625,7 @@ class DatabaseOrchestrator:
 # Keep the original ReplicationManager for backward compatibility
 class ReplicationManager(EnhancedReplicationManager):
     """Legacy ReplicationManager for backward compatibility"""
-    
+
     def __init__(self, server_id=None, mode=ReplicationMode.SEMI_SYNC, sync_replicas=1):
         # Use traditional replication mode by default for backward compatibility
         super().__init__(
@@ -578,7 +633,7 @@ class ReplicationManager(EnhancedReplicationManager):
             mode=mode,
             sync_replicas=sync_replicas,
             failover_policy=FailoverPolicy.MANUAL,
-            cluster_config=None
+            cluster_config=None,
         )
 
     def shutdown(self):
@@ -616,13 +671,13 @@ class ReplicationManager(EnhancedReplicationManager):
                 "type": "replica_register",
                 "server_id": self.server_id,
                 "host": socket.gethostname(),
-                "port": 9999  # Assuming standard port
+                "port": 9999,  # Assuming standard port
             }
-            sock.sendall(json.dumps(message).encode('utf-8'))
+            sock.sendall(json.dumps(message).encode("utf-8"))
 
             # Get response
             response = sock.recv(4096)
-            response_data = json.loads(response.decode('utf-8'))
+            response_data = json.loads(response.decode("utf-8"))
             sock.close()
 
             if response_data.get("status") == "success":
@@ -634,7 +689,9 @@ class ReplicationManager(EnhancedReplicationManager):
                 self.logger.info(f"Registered as replica to primary {self.primary_id}")
                 return True
             else:
-                self.logger.error(f"Failed to register as replica: {response_data.get('error')}")
+                self.logger.error(
+                    f"Failed to register as replica: {response_data.get('error')}"
+                )
                 return False
 
         except RuntimeError as e:
@@ -661,14 +718,14 @@ class ReplicationManager(EnhancedReplicationManager):
                 "port": port,
                 "last_seen": time.time(),
                 "lag": 0,
-                "status": "online"
+                "status": "online",
             }
 
             self.logger.info(f"Registered new replica: {replica_id} at {host}:{port}")
             return {
                 "status": "success",
                 "primary_id": self.server_id,
-                "oplog_position": len(self.oplog)
+                "oplog_position": len(self.oplog),
             }
 
     def log_operation(self, operation):
@@ -735,7 +792,9 @@ class ReplicationManager(EnhancedReplicationManager):
             bool: True if enough replicas acknowledged
         """
         if len(self.replicas) < min_replicas:
-            self.logger.warning(f"Not enough replicas: have {len(self.replicas)}, need {min_replicas}")
+            self.logger.warning(
+                f"Not enough replicas: have {len(self.replicas)}, need {min_replicas}"
+            )
             return len(self.replicas) == 0  # True if no replicas needed
 
         success_count = 0
@@ -750,7 +809,9 @@ class ReplicationManager(EnhancedReplicationManager):
 
         result = success_count >= min_replicas
         if not result:
-            self.logger.warning(f"Semi-sync replication failed: only {success_count}/{min_replicas} acknowledged")
+            self.logger.warning(
+                f"Semi-sync replication failed: only {success_count}/{min_replicas} acknowledged"
+            )
         return result
 
     def _send_operation_to_replica(self, replica_id, replica, operation):
@@ -774,23 +835,27 @@ class ReplicationManager(EnhancedReplicationManager):
             message = {
                 "type": "replicate_op",
                 "operation": operation,
-                "primary_id": self.server_id
+                "primary_id": self.server_id,
             }
-            sock.sendall(json.dumps(message).encode('utf-8'))
+            sock.sendall(json.dumps(message).encode("utf-8"))
 
             # Get acknowledgement
             response = sock.recv(4096)
-            response_data = json.loads(response.decode('utf-8'))
+            response_data = json.loads(response.decode("utf-8"))
             sock.close()
 
             if response_data.get("status") == "success":
                 # Update replica status
                 with self.lock:
                     replica["last_seen"] = time.time()
-                    replica["lag"] = len(self.oplog) - response_data.get("oplog_position", 0)
+                    replica["lag"] = len(self.oplog) - response_data.get(
+                        "oplog_position", 0
+                    )
                 return True
             else:
-                self.logger.error(f"Replica {replica_id} error: {response_data.get('error')}")
+                self.logger.error(
+                    f"Replica {replica_id} error: {response_data.get('error')}"
+                )
                 return False
 
         except RuntimeError as e:
@@ -820,7 +885,9 @@ class ReplicationManager(EnhancedReplicationManager):
             return True
         elif operation["oplog_id"] > self.oplog_position:
             # Out of order, store for later
-            self.logger.warning(f"Received out-of-order operation: {operation['oplog_id']}, current position: {self.oplog_position}")
+            self.logger.warning(
+                f"Received out-of-order operation: {operation['oplog_id']}, current position: {self.oplog_position}"
+            )
             return False
 
         # Apply the operation based on its type
@@ -828,7 +895,7 @@ class ReplicationManager(EnhancedReplicationManager):
 
         # Apply the operation to the local database
         try:
-            if not hasattr(self, 'catalog_manager'):
+            if not hasattr(self, "catalog_manager"):
                 self.logger.error("Cannot apply operation: catalog_manager not set")
                 return False
 
@@ -857,10 +924,14 @@ class ReplicationManager(EnhancedReplicationManager):
                 if table_name and (record_id or condition):
                     if record_id:
                         # Update by ID
-                        self.catalog_manager.update_record_by_id(table_name, record_id, updates)
+                        self.catalog_manager.update_record_by_id(
+                            table_name, record_id, updates
+                        )
                     elif condition:
                         # Update by condition
-                        self.catalog_manager.update_records(table_name, condition, updates)
+                        self.catalog_manager.update_records(
+                            table_name, condition, updates
+                        )
                 else:
                     self.logger.warning("Incomplete UPDATE operation data")
 
@@ -879,7 +950,12 @@ class ReplicationManager(EnhancedReplicationManager):
                 else:
                     self.logger.warning("Incomplete DELETE operation data")
 
-            elif op_type in ("CREATE_TABLE", "DROP_TABLE", "CREATE_INDEX", "DROP_INDEX"):
+            elif op_type in (
+                "CREATE_TABLE",
+                "DROP_TABLE",
+                "CREATE_INDEX",
+                "DROP_INDEX",
+            ):
                 # For schema operations, we typically need to execute the original SQL
                 # to ensure all side effects are properly applied
                 query = operation.get("query")
@@ -911,7 +987,9 @@ class ReplicationManager(EnhancedReplicationManager):
                 with self.lock:
                     for replica_id, replica in self.replicas.items():
                         if replica["status"] == "online":
-                            self._send_operation_to_replica(replica_id, replica, operation)
+                            self._send_operation_to_replica(
+                                replica_id, replica, operation
+                            )
 
                 self.replication_queue.task_done()
             except RuntimeError as e:
@@ -934,22 +1012,26 @@ class ReplicationManager(EnhancedReplicationManager):
                                 message = {
                                     "type": "heartbeat",
                                     "primary_id": self.server_id,
-                                    "timestamp": time.time()
+                                    "timestamp": time.time(),
                                 }
-                                sock.sendall(json.dumps(message).encode('utf-8'))
+                                sock.sendall(json.dumps(message).encode("utf-8"))
 
                                 # Get response
                                 response = sock.recv(4096)
-                                response_data = json.loads(response.decode('utf-8'))
+                                response_data = json.loads(response.decode("utf-8"))
                                 sock.close()
 
                                 if response_data.get("status") == "success":
                                     replica["last_seen"] = time.time()
-                                    replica["lag"] = len(self.oplog) - response_data.get("oplog_position", 0)
+                                    replica["lag"] = len(
+                                        self.oplog
+                                    ) - response_data.get("oplog_position", 0)
                                     replica["status"] = "online"
 
                             except RuntimeError as e:
-                                self.logger.warning(f"Heartbeat to replica {replica_id} failed: {str(e)}")
+                                self.logger.warning(
+                                    f"Heartbeat to replica {replica_id} failed: {str(e)}"
+                                )
                                 if time.time() - replica["last_seen"] > 30:
                                     replica["status"] = "offline"
 

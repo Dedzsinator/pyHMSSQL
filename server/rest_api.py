@@ -2,6 +2,7 @@
 
 This module provides a REST API interface to the HMSSQL database system.
 """
+
 import os
 import sys
 import uuid
@@ -31,10 +32,7 @@ CORS(app)  # Enable CORS for all routes
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler("../logs/rest_api.log"),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.FileHandler("../logs/rest_api.log"), logging.StreamHandler()],
 )
 
 # Create database components
@@ -49,24 +47,39 @@ optimizer = Optimizer(catalog_manager, index_manager)
 # Store active sessions
 sessions = {}
 
+
 def require_auth(f):
     """Decorator to require authentication for API endpoints."""
+
     @wraps(f)
     def decorated_function(*func_args, **kwargs):
         # Get token from Authorization header
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
-            return jsonify({"error": "Unauthorized. Missing or invalid token.", "status": "error"}), 401
+            return (
+                jsonify(
+                    {
+                        "error": "Unauthorized. Missing or invalid token.",
+                        "status": "error",
+                    }
+                ),
+                401,
+            )
 
         session_id = auth_header.split("Bearer ")[1].strip()
         if session_id not in sessions:
-            return jsonify({"error": "Unauthorized. Invalid session.", "status": "error"}), 401
+            return (
+                jsonify({"error": "Unauthorized. Invalid session.", "status": "error"}),
+                401,
+            )
 
         # Store user in Flask's g object for use in the view function
         g.user = sessions[session_id]
         g.session_id = session_id
         return f(*func_args, **kwargs)
+
     return decorated_function
+
 
 @app.route("/api/login", methods=["POST"])
 def login():
@@ -79,22 +92,28 @@ def login():
     password = data.get("password")
 
     if not username or not password:
-        return jsonify({"error": "Username and password required", "status": "error"}), 400
+        return (
+            jsonify({"error": "Username and password required", "status": "error"}),
+            400,
+        )
 
     user = catalog_manager.authenticate_user(username, password)
     if user:
         session_id = str(uuid.uuid4())
         sessions[session_id] = user
         logging.info(f"User {username} logged in successfully (role: {user['role']})")
-        return jsonify({
-            "session_id": session_id,
-            "role": user["role"],
-            "status": "success",
-            "message": f"Login successful as {username} ({user['role']})"
-        })
+        return jsonify(
+            {
+                "session_id": session_id,
+                "role": user["role"],
+                "status": "success",
+                "message": f"Login successful as {username} ({user['role']})",
+            }
+        )
 
     logging.warning(f"Failed login attempt for user: {username}")
     return jsonify({"error": "Invalid username or password.", "status": "error"}), 401
+
 
 @app.route("/api/register", methods=["POST"])
 def register():
@@ -108,20 +127,26 @@ def register():
     role = data.get("role", "user")
 
     if not username or not password:
-        return jsonify({"error": "Username and password required", "status": "error"}), 400
+        return (
+            jsonify({"error": "Username and password required", "status": "error"}),
+            400,
+        )
 
     result = catalog_manager.register_user(username, password, role)
     if "error" not in str(result).lower():
         logging.info(f"User {username} registered successfully with role: {role}")
-        return jsonify({
-            "message": f"User {username} registered successfully as {role}",
-            "status": "success"
-        })
+        return jsonify(
+            {
+                "message": f"User {username} registered successfully as {role}",
+                "status": "success",
+            }
+        )
 
     logging.warning(f"Failed registration for user {username}: {result}")
     if isinstance(result, str):
         return jsonify({"error": result, "status": "error"}), 400
     return jsonify(result), 400
+
 
 @app.route("/api/logout", methods=["POST"])
 @require_auth
@@ -132,10 +157,8 @@ def logout():
 
     del sessions[session_id]
     logging.info(f"User {username} logged out successfully")
-    return jsonify({
-        "message": "Logged out successfully.",
-        "status": "success"
-    })
+    return jsonify({"message": "Logged out successfully.", "status": "success"})
+
 
 @app.route("/api/query", methods=["POST"])
 @require_auth
@@ -159,10 +182,15 @@ def execute_query():
     role = user.get("role", "user")
     if not is_query_allowed(role, query):
         logging.warning(f"User {username} attempted unauthorized query: {query}")
-        return jsonify({
-            "error": "You don't have permission to execute this query.",
-            "status": "error"
-        }), 403
+        return (
+            jsonify(
+                {
+                    "error": "You don't have permission to execute this query.",
+                    "status": "error",
+                }
+            ),
+            403,
+        )
 
     # Parse and execute with planner and optimizer integration
     try:
@@ -196,10 +224,18 @@ def execute_query():
         logging.info(f"Query executed in {round(execution_time * 1000, 2)} ms")
         return jsonify(result)
 
-    except (ValueError, SyntaxError, TypeError, AttributeError, KeyError, RuntimeError) as e:
+    except (
+        ValueError,
+        SyntaxError,
+        TypeError,
+        AttributeError,
+        KeyError,
+        RuntimeError,
+    ) as e:
         logging.error(f"Error executing query: {str(e)}")
         logging.error(traceback.format_exc())
         return jsonify({"error": str(e), "status": "error"}), 500
+
 
 @app.route("/api/databases", methods=["GET"])
 @require_auth
@@ -207,14 +243,17 @@ def get_databases():
     """Get a list of all databases."""
     try:
         databases = catalog_manager.list_databases()
-        return jsonify({
-            "columns": ["Database Name"],
-            "rows": [[db] for db in databases],
-            "status": "success"
-        })
+        return jsonify(
+            {
+                "columns": ["Database Name"],
+                "rows": [[db] for db in databases],
+                "status": "success",
+            }
+        )
     except RuntimeError as e:
         logging.error(f"Error listing databases: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
+
 
 @app.route("/api/tables", methods=["GET"])
 @require_auth
@@ -226,18 +265,24 @@ def get_tables():
         if not db_name:
             db_name = catalog_manager.get_current_database()
             if not db_name:
-                return jsonify({"error": "No database selected", "status": "error"}), 400
+                return (
+                    jsonify({"error": "No database selected", "status": "error"}),
+                    400,
+                )
 
         tables = catalog_manager.list_tables(db_name)
-        return jsonify({
-            "columns": ["Table Name"],
-            "rows": [[table] for table in tables],
-            "status": "success",
-            "database": db_name
-        })
+        return jsonify(
+            {
+                "columns": ["Table Name"],
+                "rows": [[table] for table in tables],
+                "status": "success",
+                "database": db_name,
+            }
+        )
     except RuntimeError as e:
         logging.error(f"Error listing tables: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
+
 
 @app.route("/api/indexes", methods=["GET"])
 @require_auth
@@ -254,28 +299,34 @@ def get_indexes():
             # Show indexes for specific table
             indexes = catalog_manager.get_indexes_for_table(table_name)
             if not indexes:
-                return jsonify({
-                    "columns": ["Table", "Column", "Index Name", "Type"],
-                    "rows": [],
-                    "status": "success",
-                    "message": f"No indexes found for table '{table_name}'"
-                })
+                return jsonify(
+                    {
+                        "columns": ["Table", "Column", "Index Name", "Type"],
+                        "rows": [],
+                        "status": "success",
+                        "message": f"No indexes found for table '{table_name}'",
+                    }
+                )
 
             rows = []
             for idx_name, idx_info in indexes.items():
                 column_name = idx_info.get("column", "")
-                rows.append([
-                    table_name,
-                    column_name,
-                    f"{idx_name}",
-                    idx_info.get("type", "BTREE"),
-                ])
+                rows.append(
+                    [
+                        table_name,
+                        column_name,
+                        f"{idx_name}",
+                        idx_info.get("type", "BTREE"),
+                    ]
+                )
 
-            return jsonify({
-                "columns": ["Table", "Column", "Index Name", "Type"],
-                "rows": rows,
-                "status": "success"
-            })
+            return jsonify(
+                {
+                    "columns": ["Table", "Column", "Index Name", "Type"],
+                    "rows": rows,
+                    "status": "success",
+                }
+            )
 
         # Get all indexes in the current database
         all_indexes = []
@@ -287,21 +338,19 @@ def get_indexes():
                     column = index_info.get("column", "")
                     index_name = parts[2]
                     index_type = index_info.get("type", "BTREE")
-                    all_indexes.append([
-                        table,
-                        column,
-                        f"{index_name}",
-                        index_type
-                    ])
+                    all_indexes.append([table, column, f"{index_name}", index_type])
 
-            return jsonify({
-                "columns": ["Table", "Column", "Index Name", "Type"],
-                "rows": all_indexes,
-                "status": "success"
-            })
+            return jsonify(
+                {
+                    "columns": ["Table", "Column", "Index Name", "Type"],
+                    "rows": all_indexes,
+                    "status": "success",
+                }
+            )
     except RuntimeError as e:
         logging.error(f"Error listing indexes: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
+
 
 @app.route("/api/table/<table_name>", methods=["GET"])
 @require_auth
@@ -314,28 +363,34 @@ def get_table_schema(table_name):
 
         table_id = f"{db_name}.{table_name}"
         if table_id not in catalog_manager.tables:
-            return jsonify({"error": f"Table '{table_name}' not found", "status": "error"}), 404
+            return (
+                jsonify(
+                    {"error": f"Table '{table_name}' not found", "status": "error"}
+                ),
+                404,
+            )
 
         table_info = catalog_manager.tables[table_id]
         columns = []
 
         for col_name, col_info in table_info.get("columns", {}).items():
-            columns.append({
-                "name": col_name,
-                "type": col_info.get("type", "UNKNOWN"),
-                "nullable": col_info.get("nullable", True),
-                "primary_key": col_info.get("primary_key", False),
-                "foreign_key": col_info.get("foreign_key", None)
-            })
+            columns.append(
+                {
+                    "name": col_name,
+                    "type": col_info.get("type", "UNKNOWN"),
+                    "nullable": col_info.get("nullable", True),
+                    "primary_key": col_info.get("primary_key", False),
+                    "foreign_key": col_info.get("foreign_key", None),
+                }
+            )
 
-        return jsonify({
-            "table_name": table_name,
-            "columns": columns,
-            "status": "success"
-        })
+        return jsonify(
+            {"table_name": table_name, "columns": columns, "status": "success"}
+        )
     except RuntimeError as e:
         logging.error(f"Error getting table schema: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
+
 
 @app.route("/api/status", methods=["GET"])
 @require_auth
@@ -346,15 +401,18 @@ def get_status():
     role = user.get("role", "user")
     current_db = catalog_manager.get_current_database()
 
-    return jsonify({
-        "status": "success",
-        "server_info": {
-            "user": username,
-            "role": role,
-            "current_database": current_db,
-            "session_active": True
+    return jsonify(
+        {
+            "status": "success",
+            "server_info": {
+                "user": username,
+                "role": role,
+                "current_database": current_db,
+                "session_active": True,
+            },
         }
-    })
+    )
+
 
 @app.route("/api/use_database", methods=["POST"])
 @require_auth
@@ -370,13 +428,11 @@ def use_database():
 
     try:
         catalog_manager.set_current_database(db_name)
-        return jsonify({
-            "message": f"Using database '{db_name}'",
-            "status": "success"
-        })
+        return jsonify({"message": f"Using database '{db_name}'", "status": "success"})
     except RuntimeError as e:
         logging.error(f"Error setting current database: {str(e)}")
         return jsonify({"error": str(e), "status": "error"}), 500
+
 
 def is_query_allowed(role, query):
     """Check if a query is allowed for the user's role."""
@@ -405,6 +461,7 @@ def is_query_allowed(role, query):
     # All other queries are allowed for all roles
     return True
 
+
 def _log_query(username, query):
     """Log a query for audit purposes."""
     try:
@@ -423,6 +480,7 @@ def _log_query(username, query):
     except RuntimeError as e:
         # Don't let logging errors affect query execution
         logging.error(f"Failed to log query: {str(e)}")
+
 
 if __name__ == "__main__":
     import argparse

@@ -7,7 +7,7 @@ extensions = [
         "bptree_optimized",
         ["bptree_optimized.pyx"],
         include_dirs=[np.get_include()],
-        extra_compile_args=["-O3", "-march=native", "-ffast-math", "-ftree-vectorize"]
+        extra_compile_args=["-O3", "-march=native", "-ffast-math", "-ftree-vectorize"],
     )
 ]
 

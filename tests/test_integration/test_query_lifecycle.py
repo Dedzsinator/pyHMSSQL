@@ -1,12 +1,16 @@
 """
 End-to-end integration tests for query processing.
 """
+
 import pytest
+
 
 class TestQueryLifecycle:
     """Test end-to-end query processing from parse to execute."""
 
-    def test_select_query_lifecycle(self, parser, planner, optimizer, execution_engine, catalog_manager, test_table):
+    def test_select_query_lifecycle(
+        self, parser, planner, optimizer, execution_engine, catalog_manager, test_table
+    ):
         """Test complete lifecycle of a SELECT query."""
         # 1. Parse the query
         sql = f"SELECT id, name FROM {test_table} WHERE age > 25"
@@ -17,7 +21,10 @@ class TestQueryLifecycle:
         # 2. Create execution plan
         execution_plan = planner.plan_query(parsed)
 
-        assert execution_plan["type"] in ["SELECT", "SCAN"]  # Depending on implementation
+        assert execution_plan["type"] in [
+            "SELECT",
+            "SCAN",
+        ]  # Depending on implementation
 
         # 3. Optimize the plan
         optimized_plan = optimizer.optimize(execution_plan)
@@ -33,7 +40,9 @@ class TestQueryLifecycle:
         assert 1 in customer_ids  # John Doe (30)
         assert 3 in customer_ids  # Bob Johnson (40)
 
-    def test_insert_update_delete_lifecycle(self, parser, planner, optimizer, execution_engine, schema_manager):
+    def test_insert_update_delete_lifecycle(
+        self, parser, planner, optimizer, execution_engine, schema_manager
+    ):
         """Test a full lifecycle with INSERT, UPDATE, and DELETE."""
         # First create the customers table
         create_table_plan = {
