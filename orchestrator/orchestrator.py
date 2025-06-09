@@ -14,6 +14,7 @@ import socket
 import requests
 from flask import Flask, jsonify, request, render_template_string
 import os
+from orchestrator.stats_collector import StatsCollector
 
 
 class NodeHealth(Enum):
@@ -517,6 +518,7 @@ class DatabaseOrchestrator:
         self.discovery = ClusterDiscovery(self)
         self.failover_manager = FailoverManager(self)
         self.metrics = OrchestratorMetrics()
+        self.stats_collector = StatsCollector(self)  # Add stats collector
         self.running = True
         
         # Configuration
@@ -756,6 +758,45 @@ def health_check():
     """Health check endpoint"""
     return jsonify({"status": "healthy", "timestamp": datetime.utcnow().isoformat()})
 
+@app.route('/dashboard')
+def comprehensive_dashboard():
+    """Comprehensive dashboard with stats and topology"""
+    return render_template_string(COMPREHENSIVE_DASHBOARD_HTML)
+
+@app.route('/api/stats/overview')
+def stats_overview():
+    """Get cluster overview statistics"""
+    return jsonify(orchestrator.stats_collector.get_cluster_overview())
+
+@app.route('/api/stats/servers')
+def all_server_stats():
+    """Get all server statistics"""
+    return jsonify(orchestrator.stats_collector.get_all_server_stats())
+
+@app.route('/api/stats/server/<node_id>')
+def server_stats(node_id):
+    """Get detailed stats for a specific server"""
+    stats = orchestrator.stats_collector.get_server_stats(node_id)
+    if stats:
+        return jsonify(stats)
+    else:
+        return jsonify({"error": "Server not found"}), 404
+
+@app.route('/api/topology/graph')
+def topology_graph():
+    """Get topology graph data"""
+    return jsonify(orchestrator.stats_collector.get_topology_graph())
+
+@app.route('/api/topology/update', methods=['POST'])
+def update_topology():
+    """Update cluster topology"""
+    try:
+        data = request.get_json()
+        success = orchestrator.stats_collector.update_topology(data)
+        return jsonify({"success": success})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 # Simple HTML dashboard template
 DASHBOARD_HTML = """
 <!DOCTYPE html>
@@ -776,12 +817,28 @@ DASHBOARD_HTML = """
         th { background-color: #f2f2f2; }
         button { background: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; }
         button:hover { background: #0056b3; }
+        .nav-links { margin-bottom: 20px; }
+        .nav-links a { 
+            display: inline-block; 
+            padding: 10px 20px; 
+            background: #28a745; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 5px; 
+            margin-right: 10px; 
+        }
+        .nav-links a:hover { background: #218838; }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>🎯 HMSSQL Database Orchestrator</h1>
         <p>GitHub Orchestrator-style cluster management</p>
+    </div>
+    
+    <div class="nav-links">
+        <a href="/dashboard">📊 Comprehensive Dashboard</a>
+        <a href="/health">🔍 Health Check</a>
     </div>
     
     <div id="cluster-status">
@@ -945,7 +1002,556 @@ DASHBOARD_HTML = """
 </html>
 """
 
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-    port = int(os.getenv('PORT', 3000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+# Comprehensive dashboard HTML template
+COMPREHENSIVE_DASHBOARD_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HMSSQL Comprehensive Dashboard</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            background: #f5f5f5; 
+        }
+        .header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 20px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .dashboard-container { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+            padding: 20px; 
+            max-width: 1400px; 
+            margin: 0 auto; 
+        }
+        .panel { 
+            background: white; 
+            border-radius: 8px; 
+            padding: 20px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .full-width { grid-column: 1 / -1; }
+        .panel h3 { 
+            margin-top: 0; 
+            color: #333; 
+            border-bottom: 2px solid #667eea; 
+            padding-bottom: 10px; 
+        }
+        .topology-container { 
+            height: 600px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+        }
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+        }
+        .stat-card { 
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+            color: white; 
+            padding: 15px; 
+            border-radius: 8px; 
+            text-align: center; 
+        }
+        .stat-card h4 { margin: 0 0 5px 0; font-size: 14px; }
+        .stat-card .value { font-size: 24px; font-weight: bold; }
+        .servers-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 10px; 
+        }
+        .servers-table th, .servers-table td { 
+            border: 1px solid #ddd; 
+            padding: 8px; 
+            text-align: left; 
+        }
+        .servers-table th { 
+            background: #f8f9fa; 
+            font-weight: 600; 
+        }
+        .health-healthy { background-color: #d4edda; }
+        .health-degraded { background-color: #fff3cd; }
+        .health-failed { background-color: #f8d7da; }
+        .role-primary_master { color: #dc3545; font-weight: bold; }
+        .role-semi_master { color: #fd7e14; font-weight: bold; }
+        .role-replica { color: #28a745; }
+        .chart-container { height: 300px; position: relative; }
+        .topology-controls { 
+            margin-bottom: 10px; 
+            display: flex; 
+            gap: 10px; 
+            align-items: center; 
+        }
+        .btn { 
+            background: #667eea; 
+            color: white; 
+            border: none; 
+            padding: 8px 16px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 14px; 
+        }
+        .btn:hover { background: #5a6fd8; }
+        .btn-secondary { background: #6c757d; }
+        .btn-secondary:hover { background: #5a6268; }
+        .legend { 
+            display: flex; 
+            gap: 20px; 
+            margin-bottom: 10px; 
+            font-size: 12px; 
+        }
+        .legend-item { 
+            display: flex; 
+            align-items: center; 
+            gap: 5px; 
+        }
+        .legend-color { 
+            width: 15px; 
+            height: 15px; 
+            border-radius: 3px; 
+        }
+        .server-details { 
+            max-height: 400px; 
+            overflow-y: auto; 
+        }
+        .metric-row { 
+            display: flex; 
+            justify-content: space-between; 
+            padding: 5px 0; 
+            border-bottom: 1px solid #eee; 
+        }
+        .metric-row:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 HMSSQL Comprehensive Dashboard</h1>
+        <p>Advanced cluster monitoring, statistics, and topology management</p>
+    </div>
+
+    <div class="dashboard-container">
+        <!-- Cluster Overview -->
+        <div class="panel full-width">
+            <h3>📊 Cluster Overview</h3>
+            <div class="stats-grid" id="overview-stats">
+                <div class="stat-card">
+                    <h4>Total Nodes</h4>
+                    <div class="value" id="total-nodes">-</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Primary Masters</h4>
+                    <div class="value" id="primary-masters">-</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Semi Masters</h4>
+                    <div class="value" id="semi-masters">-</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Replicas</h4>
+                    <div class="value" id="replicas">-</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Total QPS</h4>
+                    <div class="value" id="total-qps">-</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Avg Replication Lag</h4>
+                    <div class="value" id="avg-lag">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Topology Graph -->
+        <div class="panel full-width">
+            <h3>🌐 Cluster Topology</h3>
+            <div class="topology-controls">
+                <button class="btn" onclick="layoutTopology('hierarchical')">Hierarchical Layout</button>
+                <button class="btn" onclick="layoutTopology('circle')">Circle Layout</button>
+                <button class="btn" onclick="layoutTopology('spring')">Spring Layout</button>
+                <button class="btn btn-secondary" onclick="togglePhysics()">Toggle Physics</button>
+                <button class="btn btn-secondary" onclick="resetZoom()">Reset Zoom</button>
+            </div>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #dc3545;"></div>
+                    <span>Primary Master</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #fd7e14;"></div>
+                    <span>Semi Master</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #28a745;"></div>
+                    <span>Replica</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #6c757d;"></div>
+                    <span>Offline</span>
+                </div>
+            </div>
+            <div id="topology-graph" class="topology-container"></div>
+        </div>
+
+        <!-- Server Statistics -->
+        <div class="panel">
+            <h3>💻 Server Statistics</h3>
+            <table class="servers-table">
+                <thead>
+                    <tr>
+                        <th>Server</th>
+                        <th>Role</th>
+                        <th>Health</th>
+                        <th>CPU</th>
+                        <th>Memory</th>
+                        <th>QPS</th>
+                        <th>Connections</th>
+                    </tr>
+                </thead>
+                <tbody id="servers-table-body">
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Performance Charts -->
+        <div class="panel">
+            <h3>📈 Performance Metrics</h3>
+            <div class="chart-container">
+                <canvas id="performance-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Server Details -->
+        <div class="panel full-width">
+            <h3>🔍 Server Details</h3>
+            <div class="server-details" id="server-details">
+                <p>Click on a server in the topology to view detailed information.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let topologyNetwork = null;
+        let performanceChart = null;
+        let selectedServer = null;
+        let physicsEnabled = true;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeTopology();
+            initializePerformanceChart();
+            refreshData();
+            setInterval(refreshData, 10000); // Refresh every 10 seconds
+        });
+
+        function refreshData() {
+            fetchClusterOverview();
+            fetchServerStats();
+            fetchTopologyData();
+        }
+
+        function fetchClusterOverview() {
+            fetch('/api/stats/overview')
+                .then(response => response.json())
+                .then(data => updateOverviewStats(data))
+                .catch(error => console.error('Error fetching overview:', error));
+        }
+
+        function updateOverviewStats(data) {
+            document.getElementById('total-nodes').textContent = data.total_nodes || 0;
+            document.getElementById('primary-masters').textContent = data.primary_masters || 0;
+            document.getElementById('semi-masters').textContent = data.semi_masters || 0;
+            document.getElementById('replicas').textContent = data.replicas || 0;
+            document.getElementById('total-qps').textContent = Math.round(data.total_qps || 0);
+            document.getElementById('avg-lag').textContent = Math.round(data.avg_replication_lag || 0) + 'ms';
+        }
+
+        function fetchServerStats() {
+            fetch('/api/stats/servers')
+                .then(response => response.json())
+                .then(data => updateServerTable(data))
+                .catch(error => console.error('Error fetching server stats:', error));
+        }
+
+        function updateServerTable(servers) {
+            const tbody = document.getElementById('servers-table-body');
+            tbody.innerHTML = '';
+
+            Object.values(servers).forEach(server => {
+                const row = tbody.insertRow();
+                row.className = `health-${server.health_status}`;
+                
+                row.innerHTML = `
+                    <td><strong>${server.node_id}</strong><br><small>${server.host}:${server.port}</small></td>
+                    <td class="role-${server.role}">${server.role.replace('_', ' ')}</td>
+                    <td>${server.health_status}</td>
+                    <td>${server.performance.cpu_usage.toFixed(1)}%</td>
+                    <td>${server.performance.memory_usage.toFixed(1)}%</td>
+                    <td>${server.database.queries_per_second.toFixed(1)}</td>
+                    <td>${server.database.active_connections}</td>
+                `;
+                
+                row.onclick = () => showServerDetails(server);
+            });
+        }
+
+        function fetchTopologyData() {
+            fetch('/api/topology/graph')
+                .then(response => response.json())
+                .then(data => updateTopology(data))
+                .catch(error => console.error('Error fetching topology:', error));
+        }
+
+        function initializeTopology() {
+            const container = document.getElementById('topology-graph');
+            
+            const options = {
+                layout: {
+                    hierarchical: {
+                        enabled: true,
+                        direction: 'UD',
+                        sortMethod: 'directed',
+                        levelSeparation: 150,
+                        nodeSpacing: 200
+                    }
+                },
+                physics: {
+                    enabled: true,
+                    hierarchicalRepulsion: {
+                        centralGravity: 0.0,
+                        springLength: 100,
+                        springConstant: 0.01,
+                        nodeDistance: 120,
+                        damping: 0.09
+                    }
+                },
+                nodes: {
+                    shape: 'box',
+                    margin: 10,
+                    font: { size: 12, color: 'white' },
+                    borderWidth: 2
+                },
+                edges: {
+                    arrows: { to: { enabled: true, scaleFactor: 1 } },
+                    color: { color: '#848484' },
+                    width: 2
+                },
+                groups: {
+                    primary_master: { color: { background: '#dc3545', border: '#a71e2a' } },
+                    semi_master: { color: { background: '#fd7e14', border: '#e8590c' } },
+                    replica: { color: { background: '#28a745', border: '#1e7e34' } },
+                    offline: { color: { background: '#6c757d', border: '#545b62' } }
+                },
+                interaction: {
+                    selectConnectedEdges: false
+                }
+            };
+
+            topologyNetwork = new vis.Network(container, {}, options);
+            
+            topologyNetwork.on('click', function(params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    fetchServerDetails(nodeId);
+                }
+            });
+        }
+
+        function updateTopology(data) {
+            if (!topologyNetwork || !data.nodes) return;
+
+            const nodes = new vis.DataSet(data.nodes.map(node => ({
+                id: node.id,
+                label: node.label,
+                group: node.role,
+                title: `CPU: ${node.cpu?.toFixed(1)}%\\nMemory: ${node.memory?.toFixed(1)}%\\nQPS: ${node.qps?.toFixed(1)}`
+            }));
+
+            const edges = new vis.DataSet(data.edges.map(edge => ({
+                from: edge.from,
+                to: edge.to,
+                label: edge.lag ? `${edge.lag}ms` : '',
+                color: edge.type === 'semi_master' ? '#fd7e14' : '#28a745'
+            })));
+
+            topologyNetwork.setData({ nodes: nodes, edges: edges });
+        }
+
+        function layoutTopology(layout) {
+            const options = {
+                layout: {
+                    hierarchical: {
+                        enabled: layout === 'hierarchical',
+                        direction: 'UD'
+                    }
+                }
+            };
+
+            if (layout === 'circle') {
+                options.layout = {
+                    hierarchical: { enabled: false }
+                };
+                options.physics = {
+                    enabled: false
+                };
+            } else if (layout === 'spring') {
+                options.layout = {
+                    hierarchical: { enabled: false }
+                };
+                options.physics = {
+                    enabled: true,
+                    stabilization: { iterations: 100 }
+                };
+            }
+
+            topologyNetwork.setOptions(options);
+        }
+
+        function togglePhysics() {
+            physicsEnabled = !physicsEnabled;
+            topologyNetwork.setOptions({ physics: { enabled: physicsEnabled } });
+        }
+
+        function resetZoom() {
+            topologyNetwork.fit();
+        }
+
+        function fetchServerDetails(nodeId) {
+            fetch(`/api/stats/server/${nodeId}`)
+                .then(response => response.json())
+                .then(data => showServerDetails(data))
+                .catch(error => console.error('Error fetching server details:', error));
+        }
+
+        function showServerDetails(server) {
+            selectedServer = server;
+            const detailsDiv = document.getElementById('server-details');
+            
+            detailsDiv.innerHTML = `
+                <h4>${server.node_id} - ${server.role.replace('_', ' ').toUpperCase()}</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h5>Performance Metrics</h5>
+                        <div class="metric-row"><span>CPU Usage:</span><span>${server.performance.cpu_usage.toFixed(1)}%</span></div>
+                        <div class="metric-row"><span>Memory Usage:</span><span>${server.performance.memory_usage.toFixed(1)}%</span></div>
+                        <div class="metric-row"><span>Disk Usage:</span><span>${server.performance.disk_usage.toFixed(1)}%</span></div>
+                        <div class="metric-row"><span>Network Sent:</span><span>${(server.performance.network_io.bytes_sent / 1024 / 1024).toFixed(1)} MB</span></div>
+                        <div class="metric-row"><span>Network Received:</span><span>${(server.performance.network_io.bytes_recv / 1024 / 1024).toFixed(1)} MB</span></div>
+                        
+                        <h5>Database Metrics</h5>
+                        <div class="metric-row"><span>Active Connections:</span><span>${server.database.active_connections}</span></div>
+                        <div class="metric-row"><span>Queries per Second:</span><span>${server.database.queries_per_second.toFixed(1)}</span></div>
+                        <div class="metric-row"><span>Slow Queries:</span><span>${server.database.slow_queries}</span></div>
+                        <div class="metric-row"><span>Cache Hit Ratio:</span><span>${server.database.cache_hit_ratio.toFixed(1)}%</span></div>
+                    </div>
+                    <div>
+                        <h5>Replication Status</h5>
+                        <div class="metric-row"><span>Replication Lag:</span><span>${server.replication.lag}ms</span></div>
+                        <div class="metric-row"><span>Status:</span><span>${server.replication.status}</span></div>
+                        <div class="metric-row"><span>Master Node:</span><span>${server.replication.master_node || 'N/A'}</span></div>
+                        <div class="metric-row"><span>Replica Count:</span><span>${server.replication.replica_nodes.length}</span></div>
+                        
+                        <h5>RAFT Consensus</h5>
+                        <div class="metric-row"><span>Term:</span><span>${server.raft.term}</span></div>
+                        <div class="metric-row"><span>State:</span><span>${server.raft.state}</span></div>
+                        <div class="metric-row"><span>Log Entries:</span><span>${server.raft.log_entries}</span></div>
+                        <div class="metric-row"><span>Commit Index:</span><span>${server.raft.commit_index}</span></div>
+                    </div>
+                </div>
+            `;
+            
+            updatePerformanceChart(server);
+        }
+
+        function initializePerformanceChart() {
+            const ctx = document.getElementById('performance-chart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'CPU Usage (%)',
+                            data: [],
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Memory Usage (%)',
+                            data: [],
+                            borderColor: 'rgb(54, 162, 235)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'QPS',
+                            data: [],
+                            borderColor: 'rgb(255, 205, 86)',
+                            backgroundColor: 'rgba(255, 205, 86, 0.1)',
+                            tension: 0.1,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Percentage'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'QPS'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Server Performance History'
+                        }
+                    }
+                }
+            });
+        }
+
+        function updatePerformanceChart(server) {
+            if (!performanceChart || !server.history) return;
+
+            const labels = server.history.cpu.map((_, index) => {
+                const minutesAgo = (server.history.cpu.length - index) * 0.5;
+                return `-${minutesAgo.toFixed(1)}m`;
+            });
+
+            performanceChart.data.labels = labels;
+            performanceChart.data.datasets[0].data = server.history.cpu;
+            performanceChart.data.datasets[1].data = server.history.memory;
+            performanceChart.data.datasets[2].data = server.history.qps;
+            
+            performanceChart.options.plugins.title.text = `Performance History - ${server.node_id}`;
+            performanceChart.update();
+        }
+    </script>
+</body>
+</html>
+"""

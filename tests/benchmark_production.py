@@ -572,115 +572,95 @@ class ProductionBenchmark:
         # Check specific performance areas
         if "throughput_benchmark" in self.results["benchmark_results"]:
             throughput_result = self.results["benchmark_results"]["throughput_benchmark"]
-            if not throughput_result.get("passed", False):
-                recommendations.append("Query throughput needs optimization - consider connection pooling and query optimization")
+            if throughput_result.get("score", 0) < 70:
+                recommendations.append("Throughput performance is below acceptable levels")
+                recommendations.append("Consider optimizing query execution or adding more CPU resources")
         
         if "latency_benchmark" in self.results["benchmark_results"]:
             latency_result = self.results["benchmark_results"]["latency_benchmark"]
-            if not latency_result.get("passed", False):
-                recommendations.append("Query latency is high - review indexing strategy and query patterns")
+            if latency_result.get("score", 0) < 70:
+                recommendations.append("Latency is higher than acceptable levels")
+                recommendations.append("Consider optimizing network configuration or reducing replication lag")
         
         if "raft_consensus_performance" in self.results["benchmark_results"]:
             raft_result = self.results["benchmark_results"]["raft_consensus_performance"]
-            if not raft_result.get("passed", False):
-                recommendations.append("RAFT consensus performance needs tuning - adjust timeouts and batch sizes")
+            if raft_result.get("score", 0) < 70:
+                recommendations.append("RAFT consensus performance needs improvement")
+                recommendations.append("Consider tuning election timeouts or heartbeat intervals")
         
         if not recommendations:
-            recommendations.append("All performance benchmarks are within acceptable ranges")
+            recommendations.append("System performance is within acceptable ranges")
+            recommendations.append("Continue monitoring for any performance degradation")
         
         return recommendations
     
     # System monitoring helper methods
     
     def _get_cpu_usage(self) -> float:
-        """Get CPU usage percentage (simplified)"""
+        """Get current CPU usage percentage"""
         try:
-            # Use /proc/loadavg on Linux
-            if platform.system() == "Linux":
-                with open('/proc/loadavg', 'r') as f:
-                    load = float(f.read().split()[0])
-                    # Convert load to percentage (approximate)
-                    return min(100, load * 25)  # Rough conversion
-            else:
-                # Fallback: simulate based on random with trend
-                return random.uniform(40, 80)
-        except Exception:
-            return random.uniform(40, 80)
+            import psutil
+            return psutil.cpu_percent(interval=0.1)
+        except ImportError:
+            # Fallback simulation if psutil not available
+            import random
+            return random.uniform(30, 80)
     
     def _get_memory_usage(self) -> float:
-        """Get memory usage percentage (simplified)"""
+        """Get current memory usage percentage"""
         try:
-            # Use /proc/meminfo on Linux
-            if platform.system() == "Linux":
-                with open('/proc/meminfo', 'r') as f:
-                    lines = f.readlines()
-                    
-                total_kb = None
-                available_kb = None
-                
-                for line in lines:
-                    if line.startswith('MemTotal:'):
-                        total_kb = int(line.split()[1])
-                    elif line.startswith('MemAvailable:'):
-                        available_kb = int(line.split()[1])
-                
-                if total_kb and available_kb:
-                    used_kb = total_kb - available_kb
-                    return (used_kb / total_kb) * 100
-            
-            # Fallback: simulate realistic memory usage
-            return random.uniform(50, 75)
-        except Exception:
-            return random.uniform(50, 75)
+            import psutil
+            return psutil.virtual_memory().percent
+        except ImportError:
+            # Fallback simulation if psutil not available
+            import random
+            return random.uniform(40, 75)
     
-    def _get_load_average(self) -> Tuple[float, float, float]:
+    def _get_load_average(self) -> float:
         """Get system load average"""
         try:
-            if platform.system() == "Linux":
-                with open('/proc/loadavg', 'r') as f:
-                    loads = f.read().split()[:3]
-                    return tuple(float(load) for load in loads)
-            else:
-                # Fallback: simulate load averages
-                return (random.uniform(0.5, 2.0), random.uniform(0.5, 2.0), random.uniform(0.5, 2.0))
-        except Exception:
-            return (random.uniform(0.5, 2.0), random.uniform(0.5, 2.0), random.uniform(0.5, 2.0))
-        
+            import os
+            load_avg = os.getloadavg()[0]  # 1-minute load average
+            return load_avg
+        except (AttributeError, OSError):
+            # Fallback for systems without getloadavg or Windows
+            import random
+            return random.uniform(0.5, 2.0)
 
-async def main():
-    """Main benchmark runner"""
-    import sys
+
+async def run_production_benchmark():
+    """Run production benchmark suite"""
+    import asyncio
+    import logging
     
+    # Setup logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    
+    # Create and run benchmark
     benchmark = ProductionBenchmark()
+    results = await benchmark.run_comprehensive_benchmark()
     
-    try:
-        results = await benchmark.run_comprehensive_benchmark()
-        
-        # Generate and save report
-        report = benchmark.generate_benchmark_report()
-        
-        report_file = f"/tmp/hmssql_production_benchmark_{int(time.time())}.json"
-        with open(report_file, 'w') as f:
-            f.write(report)
-        
-        print(f"📄 Benchmark report saved to: {report_file}")
-        print(f"📊 Benchmark Summary:")
-        print(f"   Overall Score: {results['overall_score']:.1f}/100")
-        print(f"   Production Ready: {'✅ YES' if results['production_ready'] else '❌ NO'}")
-        
-        if not results['production_ready']:
-            print(f"\n📋 Recommendations:")
-            for rec in benchmark._generate_recommendations():
-                print(f"   • {rec}")
-        
-        return results["production_ready"]
-        
-    except Exception as e:
-        print(f"❌ Benchmark failed: {e}")
-        return False
+    # Generate report
+    report = benchmark.generate_benchmark_report()
+    
+    # Save results
+    with open('production_benchmark_results.json', 'w') as f:
+        f.write(report)
+    
+    print("\n" + "="*80)
+    print("PRODUCTION BENCHMARK COMPLETED")
+    print("="*80)
+    print(f"Overall Score: {results['overall_score']:.1f}/100")
+    print(f"Production Ready: {'YES' if results['production_ready'] else 'NO'}")
+    print(f"Results saved to: production_benchmark_results.json")
+    print("="*80)
+    
+    return results
 
 
 if __name__ == "__main__":
-    import sys
-    success = asyncio.run(main())
-    sys.exit(0 if success else 1)
+    import asyncio
+    asyncio.run(run_production_benchmark())

@@ -226,6 +226,7 @@ class RaftNode:
         """Reset election timeout with random jitter"""
         timeout = random.uniform(self.election_timeout_min, self.election_timeout_max)
         new_deadline = time.time() + timeout
+        
         # Create logger if needed
         if not hasattr(self, 'logger'):
             self.logger = logging.getLogger(f"raft.{self.node_id}")
@@ -290,13 +291,24 @@ class RaftNode:
                 
                 if response:
                     send_data(client_socket, response)
+        except ConnectionResetError:
+            # Client disconnected, this is normal
+            pass
         except Exception as e:
-            self.logger.error(f"Error handling client: {e}")
+            self.logger.debug(f"Error handling client: {e}")
         finally:
-            client_socket.close()
+            try:
+                client_socket.close()
+            except:
+                pass
+
     
     def _process_message(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Process incoming RAFT messages"""
+        # Check if node is partitioned (for testing)
+        if getattr(self, 'is_partitioned', False):
+            return None  # Drop messages during partition
+        
         msg_type = message.get("type")
         
         try:
@@ -336,7 +348,7 @@ class RaftNode:
         except Exception as e:
             self.logger.error(f"Error processing message: {e}")
             return {"error": str(e)}
-
+    
     def _handle_vote_request(self, request: VoteRequest) -> Dict[str, Any]:
         """Handle vote request from candidate"""
         with self.lock:
@@ -596,18 +608,19 @@ class RaftNode:
     def _send_vote_request(self, node_id: str, node_info: Dict[str, Any], 
                           vote_request: VoteRequest):
         """Send vote request to a specific node"""
+        # Check if this node is partitioned
+        if getattr(self, 'is_partitioned', False):
+            return  # Don't send messages during partition
+        
         try:
-            self.logger.info(f"Sending vote request to {node_id} at {node_info['host']}:{node_info['port']} for term {vote_request.term}")
+            self.logger.debug(f"Sending vote request to {node_id} at {node_info['host']}:{node_info['port']} for term {vote_request.term}")
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(3.0)
+            sock.settimeout(2.0)
             
             try:
                 sock.connect((node_info["host"], node_info["port"]))
-            except ConnectionRefusedError:
-                self.logger.warning(f"Connection refused while sending vote request to {node_id} at {node_info['host']}:{node_info['port']}")
-                return
-            except socket.timeout:
-                self.logger.warning(f"Connection timeout while sending vote request to {node_id} at {node_info['host']}:{node_info['port']}")
+            except (ConnectionRefusedError, socket.timeout, OSError) as e:
+                self.logger.debug(f"Connection failed to {node_id} at {node_info['host']}:{node_info['port']}: {e}")
                 return
             
             message = {
@@ -623,14 +636,13 @@ class RaftNode:
             
             try:
                 response = receive_data(sock)
-                sock.close()
-            
+                
                 if response:
                     self.logger.debug(f"Received vote response data from {node_id}: {response}")
                     if response.get("type") == MessageType.VOTE_RESPONSE.value:
                         vote_response = VoteResponse(**response["data"])
                         
-                        self.logger.info(f"Processed vote from {node_id}: granted={vote_response.vote_granted}, term={vote_response.term}")
+                        self.logger.debug(f"Processed vote from {node_id}: granted={vote_response.vote_granted}, term={vote_response.term}")
                         
                         with self.lock:
                             # If we received a higher term, step down
@@ -647,12 +659,17 @@ class RaftNode:
                                 self.votes_received += 1
                                 self.logger.info(f"Received vote from {node_id}, total votes: {self.votes_received}")
                 else:
-                    self.logger.warning(f"Received empty response from {node_id}")
+                    self.logger.debug(f"Received empty response from {node_id}")
             except socket.timeout:
-                self.logger.warning(f"Timeout waiting for vote response from {node_id}")
+                self.logger.debug(f"Timeout waiting for vote response from {node_id}")
         
         except Exception as e:
-            self.logger.error(f"Failed to get vote from {node_id}: {e}", exc_info=True)
+            self.logger.debug(f"Failed to get vote from {node_id}: {e}")
+        finally:
+            try:
+                sock.close()
+            except:
+                pass
     
     def _election_timeout_monitor(self):
         """Monitor election timeout and trigger elections"""
@@ -662,39 +679,42 @@ class RaftNode:
                 time_until_deadline = self.election_deadline - current_time
                 
                 if self.state == NodeState.LEADER:
-                    # Leaders don't have election timeouts
-                    pass
+                    # Leaders don't have election timeouts, but reset for when they step down
+                    self.election_deadline = self._reset_election_timeout()
                 elif self.state in [NodeState.FOLLOWER, NodeState.CANDIDATE]:
-                    # Log the current state more verbosely
-                    if time_until_deadline < 1.0:  # More frequent logging near deadline
+                    # More verbose logging near deadline
+                    if time_until_deadline < 2.0:
                         self.logger.debug(f"Election deadline approaching: state={self.state.value}, " 
-                                         f"time_left={time_until_deadline:.2f}s, " 
-                                         f"current={current_time:.2f}, deadline={self.election_deadline:.2f}")
+                                         f"time_left={time_until_deadline:.2f}s")
                     
                     if current_time > self.election_deadline:
                         self.logger.info(f"Election timeout triggered: state={self.state.value}, "
-                                        f"current_time={current_time:.2f}, deadline={self.election_deadline:.2f}, "
-                                        f"diff={current_time-self.election_deadline:.2f}s")
+                                        f"timeout_diff={current_time-self.election_deadline:.2f}s")
                         
                         # Add small random delay to prevent synchronized elections
-                        jitter_delay = random.uniform(0.01, 0.1)
-                        self.logger.debug(f"Adding election jitter delay of {jitter_delay:.3f}s")
+                        jitter_delay = random.uniform(0.01, 0.2)  # Increased max jitter
                         time.sleep(jitter_delay)
                         
                         # Critical section - use lock to avoid race conditions
                         with self.lock:
                             # Double-check that timeout is still valid after acquiring the lock
-                            if self.state in [NodeState.FOLLOWER, NodeState.CANDIDATE] and time.time() > self.election_deadline:
+                            if (self.state in [NodeState.FOLLOWER, NodeState.CANDIDATE] and 
+                                time.time() > self.election_deadline):
                                 self._become_candidate()
-                                self.logger.info(f"Became candidate for term {self.current_term}")
                 
-                # Check more frequently as we approach the deadline
-                sleep_time = min(0.1, time_until_deadline / 2) if time_until_deadline > 0 else 0.1
-                sleep_time = max(0.02, sleep_time)  # Don't sleep less than 20ms
+                # Adaptive sleep time based on proximity to deadline
+                if time_until_deadline > 1.0:
+                    sleep_time = 0.1
+                elif time_until_deadline > 0:
+                    sleep_time = min(0.05, time_until_deadline / 4)
+                else:
+                    sleep_time = 0.05
+                
                 time.sleep(sleep_time)
                 
             except Exception as e:
-                self.logger.error(f"Election timeout monitor error: {e}", exc_info=True)
+                self.logger.error(f"Election timeout monitor error: {e}")
+                time.sleep(0.1)  # Prevent tight loop on errors
     
     def _heartbeat_sender(self):
         """Send heartbeats as leader"""
@@ -722,6 +742,10 @@ class RaftNode:
     
     def _send_append_entries(self, node_id: str, node_info: Dict[str, Any]):
         """Send append entries to a specific follower"""
+        # Check if this node is partitioned
+        if getattr(self, 'is_partitioned', False):
+            return  # Don't send messages during partition
+        
         try:
             with self.lock:
                 next_index = self.next_index.get(node_id, 0)
@@ -734,7 +758,7 @@ class RaftNode:
                 # Determine entries to send
                 entries = []
                 if next_index < len(self.log):
-                    entries = self.log[next_index:next_index + 10]  # Send up to 10 entries
+                    entries = self.log[next_index:next_index + 5]  # Reduced batch size
                 
                 append_request = AppendEntries(
                     term=self.current_term,
@@ -746,8 +770,16 @@ class RaftNode:
                 )
             
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(3.0)
-            sock.connect((node_info["host"], node_info["port"]))
+            sock.settimeout(2.0)  # Reduced timeout
+            
+            try:
+                sock.connect((node_info["host"], node_info["port"]))
+            except (ConnectionRefusedError, socket.timeout, OSError):
+                # Mark node as potentially offline and return
+                with self.lock:
+                    if node_id in self.cluster.nodes:
+                        self.cluster.nodes[node_id]["status"] = "offline"
+                return
             
             message = {
                 "type": MessageType.APPEND_ENTRIES.value,
@@ -765,12 +797,17 @@ class RaftNode:
             from shared.utils import send_data, receive_data
             send_data(sock, message)
             response = receive_data(sock)
-            sock.close()
             
             if response:
                 if response.get("type") == MessageType.APPEND_RESPONSE.value:
                     append_response = AppendResponse(**response["data"])
                     self._handle_append_response(node_id, append_response)
+                    
+                    # Mark node as online
+                    with self.lock:
+                        if node_id in self.cluster.nodes:
+                            self.cluster.nodes[node_id]["status"] = "online"
+                            self.cluster.nodes[node_id]["last_seen"] = time.time()
         
         except Exception as e:
             self.logger.debug(f"Failed to send append entries to {node_id}: {e}")
@@ -778,6 +815,12 @@ class RaftNode:
             with self.lock:
                 if node_id in self.cluster.nodes:
                     self.cluster.nodes[node_id]["status"] = "offline"
+        finally:
+            try:
+                sock.close()
+            except:
+                pass
+
     
     def _handle_append_response(self, node_id: str, response: AppendResponse):
         """Handle append entries response from follower"""
@@ -955,9 +998,8 @@ class RaftCluster:
         self.local_node: Optional[RaftNode] = None
         self.logger = logging.getLogger("raft.cluster")
         
-        # Database integration
-        self.database_callback: Optional[Callable[[Dict[str, Any]], Any]] = None
-        self.leadership_change_callback: Optional[Callable[[str, bool], None]] = None
+        # Network partition simulation (for testing)
+        self.is_partitioned = False
     
     def add_node(self, node_id: str, host: str, port: int, 
                  is_local: bool = False) -> RaftNode:
@@ -1016,6 +1058,10 @@ class RaftCluster:
     
     def submit_operation(self, operation: Dict[str, Any]) -> bool:
         """Submit an operation to the cluster"""
+        # Check if cluster is partitioned
+        if getattr(self, 'is_partitioned', False):
+            return False  # Don't accept operations during partition
+        
         if self.local_node and self.local_node.state == NodeState.LEADER:
             return self.local_node.add_log_entry(operation)
         
