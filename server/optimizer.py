@@ -1,24 +1,27 @@
 """
-Advanced query optimizer with cost-based planning, parallel query execution,
-and adaptive optimization features.
+Legacy Query Optimizer - Compatibility Layer.
+
+This module provides backward compatibility with the existing optimizer interface
+while leveraging the new unified optimizer architecture internally.
+
+DEPRECATED: Use unified_optimizer.py for new development.
 """
 
 import logging
-import re
-import os
-import math
-import random
 import time
+import warnings
 import threading
-import multiprocessing
-from functools import lru_cache
-from collections import defaultdict, Counter
-import numpy as np
-from concurrent.futures import ThreadPoolExecutor
-import psutil
-import json
-from hashlib import md5
+from typing import Dict, Any, Optional
 
+# Import the new unified optimizer
+try:
+    from .unified_optimizer import UnifiedQueryOptimizer, OptimizationLevel, OptimizationOptions
+    UNIFIED_AVAILABLE = True
+except ImportError:
+    UNIFIED_AVAILABLE = False
+    logging.warning("Unified optimizer not available - using legacy implementation")
+
+# Legacy imports for backward compatibility
 from bptree_adapter import BPlusTree
 from table_stats import TableStatistics
 
@@ -1353,8 +1356,7 @@ class Optimizer:
             and original.get("join_algorithm") != optimized.get("join_algorithm")
         ):
             changes.append(
-                f"Changed join algorithm from {original.get('join_algorithm', 'NONE')} to {
-                    optimized.get('join_algorithm', 'NONE')}"
+                f"Changed join algorithm from {original.get('join_algorithm', 'NONE')} to {optimized.get('join_algorithm', 'NONE')}"
             )
 
         # Check for join order changes
@@ -1380,8 +1382,7 @@ class Optimizer:
             "access_method"
         ) != optimized.get("access_method"):
             changes.append(
-                f"Changed access method from {original.get('access_method', 'unknown')} to {
-                    optimized.get('access_method', 'unknown')}"
+                f"Changed access method from {original.get('access_method', 'unknown')} to {optimized.get('access_method', 'unknown')}"
             )
 
         # Check for index join optimization

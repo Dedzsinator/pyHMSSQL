@@ -83,7 +83,7 @@ jobs:
           name: test-results-${{ matrix.python-version }}
           path: |
             test-results.xml
-            htmlcov/
+            docs/htmlcov/
             coverage.xml
 
       - name: Upload coverage to Codecov
