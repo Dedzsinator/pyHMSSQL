@@ -19,6 +19,7 @@ from transaction.transaction_manager import TransactionManager
 from parsers.condition_parser import ConditionParser
 from utils.visualizer import Visualizer
 from utils.sql_helpers import parse_simple_condition, check_database_selected
+from multimodel.model_router import ModelRouter
 import logging
 import traceback
 
@@ -69,6 +70,10 @@ class ExecutionEngine:
         # Set execution_engine reference for managers that need it
         self.procedure_manager.execution_engine = self
         self.trigger_manager.execution_engine = self
+
+        # Initialize multimodel router for handling multimodel operations
+        # Pass self as execution_engine parameter
+        self.model_router = ModelRouter(catalog_manager, index_manager, self)
 
     def execute_distinct(self, plan):
         """
@@ -296,6 +301,47 @@ class ExecutionEngine:
             return "subquery" in condition
         return False
 
+    def _is_multimodel_query(self, plan):
+        """
+        Check if a query plan represents a multimodel operation.
+
+        Args:
+            plan: Query plan dictionary
+
+        Returns:
+            bool: True if this is a multimodel query
+        """
+        # Check for document store operations
+        if plan.get("query_type") in ["jsonpath", "document", "aggregation_pipeline"]:
+            return True
+
+        # Check for graph operations
+        if plan.get("query_type") in ["graph_traverse", "graph_path", "graph_pattern"]:
+            return True
+
+        # Check for object-relational features
+        if plan.get("query_type") in ["composite_select", "inheritance"]:
+            return True
+
+        # Check for JSONPath expressions in SELECT
+        if plan.get("columns"):
+            for col in plan.get("columns", []):
+                if isinstance(col, str) and ("$." in col or "JSONPath" in col):
+                    return True
+
+        # Check for graph traversal keywords in condition
+        condition = plan.get("condition", "")
+        if isinstance(condition, str):
+            graph_keywords = ["TRAVERSE", "PATH", "SHORTEST_PATH", "BFS", "DFS"]
+            if any(keyword in condition.upper() for keyword in graph_keywords):
+                return True
+
+        # Check for document-style operations
+        if plan.get("operation") in ["find", "aggregate", "update_many", "delete_many"]:
+            return True
+
+        return False
+
     def _resolve_subqueries(self, condition):
         """Resolve any subqueries in the condition and replace with results."""
         if not isinstance(condition, dict):
@@ -319,6 +365,47 @@ class ExecutionEngine:
                     self._resolve_subqueries(item) if isinstance(item, dict) else item
                     for item in value
                 ]
+
+    def _is_multimodel_query(self, plan):
+        """
+        Check if a query plan represents a multimodel operation.
+
+        Args:
+            plan: Query plan dictionary
+
+        Returns:
+            bool: True if this is a multimodel query
+        """
+        # Check for document store operations
+        if plan.get("query_type") in ["jsonpath", "document", "aggregation_pipeline"]:
+            return True
+
+        # Check for graph operations
+        if plan.get("query_type") in ["graph_traverse", "graph_path", "graph_pattern"]:
+            return True
+
+        # Check for object-relational features
+        if plan.get("query_type") in ["composite_select", "inheritance"]:
+            return True
+
+        # Check for JSONPath expressions in SELECT
+        if plan.get("columns"):
+            for col in plan.get("columns", []):
+                if isinstance(col, str) and ("$." in col or "JSONPath" in col):
+                    return True
+
+        # Check for graph traversal keywords in condition
+        condition = plan.get("condition", "")
+        if isinstance(condition, str):
+            graph_keywords = ["TRAVERSE", "PATH", "SHORTEST_PATH", "BFS", "DFS"]
+            if any(keyword in condition.upper() for keyword in graph_keywords):
+                return True
+
+        # Check for document-style operations
+        if plan.get("operation") in ["find", "aggregate", "update_many", "delete_many"]:
+            return True
+
+        return False
 
     def _evaluate_condition(self, record, condition):
         """
@@ -418,7 +505,14 @@ class ExecutionEngine:
                 plan = self._resolve_plan_table_names(plan)
 
             if plan_type == "SELECT":
-                return self.select_executor.execute_select(plan)
+                # Check if this is a multimodel query that needs special handling
+                # Avoid circular dependency by checking if we're already in relational mode
+                if not getattr(
+                    self, "_in_relational_mode", False
+                ) and self._is_multimodel_query(plan):
+                    return self.model_router.route_query(plan)
+                else:
+                    return self.select_executor.execute_select(plan)
             elif plan_type == "DISTINCT":
                 return self.execute_distinct(plan)
             elif plan_type == "INSERT":
@@ -595,11 +689,62 @@ class ExecutionEngine:
             elif plan_type == "GROUP_BY":
                 result = self.group_by_executor.execute_group_by(plan)
                 return result
+
+            # Multimodel operations
+            elif plan_type in [
+                "CREATE_TYPE",
+                "DROP_TYPE",
+                "CREATE_COLLECTION",
+                "DROP_COLLECTION",
+                "DOCUMENT_INSERT",
+                "DOCUMENT_FIND",
+                "DOCUMENT_UPDATE",
+                "DOCUMENT_DELETE",
+                "CREATE_VERTEX",
+                "CREATE_EDGE",
+                "GRAPH_CREATE_VERTEX",
+                "GRAPH_CREATE_EDGE",
+                "GRAPH_FIND_PATH",
+                "GRAPH_TRAVERSE",
+                "GRAPH_PATTERN",
+                "GRAPH_PATH",
+                "OR_INSERT",
+                "OR_SELECT",
+                "CREATE_GRAPH_SCHEMA",
+            ]:
+                # Avoid circular calls by checking relational mode
+                if not getattr(self, "_in_relational_mode", False):
+                    return self.model_router.route_query(plan)
+                else:
+                    return {
+                        "error": f"Multimodel operation {plan_type} not supported in relational mode",
+                        "status": "error",
+                    }
             else:
-                return {
-                    "error": f"Unsupported plan type: {plan_type}",
-                    "status": "error",
-                }
+                # Try multimodel routing for unrecognized plan types or queries
+                # but only if not already in relational mode
+                if not getattr(self, "_in_relational_mode", False):
+                    try:
+                        multimodel_result = self.model_router.route_query(plan)
+                        if multimodel_result.get("status") == "success":
+                            return multimodel_result
+                        else:
+                            # If multimodel routing fails, fall back to traditional error
+                            return {
+                                "error": f"Unsupported plan type: {plan_type}",
+                                "status": "error",
+                            }
+                    except Exception as mm_error:
+                        logging.warning(f"Multimodel routing failed: {str(mm_error)}")
+                        return {
+                            "error": f"Unsupported plan type: {plan_type}",
+                            "status": "error",
+                        }
+                else:
+                    return {
+                        "error": f"Unsupported plan type: {plan_type}",
+                        "status": "error",
+                    }
 
         except Exception as e:
             logging.error("Error executing plan: %s", str(e))

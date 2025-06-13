@@ -363,8 +363,43 @@ class SchemaManager:
         parsed_column_definitions = []
         final_constraints_for_catalog = list(table_level_constraints_from_plan)
 
-        # Process column strings to define columns
-        for col_str in column_strings:
+        # Process column definitions (handle both string and dict formats)
+        for col_definition in column_strings:
+            # Handle dictionary format (from multimodel adapters)
+            if isinstance(col_definition, dict):
+                col_def = {
+                    "name": col_definition.get("name"),
+                    "type": col_definition.get("type", "UNKNOWN"),
+                }
+
+                # Copy constraint flags from dict
+                if col_definition.get("constraints"):
+                    for constraint in col_definition.get("constraints", []):
+                        if constraint == "PRIMARY KEY":
+                            col_def["primary_key"] = True
+                        elif constraint == "NOT NULL":
+                            col_def["not_null"] = True
+                        elif constraint == "UNIQUE":
+                            col_def["unique"] = True
+                        elif constraint == "IDENTITY":
+                            col_def["identity"] = True
+
+                # Also check for direct boolean flags
+                if col_definition.get("primary_key"):
+                    col_def["primary_key"] = True
+                if col_definition.get("not_null"):
+                    col_def["not_null"] = True
+                if col_definition.get("unique"):
+                    col_def["unique"] = True
+                if col_definition.get("identity"):
+                    col_def["identity"] = True
+
+                parsed_column_definitions.append(col_def)
+                continue
+
+            # Handle string format (traditional SQL)
+            col_str = str(col_definition)
+
             # Skip table-level constraints (they start with constraint keywords)
             col_str_upper = col_str.upper().strip()
             if (

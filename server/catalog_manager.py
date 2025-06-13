@@ -46,6 +46,11 @@ class CatalogManager:
         self.functions_file = os.path.join(self.catalog_dir, "functions.json")
         self.triggers_file = os.path.join(self.catalog_dir, "triggers.json")
 
+        # Multimodel metadata files
+        self.types_file = os.path.join(self.catalog_dir, "types.json")
+        self.collections_file = os.path.join(self.catalog_dir, "collections.json")
+        self.graph_schemas_file = os.path.join(self.catalog_dir, "graph_schemas.json")
+
         # Load or initialize catalog files
         self.databases = self._load_or_init_json(self.databases_file, {})
         self.tables = self._load_or_init_json(self.tables_file, {})
@@ -56,6 +61,11 @@ class CatalogManager:
         self.procedures = self._load_or_init_json(self.procedures_file, {})
         self.functions = self._load_or_init_json(self.functions_file, {})
         self.triggers = self._load_or_init_json(self.triggers_file, {})
+
+        # Load multimodel metadata
+        self.types = self._load_or_init_json(self.types_file, {})
+        self.collections = self._load_or_init_json(self.collections_file, {})
+        self.graph_schemas = self._load_or_init_json(self.graph_schemas_file, {})
 
         # Temporary tables are still in-memory
         self.temp_tables = {}
@@ -2976,3 +2986,256 @@ class CatalogManager:
             logging.warning(f"FK fallback parsing failed: {e}")
 
         return None
+
+    # ========================================
+    # Multimodel Metadata Management Methods
+    # ========================================
+
+    def create_type(self, type_name, fields):
+        """
+        Create a custom type for object-relational features.
+
+        Args:
+            type_name: Name of the type
+            fields: List of field definitions [{"name": str, "type": str}, ...]
+        """
+        db_name = self.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error"}
+
+        # Create type key
+        type_key = f"{db_name}.{type_name}"
+
+        # Check if type already exists
+        if type_key in self.types:
+            return {"error": f"Type '{type_name}' already exists", "status": "error"}
+
+        # Store type definition
+        self.types[type_key] = {
+            "name": type_name,
+            "database": db_name,
+            "fields": fields,
+            "created_at": datetime.datetime.now().isoformat(),
+        }
+
+        # Save to file
+        self._save_json(self.types_file, self.types)
+
+        return {
+            "message": f"Type '{type_name}' created successfully",
+            "status": "success",
+        }
+
+    def drop_type(self, type_name):
+        """Drop a custom type."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error"}
+
+        type_key = f"{db_name}.{type_name}"
+
+        if type_key not in self.types:
+            return {"error": f"Type '{type_name}' does not exist", "status": "error"}
+
+        del self.types[type_key]
+        self._save_json(self.types_file, self.types)
+
+        return {
+            "message": f"Type '{type_name}' dropped successfully",
+            "status": "success",
+        }
+
+    def get_type(self, type_name):
+        """Get type definition."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return None
+
+        type_key = f"{db_name}.{type_name}"
+        return self.types.get(type_key)
+
+    def list_types(self):
+        """List all types in current database."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return []
+
+        return [
+            type_def
+            for key, type_def in self.types.items()
+            if key.startswith(f"{db_name}.")
+        ]
+
+    def create_collection(self, collection_name, options=None):
+        """
+        Create a document collection.
+
+        Args:
+            collection_name: Name of the collection
+            options: Collection options (schema validation, indexes, etc.)
+        """
+        db_name = self.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error"}
+
+        collection_key = f"{db_name}.{collection_name}"
+
+        if collection_key in self.collections:
+            return {
+                "error": f"Collection '{collection_name}' already exists",
+                "status": "error",
+            }
+
+        self.collections[collection_key] = {
+            "name": collection_name,
+            "database": db_name,
+            "options": options or {},
+            "created_at": datetime.datetime.now().isoformat(),
+            "document_count": 0,
+            "indexes": [],
+        }
+
+        self._save_json(self.collections_file, self.collections)
+
+        return {
+            "message": f"Collection '{collection_name}' created successfully",
+            "status": "success",
+        }
+
+    def drop_collection(self, collection_name):
+        """Drop a document collection."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error"}
+
+        collection_key = f"{db_name}.{collection_name}"
+
+        if collection_key not in self.collections:
+            return {
+                "error": f"Collection '{collection_name}' does not exist",
+                "status": "error",
+            }
+
+        del self.collections[collection_key]
+        self._save_json(self.collections_file, self.collections)
+
+        return {
+            "message": f"Collection '{collection_name}' dropped successfully",
+            "status": "success",
+        }
+
+    def get_collection(self, collection_name):
+        """Get collection metadata."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return None
+
+        collection_key = f"{db_name}.{collection_name}"
+        return self.collections.get(collection_key)
+
+    def list_collections(self):
+        """List all collections in current database."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return []
+
+        return [
+            coll_def
+            for key, coll_def in self.collections.items()
+            if key.startswith(f"{db_name}.")
+        ]
+
+    def update_collection_stats(self, collection_name, document_count=None):
+        """Update collection statistics."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return
+
+        collection_key = f"{db_name}.{collection_name}"
+
+        if collection_key in self.collections:
+            if document_count is not None:
+                self.collections[collection_key]["document_count"] = document_count
+
+            self.collections[collection_key][
+                "last_modified"
+            ] = datetime.datetime.now().isoformat()
+            self._save_json(self.collections_file, self.collections)
+
+    def create_graph_schema(self, schema_name, vertex_types=None, edge_types=None):
+        """
+        Create a graph schema definition.
+
+        Args:
+            schema_name: Name of the graph schema
+            vertex_types: List of allowed vertex types
+            edge_types: List of allowed edge types
+        """
+        db_name = self.get_current_database()
+        if not db_name:
+            return {"error": "No database selected", "status": "error"}
+
+        schema_key = f"{db_name}.{schema_name}"
+
+        if schema_key in self.graph_schemas:
+            return {
+                "error": f"Graph schema '{schema_name}' already exists",
+                "status": "error",
+            }
+
+        self.graph_schemas[schema_key] = {
+            "name": schema_name,
+            "database": db_name,
+            "vertex_types": vertex_types or [],
+            "edge_types": edge_types or [],
+            "created_at": datetime.datetime.now().isoformat(),
+            "vertex_count": 0,
+            "edge_count": 0,
+        }
+
+        self._save_json(self.graph_schemas_file, self.graph_schemas)
+
+        return {
+            "message": f"Graph schema '{schema_name}' created successfully",
+            "status": "success",
+        }
+
+    def get_graph_schema(self, schema_name):
+        """Get graph schema definition."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return None
+
+        schema_key = f"{db_name}.{schema_name}"
+        return self.graph_schemas.get(schema_key)
+
+    def list_graph_schemas(self):
+        """List all graph schemas in current database."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return []
+
+        return [
+            schema_def
+            for key, schema_def in self.graph_schemas.items()
+            if key.startswith(f"{db_name}.")
+        ]
+
+    def update_graph_stats(self, schema_name, vertex_count=None, edge_count=None):
+        """Update graph statistics."""
+        db_name = self.get_current_database()
+        if not db_name:
+            return
+
+        schema_key = f"{db_name}.{schema_name}"
+
+        if schema_key in self.graph_schemas:
+            if vertex_count is not None:
+                self.graph_schemas[schema_key]["vertex_count"] = vertex_count
+            if edge_count is not None:
+                self.graph_schemas[schema_key]["edge_count"] = edge_count
+
+            self.graph_schemas[schema_key][
+                "last_modified"
+            ] = datetime.datetime.now().isoformat()
+            self._save_json(self.graph_schemas_file, self.graph_schemas)

@@ -15,7 +15,12 @@ from typing import Dict, Any, Optional
 
 # Import the new unified optimizer
 try:
-    from .unified_optimizer import UnifiedQueryOptimizer, OptimizationLevel, OptimizationOptions
+    from .unified_optimizer import (
+        UnifiedQueryOptimizer,
+        OptimizationLevel,
+        OptimizationOptions,
+    )
+
     UNIFIED_AVAILABLE = True
 except ImportError:
     UNIFIED_AVAILABLE = False

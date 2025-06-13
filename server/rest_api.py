@@ -482,15 +482,554 @@ def _log_query(username, query):
         logging.error(f"Failed to log query: {str(e)}")
 
 
+# ========================================
+# Multimodel API Endpoints
+# ========================================
+
+
+@app.route("/api/multimodel/types", methods=["GET"])
+@require_auth
+def list_types():
+    """List all custom types in the current database."""
+    try:
+        types = catalog_manager.list_types()
+        return jsonify({"types": types, "status": "success"})
+    except Exception as e:
+        logging.error(f"Error listing types: {str(e)}")
+        return (
+            jsonify({"error": f"Failed to list types: {str(e)}", "status": "error"}),
+            500,
+        )
+
+
+@app.route("/api/multimodel/collections", methods=["GET"])
+@require_auth
+def list_collections():
+    """List all document collections in the current database."""
+    try:
+        collections = catalog_manager.list_collections()
+        return jsonify({"collections": collections, "status": "success"})
+    except Exception as e:
+        logging.error(f"Error listing collections: {str(e)}")
+        return (
+            jsonify(
+                {"error": f"Failed to list collections: {str(e)}", "status": "error"}
+            ),
+            500,
+        )
+
+
+@app.route("/api/multimodel/graph-schemas", methods=["GET"])
+@require_auth
+def list_graph_schemas():
+    """List all graph schemas in the current database."""
+    try:
+        schemas = catalog_manager.list_graph_schemas()
+        return jsonify({"graph_schemas": schemas, "status": "success"})
+    except Exception as e:
+        logging.error(f"Error listing graph schemas: {str(e)}")
+        return (
+            jsonify(
+                {"error": f"Failed to list graph schemas: {str(e)}", "status": "error"}
+            ),
+            500,
+        )
+
+
+@app.route("/api/multimodel/execute", methods=["POST"])
+@require_auth
+def execute_multimodel_query():
+    """Execute multimodel operations (document, graph, object-relational)."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Missing request body", "status": "error"}), 400
+
+    query = data.get("query")
+    operation_type = data.get("type")
+
+    if not query and not operation_type:
+        return (
+            jsonify({"error": "Query or operation type required", "status": "error"}),
+            400,
+        )
+
+    try:
+        # Parse and execute the multimodel query
+        parsed = sql_parser.parse_sql(query) if query else data
+
+        # Add session context
+        parsed["session_id"] = g.session_id
+
+        # Plan and execute
+        plan = planner.plan_query(parsed)
+        result = execution_engine.execute(plan)
+
+        # Log the query
+        _log_query(g.user.get("username", "unknown"), query or str(data), result)
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Multimodel query execution failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+
+        result = {"error": error_msg, "status": "error"}
+        _log_query(g.user.get("username", "unknown"), query or str(data), result)
+
+        return jsonify(result), 500
+
+
+@app.route("/api/multimodel/document/<collection_name>", methods=["POST"])
+@require_auth
+def insert_document(collection_name):
+    """Insert a document into a collection."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Missing document data", "status": "error"}), 400
+
+    try:
+        # Create multimodel operation plan
+        plan = {
+            "type": "DOCUMENT_INSERT",
+            "collection": collection_name,
+            "document": data.get("document"),
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"), f"INSERT INTO {collection_name}", result
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Document insert failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+
+        result = {"error": error_msg, "status": "error"}
+        _log_query(
+            g.user.get("username", "unknown"), f"INSERT INTO {collection_name}", result
+        )
+
+        return jsonify(result), 500
+
+
+@app.route("/api/multimodel/document/<collection_name>", methods=["GET"])
+@require_auth
+def find_documents(collection_name):
+    """Find documents in a collection."""
+    try:
+        # Get query parameters
+        filter_param = request.args.get("filter", "{}")
+        projection_param = request.args.get("projection", "{}")
+        limit_param = request.args.get("limit")
+
+        # Create multimodel operation plan
+        plan = {
+            "type": "DOCUMENT_FIND",
+            "collection": collection_name,
+            "query_filter": filter_param,
+            "projection": projection_param,
+            "session_id": g.session_id,
+        }
+
+        if limit_param:
+            plan["limit"] = int(limit_param)
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"), f"FIND IN {collection_name}", result
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Document find failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+
+        result = {"error": error_msg, "status": "error"}
+        _log_query(
+            g.user.get("username", "unknown"), f"FIND IN {collection_name}", result
+        )
+
+        return jsonify(result), 500
+
+
+# ========================================
+# Enhanced Multimodel API Endpoints
+# ========================================
+
+
+@app.route("/api/multimodel/types", methods=["POST"])
+@require_auth
+def create_type():
+    """Create a new custom type."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Missing request body", "status": "error"}), 400
+
+    try:
+        plan = {
+            "type": "CREATE_TYPE",
+            "type_name": data.get("type_name"),
+            "attributes": data.get("attributes", []),
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"),
+            f"CREATE TYPE {data.get('type_name')}",
+            result,
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Type creation failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/types/<type_name>", methods=["DELETE"])
+@require_auth
+def drop_type(type_name):
+    """Drop a custom type."""
+    try:
+        plan = {"type": "DROP_TYPE", "type_name": type_name, "session_id": g.session_id}
+
+        result = execution_engine.execute(plan)
+        _log_query(g.user.get("username", "unknown"), f"DROP TYPE {type_name}", result)
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Type deletion failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/collections", methods=["POST"])
+@require_auth
+def create_collection():
+    """Create a new document collection."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Missing request body", "status": "error"}), 400
+
+    try:
+        plan = {
+            "type": "CREATE_COLLECTION",
+            "collection": data.get("collection"),
+            "schema": data.get("schema"),
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"),
+            f"CREATE COLLECTION {data.get('collection')}",
+            result,
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Collection creation failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/collections/<collection_name>", methods=["DELETE"])
+@require_auth
+def drop_collection(collection_name):
+    """Drop a document collection."""
+    try:
+        plan = {
+            "type": "DROP_COLLECTION",
+            "collection": collection_name,
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"),
+            f"DROP COLLECTION {collection_name}",
+            result,
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Collection deletion failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/document/<collection_name>/<doc_id>", methods=["PUT"])
+@require_auth
+def update_document(collection_name, doc_id):
+    """Update a document in a collection."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Missing update data", "status": "error"}), 400
+
+    try:
+        plan = {
+            "type": "DOCUMENT_UPDATE",
+            "collection": collection_name,
+            "filter": {"_id": doc_id},
+            "update": data.get("update"),
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"),
+            f"UPDATE {collection_name} WHERE _id = {doc_id}",
+            result,
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Document update failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/document/<collection_name>/<doc_id>", methods=["DELETE"])
+@require_auth
+def delete_document(collection_name, doc_id):
+    """Delete a document from a collection."""
+    try:
+        plan = {
+            "type": "DOCUMENT_DELETE",
+            "collection": collection_name,
+            "filter": {"_id": doc_id},
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"),
+            f"DELETE FROM {collection_name} WHERE _id = {doc_id}",
+            result,
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Document deletion failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/document/<collection_name>/aggregate", methods=["POST"])
+@require_auth
+def aggregate_documents(collection_name):
+    """Execute aggregation pipeline on a document collection."""
+    data = request.json
+    if not data:
+        return (
+            jsonify({"error": "Missing aggregation pipeline", "status": "error"}),
+            400,
+        )
+
+    try:
+        plan = {
+            "type": "DOCUMENT_AGGREGATE",
+            "collection": collection_name,
+            "pipeline": data.get("pipeline", []),
+            "query_type": "aggregation_pipeline",
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"), f"AGGREGATE {collection_name}", result
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Document aggregation failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/graph-schemas", methods=["POST"])
+@require_auth
+def create_graph_schema():
+    """Create a new graph schema."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Missing request body", "status": "error"}), 400
+
+    try:
+        plan = {
+            "type": "CREATE_GRAPH_SCHEMA",
+            "graph": data.get("graph"),
+            "vertex_types": data.get("vertex_types", []),
+            "edge_types": data.get("edge_types", []),
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"),
+            f"CREATE GRAPH SCHEMA {data.get('graph')}",
+            result,
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Graph schema creation failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/graph-schemas/<graph_name>", methods=["DELETE"])
+@require_auth
+def drop_graph_schema(graph_name):
+    """Drop a graph schema."""
+    try:
+        plan = {
+            "type": "DROP_GRAPH_SCHEMA",
+            "graph": graph_name,
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"), f"DROP GRAPH SCHEMA {graph_name}", result
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Graph schema deletion failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/graph/<graph_name>/vertex", methods=["POST"])
+@require_auth
+def create_vertex(graph_name):
+    """Create a vertex in a graph."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Missing vertex data", "status": "error"}), 400
+
+    try:
+        plan = {
+            "type": "CREATE_VERTEX",
+            "graph": graph_name,
+            "vertex": data.get("vertex"),
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"), f"CREATE VERTEX in {graph_name}", result
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Vertex creation failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/graph/<graph_name>/edge", methods=["POST"])
+@require_auth
+def create_edge(graph_name):
+    """Create an edge in a graph."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Missing edge data", "status": "error"}), 400
+
+    try:
+        plan = {
+            "type": "CREATE_EDGE",
+            "graph": graph_name,
+            "edge": data.get("edge"),
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"), f"CREATE EDGE in {graph_name}", result
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Edge creation failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/graph/<graph_name>/traverse", methods=["POST"])
+@require_auth
+def traverse_graph(graph_name):
+    """Traverse a graph from a starting vertex."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Missing traversal data", "status": "error"}), 400
+
+    try:
+        plan = {
+            "type": "GRAPH_TRAVERSAL",
+            "graph": graph_name,
+            "start_vertex": data.get("start_vertex"),
+            "max_depth": data.get("max_depth", 3),
+            "edge_filters": data.get("edge_filters", []),
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(g.user.get("username", "unknown"), f"TRAVERSE {graph_name}", result)
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Graph traversal failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
+@app.route("/api/multimodel/graph/<graph_name>/pattern", methods=["POST"])
+@require_auth
+def match_graph_pattern(graph_name):
+    """Match a pattern in a graph."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "Missing pattern data", "status": "error"}), 400
+
+    try:
+        plan = {
+            "type": "GRAPH_PATTERN",
+            "graph": graph_name,
+            "pattern": data.get("pattern"),
+            "session_id": g.session_id,
+        }
+
+        result = execution_engine.execute(plan)
+        _log_query(
+            g.user.get("username", "unknown"), f"PATTERN MATCH in {graph_name}", result
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        error_msg = f"Graph pattern matching failed: {str(e)}"
+        logging.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({"error": error_msg, "status": "error"}), 500
+
+
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Start the HMSSQL REST API server")
-    parser.add_argument("--host", default="0.0.0.0", help="Host address to bind")
-    parser.add_argument("--port", type=int, default=5000, help="Port to bind")
-    parser.add_argument("--debug", action="store_true", help="Run in debug mode")
-
-    args = parser.parse_args()
-
-    print(f"Starting HMSSQL REST API server on {args.host}:{args.port}")
-    app.run(host=args.host, port=args.port, debug=args.debug)
+    app.run(host="0.0.0.0", port=5000, debug=True)

@@ -139,6 +139,11 @@ class SQLGlotParser:
         if sql.strip().upper().startswith("VISUALIZE"):
             return self._parse_visualize(sql)
 
+        # Handle multimodel operations
+        multimodel_result = self._try_multimodel_parsing(sql)
+        if multimodel_result:
+            return multimodel_result
+
         # Handle DELETE with ORDER BY/LIMIT (MySQL specific)
         if sql.strip().upper().startswith("DELETE") and "ORDER BY" in sql.upper():
             match = re.match(
@@ -1418,3 +1423,382 @@ class SQLGlotParser:
             result["error"] = "Invalid CALL syntax"
 
         return result
+
+    def _try_multimodel_parsing(self, sql: str) -> Optional[Dict[str, Any]]:
+        """
+        Try parsing multimodel SQL operations.
+
+        Args:
+            sql: The SQL statement
+
+        Returns:
+            Parsed result if this is a multimodel operation, None otherwise
+        """
+        import re
+
+        sql_upper = sql.strip().upper()
+
+        # Object-Relational operations
+        if sql_upper.startswith("CREATE TYPE"):
+            return self._parse_create_type(sql)
+        elif sql_upper.startswith("DROP TYPE"):
+            return self._parse_drop_type(sql)
+
+        # Document Store operations
+        elif sql_upper.startswith("CREATE COLLECTION"):
+            return self._parse_create_collection(sql)
+        elif sql_upper.startswith("DROP COLLECTION"):
+            return self._parse_drop_collection(sql)
+        elif sql_upper.startswith("DOCUMENT.FIND"):
+            return self._parse_document_find(sql)
+        elif sql_upper.startswith("DOCUMENT.INSERT"):
+            return self._parse_document_insert(sql)
+        elif sql_upper.startswith("DOCUMENT.UPDATE"):
+            return self._parse_document_update(sql)
+        elif sql_upper.startswith("DOCUMENT.DELETE"):
+            return self._parse_document_delete(sql)
+
+        # Graph operations
+        elif sql_upper.startswith("GRAPH.CREATE_VERTEX"):
+            return self._parse_graph_create_vertex(sql)
+        elif sql_upper.startswith("GRAPH.CREATE_EDGE"):
+            return self._parse_graph_create_edge(sql)
+        elif sql_upper.startswith("GRAPH.FIND_PATH"):
+            return self._parse_graph_find_path(sql)
+        elif sql_upper.startswith("GRAPH.TRAVERSE"):
+            return self._parse_graph_traverse(sql)
+
+        # Check for JSONPath queries in SELECT
+        elif "SELECT" in sql_upper and ("$." in sql or "JSONPath" in sql_upper):
+            return self._parse_jsonpath_select(sql)
+
+        # Check for graph traversal keywords in WHERE
+        elif any(
+            keyword in sql_upper
+            for keyword in ["TRAVERSE", "PATH", "SHORTEST_PATH", "BFS", "DFS"]
+        ):
+            return self._parse_graph_query(sql)
+
+        return None
+
+    def _parse_create_type(self, sql: str) -> Dict[str, Any]:
+        """Parse CREATE TYPE statement for object-relational features."""
+        import re
+
+        # Pattern: CREATE TYPE typename AS (field1 type1, field2 type2, ...)
+        match = re.search(
+            r"CREATE\s+TYPE\s+(\w+)\s+AS\s*\(([^)]+)\)", sql, re.IGNORECASE | re.DOTALL
+        )
+
+        if match:
+            type_name = match.group(1)
+            fields_str = match.group(2)
+
+            # Parse fields
+            fields = []
+            for field_def in fields_str.split(","):
+                field_parts = field_def.strip().split()
+                if len(field_parts) >= 2:
+                    field_name = field_parts[0]
+                    field_type = " ".join(field_parts[1:])
+                    fields.append({"name": field_name, "type": field_type})
+
+            return {
+                "type": "CREATE_TYPE",
+                "operation": "CREATE_TYPE",
+                "type_name": type_name,
+                "fields": fields,
+                "query": sql,
+            }
+
+        return {"error": "Invalid CREATE TYPE syntax", "query": sql}
+
+    def _parse_drop_type(self, sql: str) -> Dict[str, Any]:
+        """Parse DROP TYPE statement."""
+        import re
+
+        match = re.search(r"DROP\s+TYPE\s+(\w+)", sql, re.IGNORECASE)
+
+        if match:
+            return {
+                "type": "DROP_TYPE",
+                "operation": "DROP_TYPE",
+                "type_name": match.group(1),
+                "query": sql,
+            }
+
+        return {"error": "Invalid DROP TYPE syntax", "query": sql}
+
+    def _parse_create_collection(self, sql: str) -> Dict[str, Any]:
+        """Parse CREATE COLLECTION statement for document store."""
+        import re
+
+        match = re.search(
+            r"CREATE\s+COLLECTION\s+(\w+)(?:\s+WITH\s+(.+))?", sql, re.IGNORECASE
+        )
+
+        if match:
+            collection_name = match.group(1)
+            options = match.group(2) if match.group(2) else ""
+
+            return {
+                "type": "CREATE_COLLECTION",
+                "operation": "CREATE_COLLECTION",
+                "collection": collection_name,
+                "options": options.strip(),
+                "query": sql,
+            }
+
+        return {"error": "Invalid CREATE COLLECTION syntax", "query": sql}
+
+    def _parse_drop_collection(self, sql: str) -> Dict[str, Any]:
+        """Parse DROP COLLECTION statement."""
+        import re
+
+        match = re.search(r"DROP\s+COLLECTION\s+(\w+)", sql, re.IGNORECASE)
+
+        if match:
+            return {
+                "type": "DROP_COLLECTION",
+                "operation": "DROP_COLLECTION",
+                "collection": match.group(1),
+                "query": sql,
+            }
+
+        return {"error": "Invalid DROP COLLECTION syntax", "query": sql}
+
+    def _parse_document_find(self, sql: str) -> Dict[str, Any]:
+        """Parse DOCUMENT.FIND statement."""
+        import re
+
+        # Pattern: DOCUMENT.FIND(collection, {query}, {projection})
+        match = re.search(
+            r"DOCUMENT\.FIND\s*\(\s*(\w+)\s*,\s*({[^}]*})\s*(?:,\s*({[^}]*}))?\s*\)",
+            sql,
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        if match:
+            collection = match.group(1)
+            query_json = match.group(2)
+            projection = match.group(3) if match.group(3) else "{}"
+
+            return {
+                "type": "DOCUMENT_FIND",
+                "operation": "DOCUMENT_FIND",
+                "collection": collection,
+                "query_filter": query_json,
+                "projection": projection,
+                "query": sql,
+            }
+
+        return {"error": "Invalid DOCUMENT.FIND syntax", "query": sql}
+
+    def _parse_document_insert(self, sql: str) -> Dict[str, Any]:
+        """Parse DOCUMENT.INSERT statement."""
+        import re
+
+        # Pattern: DOCUMENT.INSERT(collection, {document})
+        match = re.search(
+            r"DOCUMENT\.INSERT\s*\(\s*(\w+)\s*,\s*({.+})\s*\)",
+            sql,
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        if match:
+            collection = match.group(1)
+            document = match.group(2)
+
+            return {
+                "type": "DOCUMENT_INSERT",
+                "operation": "DOCUMENT_INSERT",
+                "collection": collection,
+                "document": document,
+                "query": sql,
+            }
+
+        return {"error": "Invalid DOCUMENT.INSERT syntax", "query": sql}
+
+    def _parse_document_update(self, sql: str) -> Dict[str, Any]:
+        """Parse DOCUMENT.UPDATE statement."""
+        import re
+
+        # Pattern: DOCUMENT.UPDATE(collection, {filter}, {update})
+        match = re.search(
+            r"DOCUMENT\.UPDATE\s*\(\s*(\w+)\s*,\s*({[^}]*})\s*,\s*({.+})\s*\)",
+            sql,
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        if match:
+            collection = match.group(1)
+            filter_doc = match.group(2)
+            update_doc = match.group(3)
+
+            return {
+                "type": "DOCUMENT_UPDATE",
+                "operation": "DOCUMENT_UPDATE",
+                "collection": collection,
+                "filter": filter_doc,
+                "update": update_doc,
+                "query": sql,
+            }
+
+        return {"error": "Invalid DOCUMENT.UPDATE syntax", "query": sql}
+
+    def _parse_document_delete(self, sql: str) -> Dict[str, Any]:
+        """Parse DOCUMENT.DELETE statement."""
+        import re
+
+        # Pattern: DOCUMENT.DELETE(collection, {filter})
+        match = re.search(
+            r"DOCUMENT\.DELETE\s*\(\s*(\w+)\s*,\s*({[^}]*})\s*\)",
+            sql,
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        if match:
+            collection = match.group(1)
+            filter_doc = match.group(2)
+
+            return {
+                "type": "DOCUMENT_DELETE",
+                "operation": "DOCUMENT_DELETE",
+                "collection": collection,
+                "filter": filter_doc,
+                "query": sql,
+            }
+
+        return {"error": "Invalid DOCUMENT.DELETE syntax", "query": sql}
+
+    def _parse_graph_create_vertex(self, sql: str) -> Dict[str, Any]:
+        """Parse GRAPH.CREATE_VERTEX statement."""
+        import re
+
+        # Pattern: GRAPH.CREATE_VERTEX(id, {properties})
+        match = re.search(
+            r"GRAPH\.CREATE_VERTEX\s*\(\s*([^,]+)\s*,\s*({.+})\s*\)",
+            sql,
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        if match:
+            vertex_id = match.group(1).strip().strip("'\"")
+            properties = match.group(2)
+
+            return {
+                "type": "GRAPH_CREATE_VERTEX",
+                "operation": "GRAPH_CREATE_VERTEX",
+                "vertex_id": vertex_id,
+                "properties": properties,
+                "query": sql,
+            }
+
+        return {"error": "Invalid GRAPH.CREATE_VERTEX syntax", "query": sql}
+
+    def _parse_graph_create_edge(self, sql: str) -> Dict[str, Any]:
+        """Parse GRAPH.CREATE_EDGE statement."""
+        import re
+
+        # Pattern: GRAPH.CREATE_EDGE(from_id, to_id, label, {properties})
+        match = re.search(
+            r"GRAPH\.CREATE_EDGE\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*({.+})\s*\)",
+            sql,
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        if match:
+            from_id = match.group(1).strip().strip("'\"")
+            to_id = match.group(2).strip().strip("'\"")
+            label = match.group(3).strip().strip("'\"")
+            properties = match.group(4)
+
+            return {
+                "type": "GRAPH_CREATE_EDGE",
+                "operation": "GRAPH_CREATE_EDGE",
+                "from_vertex": from_id,
+                "to_vertex": to_id,
+                "edge_label": label,
+                "properties": properties,
+                "query": sql,
+            }
+
+        return {"error": "Invalid GRAPH.CREATE_EDGE syntax", "query": sql}
+
+    def _parse_graph_find_path(self, sql: str) -> Dict[str, Any]:
+        """Parse GRAPH.FIND_PATH statement."""
+        import re
+
+        # Pattern: GRAPH.FIND_PATH(from_id, to_id, algorithm)
+        match = re.search(
+            r"GRAPH\.FIND_PATH\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*(?:,\s*([^)]+))?\s*\)",
+            sql,
+            re.IGNORECASE,
+        )
+
+        if match:
+            from_id = match.group(1).strip().strip("'\"")
+            to_id = match.group(2).strip().strip("'\"")
+            algorithm = (
+                match.group(3).strip().strip("'\"") if match.group(3) else "shortest"
+            )
+
+            return {
+                "type": "GRAPH_FIND_PATH",
+                "operation": "GRAPH_FIND_PATH",
+                "from_vertex": from_id,
+                "to_vertex": to_id,
+                "algorithm": algorithm,
+                "query": sql,
+            }
+
+        return {"error": "Invalid GRAPH.FIND_PATH syntax", "query": sql}
+
+    def _parse_graph_traverse(self, sql: str) -> Dict[str, Any]:
+        """Parse GRAPH.TRAVERSE statement."""
+        import re
+
+        # Pattern: GRAPH.TRAVERSE(start_id, algorithm, max_depth)
+        match = re.search(
+            r"GRAPH\.TRAVERSE\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*(?:,\s*(\d+))?\s*\)",
+            sql,
+            re.IGNORECASE,
+        )
+
+        if match:
+            start_id = match.group(1).strip().strip("'\"")
+            algorithm = match.group(2).strip().strip("'\"")
+            max_depth = int(match.group(3)) if match.group(3) else 10
+
+            return {
+                "type": "GRAPH_TRAVERSE",
+                "operation": "GRAPH_TRAVERSE",
+                "start_vertex": start_id,
+                "algorithm": algorithm,
+                "max_depth": max_depth,
+                "query": sql,
+            }
+
+        return {"error": "Invalid GRAPH.TRAVERSE syntax", "query": sql}
+
+    def _parse_jsonpath_select(self, sql: str) -> Dict[str, Any]:
+        """Parse SELECT with JSONPath expressions."""
+        # Use standard SELECT parsing but mark as document query
+        try:
+            parsed = parse_one(sql, dialect=self.dialect)
+            result = self._convert_to_internal_format(parsed, sql)
+            result["query_type"] = "jsonpath"
+            return result
+        except:
+            return {"error": "Invalid JSONPath SELECT syntax", "query": sql}
+
+    def _parse_graph_query(self, sql: str) -> Dict[str, Any]:
+        """Parse SELECT with graph traversal operations."""
+        # Use standard SELECT parsing but mark as graph query
+        try:
+            parsed = parse_one(sql, dialect=self.dialect)
+            result = self._convert_to_internal_format(parsed, sql)
+            result["query_type"] = "graph_traverse"
+            return result
+        except:
+            return {"error": "Invalid graph query syntax", "query": sql}

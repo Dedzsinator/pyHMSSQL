@@ -306,6 +306,28 @@ class Planner:
                 return self.plan_transaction_operation(parsed_query)
             elif parsed_query["type"] == "ROLLBACK":
                 return self.plan_transaction_operation(parsed_query)
+
+            # Multimodel operations
+            elif parsed_query["type"] in [
+                "CREATE_TYPE",
+                "DROP_TYPE",
+                "CREATE_COLLECTION",
+                "DROP_COLLECTION",
+                "DOCUMENT_INSERT",
+                "DOCUMENT_FIND",
+                "DOCUMENT_UPDATE",
+                "DOCUMENT_DELETE",
+                "CREATE_VERTEX",
+                "CREATE_EDGE",
+                "GRAPH_CREATE_VERTEX",
+                "GRAPH_CREATE_EDGE",
+                "GRAPH_FIND_PATH",
+                "GRAPH_TRAVERSE",
+                "GRAPH_PATTERN",
+                "GRAPH_PATH",
+                "CREATE_GRAPH_SCHEMA",
+            ]:
+                plan = self.plan_multimodel_operation(parsed_query)
             else:
                 return {"error": f"Unsupported query type: {parsed_query['type']}"}
         except ValueError as e:
@@ -906,3 +928,74 @@ class Planner:
             "constraints": parsed_query.get("constraints", []),
             "temporary": True,
         }
+
+    def plan_multimodel_operation(self, parsed_query):
+        """
+        Plan for multimodel operations (Object-Relational, Document Store, Graph).
+
+        This method creates execution plans for various multimodel operations
+        by passing through the parsed query structure with minimal transformation.
+        The actual execution logic is handled by the ModelRouter.
+        """
+        logging.debug("Planning multimodel operation: %s", parsed_query)
+
+        operation_type = parsed_query["type"]
+
+        # Create base plan preserving all parsed information
+        plan = {
+            "type": operation_type,
+            "operation": operation_type,
+            "query": parsed_query.get("query", ""),
+        }
+
+        # Add operation-specific fields based on type
+        if operation_type in ["CREATE_TYPE", "DROP_TYPE"]:
+            # Object-Relational type operations
+            plan.update(
+                {
+                    "type_name": parsed_query.get("type_name"),
+                    "fields": parsed_query.get("fields", []),
+                }
+            )
+
+        elif operation_type in ["CREATE_COLLECTION", "DROP_COLLECTION"]:
+            # Document store collection operations
+            plan.update(
+                {
+                    "collection": parsed_query.get("collection"),
+                    "options": parsed_query.get("options", ""),
+                }
+            )
+
+        elif operation_type.startswith("DOCUMENT_"):
+            # Document store data operations
+            plan.update(
+                {
+                    "collection": parsed_query.get("collection"),
+                    "document": parsed_query.get("document"),
+                    "query_filter": parsed_query.get("query_filter"),
+                    "filter": parsed_query.get("filter"),
+                    "update": parsed_query.get("update"),
+                    "projection": parsed_query.get("projection"),
+                }
+            )
+
+        elif operation_type.startswith("GRAPH_"):
+            # Graph database operations
+            plan.update(
+                {
+                    "vertex_id": parsed_query.get("vertex_id"),
+                    "from_vertex": parsed_query.get("from_vertex"),
+                    "to_vertex": parsed_query.get("to_vertex"),
+                    "start_vertex": parsed_query.get("start_vertex"),
+                    "edge_label": parsed_query.get("edge_label"),
+                    "properties": parsed_query.get("properties"),
+                    "algorithm": parsed_query.get("algorithm"),
+                    "max_depth": parsed_query.get("max_depth", 10),
+                }
+            )
+
+        # Remove None values to keep plan clean
+        plan = {k: v for k, v in plan.items() if v is not None}
+
+        return plan
