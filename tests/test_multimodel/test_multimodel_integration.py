@@ -45,6 +45,7 @@ class MultimodelIntegrationTestSuite:
         self.performance_metrics = {}
         # Generate unique test ID to avoid resource conflicts
         import uuid
+
         self.test_id = str(uuid.uuid4())[:8]
 
     def setup_test_environment(self):
@@ -146,7 +147,7 @@ class MultimodelIntegrationTestSuite:
         try:
             # Use unique type name to avoid conflicts
             type_name = f"address_type_{self.test_id}"
-            
+
             # Test CREATE TYPE (handle case where it already exists)
             create_type_result = self.execution_engine.execute(
                 {
@@ -189,13 +190,17 @@ class MultimodelIntegrationTestSuite:
             # Allow for already exists error
             if create_table_result.get("status") != "success":
                 if "already exists" not in create_table_result.get("error", "").lower():
-                    print(f"CREATE TABLE with custom type failed: {create_table_result}")
+                    print(
+                        f"CREATE TABLE with custom type failed: {create_table_result}"
+                    )
                     return False
                 else:
                     print("Table employees already exists, continuing...")
 
             # Test INSERT with composite type values (use unique ID to avoid conflicts)
-            employee_id = int(self.test_id[-4:], 16)  # Convert last 4 chars of test_id from hex to int
+            employee_id = int(
+                self.test_id[-4:], 16
+            )  # Convert last 4 chars of test_id from hex to int
             insert_result = self.execution_engine.execute(
                 {
                     "type": "INSERT",
@@ -222,8 +227,10 @@ class MultimodelIntegrationTestSuite:
 
             # Allow for duplicate primary key error (from previous test runs)
             if insert_result.get("status") != "success":
-                if "duplicate primary key" in insert_result.get("error", "").lower() or \
-                   "already exists" in insert_result.get("error", "").lower():
+                if (
+                    "duplicate primary key" in insert_result.get("error", "").lower()
+                    or "already exists" in insert_result.get("error", "").lower()
+                ):
                     print(f"Employee {employee_id} already exists, continuing...")
                 else:
                     print(f"INSERT with composite type failed: {insert_result}")
@@ -265,7 +272,7 @@ class MultimodelIntegrationTestSuite:
         try:
             # Use unique collection name to avoid conflicts
             collection_name = f"users_{self.test_id}"
-            
+
             # Test CREATE COLLECTION (handle case where it already exists)
             create_collection_result = self.execution_engine.execute(
                 {
@@ -284,7 +291,10 @@ class MultimodelIntegrationTestSuite:
 
             # Allow for already exists error
             if create_collection_result.get("status") != "success":
-                if "already exists" not in create_collection_result.get("error", "").lower():
+                if (
+                    "already exists"
+                    not in create_collection_result.get("error", "").lower()
+                ):
                     print(f"CREATE COLLECTION failed: {create_collection_result}")
                     return False
                 else:
@@ -393,7 +403,7 @@ class MultimodelIntegrationTestSuite:
         try:
             # Use unique graph name to avoid conflicts
             graph_name = f"social_network_{self.test_id}"
-            
+
             # Test CREATE GRAPH SCHEMA (handle case where it already exists)
             create_graph_result = self.execution_engine.execute(
                 {
@@ -413,7 +423,9 @@ class MultimodelIntegrationTestSuite:
 
             # Allow for already exists error
             if create_graph_result.get("status") != "success":
-                error_msg = create_graph_result.get("message", "") or create_graph_result.get("error", "")
+                error_msg = create_graph_result.get(
+                    "message", ""
+                ) or create_graph_result.get("error", "")
                 if "already exists" not in error_msg.lower():
                     print(f"CREATE GRAPH SCHEMA failed: {create_graph_result}")
                     return False
@@ -439,12 +451,16 @@ class MultimodelIntegrationTestSuite:
 
             # Allow for already exists error
             if create_vertex1_result.get("status") != "success":
-                error_msg = create_vertex1_result.get("message", "") or create_vertex1_result.get("error", "")
+                error_msg = create_vertex1_result.get(
+                    "message", ""
+                ) or create_vertex1_result.get("error", "")
                 if "already exists" not in error_msg.lower():
                     print(f"CREATE VERTEX 1 failed: {create_vertex1_result}")
                     return False
                 else:
-                    print(f"Vertex person1_{self.test_id} already exists, continuing...")
+                    print(
+                        f"Vertex person1_{self.test_id} already exists, continuing..."
+                    )
 
             create_vertex2_result = self.execution_engine.execute(
                 {
@@ -460,12 +476,16 @@ class MultimodelIntegrationTestSuite:
 
             # Allow for already exists error
             if create_vertex2_result.get("status") != "success":
-                error_msg = create_vertex2_result.get("message", "") or create_vertex2_result.get("error", "")
+                error_msg = create_vertex2_result.get(
+                    "message", ""
+                ) or create_vertex2_result.get("error", "")
                 if "already exists" not in error_msg.lower():
                     print(f"CREATE VERTEX 2 failed: {create_vertex2_result}")
                     return False
                 else:
-                    print(f"Vertex company1_{self.test_id} already exists, continuing...")
+                    print(
+                        f"Vertex company1_{self.test_id} already exists, continuing..."
+                    )
 
             # Test CREATE EDGE (use unique IDs)
             create_edge_result = self.execution_engine.execute(
@@ -487,7 +507,9 @@ class MultimodelIntegrationTestSuite:
 
             # Allow for already exists error
             if create_edge_result.get("status") != "success":
-                error_msg = create_edge_result.get("message", "") or create_edge_result.get("error", "")
+                error_msg = create_edge_result.get(
+                    "message", ""
+                ) or create_edge_result.get("error", "")
                 if "already exists" not in error_msg.lower():
                     print(f"CREATE EDGE failed: {create_edge_result}")
                     return False
@@ -556,7 +578,7 @@ class MultimodelIntegrationTestSuite:
             # Use unique names to avoid conflicts
             collection_name = f"users_{self.test_id}"
             graph_name = f"social_network_{self.test_id}"
-            
+
             # Test joining relational table with document collection
             cross_join_result = self.execution_engine.execute(
                 {
@@ -610,7 +632,7 @@ class MultimodelIntegrationTestSuite:
         """Run performance benchmarks for multimodel operations"""
         try:
             print("🚀 Running performance benchmarks...")
-            
+
             # Use unique names to avoid conflicts
             collection_name = f"users_{self.test_id}"
             graph_name = f"social_network_{self.test_id}"
@@ -694,7 +716,7 @@ class MultimodelIntegrationTestSuite:
         try:
             # Use unique collection name to avoid conflicts
             collection_name = f"users_{self.test_id}"
-            
+
             # Test invalid document structure
             invalid_doc_result = self.execution_engine.execute(
                 {
@@ -755,7 +777,7 @@ class MultimodelIntegrationTestSuite:
         try:
             import threading
             import queue
-            
+
             # Use unique collection name to avoid conflicts
             collection_name = f"users_{self.test_id}"
 

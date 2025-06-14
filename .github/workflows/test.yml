@@ -82,9 +82,9 @@ jobs:
         with:
           name: test-results-${{ matrix.python-version }}
           path: |
-            test-results.xml
+            docs/test-results.xml
             docs/htmlcov/
-            coverage.xml
+            docs/coverage.xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

@@ -45,8 +45,9 @@ class MultimodelPerformanceTester:
             # Ensure we're using the correct import path
             import sys
             import os
+
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../server"))
-            
+
             from catalog_manager import CatalogManager
             from index_manager import IndexManager
             from execution_engine import ExecutionEngine
@@ -54,9 +55,12 @@ class MultimodelPerformanceTester:
 
             # Create unique test data directory to avoid conflicts
             import uuid
+
             test_id = str(uuid.uuid4())[:8]
-            self.test_data_dir = os.path.join(tempfile.gettempdir(), f"test_perf_data_{test_id}")
-            
+            self.test_data_dir = os.path.join(
+                tempfile.gettempdir(), f"test_perf_data_{test_id}"
+            )
+
             self.catalog_manager = CatalogManager(data_dir=self.test_data_dir)
             index_manager = IndexManager(self.catalog_manager)
             planner = Planner(self.catalog_manager, index_manager)
@@ -646,7 +650,7 @@ class MultimodelPerformanceTester:
 
             # Clean up test files
             import shutil
-            
+
             # Clean up the specific test data directory
             if self.test_data_dir and os.path.exists(self.test_data_dir):
                 shutil.rmtree(self.test_data_dir)
@@ -654,7 +658,7 @@ class MultimodelPerformanceTester:
             # Also clean up any legacy test files
             if os.path.exists("test_perf_db"):
                 shutil.rmtree("test_perf_db")
-                
+
             # Clean up any generic test directories
             test_data_dir = os.path.join(tempfile.gettempdir(), "test_perf_data")
             if os.path.exists(test_data_dir):
