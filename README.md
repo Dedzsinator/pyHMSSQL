@@ -1001,6 +1001,524 @@ query SELECT * FROM products WHERE category = 'Electronics';
 
 -- Visualize an index
 query VISUALIZE BPTREE idx_id ON products;
+
+---
+-- ===================================
+-- MULTIMODEL DATABASE TESTING
+-- Testing Graph, NoSQL, and Object-Relational capabilities
+-- ===================================
+
+-- ===================================
+-- GRAPH DATABASE OPERATIONS
+-- ===================================
+
+-- Create nodes for a social network graph
+query CREATE GRAPH social_network;
+query USE GRAPH social_network;
+
+-- Create person nodes
+query CREATE NODE person (id: 1, name: 'Alice', age: 28, city: 'New York');
+query CREATE NODE person (id: 2, name: 'Bob', age: 32, city: 'San Francisco');
+query CREATE NODE person (id: 3, name: 'Charlie', age: 25, city: 'Chicago');
+query CREATE NODE person (id: 4, name: 'Diana', age: 30, city: 'Seattle');
+query CREATE NODE person (id: 5, name: 'Eve', age: 27, city: 'Boston');
+
+-- Create company nodes
+query CREATE NODE company (id: 101, name: 'TechCorp', industry: 'Technology', size: 5000);
+query CREATE NODE company (id: 102, name: 'DataInc', industry: 'Analytics', size: 1200);
+query CREATE NODE company (id: 103, name: 'CloudSys', industry: 'Cloud Computing', size: 800);
+
+-- Create location nodes
+query CREATE NODE location (id: 201, name: 'New York', country: 'USA', population: 8000000);
+query CREATE NODE location (id: 202, name: 'San Francisco', country: 'USA', population: 875000);
+query CREATE NODE location (id: 203, name: 'Chicago', country: 'USA', population: 2700000);
+
+-- Create relationships (edges)
+query CREATE EDGE friendship FROM person(1) TO person(2) (since: '2020-01-15', strength: 0.8);
+query CREATE EDGE friendship FROM person(2) TO person(3) (since: '2019-05-10', strength: 0.9);
+query CREATE EDGE friendship FROM person(1) TO person(3) (since: '2021-03-20', strength: 0.7);
+query CREATE EDGE friendship FROM person(3) TO person(4) (since: '2018-11-05', strength: 0.85);
+query CREATE EDGE friendship FROM person(4) TO person(5) (since: '2022-02-14', strength: 0.6);
+
+-- Create employment relationships
+query CREATE EDGE works_at FROM person(1) TO company(101) (position: 'Software Engineer', salary: 95000, start_date: '2021-01-01');
+query CREATE EDGE works_at FROM person(2) TO company(102) (position: 'Data Scientist', salary: 110000, start_date: '2020-06-15');
+query CREATE EDGE works_at FROM person(3) TO company(101) (position: 'Product Manager', salary: 120000, start_date: '2019-03-01');
+query CREATE EDGE works_at FROM person(4) TO company(103) (position: 'DevOps Engineer', salary: 105000, start_date: '2020-09-01');
+
+-- Create lives_in relationships
+query CREATE EDGE lives_in FROM person(1) TO location(201) (since: '2018-01-01');
+query CREATE EDGE lives_in FROM person(2) TO location(202) (since: '2019-01-01');
+query CREATE EDGE lives_in FROM person(3) TO location(203) (since: '2017-01-01');
+
+-- Graph traversal queries
+-- Find all friends of Alice
+query MATCH (p1:person {name: 'Alice'})-[f:friendship]-(p2:person) RETURN p2.name, f.strength;
+
+-- Find friends of friends (2-hop traversal)
+query MATCH (p1:person {name: 'Alice'})-[f1:friendship]-(p2:person)-[f2:friendship]-(p3:person) WHERE p1.id != p3.id RETURN p3.name, p2.name as mutual_friend;
+
+-- Find shortest path between two people
+query MATCH path = SHORTEST_PATH((p1:person {name: 'Alice'})-[*]-(p2:person {name: 'Eve'})) RETURN path;
+
+-- Find all employees at TechCorp and their friends
+query MATCH (p:person)-[:works_at]->(c:company {name: 'TechCorp'}), (p)-[:friendship]-(friend:person) RETURN p.name, friend.name;
+
+-- Complex graph analytics
+-- Find influential people (those with many connections)
+query MATCH (p:person)-[f:friendship]-() RETURN p.name, COUNT(f) as connection_count ORDER BY connection_count DESC;
+
+-- Find average salary by city
+query MATCH (p:person)-[:works_at]->(c:company), (p)-[:lives_in]->(l:location) RETURN l.name, AVG(w.salary) as avg_salary;
+
+-- PageRank algorithm simulation
+query GRAPH PAGERANK social_network ITERATIONS 10 DAMPING 0.85;
+
+-- Community detection
+query GRAPH COMMUNITY_DETECTION social_network ALGORITHM 'louvain';
+
+-- Centrality measures
+query GRAPH CENTRALITY social_network TYPE 'betweenness';
+query GRAPH CENTRALITY social_network TYPE 'closeness';
+query GRAPH CENTRALITY social_network TYPE 'degree';
+
+-- ===================================
+-- NOSQL DOCUMENT OPERATIONS
+-- ===================================
+
+-- Create document collections
+query CREATE COLLECTION users;
+query CREATE COLLECTION orders;
+query CREATE COLLECTION products;
+query CREATE COLLECTION reviews;
+
+-- Insert JSON documents into users collection
+query INSERT INTO users DOCUMENT {
+  "_id": "user_001",
+  "name": "John Doe",
+  "email": "john.doe@email.com",
+  "age": 29,
+  "address": {
+    "street": "123 Main St",
+    "city": "New York",
+    "state": "NY",
+    "zipcode": "10001"
+  },
+  "preferences": {
+    "theme": "dark",
+    "notifications": true,
+    "newsletter": false
+  },
+  "tags": ["premium", "early_adopter"],
+  "registration_date": "2023-01-15T10:30:00Z",
+  "last_login": "2024-06-14T08:45:00Z",
+  "purchase_history": [
+    {"product_id": "prod_001", "amount": 99.99, "date": "2023-02-01"},
+    {"product_id": "prod_003", "amount": 149.99, "date": "2023-05-15"}
+  ]
+};
+
+query INSERT INTO users DOCUMENT {
+  "_id": "user_002",
+  "name": "Jane Smith",
+  "email": "jane.smith@email.com",
+  "age": 34,
+  "address": {
+    "street": "456 Oak Ave",
+    "city": "San Francisco",
+    "state": "CA",
+    "zipcode": "94102"
+  },
+  "preferences": {
+    "theme": "light",
+    "notifications": false,
+    "newsletter": true
+  },
+  "tags": ["vip", "frequent_buyer"],
+  "registration_date": "2022-11-20T14:22:00Z",
+  "last_login": "2024-06-13T19:30:00Z",
+  "purchase_history": [
+    {"product_id": "prod_002", "amount": 79.99, "date": "2022-12-01"},
+    {"product_id": "prod_001", "amount": 99.99, "date": "2023-01-10"},
+    {"product_id": "prod_004", "amount": 199.99, "date": "2023-08-22"}
+  ]
+};
+
+-- Insert products with complex nested structures
+query INSERT INTO products DOCUMENT {
+  "_id": "prod_001",
+  "name": "Wireless Headphones",
+  "category": "Electronics",
+  "price": 99.99,
+  "specifications": {
+    "battery_life": "20 hours",
+    "connectivity": ["Bluetooth 5.0", "USB-C"],
+    "features": ["Noise Cancellation", "Quick Charge", "Voice Assistant"],
+    "dimensions": {
+      "width": "18cm",
+      "height": "20cm",
+      "depth": "8cm",
+      "weight": "250g"
+    }
+  },
+  "availability": {
+    "in_stock": true,
+    "quantity": 150,
+    "warehouses": [
+      {"location": "New York", "quantity": 50},
+      {"location": "California", "quantity": 75},
+      {"location": "Texas", "quantity": 25}
+    ]
+  },
+  "ratings": {
+    "average": 4.5,
+    "count": 1247,
+    "distribution": {
+      "5": 623,
+      "4": 374,
+      "3": 186,
+      "2": 43,
+      "1": 21
+    }
+  },
+  "tags": ["wireless", "premium", "noise-cancelling"],
+  "created_at": "2023-01-01T00:00:00Z",
+  "updated_at": "2024-06-01T12:00:00Z"
+};
+
+-- NoSQL queries with complex conditions
+-- Find users by nested field
+query SELECT * FROM users WHERE address.city = 'New York';
+
+-- Find users with specific tags
+query SELECT * FROM users WHERE 'premium' IN tags;
+
+-- Find products with rating above 4.0
+query SELECT * FROM products WHERE ratings.average > 4.0;
+
+-- Find users who made purchases after a certain date
+query SELECT * FROM users WHERE purchase_history[*].date > '2023-01-01';
+
+-- Aggregate operations on documents
+-- Count users by city
+query SELECT address.city, COUNT(*) as user_count FROM users GROUP BY address.city;
+
+-- Average product rating by category
+query SELECT category, AVG(ratings.average) as avg_rating FROM products GROUP BY category;
+
+-- Array operations
+-- Find products with specific features
+query SELECT * FROM products WHERE 'Noise Cancellation' IN specifications.features;
+
+-- Update nested fields
+query UPDATE users SET preferences.theme = 'dark' WHERE _id = 'user_002';
+
+-- Add to array
+query UPDATE users SET tags = ARRAY_APPEND(tags, 'loyal_customer') WHERE _id = 'user_001';
+
+-- Remove from array
+query UPDATE users SET tags = ARRAY_REMOVE(tags, 'early_adopter') WHERE _id = 'user_001';
+
+-- Complex document joins
+query SELECT u.name, p.name as product_name, ph.amount 
+FROM users u 
+CROSS JOIN JSON_TABLE(u.purchase_history, '$[*]' COLUMNS (
+  product_id VARCHAR(50) PATH '$.product_id',
+  amount DECIMAL(10,2) PATH '$.amount',
+  date DATETIME PATH '$.date'
+)) ph
+JOIN products p ON p._id = ph.product_id;
+
+-- Text search on documents
+query SELECT * FROM products WHERE FULL_TEXT_SEARCH(name, 'wireless headphones');
+
+-- GeoSpatial queries (if coordinates are stored)
+query INSERT INTO users DOCUMENT {
+  "_id": "user_003",
+  "name": "Mike Johnson",
+  "location": {
+    "type": "Point",
+    "coordinates": [-74.006, 40.7128]  // NYC coordinates
+  }
+};
+
+query SELECT * FROM users WHERE ST_DISTANCE(location, ST_POINT(-74.006, 40.7128)) < 1000; // Within 1km
+
+-- ===================================
+-- OBJECT-RELATIONAL OPERATIONS
+-- ===================================
+
+-- Create custom object types
+query CREATE TYPE address_type AS (
+  street VARCHAR(100),
+  city VARCHAR(50),
+  state VARCHAR(2),
+  zipcode VARCHAR(10),
+  country VARCHAR(50) DEFAULT 'USA'
+);
+
+query CREATE TYPE contact_info_type AS (
+  email VARCHAR(100),
+  phone VARCHAR(20),
+  website VARCHAR(100)
+);
+
+query CREATE TYPE money_type AS (
+  amount DECIMAL(15,2),
+  currency VARCHAR(3) DEFAULT 'USD'
+);
+
+-- Create tables with object types
+query CREATE TABLE companies (
+  id INT PRIMARY KEY,
+  name VARCHAR(100),
+  headquarters address_type,
+  contact contact_info_type,
+  revenue money_type,
+  established_date DATE,
+  employees INT[]  -- Array type
+);
+
+query CREATE TABLE projects (
+  id INT PRIMARY KEY,
+  name VARCHAR(100),
+  company_id INT,
+  budget money_type,
+  team_members INT[],  -- Array of employee IDs
+  milestones JSON,     -- JSON type for complex milestone data
+  metadata JSON,       -- Additional metadata
+  FOREIGN KEY (company_id) REFERENCES companies(id)
+);
+
+-- Insert data using object constructors
+query INSERT INTO companies VALUES (
+  1, 
+  'TechInnovate Corp',
+  ROW('100 Tech Plaza', 'San Francisco', 'CA', '94105', 'USA')::address_type,
+  ROW('contact@techinnovate.com', '+1-555-0123', 'www.techinnovate.com')::contact_info_type,
+  ROW(50000000.00, 'USD')::money_type,
+  '2010-03-15',
+  ARRAY[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+);
+
+query INSERT INTO companies VALUES (
+  2,
+  'DataDynamics LLC',
+  ROW('200 Data Street', 'Seattle', 'WA', '98101', 'USA')::address_type,
+  ROW('info@datadynamics.com', '+1-555-0456', 'www.datadynamics.com')::contact_info_type,
+  ROW(25000000.00, 'USD')::money_type,
+  '2015-07-22',
+  ARRAY[11, 12, 13, 14, 15]
+);
+
+-- Insert projects with JSON data
+query INSERT INTO projects VALUES (
+  101,
+  'AI Platform Development',
+  1,
+  ROW(5000000.00, 'USD')::money_type,
+  ARRAY[1, 3, 5, 7],
+  JSON '{
+    "phase1": {"name": "Research", "deadline": "2024-09-01", "status": "completed"},
+    "phase2": {"name": "Development", "deadline": "2024-12-15", "status": "in_progress"},
+    "phase3": {"name": "Testing", "deadline": "2025-03-01", "status": "planned"}
+  }',
+  JSON '{
+    "priority": "high",
+    "confidentiality": "internal",
+    "technologies": ["Python", "TensorFlow", "Kubernetes"],
+    "client_requirements": {
+      "performance": "99.9% uptime",
+      "scalability": "1M+ concurrent users",
+      "security": "SOC2 compliant"
+    }
+  }'
+);
+
+query INSERT INTO projects VALUES (
+  102,
+  'Data Analytics Dashboard',
+  2,
+  ROW(1500000.00, 'USD')::money_type,
+  ARRAY[11, 13, 15],
+  JSON '{
+    "phase1": {"name": "Design", "deadline": "2024-08-15", "status": "completed"},
+    "phase2": {"name": "Implementation", "deadline": "2024-11-30", "status": "in_progress"},
+    "phase3": {"name": "Deployment", "deadline": "2025-01-15", "status": "planned"}
+  }',
+  JSON '{
+    "priority": "medium",
+    "confidentiality": "public",
+    "technologies": ["React", "D3.js", "PostgreSQL"],
+    "target_metrics": {
+      "user_engagement": "75%",
+      "load_time": "<2 seconds",
+      "data_accuracy": "99.5%"
+    }
+  }'
+);
+
+-- Query object attributes
+query SELECT name, (headquarters).city, (headquarters).state FROM companies;
+
+-- Query nested object attributes
+query SELECT name, (contact).email, (revenue).amount FROM companies WHERE (revenue).amount > 30000000;
+
+-- Array operations
+query SELECT name FROM companies WHERE 5 = ANY(employees);  -- Check if employee 5 exists
+
+query SELECT name FROM companies WHERE ARRAY_LENGTH(employees) > 7;  -- Companies with more than 7 employees
+
+-- JSON operations
+query SELECT name, JSON_EXTRACT(metadata, '$.priority') as priority FROM projects;
+
+query SELECT name, JSON_EXTRACT(milestones, '$.phase2.status') as phase2_status FROM projects;
+
+-- Complex JSON queries
+query SELECT 
+  name,
+  JSON_EXTRACT(metadata, '$.technologies') as tech_stack,
+  JSON_EXTRACT(metadata, '$.client_requirements.performance') as performance_req
+FROM projects 
+WHERE JSON_EXTRACT(metadata, '$.priority') = 'high';
+
+-- Update object attributes
+query UPDATE companies SET (headquarters).zipcode = '94106' WHERE id = 1;
+
+-- Update array elements
+query UPDATE companies SET employees = ARRAY_APPEND(employees, 20) WHERE id = 1;
+
+-- Update JSON fields
+query UPDATE projects SET metadata = JSON_SET(metadata, '$.priority', 'critical') WHERE id = 101;
+
+-- Complex joins with object types
+query SELECT 
+  c.name as company_name,
+  (c.headquarters).city as city,
+  p.name as project_name,
+  (p.budget).amount as budget_amount,
+  JSON_EXTRACT(p.metadata, '$.priority') as priority
+FROM companies c
+JOIN projects p ON c.id = p.company_id
+WHERE (c.revenue).amount > 20000000
+ORDER BY (p.budget).amount DESC;
+
+-- Aggregate functions with object types
+query SELECT 
+  (headquarters).state,
+  COUNT(*) as company_count,
+  AVG((revenue).amount) as avg_revenue
+FROM companies 
+GROUP BY (headquarters).state;
+
+-- Window functions with object types
+query SELECT 
+  name,
+  (revenue).amount,
+  RANK() OVER (ORDER BY (revenue).amount DESC) as revenue_rank
+FROM companies;
+
+-- Array aggregation
+query SELECT 
+  company_id,
+  ARRAY_AGG(name) as project_names,
+  SUM((budget).amount) as total_budget
+FROM projects 
+GROUP BY company_id;
+
+-- JSON aggregation
+query SELECT 
+  JSON_EXTRACT(metadata, '$.priority') as priority_level,
+  COUNT(*) as project_count,
+  AVG((budget).amount) as avg_budget
+FROM projects 
+GROUP BY JSON_EXTRACT(metadata, '$.priority');
+
+-- ===================================
+-- MULTIMODEL INTEGRATION QUERIES
+-- ===================================
+
+-- Cross-model operations: Graph + Relational
+query SELECT 
+  p.name as person_name,
+  c.name as company_name,
+  (c.headquarters).city as company_city
+FROM GRAPH social_network 
+MATCH (p:person)-[:works_at]->(comp:company)
+JOIN companies c ON c.name = comp.name;
+
+-- Cross-model operations: NoSQL + Object-Relational
+query SELECT 
+  u.name as user_name,
+  c.name as company_name,
+  JSON_EXTRACT(u.document, '$.purchase_history[0].amount') as first_purchase
+FROM users u
+CROSS JOIN companies c
+WHERE JSON_EXTRACT(u.document, '$.address.city') = (c.headquarters).city;
+
+-- Complex multimodel analytics
+-- Find graph relationships that correspond to business relationships
+query WITH company_employees AS (
+  SELECT 
+    p.name as person_name,
+    comp.name as company_name
+  FROM GRAPH social_network 
+  MATCH (p:person)-[:works_at]->(comp:company)
+),
+user_purchases AS (
+  SELECT 
+    JSON_EXTRACT(document, '$.name') as user_name,
+    JSON_EXTRACT(document, '$.purchase_history[*].amount') as purchase_amounts
+  FROM users
+)
+SELECT 
+  ce.person_name,
+  ce.company_name,
+  up.purchase_amounts
+FROM company_employees ce
+LEFT JOIN user_purchases up ON ce.person_name = up.user_name;
+
+-- Recommendation engine using multiple models
+-- Find product recommendations based on graph connections and purchase history
+query WITH friend_purchases AS (
+  SELECT DISTINCT
+    p1.name as user_name,
+    JSON_EXTRACT(purchases.document, '$.purchase_history[*].product_id') as friend_products
+  FROM GRAPH social_network 
+  MATCH (p1:person)-[:friendship]-(p2:person)
+  JOIN users purchases ON JSON_EXTRACT(purchases.document, '$.name') = p2.name
+)
+SELECT 
+  fp.user_name,
+  p.name as recommended_product,
+  p.ratings.average as product_rating
+FROM friend_purchases fp
+CROSS JOIN products p
+WHERE p._id = ANY(fp.friend_products)
+AND p.ratings.average > 4.0;
+
+-- Performance testing multimodel queries
+query EXPLAIN SELECT 
+  g.person_name,
+  d.user_preferences,
+  o.project_involvement
+FROM (
+  SELECT p.name as person_name, p.age
+  FROM GRAPH social_network MATCH (p:person)
+) g
+LEFT JOIN (
+  SELECT 
+    JSON_EXTRACT(document, '$.name') as name,
+    JSON_EXTRACT(document, '$.preferences') as user_preferences
+  FROM users
+) d ON g.person_name = d.name
+LEFT JOIN (
+  SELECT 
+    JSON_EXTRACT(metadata, '$.team_lead') as lead_name,
+    COUNT(*) as project_involvement
+  FROM projects
+  GROUP BY JSON_EXTRACT(metadata, '$.team_lead')
+) o ON g.person_name = o.lead_name;
 ```
 
 ## 📊 Architecture
