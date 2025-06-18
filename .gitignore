@@ -11,3 +11,6 @@ indexes/
 data/
 results.log
 hsqlparser
+adaptive_optimizer_data
+htmlcov
+venv/

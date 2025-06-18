@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hyperkv-config
+  labels:
+    app: hyperkv
+data:
+  hyperkv.yaml: |
+    # HyperKV Configuration
+    host: "0.0.0.0"
+    port: 6379
+
+    # Node configuration
+    node_id: "${NODE_ID}"
+    cluster_name: "hyperkv-cluster"
+
+    # Storage configuration
+    storage_backend: "rocksdb"
+    data_dir: "/data/hyperkv"
+
+    # Memory and performance
+    max_memory: 1073741824  # 1GB
+    max_connections: 10000
+    worker_threads: 4
+
+    # TTL and cache settings
+    ttl_check_interval: 1.0
+    max_keys_per_ttl_check: 100
+    eviction_policy: "lru"
+    memory_usage_threshold: 0.85
+    eviction_batch_size: 10
+
+    # Clustering
+    enable_clustering: true
+    enable_replication: true
+    replication_factor: 3
+
+    # Persistence
+    aof_enabled: true
+    aof_fsync_policy: "everysec"
+    snapshot_enabled: true
+    snapshot_interval: 3600
+
+    # Monitoring
+    enable_metrics: true
+    metrics_port: 8080
+
+    # Security
+    enable_tls: false
+    auth_password: "${AUTH_PASSWORD}"
+
+    # Logging
+    log_level: "INFO"
+    log_file: "/var/log/hyperkv/hyperkv.log"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hyperkv-scripts
+  labels:
+    app: hyperkv
+data:
+  entrypoint.sh: |
+    #!/bin/bash
+    set -e
+
+    # Set node ID based on pod name
+    export NODE_ID=${HOSTNAME}
+
+    # Create data directory
+    mkdir -p /data/hyperkv
+    mkdir -p /var/log/hyperkv
+
+    # Set permissions
+    chown -R hyperkv:hyperkv /data/hyperkv /var/log/hyperkv
+
+    # Start HyperKV
+    exec python -m kvstore.main --config /etc/hyperkv/hyperkv.yaml
+
+  health-check.sh: |
+    #!/bin/bash
+    # Simple health check script
+
+    # Check if process is running
+    if ! pgrep -f "python.*kvstore.main" > /dev/null; then
+        echo "HyperKV process not running"
+        exit 1
+    fi
+
+    # Check if port is listening
+    if ! nc -z localhost 6379; then
+        echo "HyperKV not listening on port 6379"
+        exit 1
+    fi
+
+    echo "HyperKV is healthy"
+    exit 0
