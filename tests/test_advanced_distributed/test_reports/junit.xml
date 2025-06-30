@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="7" failures="0" skipped="0" tests="7" time="0.368" timestamp="2025-06-30T02:41:34.975775+03:00" hostname="asus"><testcase classname="" name="test_consistency" time="0.000"><error message="collection failure">ImportError while importing test module '/home/deginandor/Documents/Programming/pyHMSSQL/tests/test_advanced_distributed/test_consistency.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_consistency.py:14: in &lt;module&gt;
+    from kvstore.consistency import (
+E   ImportError: cannot import name 'ReadResult' from 'kvstore.consistency' (/home/deginandor/Documents/Programming/pyHMSSQL/kvstore/consistency/__init__.py)</error></testcase><testcase classname="" name="test_wal" time="0.000"><error message="collection failure">ImportError while importing test module '/home/deginandor/Documents/Programming/pyHMSSQL/tests/test_advanced_distributed/test_wal.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_wal.py:16: in &lt;module&gt;
+    from kvstore.storage.wal import (
+E   ImportError: cannot import name 'WALSegmentConfig' from 'kvstore.storage.wal' (/home/deginandor/Documents/Programming/pyHMSSQL/kvstore/storage/wal.py)</error></testcase><testcase classname="" name="test_compression" time="0.000"><error message="collection failure">ImportError while importing test module '/home/deginandor/Documents/Programming/pyHMSSQL/tests/test_advanced_distributed/test_compression.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_compression.py:14: in &lt;module&gt;
+    from kvstore.compression import (
+E   ImportError: cannot import name 'CompressionError' from 'kvstore.compression' (/home/deginandor/Documents/Programming/pyHMSSQL/kvstore/compression/__init__.py)</error></testcase><testcase classname="" name="test_zerocopy" time="0.000"><error message="collection failure">ImportError while importing test module '/home/deginandor/Documents/Programming/pyHMSSQL/tests/test_advanced_distributed/test_zerocopy.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_zerocopy.py:15: in &lt;module&gt;
+    from kvstore.zerocopy import (
+E   ImportError: cannot import name 'MemoryMappedBuffer' from 'kvstore.zerocopy' (/home/deginandor/Documents/Programming/pyHMSSQL/kvstore/zerocopy/__init__.py)</error></testcase><testcase classname="" name="test_sharding" time="0.000"><error message="collection failure">ImportError while importing test module '/home/deginandor/Documents/Programming/pyHMSSQL/tests/test_advanced_distributed/test_sharding.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_sharding.py:15: in &lt;module&gt;
+    from kvstore.shards import (
+E   ImportError: cannot import name 'ShardingError' from 'kvstore.shards' (/home/deginandor/Documents/Programming/pyHMSSQL/kvstore/shards/__init__.py)</error></testcase><testcase classname="" name="test_crdt" time="0.000"><error message="collection failure">ImportError while importing test module '/home/deginandor/Documents/Programming/pyHMSSQL/tests/test_advanced_distributed/test_crdt.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_crdt.py:22: in &lt;module&gt;
+    from kvstore.crdt import (
+E   ImportError: cannot import name 'GCounter' from 'kvstore.crdt' (/home/deginandor/Documents/Programming/pyHMSSQL/kvstore/crdt/__init__.py)</error></testcase><testcase classname="" name="test_networking" time="0.000"><error message="collection failure">ImportError while importing test module '/home/deginandor/Documents/Programming/pyHMSSQL/tests/test_advanced_distributed/test_networking.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+test_networking.py:24: in &lt;module&gt;
+    from kvstore.networking import (
+E   ImportError: cannot import name 'NetworkServer' from 'kvstore.networking' (/home/deginandor/Documents/Programming/pyHMSSQL/kvstore/networking/__init__.py)</error></testcase></testsuite></testsuites>

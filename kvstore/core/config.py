@@ -16,6 +16,15 @@ class HyperKVServerConfig(BaseHyperKVConfig):
     worker_threads: int = 4
     enable_profiling: bool = False
     
+    # Advanced shard settings
+    enable_sharding: bool = True
+    num_shards: int = 4
+    placement_strategy: str = "NUMA_AWARE"  # NUMA_AWARE, LOAD_BALANCED, LOCALITY_AWARE, ROUND_ROBIN
+    enable_consistency: bool = True
+    enable_compression: bool = True
+    enable_wal: bool = True
+    enable_zero_copy: bool = True
+    
     def __post_init__(self):
         super().__post_init__() if hasattr(super(), '__post_init__') else None
         

@@ -22,6 +22,7 @@ from ..raft import RaftNode, RaftConfig
 from ..storage import StorageEngine, AOFWriter, SnapshotManager
 from ..pubsub import PubSubManager
 from ..networking import RedisProtocolHandler, TcpServer
+from ..shards import AdvancedShardManager, ShardConfig, PlacementStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,20 @@ class HyperKVServer:
         # Vector/Hybrid Logical Clock for CRDT operations
         self._vector_clock = VectorClock(self.config.node_id)
         self._hlc = HybridLogicalClock(self.config.node_id)
+        
+        # Advanced Shard Manager for distributed storage
+        self.shard_manager = None
+        if getattr(self.config, 'enable_sharding', True):
+            shard_config = {
+                'num_shards': getattr(self.config, 'num_shards', 4),
+                'placement_strategy': getattr(self.config, 'placement_strategy', PlacementStrategy.NUMA_AWARE.value),
+                'enable_consistency': getattr(self.config, 'enable_consistency', True),
+                'enable_compression': getattr(self.config, 'enable_compression', True),
+                'enable_wal': getattr(self.config, 'enable_wal', True),
+                'enable_zero_copy': getattr(self.config, 'enable_zero_copy', True),
+                'memory_per_shard': self.config.max_memory // getattr(self.config, 'num_shards', 4)
+            }
+            self.shard_manager = AdvancedShardManager(shard_config)
         
         # Initialize components
         self._init_components()
@@ -158,6 +173,11 @@ class HyperKVServer:
             # Start TTL manager
             self.ttl_manager.start()
             
+            # Start advanced shard manager
+            if self.shard_manager:
+                self.shard_manager.start()
+                logger.info("Advanced shard manager started")
+            
             # Start Raft node if clustering enabled
             if self.raft_node:
                 await self.raft_node.start()
@@ -206,6 +226,11 @@ class HyperKVServer:
             if self.raft_node:
                 await self.raft_node.stop()
             
+            # Stop shard manager
+            if self.shard_manager:
+                self.shard_manager.stop()
+                logger.info("Advanced shard manager stopped")
+            
             # Stop TTL manager
             await self.ttl_manager.stop()
             
@@ -252,6 +277,16 @@ class HyperKVServer:
         Returns:
             The value or None if not found/expired
         """
+        # Use shard manager if available for distributed storage
+        if self.shard_manager:
+            try:
+                return await self.shard_manager.execute_on_shard(
+                    key, lambda shard, k=key: shard.get(k)
+                )
+            except Exception as e:
+                logger.error(f"Shard operation failed for key '{key}': {e}")
+                # Fall back to local storage
+        
         # Check TTL first (passive expiration)
         if self.ttl_manager.is_expired(key):
             await self._delete_key(key)
@@ -322,6 +357,21 @@ class HyperKVServer:
         Returns:
             True if successful
         """
+        # Use shard manager if available for distributed storage
+        if self.shard_manager:
+            try:
+                success = await self.shard_manager.execute_on_shard(
+                    key, lambda shard, k=key, v=value: shard.set(k, v)
+                )
+                if success and ttl is not None:
+                    self.ttl_manager.set_ttl(key, ttl)
+                self.stats['set_operations'] += 1
+                self.stats['total_operations'] += 1
+                return success
+            except Exception as e:
+                logger.error(f"Shard operation failed for key '{key}': {e}")
+                # Fall back to local storage
+        
         try:
             # Update logical clocks
             self._vector_clock.tick()
@@ -339,8 +389,8 @@ class HyperKVServer:
             with self._data_lock:
                 self._data[key] = crdt_value
             
-            # Update cache
-            self.cache_manager.put(key, value, ttl is not None)
+            # Update cache (store the CRDT value, not the original value)
+            self.cache_manager.put(key, crdt_value, ttl is not None)
             
             # Set TTL if specified
             if ttl is not None:
@@ -380,6 +430,21 @@ class HyperKVServer:
         Returns:
             True if key was deleted
         """
+        # Use shard manager if available for distributed storage
+        if self.shard_manager:
+            try:
+                existed = await self.shard_manager.execute_on_shard(
+                    key, lambda shard, k=key: shard.delete(k)
+                )
+                if existed:
+                    self.ttl_manager.remove_ttl(key)
+                    self.stats['del_operations'] += 1
+                    self.stats['total_operations'] += 1
+                return existed
+            except Exception as e:
+                logger.error(f"Shard operation failed for key '{key}': {e}")
+                # Fall back to local storage
+        
         try:
             existed = await self._delete_key(key)
             
@@ -765,8 +830,9 @@ class HyperKVServer:
                 
             crdt_type = data.get('type')
             if crdt_type:
-                crdt_value = create_crdt(crdt_type)
-                crdt_value.deserialize(data)
+                # Use create_crdt_value for proper initialization
+                from kvstore.crdt import create_crdt_value
+                crdt_value = create_crdt_value(crdt_type, self.config.node_id, initial_data=data)
                 return crdt_value
         except Exception as e:
             logger.error(f"Error deserializing CRDT: {e}")

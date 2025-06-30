@@ -537,7 +537,7 @@ class CRDTCounter(CRDTValue):
 def create_crdt_value(value_type: str, node_id: str, clock: Optional[Clock] = None, 
                      initial_data: Optional[Dict[str, Any]] = None) -> CRDTValue:
     """Factory function to create CRDT values"""
-    if value_type == 'lww_register' or value_type == 'lww_set':
+    if value_type in ['lww_register', 'lww_set', 'lww_element_set']:
         if clock is None:
             clock = HybridLogicalClock(node_id)
         if initial_data:

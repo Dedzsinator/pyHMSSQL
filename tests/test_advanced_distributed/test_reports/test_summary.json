@@ -1,0 +1,13 @@
+{
+  "timestamp": 1751240495.3975608,
+  "status": "failed",
+  "duration": 0.8227324485778809,
+  "counts": {
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "errors": 8,
+    "total": 8
+  },
+  "success_rate": 0
+}
