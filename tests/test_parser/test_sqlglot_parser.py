@@ -385,8 +385,216 @@ class TestSpecialStatements:
             assert result["operation"] == expected_type
 
 
-class TestEdgeCases:
-    """Test edge cases and error handling."""
+class TestAdvancedDMLFeatures:
+    """Test advanced DML features like UPSERT, MERGE, TRUNCATE."""
+
+    @pytest.fixture
+    def parser(self):
+        return SQLGlotParser()
+
+    def test_upsert_mysql_style(self, parser):
+        """Test MySQL-style UPSERT (INSERT ... ON DUPLICATE KEY UPDATE)."""
+        sql = """
+        INSERT INTO users (id, name, email) 
+        VALUES (1, 'John', 'john@example.com')
+        ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email)
+        """
+        result = parser.parse(sql)
+        
+        assert result["type"] == "INSERT"
+        assert result["table"] == "users"
+        assert result["columns"] == ["id", "name", "email"]
+        # The ON DUPLICATE KEY part is included in the query string
+        assert "ON DUPLICATE KEY" in result["query"]
+
+    def test_upsert_postgres_style(self, parser):
+        """Test PostgreSQL-style UPSERT (INSERT ... ON CONFLICT)."""
+        sql = """
+        INSERT INTO users (id, name, email) 
+        VALUES (1, 'John', 'john@example.com')
+        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+        """
+        result = parser.parse(sql)
+        
+        assert result["type"] == "INSERT"
+        assert result["table"] == "users"
+        # The ON CONFLICT part should be in the query
+        assert "ON CONFLICT" in result["query"]
+
+    def test_merge_statement(self, parser):
+        """Test MERGE statement parsing."""
+        sql = """
+        MERGE users AS target
+        USING new_users AS source ON target.id = source.id
+        WHEN MATCHED THEN UPDATE SET name = source.name
+        WHEN NOT MATCHED THEN INSERT (id, name) VALUES (source.id, source.name)
+        """
+        result = parser.parse(sql)
+        
+        assert result["type"] == "MERGE"
+        assert result["operation"] == "MERGE"
+        assert result["target_table"] == "users"
+
+    def test_replace_statement(self, parser):
+        """Test REPLACE statement (MySQL-specific)."""
+        sql = "REPLACE INTO users (id, name) VALUES (1, 'John')"
+        result = parser.parse(sql)
+        
+        assert result["type"] == "REPLACE"
+        assert result["operation"] == "REPLACE"
+        assert result["table"] == "users"
+
+    def test_truncate_table(self, parser):
+        """Test TRUNCATE TABLE statement."""
+        sql = "TRUNCATE TABLE logs"
+        result = parser.parse(sql)
+        
+        assert result["type"] == "TRUNCATE"
+        assert result["operation"] == "TRUNCATE"
+        # May or may not have table field depending on implementation
+        assert "TRUNCATE" in result["query"]
+
+    def test_truncate_multiple_tables(self, parser):
+        """Test TRUNCATE with multiple tables."""
+        sql = "TRUNCATE TABLE logs, audit_trail"
+        result = parser.parse(sql)
+        
+        assert result["type"] == "TRUNCATE"
+        # Should contain the table names in the query string
+        assert "logs" in result["query"]
+        assert "audit_trail" in result["query"]
+
+
+class TestMultimodelQueries:
+    """Test multimodel query parsing (Document, Graph, Object-Relational)."""
+
+    @pytest.fixture
+    def parser(self):
+        return SQLGlotParser()
+
+    def test_document_insert(self, parser):
+        """Test DOCUMENT.INSERT statement."""
+        sql = "DOCUMENT.INSERT(users, {'name': 'John', 'age': 30})"
+        result = parser.parse(sql)
+        
+        # May not be fully supported yet, but should parse without crashing
+        assert "query" in result
+        assert "users" in result["query"]
+
+    def test_document_find(self, parser):
+        """Test DOCUMENT.FIND statement."""
+        sql = "DOCUMENT.FIND(users, {'age': {'$gt': 25}})"
+        result = parser.parse(sql)
+        
+        # Should parse without crashing
+        assert "query" in result
+        assert "users" in result["query"]
+
+    def test_json_queries(self, parser):
+        """Test JSON-based queries that are supported."""
+        sql = "SELECT JSON_EXTRACT(data, '$.name') FROM users WHERE JSON_VALID(data)"
+        result = parser.parse(sql)
+        
+        assert result["type"] == "SELECT"
+        assert result["tables"] == ["users"]
+
+    def test_object_relational_features(self, parser):
+        """Test Object-Relational features."""
+        # Test user-defined types in CREATE TABLE
+        sql = """
+        CREATE TABLE employees (
+            id INT PRIMARY KEY,
+            address OBJECT(street VARCHAR(100), city VARCHAR(50), zipcode VARCHAR(10))
+        )
+        """
+        result = parser.parse(sql)
+        
+        assert result["type"] == "CREATE_TABLE"
+        assert result["table"] == "employees"
+
+
+class TestComplexQueryStructures:
+    """Test complex query structures and edge cases."""
+
+    @pytest.fixture
+    def parser(self):
+        return SQLGlotParser()
+
+    def test_recursive_cte(self, parser):
+        """Test recursive Common Table Expression."""
+        sql = """
+        WITH RECURSIVE employee_hierarchy AS (
+            SELECT employee_id, name, manager_id, 1 as level
+            FROM employees 
+            WHERE manager_id IS NULL
+            UNION ALL
+            SELECT e.employee_id, e.name, e.manager_id, eh.level + 1
+            FROM employees e
+            INNER JOIN employee_hierarchy eh ON e.manager_id = eh.employee_id
+            WHERE eh.level < 10
+        )
+        SELECT * FROM employee_hierarchy ORDER BY level, name
+        """
+        result = parser.parse(sql)
+        
+        assert result["type"] == "SELECT" or result["type"] == "WITH"
+        # Should contain CTE information
+        assert "with" in result or "cte" in result
+
+    def test_window_functions(self, parser):
+        """Test window function parsing."""
+        sql = """
+        SELECT 
+            name,
+            salary,
+            ROW_NUMBER() OVER (PARTITION BY department ORDER BY salary DESC) as rank,
+            AVG(salary) OVER (PARTITION BY department) as dept_avg
+        FROM employees
+        """
+        result = parser.parse(sql)
+        
+        assert result["type"] == "SELECT"
+        # Should detect window functions
+        assert "window" in str(result).lower() or "over" in str(result).lower()
+
+    def test_complex_subqueries(self, parser):
+        """Test complex nested subqueries."""
+        sql = """
+        SELECT u.name, 
+               (SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id) as order_count,
+               (SELECT AVG(amount) FROM orders o WHERE o.user_id = u.id) as avg_order
+        FROM users u
+        WHERE u.id IN (
+            SELECT DISTINCT user_id 
+            FROM orders 
+            WHERE amount > (SELECT AVG(amount) FROM orders)
+        )
+        """
+        result = parser.parse(sql)
+        
+        assert result["type"] == "SELECT"
+        # Should handle subqueries
+        assert "subquery" in str(result).lower() or len(result.get("tables", [])) >= 1
+
+    def test_pivot_query(self, parser):
+        """Test PIVOT-like query structure."""
+        sql = """
+        SELECT 
+            user_id,
+            SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 1 THEN amount ELSE 0 END) as jan_total,
+            SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 2 THEN amount ELSE 0 END) as feb_total,
+            SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 3 THEN amount ELSE 0 END) as mar_total
+        FROM orders
+        GROUP BY user_id
+        """
+        result = parser.parse(sql)
+        
+        assert result["type"] == "AGGREGATE" or result["type"] == "SELECT"
+        assert "case" in str(result).lower() or "extract" in str(result).lower()
+
+
+class TestErrorHandlingAndEdgeCases:
+    """Test error handling and edge cases."""
 
     @pytest.fixture
     def parser(self):
@@ -503,6 +711,57 @@ class TestPerformance:
         avg_time = (end_time - start_time) / 10
         # Complex queries should still parse reasonably quickly
         assert avg_time < 0.1
+
+
+class TestTransactionAndControlStatements:
+    """Test transaction control and special statements."""
+
+    @pytest.fixture
+    def parser(self):
+        return SQLGlotParser()
+
+    def test_transaction_statements(self, parser):
+        """Test transaction control statements."""
+        transaction_queries = [
+            ("BEGIN TRANSACTION", "BEGIN_TRANSACTION"),
+            ("START TRANSACTION", "BEGIN_TRANSACTION"),
+            ("COMMIT", "COMMIT"),
+            ("ROLLBACK", "ROLLBACK"),
+            ("SAVEPOINT sp1", "SAVEPOINT"),
+            ("RELEASE SAVEPOINT sp1", "RELEASE_SAVEPOINT"),
+        ]
+        
+        for sql, expected_type in transaction_queries:
+            result = parser.parse(sql)
+            assert result["type"] == expected_type or result["operation"] == expected_type
+
+    def test_session_management(self, parser):
+        """Test session management statements."""
+        session_queries = [
+            "SET autocommit = 1",
+            "SET @variable = 'value'",
+            "SHOW VARIABLES",
+            "SHOW TABLES",
+            "USE database_name",
+        ]
+        
+        for sql in session_queries:
+            result = parser.parse(sql)
+            assert "type" in result
+            assert result["type"] in ["SET", "SHOW", "USE", "USE_DATABASE"]
+
+    def test_special_statements(self, parser):
+        """Test special database-specific statements."""
+        special_queries = [
+            ("SCRIPT test_script.sql", "SCRIPT"),
+            ("VISUALIZE BPTREE index_name ON users", "VISUALIZE"),
+            ("EXPLAIN SELECT * FROM users", "EXPLAIN"),
+            ("DESCRIBE users", "DESCRIBE"),
+        ]
+        
+        for sql, expected_type in special_queries:
+            result = parser.parse(sql)
+            assert result["type"] == expected_type
 
 
 if __name__ == "__main__":

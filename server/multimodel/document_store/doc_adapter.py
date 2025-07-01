@@ -44,8 +44,13 @@ class JSONPathParser:
                     paths.extend(JSONPathParser.extract_paths(value, current_path))
 
         elif isinstance(document, list):
+            # Add the array itself
+            if prefix:
+                paths.append((prefix, document))
+            
+            # Add individual array elements
             for i, item in enumerate(document):
-                current_path = f"{prefix}[{i}]"
+                current_path = f"{prefix}.{i}" if prefix else str(i)
                 paths.append((current_path, item))
 
                 if isinstance(item, (dict, list)):
@@ -114,6 +119,44 @@ class JSONPathParser:
             parts.append(current)
 
         return parts
+
+    @staticmethod
+    def evaluate_filter(document: Dict[str, Any], filter_conditions: Dict[str, Any]) -> bool:
+        """Evaluate filter conditions against a document"""
+        for path, condition in filter_conditions.items():
+            value = JSONPathParser.get_value_by_path(document, path)
+            
+            if isinstance(condition, dict):
+                # Handle comparison operators
+                for op, expected in condition.items():
+                    if op == "$gt":
+                        if not (value is not None and value > expected):
+                            return False
+                    elif op == "$gte":
+                        if not (value is not None and value >= expected):
+                            return False
+                    elif op == "$lt":
+                        if not (value is not None and value < expected):
+                            return False
+                    elif op == "$lte":
+                        if not (value is not None and value <= expected):
+                            return False
+                    elif op == "$ne":
+                        if not (value != expected):
+                            return False
+                    elif op == "$eq":
+                        if not (value == expected):
+                            return False
+                    else:
+                        # Unknown operator, treat as equality
+                        if value != expected:
+                            return False
+            else:
+                # Direct equality comparison
+                if value != condition:
+                    return False
+        
+        return True
 
 
 @dataclass
