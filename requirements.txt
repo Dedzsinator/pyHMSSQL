@@ -18,5 +18,7 @@ requests
 prometheus-client
 pyyaml
 aiohttp
+aiofiles
 PyJWT
 kubernetes
+lz4

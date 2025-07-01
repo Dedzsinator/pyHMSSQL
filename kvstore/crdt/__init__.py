@@ -403,11 +403,19 @@ class LWWElementSet(CRDTValue):
             # Fallback to simple comparison
             return -1 if ts1 < ts2 else (1 if ts1 > ts2 else 0)
 
-    def merge(self, other: "LWWElementSet") -> None:
+    def merge(self, other) -> None:
         """Merge with another LWW set in-place"""
         with self._lock:
+            # Handle both LWWElementSet objects and dict states
+            if isinstance(other, dict):
+                # Convert dict state to temporary LWWElementSet for merging
+                temp_crdt = LWWElementSet.from_dict(other, self.clock, self.node_id)
+                other_elements = temp_crdt._elements
+            else:
+                other_elements = other._elements
+            
             # Merge elements from other
-            for value, other_element in other._elements.items():
+            for value, other_element in other_elements.items():
                 if value not in self._elements:
                     self._elements[value] = other_element
                 else:
@@ -471,8 +479,16 @@ class LWWElementSet(CRDTValue):
 class ORSet(CRDTValue):
     """Observed-Remove Set CRDT"""
 
-    def __init__(self, node_id: str):
-        self.node_id = node_id
+    def __init__(self, clock_or_node_id):
+        # Handle both clock object and node_id string for backward compatibility
+        if isinstance(clock_or_node_id, str):
+            self.node_id = clock_or_node_id
+            self.clock = None
+        else:
+            # Assume it's a clock object with node_id attribute
+            self.clock = clock_or_node_id
+            self.node_id = clock_or_node_id.node_id
+            
         self.added_elements: List[Tuple[Any, str]] = (
             []
         )  # List of (element, unique_tag) pairs

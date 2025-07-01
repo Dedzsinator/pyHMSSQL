@@ -507,7 +507,12 @@ class DBMSServer:
             log_entry: Dictionary containing audit information
         """
         try:
-            self.audit_db.audit_logs.insert_one(log_entry)
+            # Check if audit_db is available
+            if hasattr(self, 'audit_db') and self.audit_db is not None:
+                self.audit_db.audit_logs.insert_one(log_entry)
+            else:
+                # If audit_db is not available, just log it
+                logging.debug("Audit DB not available, logging to file only")
         except (
             ValueError,
             SyntaxError,

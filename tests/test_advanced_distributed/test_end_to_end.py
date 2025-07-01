@@ -13,6 +13,7 @@ Created for comprehensive testing of production-ready distributed DBMS system.
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 import time
 import tempfile
@@ -58,7 +59,7 @@ class DistributedSystemNode:
         os.makedirs(wal_dir, exist_ok=True)
 
         self.wal_config = WALConfig(
-            wal_dir=wal_dir, max_segment_size=1024 * 1024, sync_interval=0.1
+            wal_dir=wal_dir, segment_size_mb=1, sync_interval_ms=100
         )
         self.wal = WriteAheadLog(self.wal_config)
 
@@ -70,20 +71,23 @@ class DistributedSystemNode:
 
         # Consistency management
         consistency_config = ConsistencyConfig(
-            default_level=ConsistencyLevel.QUORUM, read_timeout=5.0, write_timeout=5.0
+            level=ConsistencyLevel.QUORUM, timeout_ms=5000
         )
         self.consistency = ConsistencyManager(consistency_config)
 
         # Sharding
-        shard_config = ShardConfig(
-            num_shards=4, cache_size=1024, enable_compression=True, enable_zerocopy=True
-        )
+        shard_config = {
+            "num_shards": 4, 
+            "enable_compression": True, 
+            "enable_zero_copy": True
+        }
         self.sharding = AdvancedShardManager(shard_config)
 
         # RAFT consensus
-        raft_config = RaftConfig(
-            election_timeout_min=1.0, election_timeout_max=2.0, heartbeat_interval=0.5
-        )
+        raft_config = RaftConfig()
+        raft_config.election_timeout_min = 1.0
+        raft_config.election_timeout_max = 2.0
+        raft_config.heartbeat_interval = 0.5
         self.raft = RaftNode(self.node_id, self.peers, raft_config)
 
         # CRDT for conflict resolution
@@ -298,7 +302,7 @@ class DistributedSystemNode:
 class TestEndToEndSystem:
     """End-to-end system tests"""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def distributed_cluster(self):
         """Setup a distributed cluster for testing"""
         with tempfile.TemporaryDirectory() as temp_dir:

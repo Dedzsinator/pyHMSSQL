@@ -410,6 +410,9 @@ class DocumentStoreAdapter:
             projected_docs = []
             for doc in matching_docs:
                 projected = {}
+                # Always include _id unless explicitly excluded
+                if "_id" in doc:
+                    projected["_id"] = doc["_id"]
                 for field in query.projection:
                     value = JSONPathParser.get_value_by_path(doc, field)
                     if value is not None:

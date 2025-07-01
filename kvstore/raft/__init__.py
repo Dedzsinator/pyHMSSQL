@@ -299,7 +299,8 @@ class RaftNode:
                     count += 1
 
             # Check if majority agrees and entry is from current term
-            if count > len(self.peers) // 2 + 1:
+            majority_needed = (len(self.peers) + 1) // 2 + 1  # +1 to include self in total count
+            if count >= majority_needed:
                 if (
                     index <= len(self.log)
                     and self.log[index - 1].term == self.current_term
@@ -530,6 +531,10 @@ class RaftNode:
         await asyncio.sleep(0.1)
 
         with self._lock:
+            # For single-node clusters, update commit index immediately
+            if len(self.peers) == 0:
+                self._update_commit_index()
+                self._apply_committed_entries()  # Apply the committed entries
             return self.commit_index >= entry.index
 
     # Aliases for backward compatibility

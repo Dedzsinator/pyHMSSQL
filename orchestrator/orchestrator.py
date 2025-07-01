@@ -7,15 +7,16 @@ import json
 import logging
 import time
 import threading
-from datetime import datetime, timedelta
+import socket
+import os
+import argparse
+from datetime import datetime, timedelta, UTC
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
-import socket
-import requests
 from flask import Flask, jsonify, request, render_template_string
 import os
-from orchestrator.stats_collector import StatsCollector
+from stats_collector import StatsCollector
 
 
 class NodeHealth(Enum):
@@ -182,6 +183,21 @@ class ClusterDiscovery:
     def _discover_manual_nodes(self) -> List[NodeInfo]:
         """Discover nodes from manual configuration"""
         nodes = []
+        
+        # Try common localhost configurations first
+        common_configs = [
+            ("localhost-9999", "127.0.0.1", 9999),
+            ("localhost-9998", "127.0.0.1", 9998),
+            ("localhost-10000", "127.0.0.1", 10000),
+        ]
+        
+        for node_id, host, port in common_configs:
+            node_info = self._probe_node(node_id, host, port)
+            if node_info:
+                nodes.append(node_info)
+                self.logger.info(f"Discovered HMSSQL server via manual probe: {node_id} at {host}:{port}")
+        
+        # Also try configuration file if available
         config_file = os.getenv("CLUSTER_CONFIG", "/config/cluster.yaml")
 
         try:
@@ -201,11 +217,10 @@ class ClusterDiscovery:
         except Exception as e:
             self.logger.debug(f"Manual discovery failed: {e}")
 
-        # Always add demo nodes for testing if no real nodes found
+        # Return discovered nodes (no demo nodes)
         if not nodes:
-            self.logger.info("No real nodes found, creating demo nodes for testing")
-            nodes.extend(self._create_demo_nodes())
-
+            self.logger.warning("No nodes discovered in the cluster")
+        
         return nodes
 
     def _create_demo_nodes(self) -> List[NodeInfo]:
@@ -217,7 +232,7 @@ class ClusterDiscovery:
                 port=9999,
                 role="primary",
                 health=NodeHealth.HEALTHY,
-                last_seen=datetime.utcnow(),
+                last_seen=datetime.now(UTC),
                 replication_lag=0,
                 raft_term=1,
                 raft_state="leader",
@@ -231,7 +246,7 @@ class ClusterDiscovery:
                 port=10000,
                 role="replica",
                 health=NodeHealth.HEALTHY,
-                last_seen=datetime.utcnow(),
+                last_seen=datetime.now(UTC),
                 replication_lag=100,
                 raft_term=1,
                 raft_state="follower",
@@ -245,7 +260,7 @@ class ClusterDiscovery:
                 port=10001,
                 role="replica",
                 health=NodeHealth.DEGRADED,
-                last_seen=datetime.utcnow() - timedelta(seconds=30),
+                last_seen=datetime.now(UTC) - timedelta(seconds=30),
                 replication_lag=500,
                 raft_term=1,
                 raft_state="follower",
@@ -278,7 +293,7 @@ class ClusterDiscovery:
                         port=port,
                         role=response.get("role", "unknown"),
                         health=NodeHealth.HEALTHY,
-                        last_seen=datetime.utcnow(),
+                        last_seen=datetime.now(UTC),
                         replication_lag=response.get("replication_lag", 0),
                         raft_term=response.get("raft_term", 0),
                         raft_state=response.get("raft_state", "unknown"),
@@ -297,7 +312,7 @@ class ClusterDiscovery:
                         port=port,
                         role="unknown",
                         health=NodeHealth.DEGRADED,
-                        last_seen=datetime.utcnow(),
+                        last_seen=datetime.now(UTC),
                     )
             else:
                 # Node is not reachable
@@ -307,7 +322,7 @@ class ClusterDiscovery:
                     port=port,
                     role="unknown",
                     health=NodeHealth.FAILED,
-                    last_seen=datetime.utcnow(),
+                    last_seen=datetime.now(UTC),
                 )
 
         except Exception as e:
@@ -347,7 +362,7 @@ class FailoverManager:
         # Check if we're within minimum failover interval
         if (
             self.last_failover
-            and datetime.utcnow() - self.last_failover < self.min_failover_interval
+            and datetime.now(UTC) - self.last_failover < self.min_failover_interval
         ):
             return False
 
@@ -392,7 +407,7 @@ class FailoverManager:
             return False
 
         self.failover_in_progress = True
-        self.last_failover = datetime.utcnow()
+        self.last_failover = datetime.now(UTC)
 
         try:
             self.logger.info("Starting automatic failover")
@@ -503,7 +518,7 @@ class OrchestratorMetrics:
                 1 for n in nodes if n.health == NodeHealth.FAILED
             )
             self.metrics["discovery_runs"] += 1
-            self.metrics["last_discovery"] = datetime.utcnow().isoformat()
+            self.metrics["last_discovery"] = datetime.now(UTC).isoformat()
 
     def record_failover(self, new_primary_id: str):
         """Record a failover event"""
@@ -511,7 +526,7 @@ class OrchestratorMetrics:
             self.metrics["failovers_executed"] += 1
             event = {
                 "type": "failover",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "new_primary": new_primary_id,
             }
             self.metrics["events"].append(event)
@@ -525,7 +540,7 @@ class OrchestratorMetrics:
         with self.lock:
             event = {
                 "type": event_type,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "details": details,
             }
             self.metrics["events"].append(event)
@@ -627,10 +642,10 @@ class DatabaseOrchestrator:
 
             if result == 0:
                 node.health = NodeHealth.HEALTHY
-                node.last_seen = datetime.utcnow()
+                node.last_seen = datetime.now(UTC)
             else:
                 # Check if node has been down for too long
-                if datetime.utcnow() - node.last_seen > timedelta(minutes=2):
+                if datetime.now(UTC) - node.last_seen > timedelta(minutes=2):
                     node.health = NodeHealth.FAILED
                 else:
                     node.health = NodeHealth.DEGRADED
@@ -809,7 +824,7 @@ def manual_failover():
 @app.route("/health")
 def health_check():
     """Health check endpoint"""
-    return jsonify({"status": "healthy", "timestamp": datetime.utcnow().isoformat()})
+    return jsonify({"status": "healthy", "timestamp": datetime.now(UTC).isoformat()})
 
 
 @app.route("/dashboard")
@@ -1615,3 +1630,46 @@ COMPREHENSIVE_DASHBOARD_HTML = """
 </body>
 </html>
 """
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="HMSSQL Database Orchestrator")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind the web interface")
+    parser.add_argument("--port", type=int, default=5001, help="Port for the web interface")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--discovery-interval", type=int, default=30, help="Node discovery interval in seconds")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    
+    args = parser.parse_args()
+    
+    # Configure logging
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    logger = logging.getLogger("orchestrator")
+    logger.info("🎯 Starting HMSSQL Database Orchestrator")
+    logger.info(f"Web interface will be available at http://{args.host}:{args.port}")
+    
+    # Configure the orchestrator
+    if hasattr(orchestrator.discovery, 'discovery_interval'):
+        orchestrator.discovery.discovery_interval = args.discovery_interval
+    
+    try:
+        # Start the Flask app
+        app.run(
+            host=args.host,
+            port=args.port,
+            debug=args.debug,
+            threaded=True
+        )
+    except KeyboardInterrupt:
+        logger.info("Shutting down orchestrator...")
+        # Cleanup
+        if hasattr(orchestrator, 'stop'):
+            orchestrator.stop()
+    except Exception as e:
+        logger.error(f"Failed to start orchestrator: {e}")
+        exit(1)

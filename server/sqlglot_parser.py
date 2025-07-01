@@ -870,7 +870,8 @@ class SQLGlotParser:
         """Parse SHOW statement."""
         result = {"type": "SHOW", "operation": "SHOW"}
 
-        if hasattr(show, "kind"):
+        # Check for the kind attribute first
+        if hasattr(show, "kind") and show.kind:
             if show.kind == "DATABASES":
                 result["object"] = "DATABASES"
             elif show.kind == "TABLES":
@@ -879,6 +880,22 @@ class SQLGlotParser:
                 result["object"] = "INDEXES"
                 if hasattr(show, "this") and show.this:
                     result["table"] = show.this.name
+        else:
+            # Fallback: if no kind attribute, try to infer from the AST structure
+            # Convert to string and parse
+            show_str = str(show).upper()
+            if "DATABASES" in show_str:
+                result["object"] = "DATABASES"
+            elif "TABLES" in show_str:
+                result["object"] = "TABLES"
+            elif "INDEXES" in show_str or "INDEX" in show_str:
+                result["object"] = "INDEXES"
+                # Try to extract table name if present
+                if hasattr(show, "this") and show.this:
+                    result["table"] = str(show.this)
+            else:
+                # If we can't determine the object type, default to UNKNOWN
+                result["object"] = "UNKNOWN"
 
         return result
 
@@ -1065,6 +1082,8 @@ class SQLGlotParser:
 
         if "SHOW DATABASES" in sql_upper:
             result["object"] = "DATABASES"
+        elif "SHOW ALL_TABLES" in sql_upper:
+            result["object"] = "ALL_TABLES"
         elif "SHOW TABLES" in sql_upper:
             result["object"] = "TABLES"
         elif "SHOW COLUMNS" in sql_upper or "SHOW FIELDS" in sql_upper:

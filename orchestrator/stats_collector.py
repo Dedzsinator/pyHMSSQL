@@ -125,8 +125,6 @@ class ServerStats:
                 "qps": self.qps_history[-60:],
             },
         }
-
-
 class StatsCollector:
     """Collects comprehensive statistics from all cluster nodes"""
 
