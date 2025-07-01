@@ -280,11 +280,30 @@ class HyperKVServer:
         # Use shard manager if available for distributed storage
         if self.shard_manager:
             try:
-                return await self.shard_manager.execute_on_shard(
-                    key, lambda shard, k=key: shard.get(k)
+                crdt_value = await self.shard_manager.execute_on_shard(
+                    key, lambda shard, k=key: shard.data.get(k)
                 )
+                self.stats['get_operations'] += 1
+                self.stats['total_operations'] += 1
+                
+                if crdt_value is not None:
+                    # Extract actual value from CRDT object
+                    if hasattr(crdt_value, 'get_value'):
+                        return crdt_value.get_value()
+                    elif hasattr(crdt_value, 'value'):
+                        return crdt_value.value()
+                    elif hasattr(crdt_value, 'values'):
+                        return list(crdt_value.values())
+                    else:
+                        # If it's not a CRDT object, return as-is
+                        return crdt_value
+                return None
             except Exception as e:
                 logger.error(f"Shard operation failed for key '{key}': {e}")
+                logger.error(f"Exception type: {type(e).__name__}")
+                logger.error(f"Exception args: {e.args}")
+                import traceback
+                logger.error(f"Full traceback: {traceback.format_exc()}")
                 # Fall back to local storage
         
         # Check TTL first (passive expiration)
@@ -360,16 +379,32 @@ class HyperKVServer:
         # Use shard manager if available for distributed storage
         if self.shard_manager:
             try:
-                success = await self.shard_manager.execute_on_shard(
-                    key, lambda shard, k=key, v=value: shard.set(k, v)
+                # Create CRDT value for distributed storage
+                crdt_value = create_crdt(
+                    crdt_type,
+                    value,
+                    self.config.node_id,
+                    self._hlc.tick()
                 )
-                if success and ttl is not None:
+                
+                # Store CRDT value in shard
+                def store_value(shard, k=key, v=crdt_value):
+                    shard.data[k] = v
+                    return True
+                
+                await self.shard_manager.execute_on_shard(key, store_value)
+                
+                if ttl is not None:
                     self.ttl_manager.set_ttl(key, ttl)
                 self.stats['set_operations'] += 1
                 self.stats['total_operations'] += 1
-                return success
+                return True
             except Exception as e:
                 logger.error(f"Shard operation failed for key '{key}': {e}")
+                logger.error(f"Exception type: {type(e).__name__}")
+                logger.error(f"Exception args: {e.args}")
+                import traceback
+                logger.error(f"Full traceback: {traceback.format_exc()}")
                 # Fall back to local storage
         
         try:
@@ -438,8 +473,8 @@ class HyperKVServer:
                 )
                 if existed:
                     self.ttl_manager.remove_ttl(key)
-                    self.stats['del_operations'] += 1
-                    self.stats['total_operations'] += 1
+                self.stats['del_operations'] += 1
+                self.stats['total_operations'] += 1
                 return existed
             except Exception as e:
                 logger.error(f"Shard operation failed for key '{key}': {e}")
@@ -458,9 +493,9 @@ class HyperKVServer:
                 
                 # Publish to subscribers
                 await self.pubsub.publish(f"__keyspace@0__:{key}", "del")
-                
-                self.stats['del_operations'] += 1
-                self.stats['total_operations'] += 1
+            
+            self.stats['del_operations'] += 1
+            self.stats['total_operations'] += 1
             
             return existed
             
@@ -502,6 +537,19 @@ class HyperKVServer:
         if self.ttl_manager.is_expired(key):
             await self._delete_key(key)
             return False
+        
+        # Use shard manager if available for distributed storage
+        if self.shard_manager:
+            try:
+                crdt_value = await self.shard_manager.execute_on_shard(
+                    key, lambda shard, k=key: shard.data.get(k)
+                )
+                if crdt_value is not None:
+                    return True
+                return False
+            except Exception as e:
+                logger.error(f"Shard operation failed for key '{key}': {e}")
+                # Fall back to local storage
         
         # Check memory
         with self._data_lock:

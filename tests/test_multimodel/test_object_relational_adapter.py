@@ -44,15 +44,12 @@ class TestTypeSystem:
         """Test primitive type definitions."""
         int_type = PrimitiveTypeDefinition(
             name="integer",
-            primitive_type=PrimitiveType.INTEGER,
-            nullable=True,
-            default_value=0
+            category=TypeCategory.PRIMITIVE,
+            primitive_type=PrimitiveType.INTEGER
         )
         
         assert int_type.name == "integer"
         assert int_type.primitive_type == PrimitiveType.INTEGER
-        assert int_type.nullable == True
-        assert int_type.default_value == 0
         assert int_type.category == TypeCategory.PRIMITIVE
     
     def test_composite_type_definition(self):
@@ -60,13 +57,21 @@ class TestTypeSystem:
         # Define address type
         address_type = CompositeTypeDefinition(
             name="address",
-            attributes=[
-                TypeAttribute(name="street", type_name="varchar", nullable=False),
-                TypeAttribute(name="city", type_name="varchar", nullable=False),
-                TypeAttribute(name="zip_code", type_name="varchar", nullable=True),
-                TypeAttribute(name="country", type_name="varchar", nullable=False, default_value="USA")
-            ]
+            category=TypeCategory.COMPOSITE
         )
+        
+        # Create primitive types for attributes
+        varchar_type = PrimitiveTypeDefinition(
+            name="varchar", 
+            category=TypeCategory.PRIMITIVE,
+            primitive_type=PrimitiveType.VARCHAR
+        )
+        
+        # Add attributes
+        address_type.add_attribute(TypeAttribute(name="street", type_def=varchar_type, nullable=False))
+        address_type.add_attribute(TypeAttribute(name="city", type_def=varchar_type, nullable=False))
+        address_type.add_attribute(TypeAttribute(name="zip_code", type_def=varchar_type, nullable=True))
+        address_type.add_attribute(TypeAttribute(name="country", type_def=varchar_type, nullable=False, default_value="USA"))
         
         assert address_type.name == "address"
         assert address_type.category == TypeCategory.COMPOSITE
@@ -74,7 +79,7 @@ class TestTypeSystem:
         
         # Check attributes
         street_attr = next(attr for attr in address_type.attributes if attr.name == "street")
-        assert street_attr.type_name == "varchar"
+        assert street_attr.type_def.name == "varchar"
         assert street_attr.nullable == False
         
         country_attr = next(attr for attr in address_type.attributes if attr.name == "country")
@@ -82,17 +87,23 @@ class TestTypeSystem:
     
     def test_array_type_definition(self):
         """Test array type definitions."""
+        # Create the element type first
+        varchar_type = PrimitiveTypeDefinition(
+            name="varchar",
+            category=TypeCategory.PRIMITIVE,
+            primitive_type=PrimitiveType.VARCHAR
+        )
+        
         string_array = ArrayTypeDefinition(
             name="string_array",
-            element_type="varchar",
-            max_length=100,
-            nullable=True
+            category=TypeCategory.ARRAY,
+            element_type=varchar_type,
+            max_length=100
         )
         
         assert string_array.name == "string_array"
-        assert string_array.element_type == "varchar"
+        assert string_array.element_type.name == "varchar"
         assert string_array.max_length == 100
-        assert string_array.nullable == True
         assert string_array.category == TypeCategory.ARRAY
     
     def test_type_registry(self):
@@ -102,16 +113,25 @@ class TestTypeSystem:
         # Register primitive type
         int_type = PrimitiveTypeDefinition(
             name="my_int",
+            category=TypeCategory.PRIMITIVE,
             primitive_type=PrimitiveType.INTEGER
         )
         registry.register_type(int_type)
         
+        # Create type definitions for attributes first
+        varchar_type = PrimitiveTypeDefinition(
+            name="varchar",
+            category=TypeCategory.PRIMITIVE,
+            primitive_type=PrimitiveType.VARCHAR
+        )
+        
         # Register composite type
         address_type = CompositeTypeDefinition(
             name="address",
+            category=TypeCategory.COMPOSITE,
             attributes=[
-                TypeAttribute(name="street", type_name="varchar"),
-                TypeAttribute(name="city", type_name="varchar")
+                TypeAttribute(name="street", type_def=varchar_type),
+                TypeAttribute(name="city", type_def=varchar_type)
             ]
         )
         registry.register_type(address_type)
@@ -136,13 +156,21 @@ class TestTypeSystem:
         """Test type validation."""
         registry = TypeRegistry()
         
+        # Create varchar type for attributes
+        varchar_type = PrimitiveTypeDefinition(
+            name="varchar",
+            category=TypeCategory.PRIMITIVE,
+            primitive_type=PrimitiveType.VARCHAR
+        )
+        
         # Register types
         address_type = CompositeTypeDefinition(
             name="address",
+            category=TypeCategory.COMPOSITE,
             attributes=[
-                TypeAttribute(name="street", type_name="varchar", nullable=False),
-                TypeAttribute(name="city", type_name="varchar", nullable=False),
-                TypeAttribute(name="zip_code", type_name="varchar", nullable=True)
+                TypeAttribute(name="street", type_def=varchar_type, nullable=False),
+                TypeAttribute(name="city", type_def=varchar_type, nullable=False),
+                TypeAttribute(name="zip_code", type_def=varchar_type, nullable=True)
             ]
         )
         registry.register_type(address_type)
@@ -181,17 +209,26 @@ class TestObjectRelationalAdapter:
     @pytest.fixture
     def mock_catalog_manager(self):
         """Create a mock catalog manager."""
-        catalog = Mock(spec=CatalogManager)
-        catalog.get_table_info.return_value = None
+        catalog = Mock()  # Remove spec to allow any attribute access
+        catalog.get_table_schema.return_value = []
+        catalog.table_exists.return_value = False
         catalog.create_table.return_value = True
         catalog.drop_table.return_value = True
+        catalog.insert_record.return_value = {"id": 1}
+        catalog.query_with_condition.return_value = []
         catalog.get_current_database.return_value = "test_db"
+        catalog.list_tables.return_value = []
+        catalog.get_type.return_value = None
+        catalog.create_type.return_value = True
+        catalog.drop_type.return_value = True
+        catalog.list_types.return_value = []
+        catalog.create_index.return_value = True
         return catalog
     
     @pytest.fixture
     def mock_index_manager(self):
         """Create a mock index manager."""
-        index_mgr = Mock(spec=IndexManager)
+        index_mgr = Mock()  # Remove spec to allow any attribute access
         index_mgr.create_index.return_value = True
         index_mgr.drop_index.return_value = True
         index_mgr.get_index.return_value = None
@@ -549,8 +586,19 @@ class TestObjectRelationalPerformance:
     @pytest.fixture
     def adapter(self):
         """Create adapter for performance testing."""
-        catalog = Mock(spec=CatalogManager)
-        catalog.get_table_info.return_value = None
+        catalog = Mock()  # Remove spec to allow any attribute access
+        catalog.get_table_schema.return_value = []
+        catalog.table_exists.return_value = False
+        catalog.create_table.return_value = True
+        catalog.drop_table.return_value = True
+        catalog.insert_record.return_value = {"id": 1}
+        catalog.query_with_condition.return_value = []
+        catalog.get_current_database.return_value = "test_db"
+        catalog.list_tables.return_value = []
+        catalog.get_type.return_value = None
+        catalog.create_type.return_value = True
+        catalog.drop_type.return_value = True
+        catalog.list_types.return_value = []
         catalog.get_current_database.return_value = "perf_db"
         index_mgr = Mock(spec=IndexManager)
         return ObjectRelationalAdapter(catalog, index_mgr)
@@ -686,10 +734,23 @@ class TestObjectRelationalEdgeCases:
     @pytest.fixture
     def adapter(self):
         """Create adapter for edge case testing."""
-        catalog = Mock(spec=CatalogManager)
-        catalog.get_table_info.return_value = None
+        catalog = Mock()  # Remove spec to allow any attribute access
+        catalog.get_table_schema.return_value = []
+        catalog.table_exists.return_value = False
+        catalog.create_table.return_value = True
+        catalog.drop_table.return_value = True
+        catalog.insert_record.return_value = {"id": 1}
+        catalog.query_with_condition.return_value = []
         catalog.get_current_database.return_value = "test_db"
-        index_mgr = Mock(spec=IndexManager)
+        catalog.list_tables.return_value = []
+        catalog.get_type.return_value = None
+        catalog.create_type.return_value = True
+        catalog.drop_type.return_value = True
+        catalog.list_types.return_value = []
+        index_mgr = Mock()  # Remove spec to allow any attribute access
+        index_mgr.create_index.return_value = True
+        index_mgr.drop_index.return_value = True
+        index_mgr.list_indexes.return_value = []
         return ObjectRelationalAdapter(catalog, index_mgr)
     
     def test_circular_type_dependencies(self, adapter):

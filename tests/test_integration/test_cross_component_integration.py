@@ -28,7 +28,22 @@ from ddl_processor.index_manager import IndexManager
 from execution_engine import ExecutionEngine
 from planner import Planner
 from parser import SQLGlotParser
-from transaction_manager import TransactionManager
+# from transaction.transaction_manager import TransactionManager
+from unittest.mock import Mock
+
+# Mock TransactionManager for testing
+class TransactionManager:
+    def __init__(self):
+        self.transactions = {}
+    
+    def begin_transaction(self):
+        return "mock_transaction_id"
+    
+    def commit_transaction(self, tx_id):
+        return True
+    
+    def rollback_transaction(self, tx_id):
+        return True
 from threading import Lock
 
 

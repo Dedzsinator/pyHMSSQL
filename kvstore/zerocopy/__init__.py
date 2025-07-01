@@ -706,6 +706,47 @@ def get_zero_copy_manager() -> ZeroCopyManager:
     return _global_manager
 
 
+class ZeroCopyError(Exception):
+    """Exception raised for zero-copy related errors"""
+    pass
+
+
+class BufferPoolExhausted(ZeroCopyError):
+    """Exception raised when buffer pool is exhausted"""
+    pass
+
+
+class MemoryMappedBuffer:
+    """Memory-mapped buffer for zero-copy operations"""
+    
+    def __init__(self, file_path: str, size: int):
+        self.file_path = file_path
+        self.size = size
+        self.buffer = None
+        self._fd = None
+    
+    def __enter__(self):
+        import os
+        import mmap
+        
+        # Create file if it doesn't exist
+        if not os.path.exists(self.file_path):
+            with open(self.file_path, 'wb') as f:
+                f.write(b'\x00' * self.size)
+        
+        self._fd = os.open(self.file_path, os.O_RDWR)
+        self.buffer = mmap.mmap(self._fd, self.size)
+        return self.buffer
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.buffer:
+            self.buffer.close()
+            self.buffer = None
+        if self._fd:
+            os.close(self._fd)
+            self._fd = None
+
+
 # Convenience functions
 def get_buffer(size: int = None) -> ZeroCopyBuffer:
     """Get a buffer from the global pool"""

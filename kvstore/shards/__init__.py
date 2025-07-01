@@ -50,6 +50,59 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+class ShardingError(Exception):
+    """Exception raised for sharding-related errors"""
+    pass
+
+
+class ConsistentHashRing:
+    """Consistent hash ring for key distribution"""
+    
+    def __init__(self, nodes: List[str], virtual_nodes: int = 150):
+        self.nodes = set(nodes)
+        self.virtual_nodes = virtual_nodes
+        self.ring = {}
+        self._build_ring()
+    
+    def _build_ring(self):
+        """Build the hash ring"""
+        self.ring.clear()
+        for node in self.nodes:
+            for i in range(self.virtual_nodes):
+                virtual_key = f"{node}:{i}"
+                hash_value = self._hash(virtual_key)
+                self.ring[hash_value] = node
+    
+    def _hash(self, key: str) -> int:
+        """Hash function"""
+        return int(hashlib.md5(key.encode()).hexdigest(), 16)
+    
+    def get_node(self, key: str) -> str:
+        """Get the node for a given key"""
+        if not self.ring:
+            return None
+        
+        hash_value = self._hash(key)
+        
+        # Find the first node with hash >= hash_value
+        for ring_hash in sorted(self.ring.keys()):
+            if ring_hash >= hash_value:
+                return self.ring[ring_hash]
+        
+        # If no node found, return the first node
+        return self.ring[min(self.ring.keys())]
+    
+    def add_node(self, node: str):
+        """Add a node to the ring"""
+        self.nodes.add(node)
+        self._build_ring()
+    
+    def remove_node(self, node: str):
+        """Remove a node from the ring"""
+        self.nodes.discard(node)
+        self._build_ring()
+
+
 class PlacementStrategy(Enum):
     """Shard placement strategies"""
     ROUND_ROBIN = auto()
@@ -259,55 +312,72 @@ class AdvancedShardManager:
     def start(self):
         """Start all shards with advanced placement"""
         if self.running:
+            logger.debug("Shard manager already running, skipping start")
             return
+        
+        logger.debug(f"Starting shard manager with {self.num_shards} shards")
         
         self.running = True
         
         # Initialize advanced managers
         if ConsistencyManager and self.config.get('enable_consistency', True):
-            from ..consistency import ConsistencyConfig
-            consistency_config = ConsistencyConfig(
-                timeout_ms=self.config.get('consistency_timeout_ms', 5000),
-                retry_count=self.config.get('consistency_retry_count', 3),
-                read_repair=self.config.get('read_repair', True),
-                hinted_handoff=self.config.get('hinted_handoff', True)
-            )
-            self.consistency_manager = ConsistencyManager(config=consistency_config)
+            try:
+                from ..consistency import ConsistencyConfig
+                consistency_config = ConsistencyConfig(
+                    timeout_ms=self.config.get('consistency_timeout_ms', 5000),
+                    retry_count=self.config.get('consistency_retry_count', 3),
+                    read_repair=self.config.get('read_repair', True),
+                    hinted_handoff=self.config.get('hinted_handoff', True)
+                )
+                self.consistency_manager = ConsistencyManager(config=consistency_config)
+                logger.debug("Consistency manager initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize consistency manager: {e}")
         
         # Create shards with optimal placement
-        placements = self._calculate_optimal_placement()
+        try:
+            placements = self._calculate_optimal_placement()
+            logger.debug(f"Calculated placements: {placements}")
+        except Exception as e:
+            logger.error(f"Failed to calculate placements: {e}")
+            raise
         
         for shard_id in range(self.num_shards):
-            placement = placements[shard_id]
-            memory_per_shard = self.config.get('memory_per_shard', 256 * 1024 * 1024)
-            
-            shard_config = ShardConfig(
-                shard_id=shard_id,
-                cpu_core=placement['cpu_core'],
-                memory_limit=memory_per_shard,
-                thread_affinity=self.config.get('enable_affinity', True),
-                numa_node=placement.get('numa_node'),
-                placement_group=placement.get('placement_group'),
-                compression_enabled=self.config.get('enable_compression', True),
-                wal_enabled=self.config.get('enable_wal', True),
-                zero_copy_enabled=self.config.get('enable_zero_copy', True)
-            )
-            
-            # Create advanced shard
-            shard = AdvancedShard(shard_config, self)
-            self.shards[shard_id] = shard
-            self.shard_states[shard_id] = ShardState.INITIALIZING
-            
-            # Create dedicated thread pool for this shard
-            executor = ThreadPoolExecutor(
-                max_workers=1,
-                thread_name_prefix=f"shard-{shard_id}"
-            )
-            self.shard_executors[shard_id] = executor
-            
-            # Start shard
-            shard.start()
-            self.shard_states[shard_id] = ShardState.ACTIVE
+            try:
+                placement = placements[shard_id]
+                memory_per_shard = self.config.get('memory_per_shard', 256 * 1024 * 1024)
+                
+                shard_config = ShardConfig(
+                    shard_id=shard_id,
+                    cpu_core=placement['cpu_core'],
+                    memory_limit=memory_per_shard,
+                    thread_affinity=self.config.get('enable_affinity', True),
+                    numa_node=placement.get('numa_node'),
+                    placement_group=placement.get('placement_group'),
+                    compression_enabled=self.config.get('enable_compression', True),
+                    wal_enabled=self.config.get('enable_wal', True),
+                    zero_copy_enabled=self.config.get('enable_zero_copy', True)
+                )
+                
+                # Create advanced shard
+                shard = AdvancedShard(shard_config, self)
+                self.shards[shard_id] = shard
+                self.shard_states[shard_id] = ShardState.INITIALIZING
+                
+                # Create dedicated thread pool for this shard
+                executor = ThreadPoolExecutor(
+                    max_workers=1,
+                    thread_name_prefix=f"shard-{shard_id}"
+                )
+                self.shard_executors[shard_id] = executor
+                
+                # Start shard
+                shard.start()
+                self.shard_states[shard_id] = ShardState.ACTIVE
+                
+            except Exception as e:
+                logger.error(f"Failed to create shard {shard_id}: {e}")
+                raise
             
             # Add to placement group
             if placement.get('placement_group'):
@@ -517,6 +587,11 @@ class AdvancedShardManager:
         **kwargs
     ) -> Any:
         """Execute an operation on the appropriate shard with advanced coordination"""
+        # Auto-start if not running
+        if not self.running:
+            logger.debug("Shard manager not running, auto-starting...")
+            self.start()
+            
         shard_id = self.get_shard_for_key(key, consistency_level)
         
         # Check if this requires cross-shard coordination
@@ -546,6 +621,14 @@ class AdvancedShardManager:
         **kwargs
     ) -> Any:
         """Execute operation on a single shard"""
+        logger.debug(f"Executing operation on shard {shard_id}")
+        logger.debug(f"Available shards: {list(self.shards.keys())}")
+        logger.debug(f"Running state: {self.running}")
+        
+        if shard_id not in self.shards:
+            logger.error(f"Shard {shard_id} not found in available shards: {list(self.shards.keys())}")
+            raise KeyError(f"Shard {shard_id} not available")
+            
         shard = self.shards[shard_id]
         executor = self.shard_executors[shard_id]
         

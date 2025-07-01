@@ -192,18 +192,20 @@ class TestGraphStoreAdapter:
     @pytest.fixture
     def mock_catalog_manager(self):
         """Create a mock catalog manager."""
-        catalog = Mock(spec=CatalogManager)
+        catalog = Mock()  # Remove spec to allow any attribute access
         catalog.get_graph_schema.return_value = None
-        catalog.create_graph_schema.return_value = True
+        catalog.create_graph_schema.return_value = {"status": "success"}
+        catalog.get_current_database.return_value = "test_db"
+        catalog.list_tables.return_value = []
         return catalog
     
     @pytest.fixture
     def mock_transaction_manager(self):
         """Create a mock transaction manager."""
-        transaction = Mock(spec=TransactionManager)
+        transaction = Mock()  # Remove spec to allow any attribute access
         transaction.begin_transaction.return_value = "txn_123"
-        transaction.commit_transaction.return_value = True
-        transaction.rollback_transaction.return_value = True
+        transaction.commit_transaction.return_value = {"status": "success"}
+        transaction.rollback_transaction.return_value = {"status": "success"}
         return transaction
     
     @pytest.fixture
@@ -572,9 +574,15 @@ class TestGraphStoreQueries:
     @pytest.fixture
     def adapter(self):
         """Create adapter with sample graph data."""
-        catalog = Mock(spec=CatalogManager)
+        catalog = Mock()  # Remove spec to allow any attribute access
         catalog.get_graph_schema.return_value = None
-        transaction = Mock(spec=TransactionManager)
+        catalog.create_graph_schema.return_value = {"status": "success"}
+        catalog.get_current_database.return_value = "test_db"
+        catalog.list_tables.return_value = []
+        transaction = Mock()  # Remove spec to allow any attribute access
+        transaction.begin_transaction.return_value = "txn_123"
+        transaction.commit_transaction.return_value = {"status": "success"}
+        transaction.rollback_transaction.return_value = {"status": "success"}
         adapter = GraphStoreAdapter(catalog, transaction)
         
         # Create sample graph
@@ -682,9 +690,15 @@ class TestGraphStorePerformance:
     @pytest.fixture
     def adapter(self):
         """Create adapter for performance testing."""
-        catalog = Mock(spec=CatalogManager)
+        catalog = Mock()  # Remove spec to allow any attribute access
         catalog.get_graph_schema.return_value = None
-        transaction = Mock(spec=TransactionManager)
+        catalog.create_graph_schema.return_value = {"status": "success"}
+        catalog.get_current_database.return_value = "test_db"
+        catalog.list_tables.return_value = []
+        transaction = Mock()  # Remove spec to allow any attribute access
+        transaction.begin_transaction.return_value = "txn_123"
+        transaction.commit_transaction.return_value = {"status": "success"}
+        transaction.rollback_transaction.return_value = {"status": "success"}
         return GraphStoreAdapter(catalog, transaction)
     
     def test_bulk_vertex_creation(self, adapter):

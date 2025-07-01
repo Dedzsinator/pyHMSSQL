@@ -500,6 +500,11 @@ class RaftNode:
         with self._lock:
             return self.commit_index >= entry.index
     
+    # Aliases for backward compatibility
+    async def add_command(self, command: Dict[str, Any]) -> bool:
+        """Alias for append_command for backward compatibility"""
+        return await self.append_command(command)
+    
     def is_leader(self) -> bool:
         """Check if this node is the leader"""
         with self._lock:

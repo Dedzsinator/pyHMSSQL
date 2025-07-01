@@ -420,3 +420,52 @@ class BPlusTree:
         except RuntimeError as e:
             logging.error("Error loading B+ tree from %s: %s", file_path, str(e))
             return None
+
+    def delete(self, key):
+        """Delete a key from the B+ tree.
+
+        Args:
+            key: The key to delete
+
+        Returns:
+            True if key was deleted, False if key was not found
+        """
+        self.operation_counter += 1
+        bptree_logger.debug(
+            "[%s][%s] DELETE - key: %s", self.name, self.operation_counter, key
+        )
+
+        return self._delete(self.root, key)
+
+    def _delete(self, node, key):
+        """Delete a key from a node recursively.
+
+        Args:
+            node: The node to delete from
+            key: The key to delete
+
+        Returns:
+            True if key was deleted, False if key was not found
+        """
+        if node.leaf:
+            # For leaf nodes, find and remove the key
+            for i, (k, v) in enumerate(node.keys):
+                if k == key:
+                    del node.keys[i]
+                    bptree_logger.debug(
+                        "[%s] DELETED - key: %s, value: %s", self.name, key, v
+                    )
+                    return True
+            bptree_logger.debug("[%s] DELETE NOT FOUND - key: %s", self.name, key)
+            return False
+        else:
+            # For internal nodes, find the appropriate child
+            i = 0
+            while i < len(node.keys) and key > node.keys[i]:
+                i += 1
+
+            # Recursively delete from the appropriate child
+            if i < len(node.children):
+                return self._delete(node.children[i], key)
+
+            return False

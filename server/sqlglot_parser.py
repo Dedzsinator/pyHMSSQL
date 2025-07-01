@@ -84,6 +84,17 @@ class SQLGlotParser:
 
             return {"error": f"Parse error: {str(e)}", "query": sql}
 
+    def parse_sql(self, sql: str) -> Dict[str, Any]:
+        """Alias for parse method to maintain compatibility.
+
+        Args:
+            sql: The SQL statement to parse
+
+        Returns:
+            A dictionary containing the parsed SQL statement structure
+        """
+        return self.parse(sql)
+
     def optimize(self, sql: str) -> str:
         """Optimize a SQL query using SQLGlot's optimizer.
 

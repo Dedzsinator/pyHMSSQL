@@ -2,8 +2,12 @@ import os
 import logging
 import networkx as nx
 import matplotlib.pyplot as plt
-from bptree import BPlusTree
-from bptree_optimized import BPlusTreeOptimized
+try:
+    from bptree_optimized import BPlusTreeOptimized as BPlusTree
+    OPTIMIZED_AVAILABLE = True
+except ImportError:
+    from bptree_adapter import BPlusTree
+    OPTIMIZED_AVAILABLE = False
 from bptree_visualizer import BPTreeVisualizer
 
 

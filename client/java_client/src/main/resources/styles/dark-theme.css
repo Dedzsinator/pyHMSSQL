@@ -1,0 +1,559 @@
+/* Dark Theme for pyHMSSQL Professional Client */
+/* Material Design 3 Dark Theme */
+
+.root {
+    /* Color Palette */
+    -fx-background: #2b2b2b;
+    -fx-surface: #3c3c3c;
+    -fx-surface-variant: #4a4a4a;
+    -fx-primary: #1e90ff;
+    -fx-primary-variant: #4169e1;
+    -fx-secondary: #ff6b35;
+    -fx-on-background: #ffffff;
+    -fx-on-surface: #ffffff;
+    -fx-on-primary: #ffffff;
+    -fx-success: #00ff7f;
+    -fx-error: #ff4500;
+    -fx-warning: #ffa500;
+    -fx-info: #87ceeb;
+    
+    /* Surface colors */
+    -fx-surface-1: #404040;
+    -fx-surface-2: #454545;
+    -fx-surface-3: #4a4a4a;
+    -fx-surface-4: #505050;
+    -fx-surface-5: #555555;
+    
+    /* Border colors */
+    -fx-border-light: rgba(255, 255, 255, 0.12);
+    -fx-border-medium: rgba(255, 255, 255, 0.24);
+    -fx-border-strong: rgba(255, 255, 255, 0.38);
+    
+    /* Text colors */
+    -fx-text-primary: #ffffff;
+    -fx-text-secondary: rgba(255, 255, 255, 0.87);
+    -fx-text-disabled: rgba(255, 255, 255, 0.38);
+    -fx-text-hint: rgba(255, 255, 255, 0.60);
+    
+    /* Focus colors */
+    -fx-focus-color: #1e90ff;
+    -fx-faint-focus-color: rgba(30, 144, 255, 0.2);
+    
+    /* Selection colors */
+    -fx-selection-bar: rgba(30, 144, 255, 0.3);
+    -fx-selection-bar-non-focused: rgba(30, 144, 255, 0.2);
+}
+
+/* Application Background */
+.root {
+    -fx-background-color: -fx-background;
+    -fx-text-fill: -fx-on-background;
+}
+
+/* Buttons */
+.button {
+    -fx-background-color: -fx-surface;
+    -fx-text-fill: -fx-on-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+.button:hover {
+    -fx-background-color: -fx-surface-1;
+    -fx-border-color: -fx-border-medium;
+}
+
+.button:pressed {
+    -fx-background-color: -fx-surface-2;
+}
+
+.button:focused {
+    -fx-border-color: -fx-focus-color;
+}
+
+.button.primary {
+    -fx-background-color: -fx-primary;
+    -fx-text-fill: -fx-on-primary;
+    -fx-border-color: -fx-primary;
+}
+
+.button.primary:hover {
+    -fx-background-color: derive(-fx-primary, 10%);
+}
+
+.button.primary:pressed {
+    -fx-background-color: derive(-fx-primary, -10%);
+}
+
+.button.secondary {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-primary;
+    -fx-border-color: -fx-primary;
+}
+
+.button.secondary:hover {
+    -fx-background-color: rgba(30, 144, 255, 0.08);
+}
+
+.button.secondary:pressed {
+    -fx-background-color: rgba(30, 144, 255, 0.16);
+}
+
+.button.danger {
+    -fx-background-color: -fx-error;
+    -fx-text-fill: white;
+    -fx-border-color: -fx-error;
+}
+
+.button.success {
+    -fx-background-color: -fx-success;
+    -fx-text-fill: white;
+    -fx-border-color: -fx-success;
+}
+
+/* Text Input Fields */
+.text-field, .text-area, .password-field {
+    -fx-background-color: -fx-surface;
+    -fx-text-fill: -fx-on-surface;
+    -fx-border-color: -fx-border-light;
+    -fx-prompt-text-fill: -fx-text-hint;
+}
+
+.text-field:focused, .text-area:focused, .password-field:focused {
+    -fx-border-color: -fx-focus-color;
+    -fx-background-color: -fx-surface-1;
+}
+
+.text-field:disabled, .text-area:disabled, .password-field:disabled {
+    -fx-background-color: -fx-surface-variant;
+    -fx-text-fill: -fx-text-disabled;
+    -fx-border-color: -fx-border-light;
+}
+
+/* ComboBox and ChoiceBox */
+.combo-box, .choice-box {
+    -fx-background-color: -fx-surface;
+    -fx-text-fill: -fx-on-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+.combo-box:focused, .choice-box:focused {
+    -fx-border-color: -fx-focus-color;
+}
+
+.combo-box .list-view, .choice-box .list-view {
+    -fx-background-color: -fx-surface-1;
+    -fx-border-color: -fx-border-medium;
+}
+
+.combo-box .list-cell, .choice-box .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-on-surface;
+}
+
+.combo-box .list-cell:hover, .choice-box .list-cell:hover {
+    -fx-background-color: -fx-surface-2;
+}
+
+.combo-box .list-cell:selected, .choice-box .list-cell:selected {
+    -fx-background-color: -fx-selection-bar;
+    -fx-text-fill: -fx-on-primary;
+}
+
+/* ListView and TableView */
+.list-view, .table-view {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+.list-cell, .table-row-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-on-surface;
+}
+
+.list-cell:hover, .table-row-cell:hover {
+    -fx-background-color: -fx-surface-1;
+}
+
+.list-cell:selected, .table-row-cell:selected {
+    -fx-background-color: -fx-selection-bar;
+    -fx-text-fill: -fx-text-primary;
+}
+
+.list-cell:selected:focused, .table-row-cell:selected:focused {
+    -fx-background-color: -fx-selection-bar;
+}
+
+/* Table Headers */
+.table-view .column-header {
+    -fx-background-color: -fx-surface-1;
+    -fx-text-fill: -fx-text-primary;
+    -fx-border-color: -fx-border-medium;
+}
+
+.table-view .column-header:hover {
+    -fx-background-color: -fx-surface-2;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: -fx-surface-1;
+}
+
+.table-view .filler {
+    -fx-background-color: -fx-surface-1;
+}
+
+/* ScrollBar */
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .track {
+    -fx-background-color: -fx-surface-1;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: -fx-surface-3;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: -fx-surface-4;
+}
+
+.scroll-bar .thumb:pressed {
+    -fx-background-color: -fx-surface-5;
+}
+
+/* TabPane */
+.tab-pane {
+    -fx-background-color: -fx-background;
+}
+
+.tab-pane .tab-header-area {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+.tab {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-text-secondary;
+    -fx-border-color: transparent;
+}
+
+.tab:hover {
+    -fx-background-color: -fx-surface-1;
+    -fx-text-fill: -fx-text-primary;
+}
+
+.tab:selected {
+    -fx-background-color: -fx-surface-1;
+    -fx-text-fill: -fx-primary;
+    -fx-border-color: -fx-primary;
+}
+
+.tab-pane .tab-content-area {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+/* MenuBar */
+.menu-bar {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+.menu {
+    -fx-text-fill: -fx-on-surface;
+}
+
+.menu:hover {
+    -fx-background-color: -fx-surface-1;
+}
+
+.menu:showing {
+    -fx-background-color: -fx-surface-2;
+}
+
+.context-menu {
+    -fx-background-color: -fx-surface-1;
+    -fx-border-color: -fx-border-medium;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.4), 8, 0, 0, 4);
+}
+
+.menu-item {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-on-surface;
+}
+
+.menu-item:hover {
+    -fx-background-color: -fx-surface-2;
+}
+
+.menu-item:focused {
+    -fx-background-color: -fx-selection-bar;
+}
+
+/* ToolBar */
+.tool-bar {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+/* StatusBar */
+.status-bar {
+    -fx-background-color: -fx-surface;
+    -fx-text-fill: -fx-text-secondary;
+    -fx-border-color: -fx-border-light;
+}
+
+/* Progress Indicators */
+.progress-bar {
+    -fx-background-color: -fx-surface-2;
+}
+
+.progress-bar .bar {
+    -fx-background-color: -fx-primary;
+}
+
+.progress-indicator .percentage {
+    -fx-fill: -fx-text-primary;
+}
+
+/* Tooltips */
+.tooltip {
+    -fx-background-color: -fx-surface-4;
+    -fx-text-fill: -fx-on-surface;
+    -fx-border-color: -fx-border-medium;
+}
+
+/* Dialogs */
+.dialog-pane {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-medium;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: -fx-surface-1;
+    -fx-text-fill: -fx-text-primary;
+}
+
+.dialog-pane .content {
+    -fx-text-fill: -fx-on-surface;
+}
+
+/* Separator */
+.separator .line {
+    -fx-border-color: -fx-border-light;
+}
+
+/* CheckBox and RadioButton */
+.check-box, .radio-button {
+    -fx-text-fill: -fx-on-surface;
+}
+
+.check-box .box, .radio-button .radio {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-medium;
+}
+
+.check-box:selected .box, .radio-button:selected .radio {
+    -fx-background-color: -fx-primary;
+    -fx-border-color: -fx-primary;
+}
+
+.check-box:hover .box, .radio-button:hover .radio {
+    -fx-border-color: -fx-border-strong;
+}
+
+.check-box:focused .box, .radio-button:focused .radio {
+    -fx-border-color: -fx-focus-color;
+}
+
+/* Slider */
+.slider .track {
+    -fx-background-color: -fx-surface-3;
+}
+
+.slider .thumb {
+    -fx-background-color: -fx-primary;
+    -fx-border-color: -fx-surface;
+}
+
+.slider:focused .thumb {
+    -fx-border-color: -fx-focus-color;
+}
+
+/* Accordion */
+.accordion {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+.titled-pane {
+    -fx-background-color: transparent;
+}
+
+.titled-pane .title {
+    -fx-background-color: -fx-surface-1;
+    -fx-text-fill: -fx-text-primary;
+    -fx-border-color: -fx-border-light;
+}
+
+.titled-pane:expanded .title {
+    -fx-background-color: -fx-surface-2;
+}
+
+.titled-pane .content {
+    -fx-background-color: -fx-surface;
+    -fx-text-fill: -fx-on-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+/* SplitPane */
+.split-pane .split-pane-divider {
+    -fx-background-color: -fx-border-medium;
+}
+
+/* CodeArea (RichTextFX) */
+.code-area {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+.code-area .text {
+    -fx-fill: -fx-on-surface;
+}
+
+.code-area .caret {
+    -fx-stroke: -fx-primary;
+}
+
+.code-area .selection {
+    -fx-fill: -fx-selection-bar;
+}
+
+/* Line numbers for CodeArea */
+.lineno {
+    -fx-background-color: -fx-surface-1;
+    -fx-text-fill: -fx-text-hint;
+    -fx-border-color: -fx-border-light;
+}
+
+/* SQL Syntax Highlighting */
+.keyword { -fx-fill: #c586c0; -fx-font-weight: bold; }
+.string { -fx-fill: #ce9178; }
+.comment { -fx-fill: #6a9955; -fx-font-style: italic; }
+.number { -fx-fill: #b5cea8; }
+.operator { -fx-fill: #d4d4d4; }
+.identifier { -fx-fill: #9cdcfe; }
+.function { -fx-fill: #dcdcaa; }
+.type { -fx-fill: #4ec9b0; }
+
+/* Chart Styling */
+.chart {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+.chart-title {
+    -fx-text-fill: -fx-text-primary;
+}
+
+.chart-legend {
+    -fx-background-color: -fx-surface-1;
+    -fx-text-fill: -fx-on-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+.chart-plot-background {
+    -fx-background-color: -fx-surface;
+}
+
+.axis {
+    -fx-tick-label-fill: -fx-text-secondary;
+}
+
+.axis-label {
+    -fx-text-fill: -fx-text-primary;
+}
+
+/* Card-like containers */
+.card {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-border-light;
+}
+
+.card.elevated {
+    -fx-background-color: -fx-surface-1;
+    -fx-border-color: -fx-border-medium;
+}
+
+/* Custom Components */
+.connection-status.connected {
+    -fx-text-fill: -fx-success;
+}
+
+.connection-status.disconnected {
+    -fx-text-fill: -fx-error;
+}
+
+.connection-status.connecting {
+    -fx-text-fill: -fx-warning;
+}
+
+.query-result-success {
+    -fx-background-color: rgba(0, 255, 127, 0.1);
+    -fx-border-color: -fx-success;
+}
+
+.query-result-error {
+    -fx-background-color: rgba(255, 69, 0, 0.1);
+    -fx-border-color: -fx-error;
+}
+
+.database-tree .tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-on-surface;
+}
+
+.database-tree .tree-cell:hover {
+    -fx-background-color: -fx-surface-1;
+}
+
+.database-tree .tree-cell:selected {
+    -fx-background-color: -fx-selection-bar;
+    -fx-text-fill: -fx-text-primary;
+}
+
+/* Performance Monitor */
+.performance-gauge.good {
+    -fx-background-color: rgba(0, 255, 127, 0.2);
+    -fx-border-color: -fx-success;
+}
+
+.performance-gauge.warning {
+    -fx-background-color: rgba(255, 165, 0, 0.2);
+    -fx-border-color: -fx-warning;
+}
+
+.performance-gauge.critical {
+    -fx-background-color: rgba(255, 69, 0, 0.2);
+    -fx-border-color: -fx-error;
+}
+
+/* Focus ring improvements */
+.button:focused,
+.text-field:focused,
+.combo-box:focused,
+.list-view:focused,
+.table-view:focused {
+    -fx-effect: dropshadow(gaussian, -fx-focus-color, 4, 0, 0, 0);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .root {
+        -fx-border-light: rgba(255, 255, 255, 0.6);
+        -fx-border-medium: rgba(255, 255, 255, 0.8);
+        -fx-border-strong: rgba(255, 255, 255, 1.0);
+    }
+}

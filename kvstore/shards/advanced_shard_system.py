@@ -998,8 +998,8 @@ class AdvancedShard:
                 self._set_cpu_affinity()
         
         try:
-            # Execute the operation
-            result = operation(*args, **kwargs)
+            # Execute the operation - pass shard as first parameter for lambda functions
+            result = operation(self, *args, **kwargs)
             
             # Record performance metrics
             latency = (time.time() - start_time) * 1000  # ms

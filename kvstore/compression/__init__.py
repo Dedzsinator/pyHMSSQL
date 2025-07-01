@@ -19,6 +19,11 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
+class CompressionError(Exception):
+    """Exception raised for compression-related errors"""
+    pass
+
+
 class CompressionType(Enum):
     """Available compression algorithms"""
     NONE = "none"
@@ -83,23 +88,46 @@ class GZipCodec(CompressionCodec):
         self.level = level
     
     def compress(self, data: Union[bytes, List[Any]]) -> CompressionResult:
-        if isinstance(data, list):
-            data = str(data).encode('utf-8')
-        elif not isinstance(data, bytes):
-            data = str(data).encode('utf-8')
+        # Store original data type for reconstruction
+        original_type = type(data).__name__
         
-        compressed = zlib.compress(data, self.level)
+        if isinstance(data, list):
+            import json
+            data_bytes = json.dumps(data).encode('utf-8')
+        elif isinstance(data, dict):
+            import json
+            data_bytes = json.dumps(data).encode('utf-8')
+        elif isinstance(data, str):
+            data_bytes = data.encode('utf-8')
+        elif isinstance(data, bytes):
+            data_bytes = data
+        else:
+            data_bytes = str(data).encode('utf-8')
+        
+        compressed = zlib.compress(data_bytes, self.level)
         
         return CompressionResult(
             compressed_data=compressed,
-            original_size=len(data),
+            original_size=len(data_bytes),
             compressed_size=len(compressed),
             algorithm=CompressionType.GZIP,
-            metadata={'level': self.level}
+            metadata={'level': self.level, 'original_type': original_type}
         )
     
-    def decompress(self, compressed_data: bytes, metadata: Dict[str, Any]) -> bytes:
-        return zlib.decompress(compressed_data)
+    def decompress(self, compressed_data: bytes, metadata: Dict[str, Any]) -> Union[bytes, str, list, dict]:
+        try:
+            decompressed_bytes = zlib.decompress(compressed_data)
+            original_type = metadata.get('original_type', 'bytes')
+            
+            if original_type == 'str':
+                return decompressed_bytes.decode('utf-8')
+            elif original_type in ['list', 'dict']:
+                import json
+                return json.loads(decompressed_bytes.decode('utf-8'))
+            else:
+                return decompressed_bytes
+        except Exception as e:
+            raise CompressionError(f"GZIP decompression failed: {e}") from e
     
     @property
     def compression_type(self) -> CompressionType:
@@ -113,26 +141,49 @@ class LZ4Codec(CompressionCodec):
         self.compression_level = compression_level
     
     def compress(self, data: Union[bytes, List[Any]]) -> CompressionResult:
+        # Store original data type for reconstruction
+        original_type = type(data).__name__
+        
         if isinstance(data, list):
-            data = str(data).encode('utf-8')
-        elif not isinstance(data, bytes):
-            data = str(data).encode('utf-8')
+            import json
+            data_bytes = json.dumps(data).encode('utf-8')
+        elif isinstance(data, dict):
+            import json
+            data_bytes = json.dumps(data).encode('utf-8')
+        elif isinstance(data, str):
+            data_bytes = data.encode('utf-8')
+        elif isinstance(data, bytes):
+            data_bytes = data
+        else:
+            data_bytes = str(data).encode('utf-8')
         
         compressed = lz4.frame.compress(
-            data, 
+            data_bytes, 
             compression_level=self.compression_level
         )
         
         return CompressionResult(
             compressed_data=compressed,
-            original_size=len(data),
+            original_size=len(data_bytes),
             compressed_size=len(compressed),
             algorithm=CompressionType.LZ4,
-            metadata={'level': self.compression_level}
+            metadata={'level': self.compression_level, 'original_type': original_type}
         )
     
-    def decompress(self, compressed_data: bytes, metadata: Dict[str, Any]) -> bytes:
-        return lz4.frame.decompress(compressed_data)
+    def decompress(self, compressed_data: bytes, metadata: Dict[str, Any]) -> Union[bytes, str, list, dict]:
+        try:
+            decompressed_bytes = lz4.frame.decompress(compressed_data)
+            original_type = metadata.get('original_type', 'bytes')
+            
+            if original_type == 'str':
+                return decompressed_bytes.decode('utf-8')
+            elif original_type in ['list', 'dict']:
+                import json
+                return json.loads(decompressed_bytes.decode('utf-8'))
+            else:
+                return decompressed_bytes
+        except Exception as e:
+            raise CompressionError(f"LZ4 decompression failed: {e}") from e
     
     @property
     def compression_type(self) -> CompressionType:
@@ -143,23 +194,46 @@ class SnappyCodec(CompressionCodec):
     """Snappy compression codec"""
     
     def compress(self, data: Union[bytes, List[Any]]) -> CompressionResult:
-        if isinstance(data, list):
-            data = str(data).encode('utf-8')
-        elif not isinstance(data, bytes):
-            data = str(data).encode('utf-8')
+        # Store original data type for reconstruction
+        original_type = type(data).__name__
         
-        compressed = snappy.compress(data)
+        if isinstance(data, list):
+            import json
+            data_bytes = json.dumps(data).encode('utf-8')
+        elif isinstance(data, dict):
+            import json
+            data_bytes = json.dumps(data).encode('utf-8')
+        elif isinstance(data, str):
+            data_bytes = data.encode('utf-8')
+        elif isinstance(data, bytes):
+            data_bytes = data
+        else:
+            data_bytes = str(data).encode('utf-8')
+        
+        compressed = snappy.compress(data_bytes)
         
         return CompressionResult(
             compressed_data=compressed,
-            original_size=len(data),
+            original_size=len(data_bytes),
             compressed_size=len(compressed),
             algorithm=CompressionType.SNAPPY,
-            metadata={}
+            metadata={'original_type': original_type}
         )
     
-    def decompress(self, compressed_data: bytes, metadata: Dict[str, Any]) -> bytes:
-        return snappy.decompress(compressed_data)
+    def decompress(self, compressed_data: bytes, metadata: Dict[str, Any]) -> Union[bytes, str, list, dict]:
+        try:
+            decompressed_bytes = snappy.decompress(compressed_data)
+            original_type = metadata.get('original_type', 'bytes')
+            
+            if original_type == 'str':
+                return decompressed_bytes.decode('utf-8')
+            elif original_type in ['list', 'dict']:
+                import json
+                return json.loads(decompressed_bytes.decode('utf-8'))
+            else:
+                return decompressed_bytes
+        except Exception as e:
+            raise CompressionError(f"Snappy decompression failed: {e}") from e
     
     @property
     def compression_type(self) -> CompressionType:
@@ -440,22 +514,49 @@ class DeltaCodec(CompressionCodec):
         if self.data_type == 'int64':
             result.extend(struct.pack('>q', int(numbers[0])))
             prev_value = int(numbers[0])
+            
+            # Calculate deltas first to see if we can use smaller representation
+            deltas = []
+            for value in numbers[1:]:
+                delta = int(value) - prev_value
+                deltas.append(delta)
+                prev_value = int(value)
+            
+            # Check if all deltas fit in smaller data types
+            max_delta = max(abs(d) for d in deltas) if deltas else 0
+            
+            if max_delta < 128:  # Can fit in int8
+                result.extend(struct.pack('>B', 1))  # Flag for int8 deltas
+                for delta in deltas:
+                    result.extend(struct.pack('>b', delta))
+            elif max_delta < 32768:  # Can fit in int16
+                result.extend(struct.pack('>B', 2))  # Flag for int16 deltas
+                for delta in deltas:
+                    result.extend(struct.pack('>h', delta))
+            elif max_delta < 2147483648:  # Can fit in int32
+                result.extend(struct.pack('>B', 4))  # Flag for int32 deltas
+                for delta in deltas:
+                    result.extend(struct.pack('>i', delta))
+            else:  # Use int64
+                result.extend(struct.pack('>B', 8))  # Flag for int64 deltas
+                for delta in deltas:
+                    result.extend(struct.pack('>q', delta))
         else:
             result.extend(struct.pack('>d', float(numbers[0])))
             prev_value = float(numbers[0])
-        
-        # Store deltas
-        for value in numbers[1:]:
-            if self.data_type == 'int64':
-                delta = int(value) - prev_value
-                result.extend(struct.pack('>q', delta))
-                prev_value = int(value)
-            else:
+            result.extend(struct.pack('>B', 8))  # Always use float64 for floating point
+            
+            # Store deltas
+            for value in numbers[1:]:
                 delta = float(value) - prev_value
                 result.extend(struct.pack('>d', delta))
                 prev_value = float(value)
         
-        original_size = len(str(data).encode('utf-8'))
+        # Calculate original size based on binary representation, not string
+        if self.data_type == 'int64':
+            original_size = len(numbers) * 8  # 8 bytes per int64
+        else:
+            original_size = len(numbers) * 8  # 8 bytes per float64
         
         return CompressionResult(
             compressed_data=bytes(result),
@@ -483,26 +584,46 @@ class DeltaCodec(CompressionCodec):
             offset += 8
             prev_value = first_value
             
-            # Reconstruct subsequent values
-            for i in range(1, count):
-                delta = struct.unpack('>q', compressed_data[offset:offset+8])[0]
-                current_value = prev_value + delta
-                values.append(current_value)
-                prev_value = current_value
-                offset += 8
+            if count > 1:
+                # Read delta size flag
+                delta_size = struct.unpack('>B', compressed_data[offset:offset+1])[0]
+                offset += 1
+                
+                # Reconstruct subsequent values based on delta size
+                for i in range(1, count):
+                    if delta_size == 1:
+                        delta = struct.unpack('>b', compressed_data[offset:offset+1])[0]
+                        offset += 1
+                    elif delta_size == 2:
+                        delta = struct.unpack('>h', compressed_data[offset:offset+2])[0]
+                        offset += 2
+                    elif delta_size == 4:
+                        delta = struct.unpack('>i', compressed_data[offset:offset+4])[0]
+                        offset += 4
+                    else:  # delta_size == 8
+                        delta = struct.unpack('>q', compressed_data[offset:offset+8])[0]
+                        offset += 8
+                    
+                    current_value = prev_value + delta
+                    values.append(current_value)
+                    prev_value = current_value
         else:
             first_value = struct.unpack('>d', compressed_data[offset:offset+8])[0]
             values.append(first_value)
             offset += 8
             prev_value = first_value
             
-            # Reconstruct subsequent values
-            for i in range(1, count):
-                delta = struct.unpack('>d', compressed_data[offset:offset+8])[0]
-                current_value = prev_value + delta
-                values.append(current_value)
-                prev_value = current_value
-                offset += 8
+            if count > 1:
+                # Skip delta size flag for float64
+                offset += 1
+                
+                # Reconstruct subsequent values
+                for i in range(1, count):
+                    delta = struct.unpack('>d', compressed_data[offset:offset+8])[0]
+                    current_value = prev_value + delta
+                    values.append(current_value)
+                    prev_value = current_value
+                    offset += 8
         
         return values
     

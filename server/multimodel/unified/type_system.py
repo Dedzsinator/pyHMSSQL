@@ -358,6 +358,11 @@ class TypeRegistry:
             return list(self._schema_types.get(schema, {}).values())
         return [t for t in self._types.values() if not t.schema_name == "system"]
 
+    def list_type_names(self, schema: str = None) -> List[str]:
+        """List all type names, optionally filtered by schema"""
+        types = self.list_types(schema)
+        return [t.name for t in types]
+
     def _validate_type_definition(self, type_def: TypeDefinition) -> None:
         """Validate a type definition for consistency"""
         if type_def.category == TypeCategory.COMPOSITE:
@@ -465,10 +470,16 @@ class TypeValidator:
     def __init__(self, registry: TypeRegistry):
         self.registry = registry
 
-    def validate_value(self, value: Any, type_def: TypeDefinition) -> bool:
+    def validate_value(self, value: Any, type_def: Union[TypeDefinition, str]) -> bool:
         """Validate a value against a type definition"""
         if value is None:
             return True  # NULL values are handled separately
+
+        # Handle string type names by looking them up
+        if isinstance(type_def, str):
+            type_def = self.registry.get_type(type_def)
+            if type_def is None:
+                return False
 
         if type_def.category == TypeCategory.PRIMITIVE:
             return self._validate_primitive(value, type_def)
@@ -554,10 +565,80 @@ class TypeValidator:
         if not self.validate_value(value, type_def.base_type):
             return False
 
-        # TODO: Implement constraint checking
-        # This would require a constraint evaluation engine
+        # Implement constraint checking
+        if self.constraints:
+            for constraint in self.constraints:
+                if not self._evaluate_constraint(constraint, value):
+                    return False
 
         return True
+
+    def _evaluate_constraint(self, constraint: str, value: Any) -> bool:
+        """Evaluate a constraint against a value"""
+        try:
+            # Basic constraint evaluation
+            if constraint.startswith("CHECK"):
+                # Extract CHECK constraint expression
+                check_expr = constraint[5:].strip("() ")
+                
+                # Simple constraint evaluation for common patterns
+                if ">" in check_expr:
+                    parts = check_expr.split(">")
+                    if len(parts) == 2:
+                        field = parts[0].strip()
+                        threshold = float(parts[1].strip())
+                        return float(value) > threshold
+                elif "<" in check_expr:
+                    parts = check_expr.split("<")
+                    if len(parts) == 2:
+                        field = parts[0].strip()
+                        threshold = float(parts[1].strip())
+                        return float(value) < threshold
+                elif "BETWEEN" in check_expr.upper():
+                    # Handle BETWEEN constraints
+                    parts = check_expr.upper().split("BETWEEN")
+                    if len(parts) == 2:
+                        range_part = parts[1].strip().split("AND")
+                        if len(range_part) == 2:
+                            min_val = float(range_part[0].strip())
+                            max_val = float(range_part[1].strip())
+                            return min_val <= float(value) <= max_val
+                elif "IN" in check_expr.upper():
+                    # Handle IN constraints
+                    parts = check_expr.upper().split("IN")
+                    if len(parts) == 2:
+                        values_part = parts[1].strip("() ")
+                        allowed_values = [v.strip("' \"") for v in values_part.split(",")]
+                        return str(value) in allowed_values
+                elif "LENGTH" in check_expr.upper() or "LEN" in check_expr.upper():
+                    # Handle length constraints
+                    if ">" in check_expr:
+                        threshold = int(check_expr.split(">")[1].strip())
+                        return len(str(value)) > threshold
+                    elif "<" in check_expr:
+                        threshold = int(check_expr.split("<")[1].strip())
+                        return len(str(value)) < threshold
+                        
+            elif constraint.startswith("NOT NULL"):
+                return value is not None
+            elif constraint.startswith("UNIQUE"):
+                # For UNIQUE constraints, this would need catalog/index checking
+                # For now, assume valid (implementation would require index lookup)
+                return True
+            elif constraint.startswith("PRIMARY KEY"):
+                # Primary key constraints include NOT NULL and UNIQUE
+                return value is not None
+            elif constraint.startswith("FOREIGN KEY"):
+                # Foreign key constraint checking would require catalog lookup
+                # For now, assume valid (implementation would require table lookup)
+                return True
+            
+            # Default: assume constraint is satisfied
+            return True
+            
+        except (ValueError, TypeError, AttributeError):
+            # If constraint evaluation fails, assume constraint is not satisfied
+            return False
 
 
 # Global type registry instance

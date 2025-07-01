@@ -20,8 +20,11 @@ import logging
 from ..unified.record_layout import UnifiedRecordLayout, RecordType
 from catalog_manager import CatalogManager
 
-# Force using regular BPlusTree for document storage due to optimized version limitations with bytes
-from bptree import BPlusTree as BPTree
+# Use optimized B+ Tree for document storage with proper encoding
+try:
+    from bptree_optimized import BPlusTreeOptimized as BPTree
+except ImportError:
+    from bptree_adapter import BPlusTree as BPTree
 from transaction.transaction_manager import TransactionManager
 
 
@@ -94,7 +97,11 @@ class JSONPathParser:
         while i < len(path):
             if path[i] == ".":
                 if current:
-                    parts.append(current)
+                    # Try to convert to integer if it's numeric
+                    try:
+                        parts.append(int(current))
+                    except ValueError:
+                        parts.append(current)
                     current = ""
             elif path[i] == "[":
                 if current:
@@ -116,7 +123,11 @@ class JSONPathParser:
             i += 1
 
         if current:
-            parts.append(current)
+            # Try to convert to integer if it's numeric
+            try:
+                parts.append(int(current))
+            except ValueError:
+                parts.append(current)
 
         return parts
 
@@ -225,12 +236,26 @@ class DocumentStoreAdapter:
         """Load existing document collections from catalog"""
         try:
             # Try to get multimodel metadata from catalog
-            multimodel_meta = self.catalog_manager.get_table_info(
+            multimodel_meta = self.catalog_manager.get_table_schema(
                 "__multimodel_collections__"
             )
             if multimodel_meta:
-                # Load collection metadata
-                pass  # TODO: Implement when catalog extensions are ready
+                # Load collection metadata from catalog
+                try:
+                    collections_data = self.catalog_manager.get_collections_metadata()
+                    for collection_info in collections_data:
+                        collection_name = collection_info.get("name")
+                        schema_name = collection_info.get("schema", "public")
+                        collection_key = f"{schema_name}.{collection_name}"
+                        
+                        if collection_key not in self.collections:
+                            self.collections[collection_key] = DocumentCollection.from_dict(collection_info)
+                        
+                        # Restore primary index
+                        primary_index = BPTree(order=100)
+                        self.path_indexes[f"{collection_key}._id"] = primary_index
+                except Exception as e:
+                    logging.warning(f"Failed to load collection metadata: {e}")
         except:
             # Collections table doesn't exist yet
             pass
@@ -250,7 +275,12 @@ class DocumentStoreAdapter:
         primary_index = BPTree(order=100)  # Use same order as existing B+ trees
         self.path_indexes[f"{collection_key}._id"] = primary_index
 
-        # TODO: Persist collection metadata to catalog
+        # Persist collection metadata to catalog
+        try:
+            collection_metadata = collection.to_dict()
+            self.catalog_manager.register_collection(name, schema, collection_metadata)
+        except Exception as e:
+            logging.warning(f"Failed to persist collection metadata: {e}")
 
         return True
 
@@ -273,7 +303,11 @@ class DocumentStoreAdapter:
 
         del self.collections[collection_key]
 
-        # TODO: Remove from catalog
+        # Remove from catalog
+        try:
+            self.catalog_manager.drop_collection(name, schema)
+        except Exception as e:
+            logging.warning(f"Failed to remove collection from catalog: {e}")
 
         return True
 
@@ -911,7 +945,129 @@ class DocumentStoreAdapter:
                 # Skip stage
                 results = results[stage["$skip"] :]
 
-            # TODO: Add more aggregation stages like $group, $unwind, etc.
+            elif "$group" in stage:
+                # Group stage - basic implementation
+                group_spec = stage["$group"]
+                group_id = group_spec.get("_id")
+                
+                if group_id is None:
+                    # Group all documents together
+                    grouped = {"_id": None, "items": results}
+                    # Apply aggregation functions
+                    for field, aggregation in group_spec.items():
+                        if field == "_id":
+                            continue
+                        if isinstance(aggregation, dict):
+                            for op, path in aggregation.items():
+                                if op == "$sum":
+                                    if path == 1:
+                                        grouped[field] = len(results)
+                                    else:
+                                        path = path.lstrip("$")
+                                        total = sum(
+                                            JSONPathParser.get_value_by_path(doc, path) or 0
+                                            for doc in results
+                                        )
+                                        grouped[field] = total
+                                elif op == "$avg":
+                                    path = path.lstrip("$")
+                                    values = [
+                                        JSONPathParser.get_value_by_path(doc, path)
+                                        for doc in results
+                                        if JSONPathParser.get_value_by_path(doc, path) is not None
+                                    ]
+                                    grouped[field] = sum(values) / len(values) if values else 0
+                                elif op == "$max":
+                                    path = path.lstrip("$")
+                                    values = [
+                                        JSONPathParser.get_value_by_path(doc, path)
+                                        for doc in results
+                                        if JSONPathParser.get_value_by_path(doc, path) is not None
+                                    ]
+                                    grouped[field] = max(values) if values else None
+                                elif op == "$min":
+                                    path = path.lstrip("$")
+                                    values = [
+                                        JSONPathParser.get_value_by_path(doc, path)
+                                        for doc in results
+                                        if JSONPathParser.get_value_by_path(doc, path) is not None
+                                    ]
+                                    grouped[field] = min(values) if values else None
+                    results = [grouped]
+                else:
+                    # Group by specific field
+                    groups = {}
+                    group_id_path = group_id.lstrip("$") if isinstance(group_id, str) else group_id
+                    
+                    for doc in results:
+                        key = JSONPathParser.get_value_by_path(doc, group_id_path)
+                        key = str(key) if key is not None else "null"
+                        
+                        if key not in groups:
+                            groups[key] = {"_id": key, "items": []}
+                        groups[key]["items"].append(doc)
+                    
+                    # Apply aggregation functions
+                    grouped_results = []
+                    for group_key, group_data in groups.items():
+                        group_result = {"_id": group_key}
+                        
+                        for field, aggregation in group_spec.items():
+                            if field == "_id":
+                                continue
+                            if isinstance(aggregation, dict):
+                                for op, path in aggregation.items():
+                                    if op == "$sum":
+                                        if path == 1:
+                                            group_result[field] = len(group_data["items"])
+                                        else:
+                                            path = path.lstrip("$")
+                                            total = sum(
+                                                JSONPathParser.get_value_by_path(doc, path) or 0
+                                                for doc in group_data["items"]
+                                            )
+                                            group_result[field] = total
+                                    elif op == "$avg":
+                                        path = path.lstrip("$")
+                                        values = [
+                                            JSONPathParser.get_value_by_path(doc, path)
+                                            for doc in group_data["items"]
+                                            if JSONPathParser.get_value_by_path(doc, path) is not None
+                                        ]
+                                        group_result[field] = sum(values) / len(values) if values else 0
+                        
+                        grouped_results.append(group_result)
+                    
+                    results = grouped_results
+
+            elif "$unwind" in stage:
+                # Unwind stage - expand array field into separate documents
+                unwind_path = stage["$unwind"]
+                if isinstance(unwind_path, str):
+                    unwind_path = unwind_path.lstrip("$")
+                elif isinstance(unwind_path, dict):
+                    unwind_path = unwind_path.get("path", "").lstrip("$")
+                
+                unwound_results = []
+                for doc in results:
+                    array_value = JSONPathParser.get_value_by_path(doc, unwind_path)
+                    
+                    if isinstance(array_value, list):
+                        for item in array_value:
+                            new_doc = doc.copy()
+                            # Set the unwound field to the individual item
+                            path_parts = unwind_path.split(".")
+                            current = new_doc
+                            for part in path_parts[:-1]:
+                                current = current.get(part, {})
+                            if isinstance(current, dict):
+                                current[path_parts[-1]] = item
+                            unwound_results.append(new_doc)
+                    else:
+                        # If not an array, keep original document
+                        unwound_results.append(doc)
+                
+                results = unwound_results
 
         return results
 

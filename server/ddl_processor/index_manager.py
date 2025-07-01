@@ -1,7 +1,11 @@
 import logging
 import traceback
 import os
-from bptree import BPlusTree
+try:
+    from bptree_optimized import BPlusTreeOptimized as BPlusTree
+except ImportError:
+    # Fallback to adapter if optimized is not available
+    from bptree_adapter import BPlusTree
 
 
 class IndexManager:

@@ -45,35 +45,35 @@ class RESPProtocol:
     
     @staticmethod
     def encode_simple_string(data: str) -> bytes:
-        """Encode simple string: +OK\\r\\n"""
-        return f"+{data}\\r\\n".encode('utf-8')
+        """Encode simple string: +OK\r\n"""
+        return f"+{data}\r\n".encode('utf-8')
     
     @staticmethod
     def encode_error(error: str) -> bytes:
-        """Encode error: -Error message\\r\\n"""
-        return f"-{error}\\r\\n".encode('utf-8')
+        """Encode error: -Error message\r\n"""
+        return f"-{error}\r\n".encode('utf-8')
     
     @staticmethod
     def encode_integer(num: int) -> bytes:
-        """Encode integer: :1000\\r\\n"""
-        return f":{num}\\r\\n".encode('utf-8')
+        """Encode integer: :1000\r\n"""
+        return f":{num}\r\n".encode('utf-8')
     
     @staticmethod
     def encode_bulk_string(data: Optional[str]) -> bytes:
-        """Encode bulk string: $6\\r\\nfoobar\\r\\n or $-1\\r\\n for null"""
+        """Encode bulk string: $6\r\nfoobar\r\n or $-1\r\n for null"""
         if data is None:
-            return b"$-1\\r\\n"
+            return b"$-1\r\n"
         
         data_bytes = data.encode('utf-8')
-        return f"${len(data_bytes)}\\r\\n".encode('utf-8') + data_bytes + b"\\r\\n"
+        return f"${len(data_bytes)}\r\n".encode('utf-8') + data_bytes + b"\r\n"
     
     @staticmethod
     def encode_array(items: Optional[List[Any]]) -> bytes:
-        """Encode array: *2\\r\\n$3\\r\\nfoo\\r\\n$3\\r\\nbar\\r\\n"""
+        """Encode array: *2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n"""
         if items is None:
-            return b"*-1\\r\\n"
+            return b"*-1\r\n"
         
-        result = f"*{len(items)}\\r\\n".encode('utf-8')
+        result = f"*{len(items)}\r\n".encode('utf-8')
         
         for item in items:
             if isinstance(item, str):
@@ -107,6 +107,27 @@ class RESPProtocol:
         else:
             return RESPProtocol.encode_bulk_string(str(data))
 
+    @staticmethod
+    def decode(data: bytes) -> Any:
+        """Decode a single RESP message"""
+        parser = RESPParser()
+        parser.feed(data)
+        
+        try:
+            result, consumed = parser._parse_single()
+            if consumed == 0:  # Incomplete data
+                raise ValueError("Incomplete RESP data")
+            
+            # Special handling for error messages to return Exception objects
+            if isinstance(result, str) and result.startswith("ERROR "):
+                return Exception(result[6:])  # Remove "ERROR " prefix
+            
+            return result
+        except Exception as e:
+            if "Unknown RESP type" in str(e):
+                raise ValueError(f"Unknown RESP type: {chr(data[0])}")
+            raise ValueError("Incomplete RESP data")
+
 
 class RESPParser:
     """RESP protocol parser"""
@@ -134,7 +155,7 @@ class RESPParser:
             except Exception as e:
                 logger.error(f"RESP parsing error: {e}")
                 # Skip to next CRLF to recover
-                crlf_pos = self.buffer.find(b"\\r\\n")
+                crlf_pos = self.buffer.find(b"\r\n")
                 if crlf_pos != -1:
                     self.buffer = self.buffer[crlf_pos + 2:]
                 else:
@@ -164,8 +185,8 @@ class RESPParser:
             raise ValueError(f"Unknown RESP type: {type_byte}")
     
     def _parse_simple_string(self) -> tuple[Optional[str], int]:
-        """Parse simple string: +OK\\r\\n"""
-        crlf_pos = self.buffer.find(b"\\r\\n", 1)
+        """Parse simple string: +OK\r\n"""
+        crlf_pos = self.buffer.find(b"\r\n", 1)
         if crlf_pos == -1:
             return None, 0
         
@@ -173,8 +194,8 @@ class RESPParser:
         return data, crlf_pos + 2
     
     def _parse_error(self) -> tuple[Optional[str], int]:
-        """Parse error: -Error message\\r\\n"""
-        crlf_pos = self.buffer.find(b"\\r\\n", 1)
+        """Parse error: -Error message\r\n"""
+        crlf_pos = self.buffer.find(b"\r\n", 1)
         if crlf_pos == -1:
             return None, 0
         
@@ -182,8 +203,8 @@ class RESPParser:
         return f"ERROR {error}", crlf_pos + 2
     
     def _parse_integer(self) -> tuple[Optional[int], int]:
-        """Parse integer: :1000\\r\\n"""
-        crlf_pos = self.buffer.find(b"\\r\\n", 1)
+        """Parse integer: :1000\r\n"""
+        crlf_pos = self.buffer.find(b"\r\n", 1)
         if crlf_pos == -1:
             return None, 0
         
@@ -191,8 +212,8 @@ class RESPParser:
         return int(num_str), crlf_pos + 2
     
     def _parse_bulk_string(self) -> tuple[Optional[str], int]:
-        """Parse bulk string: $6\\r\\nfoobar\\r\\n"""
-        first_crlf = self.buffer.find(b"\\r\\n", 1)
+        """Parse bulk string: $6\r\nfoobar\r\n"""
+        first_crlf = self.buffer.find(b"\r\n", 1)
         if first_crlf == -1:
             return None, 0
         
@@ -214,8 +235,8 @@ class RESPParser:
         return data, total_needed
     
     def _parse_array(self) -> tuple[Optional[List[Any]], int]:
-        """Parse array: *2\\r\\n$3\\r\\nfoo\\r\\n$3\\r\\nbar\\r\\n"""
-        first_crlf = self.buffer.find(b"\\r\\n", 1)
+        """Parse array: *2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n"""
+        first_crlf = self.buffer.find(b"\r\n", 1)
         if first_crlf == -1:
             return None, 0
         
@@ -797,3 +818,65 @@ class TcpServer:
             await self._cleanup_client(client_id)
             return True
         return False
+
+
+class NetworkServer:
+    """Network server implementation compatible with tests"""
+    
+    def __init__(self, host: str, port: int):
+        self.host = host
+        self.port = port
+        self.server: Optional[asyncio.Server] = None
+        self.running = False
+        self.command_handler: Optional[Callable] = None
+    
+    async def start(self):
+        """Start the network server"""
+        self.server = await asyncio.start_server(
+            self._handle_client,
+            self.host,
+            self.port,
+            reuse_address=True
+        )
+        self.running = True
+        logger.info(f"Network server started on {self.host}:{self.port}")
+    
+    async def stop(self):
+        """Stop the network server"""
+        self.running = False
+        if self.server:
+            self.server.close()
+            await self.server.wait_closed()
+        logger.info("Network server stopped")
+    
+    async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        """Handle client connection"""
+        client_id = f"client_{id(writer)}"
+        parser = RESPParser()
+        
+        try:
+            async for data in reader:
+                if not data:
+                    break
+                
+                parser.feed(data)
+                commands = parser.parse()
+                
+                for command in commands:
+                    if isinstance(command, list) and command:
+                        if self.command_handler:
+                            try:
+                                response = await self.command_handler(command[0], command[1:], client_id)
+                                response_bytes = RESPProtocol.encode_response(response)
+                                writer.write(response_bytes)
+                                await writer.drain()
+                            except Exception as e:
+                                error_response = RESPProtocol.encode_error(f"ERR {str(e)}")
+                                writer.write(error_response)
+                                await writer.drain()
+        
+        except Exception as e:
+            logger.error(f"Error handling client {client_id}: {e}")
+        finally:
+            writer.close()
+            await writer.wait_closed()

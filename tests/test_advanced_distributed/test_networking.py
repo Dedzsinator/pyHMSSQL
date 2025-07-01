@@ -214,14 +214,6 @@ class TestClientConnection:
 class TestNetworkServer:
     """Test network server implementation"""
     
-    @pytest.fixture
-    async def network_server(self):
-        """Create a network server for testing"""
-        server = NetworkServer(host="127.0.0.1", port=0)  # Use port 0 for random port
-        await server.start()
-        yield server
-        await server.stop()
-    
     @pytest.mark.asyncio
     async def test_server_start_stop(self):
         """Test server start and stop"""
@@ -237,9 +229,11 @@ class TestNetworkServer:
         assert server.running is False
     
     @pytest.mark.asyncio
-    async def test_server_client_connection(self, network_server):
+    async def test_server_client_connection(self):
         """Test client connection to server"""
-        server = network_server
+        # Create a real server for testing
+        server = NetworkServer(host="127.0.0.1", port=0)
+        await server.start()
         
         # Mock command handler
         async def mock_command_handler(command, args, client_id):
@@ -247,32 +241,39 @@ class TestNetworkServer:
         
         server.command_handler = mock_command_handler
         
-        # Get server address
-        server_host = server.server.sockets[0].getsockname()[0]
-        server_port = server.server.sockets[0].getsockname()[1]
+        try:
+            # Get server address
+            server_host = server.server.sockets[0].getsockname()[0]
+            server_port = server.server.sockets[0].getsockname()[1]
+            
+            # Connect client
+            reader, writer = await asyncio.open_connection(server_host, server_port)
+            
+            # Send RESP command
+            command = RESPProtocol.encode_array(["PING"])
+            writer.write(command)
+            await writer.drain()
+            
+            # Read response
+            response_data = await reader.read(1024)
+            response = RESPProtocol.decode(response_data)
+            
+            assert response == "OK"
+            
+            # Close connection
+            writer.close()
+            await writer.wait_closed()
         
-        # Connect client
-        reader, writer = await asyncio.open_connection(server_host, server_port)
-        
-        # Send RESP command
-        command = RESPProtocol.encode_array(["PING"])
-        writer.write(command)
-        await writer.drain()
-        
-        # Read response
-        response_data = await reader.read(1024)
-        response = RESPProtocol.decode(response_data)
-        
-        assert response == "OK"
-        
-        # Close connection
-        writer.close()
-        await writer.wait_closed()
+        finally:
+            # Cleanup
+            await server.stop()
     
     @pytest.mark.asyncio
-    async def test_server_multiple_clients(self, network_server):
+    async def test_server_multiple_clients(self):
         """Test server handling multiple clients"""
-        server = network_server
+        # Create a real server for testing
+        server = NetworkServer(host="127.0.0.1", port=0)
+        await server.start()
         
         # Mock command handler
         async def mock_command_handler(command, args, client_id):
@@ -280,41 +281,48 @@ class TestNetworkServer:
         
         server.command_handler = mock_command_handler
         
-        # Get server address
-        server_host = server.server.sockets[0].getsockname()[0]
-        server_port = server.server.sockets[0].getsockname()[1]
-        
-        # Connect multiple clients
-        clients = []
-        for i in range(5):
-            reader, writer = await asyncio.open_connection(server_host, server_port)
-            clients.append((reader, writer))
-        
-        # Send commands from all clients
-        responses = []
-        for i, (reader, writer) in enumerate(clients):
-            command = RESPProtocol.encode_array(["TEST", str(i)])
-            writer.write(command)
-            await writer.drain()
+        try:
+            # Get server address
+            server_host = server.server.sockets[0].getsockname()[0]
+            server_port = server.server.sockets[0].getsockname()[1]
             
-            response_data = await reader.read(1024)
-            response = RESPProtocol.decode(response_data)
-            responses.append(response)
+            # Connect multiple clients
+            clients = []
+            for i in range(5):
+                reader, writer = await asyncio.open_connection(server_host, server_port)
+                clients.append((reader, writer))
+            
+            # Send commands from all clients
+            responses = []
+            for i, (reader, writer) in enumerate(clients):
+                command = RESPProtocol.encode_array(["TEST", str(i)])
+                writer.write(command)
+                await writer.drain()
+                
+                response_data = await reader.read(1024)
+                response = RESPProtocol.decode(response_data)
+                responses.append(response)
+            
+            # Verify responses
+            assert len(responses) == 5
+            for response in responses:
+                assert "Response from" in response
+            
+            # Close all connections
+            for reader, writer in clients:
+                writer.close()
+                await writer.wait_closed()
         
-        # Verify responses
-        assert len(responses) == 5
-        for response in responses:
-            assert "Response from" in response
-        
-        # Close all connections
-        for reader, writer in clients:
-            writer.close()
-            await writer.wait_closed()
+        finally:
+            # Cleanup
+            await server.stop()
     
     @pytest.mark.asyncio
-    async def test_server_command_parsing(self, network_server):
+    async def test_server_command_parsing(self):
         """Test server command parsing"""
-        server = network_server
+        # Create a real server for testing
+        server = NetworkServer(host="127.0.0.1", port=0)
+        await server.start()
         
         received_commands = []
         
@@ -324,39 +332,44 @@ class TestNetworkServer:
         
         server.command_handler = capture_command_handler
         
-        # Get server address and connect
-        server_host = server.server.sockets[0].getsockname()[0]
-        server_port = server.server.sockets[0].getsockname()[1]
-        
-        reader, writer = await asyncio.open_connection(server_host, server_port)
-        
-        # Send various commands
-        commands_to_send = [
-            ["GET", "key1"],
-            ["SET", "key2", "value2"],
-            ["DEL", "key1", "key2", "key3"]
-        ]
-        
-        for cmd in commands_to_send:
-            command = RESPProtocol.encode_array(cmd)
-            writer.write(command)
-            await writer.drain()
+        try:
+            # Get server address and connect
+            server_host = server.server.sockets[0].getsockname()[0]
+            server_port = server.server.sockets[0].getsockname()[1]
             
-            # Read response
-            await reader.read(1024)
+            reader, writer = await asyncio.open_connection(server_host, server_port)
+            
+            # Send various commands
+            commands_to_send = [
+                ["GET", "key1"],
+                ["SET", "key2", "value2"],
+                ["DEL", "key1", "key2", "key3"]
+            ]
+            
+            for cmd in commands_to_send:
+                command = RESPProtocol.encode_array(cmd)
+                writer.write(command)
+                await writer.drain()
+                
+                # Read response
+                await reader.read(1024)
+            
+            # Verify received commands
+            assert len(received_commands) == 3
+            assert received_commands[0][0] == "GET"
+            assert received_commands[0][1] == ["key1"]
+            assert received_commands[1][0] == "SET"
+            assert received_commands[1][1] == ["key2", "value2"]
+            assert received_commands[2][0] == "DEL"
+            assert received_commands[2][1] == ["key1", "key2", "key3"]
+            
+            # Close connection
+            writer.close()
+            await writer.wait_closed()
         
-        # Verify received commands
-        assert len(received_commands) == 3
-        assert received_commands[0][0] == "GET"
-        assert received_commands[0][1] == ["key1"]
-        assert received_commands[1][0] == "SET"
-        assert received_commands[1][1] == ["key2", "value2"]
-        assert received_commands[2][0] == "DEL"
-        assert received_commands[2][1] == ["key1", "key2", "key3"]
-        
-        # Close connection
-        writer.close()
-        await writer.wait_closed()
+        finally:
+            # Cleanup
+            await server.stop()
 
 
 class TestMessage:

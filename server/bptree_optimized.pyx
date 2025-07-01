@@ -1578,3 +1578,75 @@ cdef class BPlusTreeOptimized:
     def insert(self, key, value):
         """Insert a single-dimensional key-value pair (legacy compatibility)"""
         return self._insert_single_value(float(key), value)
+    
+    def delete(self, key):
+        """Delete a key from the B+ tree (legacy compatibility)"""
+        return self._delete_single_value(float(key))
+    
+    cdef bint _delete_single_value(self, double key) except -1:
+        """Delete a key from the single-dimensional tree"""
+        cdef:
+            size_t value_ptr
+            
+        if self.root == NULL:
+            return False
+            
+        self.operation_counter += 1
+        
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"[{self.name}][{self.operation_counter}] DELETE - key: {key}")
+        
+        # Find and delete the key
+        deleted = self._delete_from_node(self.root, key)
+        
+        if deleted and logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"[{self.name}] Successfully deleted key {key}")
+        elif not deleted and logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"[{self.name}] Key {key} not found for deletion")
+            
+        return deleted
+    
+    cdef bint _delete_from_node(self, BPNode* node, double key) except -1 nogil:
+        """Recursively delete a key from the tree"""
+        cdef:
+            int i, pos
+            double epsilon = 1e-9
+            double diff
+            
+        if node == NULL:
+            return False
+            
+        if node.is_leaf:
+            # Search for the key in leaf node
+            for i in range(node.num_keys):
+                diff = node.keys[i].key - key
+                if diff < epsilon and diff > -epsilon:  # Found the key
+                    # Remove the value from value store
+                    with gil:
+                        value_ptr = node.keys[i].value_ptr
+                    with gil:
+                        if value_ptr in self.value_store:
+                            del self.value_store[value_ptr]
+                        
+                        # Shift remaining keys left
+                        for j in range(i + 1, node.num_keys):
+                            node.keys[j - 1] = node.keys[j]
+                    
+                    node.num_keys -= 1
+                    return True
+            
+            return False
+        else:
+            # Internal node: find the appropriate child
+            pos = self._binary_search(node, key)
+            
+            # If key is greater than all keys, use last child
+            if pos >= node.num_keys:
+                pos = node.num_keys
+                
+            # Validate child exists
+            if node.children == NULL or node.children[pos] == NULL:
+                return False
+                
+            # Recursively delete from child
+            return self._delete_from_node(node.children[pos], key)

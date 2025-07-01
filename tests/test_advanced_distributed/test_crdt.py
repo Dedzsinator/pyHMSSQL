@@ -27,7 +27,10 @@ from kvstore.crdt import (
 
 
 class TestVectorClock:
-    """Test Vector Clock implementation"""
+    """Test Vector Cl        # Test element check performance
+        start_time = time.time()
+        elements = lww_set.value()
+        check_duration = time.time() - start_timeimplementation"""
     
     def test_vector_clock_initialization(self):
         """Test vector clock initialization"""
@@ -235,57 +238,56 @@ class TestLWWElementSet:
     def test_lww_set_initialization(self):
         """Test LWW set initialization"""
         clock = VectorClock("node1")
-        lww_set = LWWElementSet(clock)
+        lww_set = LWWElementSet(clock, "node1")
         
         assert lww_set.clock == clock
-        assert len(lww_set.add_map) == 0
-        assert len(lww_set.remove_map) == 0
+        assert lww_set.node_id == "node1"
+        assert len(lww_set.elements) == 0
     
     def test_lww_set_add_element(self):
         """Test adding elements to LWW set"""
         clock = VectorClock("node1")
-        lww_set = LWWElementSet(clock)
+        lww_set = LWWElementSet(clock, "node1")
         
         # Add element
         lww_set.add("element1")
         
-        assert "element1" in lww_set.add_map
-        assert lww_set.add_map["element1"]["node1"] == 1
-        assert "element1" in lww_set.elements()
+        assert "element1" in lww_set.elements
+        assert lww_set.contains("element1")
+        assert "element1" in lww_set.value()
     
     def test_lww_set_remove_element(self):
         """Test removing elements from LWW set"""
         clock = VectorClock("node1")
-        lww_set = LWWElementSet(clock)
+        lww_set = LWWElementSet(clock, "node1")
         
         # Add then remove element
         lww_set.add("element1")
         lww_set.remove("element1")
         
-        assert "element1" in lww_set.add_map
-        assert "element1" in lww_set.remove_map
-        assert lww_set.remove_map["element1"]["node1"] == 2
-        assert "element1" not in lww_set.elements()
+        assert "element1" in lww_set.elements
+        assert not lww_set.contains("element1")
+        assert "element1" not in lww_set.value()
     
     def test_lww_set_concurrent_operations(self):
         """Test concurrent add/remove operations"""
         clock1 = VectorClock("node1")
         clock2 = VectorClock("node2")
         
-        lww_set1 = LWWElementSet(clock1)
-        lww_set2 = LWWElementSet(clock2)
+        lww_set1 = LWWElementSet(clock1, "node1")
+        lww_set2 = LWWElementSet(clock2, "node2")
         
         # Concurrent operations
         lww_set1.add("element1")  # node1: add at time 1
         lww_set2.remove("element1")  # node2: remove at time 1
         
         # Merge sets
-        state1 = lww_set1.get_state()
-        lww_set2.merge(state1)
+        state1 = lww_set1.to_dict()
+        lww_set2.merge(lww_set1)
         
         # LWW semantics: add wins when concurrent (or remove wins, depending on implementation)
         # Let's assume remove wins in case of ties
-        elements = lww_set2.elements()
+        elements = lww_set2.value()
         # Result depends on implementation choice for concurrent operations
     
     def test_lww_set_merge(self):
@@ -293,8 +295,8 @@ class TestLWWElementSet:
         clock1 = VectorClock("node1")
         clock2 = VectorClock("node2")
         
-        lww_set1 = LWWElementSet(clock1)
-        lww_set2 = LWWElementSet(clock2)
+        lww_set1 = LWWElementSet(clock1, "node1")
+        lww_set2 = LWWElementSet(clock2, "node2")
         
         # Add different elements
         lww_set1.add("element1")
@@ -303,16 +305,13 @@ class TestLWWElementSet:
         lww_set2.add("element2")
         lww_set2.add("element3")
         
-        # Get states and merge
-        state1 = lww_set1.get_state()
-        state2 = lww_set2.get_state()
-        
-        lww_set1.merge(state2)
-        lww_set2.merge(state1)
+        # Merge
+        lww_set1.merge(lww_set2)
+        lww_set2.merge(lww_set1)
         
         # Both sets should converge
-        elements1 = lww_set1.elements()
-        elements2 = lww_set2.elements()
+        elements1 = lww_set1.value()
+        elements2 = lww_set2.value()
         
         assert elements1 == elements2
         assert "element1" in elements1
@@ -322,7 +321,7 @@ class TestLWWElementSet:
     def test_lww_set_serialization(self):
         """Test LWW set serialization"""
         clock = VectorClock("node1")
-        lww_set = LWWElementSet(clock)
+        lww_set = LWWElementSet(clock, "node1")
         
         # Add some elements
         lww_set.add("element1")
@@ -330,26 +329,23 @@ class TestLWWElementSet:
         lww_set.remove("element1")
         
         # Get state
-        state = lww_set.get_state()
+        state = lww_set.to_dict()
         
         # Verify state structure
-        assert "add_map" in state
-        assert "remove_map" in state
-        assert "element1" in state["add_map"]
-        assert "element1" in state["remove_map"]
-        assert "element2" in state["add_map"]
+        assert "elements" in state
+        assert "element1" in state["elements"]
+        assert "element2" in state["elements"]
         
         # Test JSON serialization
         json_state = json.dumps(state)
         restored_state = json.loads(json_state)
         
-        # Create new set and merge
+        # Create new set and restore
         new_clock = VectorClock("node2")
-        new_lww_set = LWWElementSet(new_clock)
-        new_lww_set.merge(restored_state)
+        new_lww_set = LWWElementSet.from_dict(restored_state, new_clock, "node2")
         
         # Should have same elements
-        assert new_lww_set.elements() == lww_set.elements()
+        assert new_lww_set.value() == lww_set.value()
 
 
 class TestORSet:
@@ -711,7 +707,7 @@ class TestCRDTManager:
         final_counter1 = manager1.get_crdt("shared_counter")
         final_counter2 = manager2.get_crdt("shared_counter")
         
-        assert final_set1.elements() == final_set2.elements()
+        assert final_set1.value() == final_set2.value()
         assert final_counter1.value() == final_counter2.value() == 10
 
 
@@ -747,7 +743,7 @@ class TestCRDTNetworkIntegration:
         restored_counter = new_manager.get_crdt("test_counter")
         
         if restored_set and restored_counter:
-            assert restored_set.elements() == lww_set.elements()
+            assert restored_set.value() == lww_set.value()
             assert restored_counter.value() == counter.value()
     
     def test_crdt_partial_state_sync(self):
@@ -784,7 +780,7 @@ class TestCRDTNetworkIntegration:
         missing_counter = manager2.get_crdt("counter")
         
         assert synced_set_a is not None
-        elements = synced_set_a.elements()
+        elements = synced_set_a.value()
         assert "from_node1" in elements
         assert "from_node2" in elements
         
@@ -798,7 +794,7 @@ class TestCRDTPerformance:
     def test_large_lww_set_performance(self):
         """Test performance with large LWW sets"""
         clock = VectorClock("node1")
-        lww_set = LWWElementSet(clock)
+        lww_set = LWWElementSet(clock, "node1")
         
         # Add many elements
         start_time = time.time()
@@ -811,13 +807,13 @@ class TestCRDTPerformance:
         
         # Test element check performance
         start_time = time.time()
-        elements = lww_set.elements()
-        elements_duration = time.time() - start_time
+        elements = lww_set.value()
+        check_duration = time.time() - start_time
         
         # Performance assertions
         assert len(elements) == element_count
         assert add_duration < 5.0  # Should add 10k elements in <5 seconds
-        assert elements_duration < 1.0  # Should enumerate in <1 second
+        assert check_duration < 1.0  # Should enumerate in <1 second
     
     def test_counter_performance_under_load(self):
         """Test counter performance under high load"""
@@ -875,8 +871,12 @@ class TestCRDTPerformance:
         # Verify correctness
         for i in range(100):
             merged_set = manager1.get_crdt(f"set_{i}")
-            elements = merged_set.elements()
-            assert len(elements) == 200  # 100 from each node
+            elements = merged_set.value()
+            # Should have elements from both nodes
+            node1_count = sum(1 for e in elements if "node1" in e)
+            node2_count = sum(1 for e in elements if "node2" in e)
+            assert node1_count == 100
+            assert node2_count == 100
 
 
 if __name__ == '__main__':

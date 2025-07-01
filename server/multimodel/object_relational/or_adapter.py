@@ -56,6 +56,9 @@ class ObjectRelationalAdapter:
         # Inheritance hierarchy cache
         self.inheritance_cache = {}
 
+        # Object-relational tables metadata
+        self.or_tables = {}
+
         logging.info("ObjectRelationalAdapter initialized")
 
     def execute_query(self, plan: Dict[str, Any]) -> Dict[str, Any]:
@@ -211,8 +214,8 @@ class ObjectRelationalAdapter:
                     attr_dict = {}
                     for attr in attributes:
                         if isinstance(attr, dict) and "name" in attr and "type" in attr:
-                            # Store the type info, not the whole dict
-                            attr_dict[attr["name"]] = attr["type"]
+                            # Store the full attribute definition, not just the type
+                            attr_dict[attr["name"]] = attr
                         else:
                             raise ValueError(f"Invalid attribute definition: {attr}")
                     attributes = attr_dict
@@ -723,3 +726,25 @@ class ObjectRelationalAdapter:
                 conditions.append({"column": col, "operator": "=", "value": val})
 
         return conditions
+
+    def _resolve_inherited_columns(self, table_name: str) -> List[Dict]:
+        """Resolve inherited columns for a table (alias for compatibility)"""
+        try:
+            # Get table information
+            table_info = self.or_tables.get(table_name)
+            if not table_info:
+                return []
+            
+            # If table has inheritance, resolve from parent
+            parent_table = table_info.get("inherits")
+            if parent_table:
+                parent_schema = self.catalog_manager.get_table_schema(parent_table)
+                if parent_schema:
+                    own_columns = table_info.get("columns", [])
+                    return self._merge_inherited_columns(parent_schema, own_columns)
+            
+            # Return own columns if no inheritance
+            return table_info.get("columns", [])
+        except Exception as e:
+            logging.error(f"Error resolving inherited columns for {table_name}: {str(e)}")
+            return []

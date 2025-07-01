@@ -53,7 +53,7 @@ class Channel:
     def __init__(self, name: str, max_buffer_size: int = 1000):
         self.name = name
         self.max_buffer_size = max_buffer_size
-        self.subscribers: Set[str] = set()
+        self.subscribers: Dict[str, Subscription] = {}  # Changed from Set to Dict
         self.message_buffer: deque = deque(maxlen=max_buffer_size)
         self.stats = {
             'messages_published': 0,
@@ -62,17 +62,20 @@ class Channel:
         }
         self._lock = threading.RLock()
     
-    def add_subscriber(self, subscriber_id: str):
+    def add_subscriber(self, subscriber_id: str, subscription: Subscription = None):
         """Add subscriber to channel"""
         with self._lock:
             if subscriber_id not in self.subscribers:
-                self.subscribers.add(subscriber_id)
+                if subscription is None:
+                    subscription = Subscription(pattern=self.name)
+                self.subscribers[subscriber_id] = subscription
                 self.stats['total_subscribers'] += 1
     
     def remove_subscriber(self, subscriber_id: str):
         """Remove subscriber from channel"""
         with self._lock:
-            self.subscribers.discard(subscriber_id)
+            if subscriber_id in self.subscribers:
+                del self.subscribers[subscriber_id]
     
     def publish_message(self, message: Message):
         """Publish message to channel"""
@@ -89,6 +92,54 @@ class Channel:
         """Get recent messages from buffer"""
         with self._lock:
             return list(self.message_buffer)[-count:]
+
+    @property
+    def message_count(self) -> int:
+        """Get total number of messages published to this channel"""
+        with self._lock:
+            return self.stats['messages_published']
+
+    async def subscribe(self, callback: Optional[Callable[[Message], None]] = None) -> str:
+        """Subscribe to this channel and return subscription ID"""
+        import uuid
+        subscription_id = str(uuid.uuid4())
+        subscription = Subscription(pattern=self.name, callback=callback)
+        self.add_subscriber(subscription_id, subscription)
+        return subscription_id
+
+    async def unsubscribe(self, subscription_id: str) -> bool:
+        """Unsubscribe from this channel"""
+        if subscription_id in self.subscribers:
+            self.remove_subscriber(subscription_id)
+            return True
+        return False
+
+    async def publish(self, message: Message):
+        """Publish message and notify direct subscribers"""
+        self.publish_message(message)
+        # Notify direct channel subscribers
+        for subscriber_id, subscription in self.subscribers.items():
+            if subscription.callback:
+                try:
+                    if asyncio.iscoroutinefunction(subscription.callback):
+                        await subscription.callback(message)
+                    else:
+                        subscription.callback(message)
+                except Exception as e:
+                    logger.error(f"Error in channel callback {subscriber_id}: {e}")
+
+    def enable_history(self, max_messages: int):
+        """Enable message history with specified max messages"""
+        # Adjust the buffer size for history
+        self.max_buffer_size = max_messages
+        # Create new deque with new size and transfer existing messages
+        old_buffer = list(self.message_buffer)
+        self.message_buffer = deque(old_buffer, maxlen=max_messages)
+
+    def get_history(self) -> List[Message]:
+        """Get message history"""
+        with self._lock:
+            return list(self.message_buffer)
 
 
 class PubSubManager:
@@ -185,22 +236,30 @@ class PubSubManager:
                 self.stats['total_channels'] += 1
             
             return self.channels[channel_name]
+
+    async def get_or_create_channel(self, channel_name: str) -> Channel:
+        """Get or create a channel (async version for tests)"""
+        return self._get_or_create_channel(channel_name)
     
-    def subscribe(self, subscriber_id: str, channel: str, 
-                 callback: Optional[Callable[[Message], None]] = None) -> bool:
+    async def subscribe(self, channel: str, 
+                       callback: Optional[Callable[[Message], None]] = None) -> str:
         """Subscribe to a channel"""
+        # Auto-generate subscriber ID
+        import uuid
+        subscriber_id = str(uuid.uuid4())
+        
         try:
             with self._lock:
                 # Check subscriber limits
                 if len(self.subscribers) >= self.max_subscribers_per_channel * self.max_channels:
-                    return False
+                    return None
                 
                 # Get or create channel
                 channel_obj = self._get_or_create_channel(channel)
                 
                 # Check channel subscriber limit
                 if channel_obj.get_subscriber_count() >= self.max_subscribers_per_channel:
-                    return False
+                    return None
                 
                 # Create subscription
                 subscription = Subscription(pattern=channel, callback=callback)
@@ -215,20 +274,24 @@ class PubSubManager:
                 self.subscribers[subscriber_id] = subscription
                 
                 # Add to channel
-                channel_obj.add_subscriber(subscriber_id)
+                channel_obj.add_subscriber(subscriber_id, subscription)
                 
                 self.stats['total_subscribers'] += 1
                 
                 logger.debug(f"Subscriber {subscriber_id} subscribed to channel {channel}")
-                return True
+                return subscriber_id
                 
         except Exception as e:
             logger.error(f"Error subscribing {subscriber_id} to {channel}: {e}")
-            return False
+            return None
     
-    def psubscribe(self, subscriber_id: str, pattern: str,
-                  callback: Optional[Callable[[Message], None]] = None) -> bool:
+    async def psubscribe(self, pattern: str,
+                        callback: Optional[Callable[[Message], None]] = None) -> str:
         """Subscribe to channels matching a pattern"""
+        # Auto-generate subscriber ID
+        import uuid
+        subscriber_id = str(uuid.uuid4())
+        
         try:
             with self._lock:
                 # Create subscription
@@ -250,52 +313,49 @@ class PubSubManager:
                 self.stats['pattern_subscriptions'] += 1
                 
                 logger.debug(f"Subscriber {subscriber_id} subscribed to pattern {pattern}")
-                return True
+                return subscriber_id
                 
         except Exception as e:
             logger.error(f"Error pattern subscribing {subscriber_id} to {pattern}: {e}")
-            return False
+            return None
     
-    def unsubscribe(self, subscriber_id: str, channel: Optional[str] = None) -> bool:
-        """Unsubscribe from channel(s)"""
+    async def unsubscribe(self, channel: str, subscription_id: str) -> bool:
+        """Unsubscribe from channel using subscription ID"""
         try:
             with self._lock:
-                if subscriber_id not in self.subscribers:
+                if subscription_id not in self.subscribers:
                     return False
                 
-                subscription = self.subscribers[subscriber_id]
+                subscription = self.subscribers[subscription_id]
                 
-                if channel is None or subscription.pattern == channel:
-                    # Remove from all relevant places
-                    if subscription.pattern in self.channels:
-                        self.channels[subscription.pattern].remove_subscriber(subscriber_id)
-                    
-                    # Remove from pattern subscribers
-                    for pattern, subs in self.pattern_subscribers.items():
-                        subs.discard(subscriber_id)
-                    
-                    # Clean up empty pattern sets
-                    empty_patterns = [p for p, subs in self.pattern_subscribers.items() if len(subs) == 0]
-                    for pattern in empty_patterns:
-                        del self.pattern_subscribers[pattern]
-                        self.stats['pattern_subscriptions'] -= 1
-                    
-                    # Remove subscription
-                    del self.subscribers[subscriber_id]
-                    
-                    # Remove queue
-                    if subscriber_id in self.subscriber_queues:
-                        del self.subscriber_queues[subscriber_id]
-                    
-                    self.stats['total_subscribers'] -= 1
-                    
-                    logger.debug(f"Subscriber {subscriber_id} unsubscribed")
-                    return True
+                # Remove from channel if it matches
+                if subscription.pattern == channel and channel in self.channels:
+                    self.channels[channel].remove_subscriber(subscription_id)
                 
-                return False
+                # Remove from pattern subscribers
+                for pattern, subs in self.pattern_subscribers.items():
+                    subs.discard(subscription_id)
+                
+                # Clean up empty pattern sets
+                empty_patterns = [p for p, subs in self.pattern_subscribers.items() if len(subs) == 0]
+                for pattern in empty_patterns:
+                    del self.pattern_subscribers[pattern]
+                    self.stats['pattern_subscriptions'] -= 1
+                
+                # Remove subscription
+                del self.subscribers[subscription_id]
+                
+                # Remove queue
+                if subscription_id in self.subscriber_queues:
+                    del self.subscriber_queues[subscription_id]
+                
+                self.stats['total_subscribers'] -= 1
+                
+                logger.debug(f"Subscriber {subscription_id} unsubscribed from {channel}")
+                return True
                 
         except Exception as e:
-            logger.error(f"Error unsubscribing {subscriber_id}: {e}")
+            logger.error(f"Error unsubscribing {subscription_id} from {channel}: {e}")
             return False
     
     async def publish(self, channel: str, data: Any) -> int:
@@ -348,7 +408,10 @@ class PubSubManager:
             # Callback-based notification
             if subscription.callback:
                 try:
-                    subscription.callback(message)
+                    if asyncio.iscoroutinefunction(subscription.callback):
+                        await subscription.callback(message)
+                    else:
+                        subscription.callback(message)
                     return True
                 except Exception as e:
                     logger.error(f"Error in subscriber callback {subscriber_id}: {e}")

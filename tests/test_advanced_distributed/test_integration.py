@@ -38,79 +38,85 @@ class TestRaftWALIntegration:
     """Test integration between RAFT consensus and WAL persistence"""
     
     @pytest.fixture
-    async def raft_wal_system(self):
+    def raft_wal_system(self):
         """Setup integrated RAFT + WAL system"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Setup WAL
-            wal_config = WALConfig(
-                wal_dir=temp_dir,
-                max_segment_size=1024 * 1024,
-                sync_interval=0.1
-            )
-            wal = WriteAheadLog(wal_config)
-            wal.start()
-            
-            # Setup RAFT with WAL integration
-            raft_config = RaftConfig(
-                election_timeout_min=0.5,
-                election_timeout_max=1.0,
-                heartbeat_interval=0.2
-            )
-            
-            # Mock send functions for isolated testing
-            async def mock_send_vote_request(peer, request):
-                return Mock(term=1, vote_granted=True)
-            
-            async def mock_send_append_entries(peer, request):
-                return Mock(term=1, success=True, last_log_index=len(request.entries))
-            
-            raft_node = RaftNode("node1", ["node2", "node3"], raft_config)
-            raft_node.send_vote_request = mock_send_vote_request
-            raft_node.send_append_entries = mock_send_append_entries
-            
-            # Integration callback to persist to WAL
-            def on_command_applied(command):
-                entry = WALEntry(
-                    entry_type=WALEntryType.SET,
-                    key=command.get('key', 'unknown'),
-                    value=command.get('value'),
-                    metadata={'raft_term': raft_node.current_term}
+        async def _setup():
+            temp_dir = tempfile.mkdtemp()
+            try:
+                # Setup WAL
+                wal_config = WALConfig(
+                    wal_dir=temp_dir,
+                    segment_size_mb=1,
+                    sync_interval_ms=100
                 )
-                wal.write_entry(entry)
-            
-            raft_node.on_command_applied = on_command_applied
-            raft_node.start()
-            
-            yield {
-                'raft': raft_node,
-                'wal': wal,
-                'temp_dir': temp_dir
-            }
-            
-            raft_node.stop()
-            wal.stop()
+                wal = WriteAheadLog(wal_config)
+                await wal.start()
+                
+                # Setup RAFT with WAL integration
+                raft_config = RaftConfig()
+                raft_config.election_timeout_min = 0.5
+                raft_config.election_timeout_max = 1.0
+                raft_config.heartbeat_interval = 0.2
+                
+                # Mock send functions for isolated testing
+                async def mock_send_vote_request(peer, request):
+                    return Mock(term=1, vote_granted=True)
+                
+                async def mock_send_append_entries(peer, request):
+                    return Mock(term=1, success=True, last_log_index=len(request.entries))
+                
+                raft_node = RaftNode("node1", ["node2", "node3"], raft_config)
+                raft_node.send_vote_request = mock_send_vote_request
+                raft_node.send_append_entries = mock_send_append_entries
+                
+                # Integration callback to persist to WAL
+                def on_command_applied(command):
+                    entry = WALEntry(
+                        entry_type=WALEntryType.SET,
+                        key=command.get('key', 'unknown'),
+                        value=command.get('value'),
+                        metadata={'raft_term': raft_node.current_term}
+                    )
+                    asyncio.create_task(wal.write_entry(entry))
+                
+                raft_node.on_command_applied = on_command_applied
+                raft_node.start()
+                
+                return {
+                    'raft': raft_node,
+                    'wal': wal,
+                    'temp_dir': temp_dir
+                }
+            except Exception:
+                import shutil
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                raise
+        
+        return _setup()
     
     @pytest.mark.asyncio
     async def test_raft_wal_command_persistence(self, raft_wal_system):
         """Test that RAFT commands are persisted via WAL"""
-        raft = raft_wal_system['raft']
-        wal = raft_wal_system['wal']
+        system = await raft_wal_system
+        raft = system['raft']
+        wal = system['wal']
         
         # Add command to RAFT
         command = {'key': 'test_key', 'value': 'test_value', 'type': 'SET'}
-        success = await raft.add_command(command)
+        success = await raft.append_command(command)
         assert success
         
         # Wait for processing
         await asyncio.sleep(0.5)
         
         # Verify WAL contains the entry
-        entries = wal.read_entries_from(0)
-        assert len(entries) > 0
+        entries = await wal.read_entries_from(0)
+        entries_list = [entry async for entry in entries]
+        assert len(entries_list) > 0
         
         # Find our entry
         our_entry = None
-        for entry in entries:
+        for entry in entries_list:
             if entry.key == 'test_key':
                 our_entry = entry
                 break
@@ -119,6 +125,12 @@ class TestRaftWALIntegration:
         assert our_entry.value == 'test_value'
         assert our_entry.entry_type == WALEntryType.SET
         assert our_entry.metadata.get('raft_term') == raft.current_term
+        
+        # Cleanup
+        raft.stop()
+        await wal.stop()
+        import shutil
+        shutil.rmtree(system['temp_dir'], ignore_errors=True)
     
     @pytest.mark.asyncio
     async def test_raft_recovery_from_wal(self, raft_wal_system):
