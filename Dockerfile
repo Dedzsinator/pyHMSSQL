@@ -34,23 +34,23 @@ COPY k8s/ ./k8s/
 WORKDIR /app/server
 RUN echo "Building optimized B+ tree..." && \
     if [ -f setup.py ]; then \
-        echo "Found setup.py, building with setup.py..."; \
-        python setup.py build_ext --inplace; \
+    echo "Found setup.py, building with setup.py..."; \
+    python setup.py build_ext --inplace; \
     fi && \
     if [ -f build_bptree.sh ]; then \
-        echo "Found build_bptree.sh, executing..."; \
-        chmod +x build_bptree.sh && ./build_bptree.sh; \
+    echo "Found build_bptree.sh, executing..."; \
+    chmod +x build_bptree.sh && ./build_bptree.sh; \
     fi && \
     if [ -f requirements_bptree.txt ]; then \
-        echo "Installing B+ tree specific requirements..."; \
-        pip install --no-cache-dir -r requirements_bptree.txt; \
+    echo "Installing B+ tree specific requirements..."; \
+    pip install --no-cache-dir -r requirements_bptree.txt; \
     fi && \
     echo "Verifying B+ tree compilation..." && \
     python -c "import sys; \
-try: \
+    try: \
     from bptree_optimized import BPTreeOptimized; \
     print('Optimized B+ tree successfully compiled and importable'); \
-except ImportError as e: \
+    except ImportError as e: \
     print(f'Failed to import optimized B+ tree: {e}'); \
     sys.exit(1)" && \
     echo "B+ tree build completed successfully"
@@ -58,12 +58,12 @@ except ImportError as e: \
 # Build Java client with modern dependencies
 WORKDIR /app/client/java_client
 RUN if [ -f pom.xml ]; then \
-        echo "Building Java client with Maven..."; \
-        mvn clean compile package -DskipTests -q && \
-        echo "Java client build completed"; \
-        ls -la target/ || echo "No target directory found"; \
+    echo "Building Java client with Maven..."; \
+    mvn clean compile package -DskipTests -q && \
+    echo "Java client build completed"; \
+    ls -la target/ || echo "No target directory found"; \
     else \
-        echo "No Java client pom.xml found, skipping Java build"; \
+    echo "No Java client pom.xml found, skipping Java build"; \
     fi
 
 # Return to app directory

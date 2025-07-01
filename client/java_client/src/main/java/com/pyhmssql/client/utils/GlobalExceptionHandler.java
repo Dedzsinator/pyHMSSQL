@@ -12,20 +12,21 @@ import javafx.scene.control.Alert;
 public class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static GlobalExceptionHandler instance;
-    
-    private GlobalExceptionHandler() {}
-    
+
+    private GlobalExceptionHandler() {
+    }
+
     public static synchronized GlobalExceptionHandler getInstance() {
         if (instance == null) {
             instance = new GlobalExceptionHandler();
         }
         return instance;
     }
-    
+
     @Override
     public void uncaughtException(Thread thread, Throwable throwable) {
         logger.error("Uncaught exception in thread: {}", thread.getName(), throwable);
-        
+
         // Handle JavaFX Application Thread exceptions specially
         if (Platform.isFxApplicationThread()) {
             handleFxException(throwable);
@@ -33,7 +34,7 @@ public class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
             handleBackgroundException(thread, throwable);
         }
     }
-    
+
     private void handleFxException(Throwable throwable) {
         try {
             // Show error dialog on JavaFX thread
@@ -52,11 +53,11 @@ public class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
             logger.error("Failed to handle JavaFX exception", e);
         }
     }
-    
+
     private void handleBackgroundException(Thread thread, Throwable throwable) {
         // Log background thread exceptions
         logger.error("Background thread {} encountered an error", thread.getName(), throwable);
-        
+
         // Optionally notify the user depending on the error severity
         if (isCriticalError(throwable)) {
             Platform.runLater(() -> {
@@ -68,37 +69,37 @@ public class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
             });
         }
     }
-    
+
     private String getErrorMessage(Throwable throwable) {
         String message = throwable.getMessage();
         if (message == null || message.trim().isEmpty()) {
             message = throwable.getClass().getSimpleName();
         }
-        
+
         // Truncate very long messages
         if (message.length() > 200) {
             message = message.substring(0, 197) + "...";
         }
-        
+
         return message;
     }
-    
+
     private boolean isCriticalError(Throwable throwable) {
         // Define what constitutes a critical error that should notify the user
         return throwable instanceof OutOfMemoryError ||
-               throwable instanceof StackOverflowError ||
-               throwable instanceof InternalError ||
-               (throwable instanceof RuntimeException && 
-                throwable.getMessage() != null && 
-                throwable.getMessage().toLowerCase().contains("critical"));
+                throwable instanceof StackOverflowError ||
+                throwable instanceof InternalError ||
+                (throwable instanceof RuntimeException &&
+                        throwable.getMessage() != null &&
+                        throwable.getMessage().toLowerCase().contains("critical"));
     }
-    
+
     /**
      * Static method to handle exceptions programmatically
      */
     public static void handleException(String context, Throwable throwable) {
         logger.error("Exception in context: {}", context, throwable);
-        
+
         if (Platform.isFxApplicationThread()) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Error");
@@ -107,13 +108,13 @@ public class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
             alert.showAndWait();
         }
     }
-    
+
     /**
      * Static method to handle exceptions with user-friendly messages
      */
     public static void handleException(String context, Throwable throwable, String userMessage) {
         logger.error("Exception in context: {}", context, throwable);
-        
+
         if (Platform.isFxApplicationThread()) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Error");

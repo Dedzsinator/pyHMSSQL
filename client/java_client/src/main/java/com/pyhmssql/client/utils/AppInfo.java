@@ -16,7 +16,7 @@ public class AppInfo {
     private static final String BUILD_TIME;
     private static final String GIT_COMMIT;
     private static final String APPLICATION_NAME;
-    
+
     static {
         Properties props = new Properties();
         try (InputStream is = AppInfo.class.getResourceAsStream("/app.properties")) {
@@ -26,72 +26,72 @@ public class AppInfo {
         } catch (IOException e) {
             // Ignore - will use defaults
         }
-        
+
         VERSION = props.getProperty("app.version", "2.0.0");
         BUILD_DATE = props.getProperty("app.build.date", getCurrentDate());
         BUILD_TIME = props.getProperty("app.build.time", getCurrentTime());
         GIT_COMMIT = props.getProperty("app.git.commit", "unknown");
         APPLICATION_NAME = props.getProperty("app.name", "pyHMSSQL Professional Client");
     }
-    
+
     public static String getVersion() {
         return VERSION;
     }
-    
+
     public static String getBuildDate() {
         return BUILD_DATE;
     }
-    
+
     public static String getBuildTime() {
         return BUILD_TIME;
     }
-    
+
     public static String getGitCommit() {
         return GIT_COMMIT;
     }
-    
+
     public static String getApplicationName() {
         return APPLICATION_NAME;
     }
-    
+
     public static String getFullVersion() {
-        return String.format("%s v%s (Build: %s %s)", 
-                           APPLICATION_NAME, VERSION, BUILD_DATE, BUILD_TIME);
+        return String.format("%s v%s (Build: %s %s)",
+                APPLICATION_NAME, VERSION, BUILD_DATE, BUILD_TIME);
     }
-    
+
     public static String getBuildInfo() {
-        return String.format("Version: %s\nBuild Date: %s %s\nGit Commit: %s", 
-                           VERSION, BUILD_DATE, BUILD_TIME, GIT_COMMIT);
+        return String.format("Version: %s\nBuild Date: %s %s\nGit Commit: %s",
+                VERSION, BUILD_DATE, BUILD_TIME, GIT_COMMIT);
     }
-    
+
     private static String getCurrentDate() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
     }
-    
+
     private static String getCurrentTime() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
     }
-    
+
     // System information
     public static String getJavaVersion() {
         return System.getProperty("java.version");
     }
-    
+
     public static String getJavaVendor() {
         return System.getProperty("java.vendor");
     }
-    
+
     public static String getJavaFxVersion() {
         return System.getProperty("javafx.version", "unknown");
     }
-    
+
     public static String getOperatingSystem() {
-        return String.format("%s %s (%s)", 
-                           System.getProperty("os.name"),
-                           System.getProperty("os.version"),
-                           System.getProperty("os.arch"));
+        return String.format("%s %s (%s)",
+                System.getProperty("os.name"),
+                System.getProperty("os.version"),
+                System.getProperty("os.arch"));
     }
-    
+
     public static String getSystemInfo() {
         StringBuilder sb = new StringBuilder();
         sb.append("Application: ").append(getFullVersion()).append("\n");
