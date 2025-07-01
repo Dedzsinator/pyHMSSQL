@@ -10,9 +10,11 @@ from typing import Optional
 # Import ONLY the optimized implementation
 try:
     from bptree_optimized import BPlusTreeOptimized
+
     OPTIMIZED_AVAILABLE = True
 except ImportError:
     from bptree_adapter import BPlusTree as BPlusTreeOptimized
+
     OPTIMIZED_AVAILABLE = False
 
 # Setup logging
@@ -64,7 +66,9 @@ class BPlusTreeFactory:
                 logger.info("Successfully loaded optimized B+ tree from %s", file_path)
                 return tree
         except Exception as e:
-            logger.error("Failed to load optimized B+ tree from %s: %s", file_path, str(e))
+            logger.error(
+                "Failed to load optimized B+ tree from %s: %s", file_path, str(e)
+            )
             return None
 
         logger.error("Could not load B+ tree from %s", file_path)

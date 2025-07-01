@@ -152,7 +152,11 @@ class SQLGlotParser:
 
         # Handle RELEASE SAVEPOINT
         if sql.strip().upper().startswith("RELEASE SAVEPOINT"):
-            return {"type": "RELEASE_SAVEPOINT", "operation": "RELEASE_SAVEPOINT", "query": sql}
+            return {
+                "type": "RELEASE_SAVEPOINT",
+                "operation": "RELEASE_SAVEPOINT",
+                "query": sql,
+            }
 
         # Handle multimodel operations
         multimodel_result = self._try_multimodel_parsing(sql)
@@ -331,7 +335,9 @@ class SQLGlotParser:
                 result.update({"type": "ROLLBACK", "operation": "ROLLBACK"})
             elif "SAVEPOINT" in original_sql.upper():
                 if "RELEASE" in original_sql.upper():
-                    result.update({"type": "RELEASE_SAVEPOINT", "operation": "RELEASE_SAVEPOINT"})
+                    result.update(
+                        {"type": "RELEASE_SAVEPOINT", "operation": "RELEASE_SAVEPOINT"}
+                    )
                 else:
                     result.update({"type": "SAVEPOINT", "operation": "SAVEPOINT"})
             else:

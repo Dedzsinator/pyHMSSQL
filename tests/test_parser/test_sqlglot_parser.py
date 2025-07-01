@@ -400,7 +400,7 @@ class TestAdvancedDMLFeatures:
         ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email)
         """
         result = parser.parse(sql)
-        
+
         assert result["type"] == "INSERT"
         assert result["table"] == "users"
         assert result["columns"] == ["id", "name", "email"]
@@ -415,7 +415,7 @@ class TestAdvancedDMLFeatures:
         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
         """
         result = parser.parse(sql)
-        
+
         assert result["type"] == "INSERT"
         assert result["table"] == "users"
         # The ON CONFLICT part should be in the query
@@ -430,7 +430,7 @@ class TestAdvancedDMLFeatures:
         WHEN NOT MATCHED THEN INSERT (id, name) VALUES (source.id, source.name)
         """
         result = parser.parse(sql)
-        
+
         assert result["type"] == "MERGE"
         assert result["operation"] == "MERGE"
         assert result["target_table"] == "users"
@@ -439,7 +439,7 @@ class TestAdvancedDMLFeatures:
         """Test REPLACE statement (MySQL-specific)."""
         sql = "REPLACE INTO users (id, name) VALUES (1, 'John')"
         result = parser.parse(sql)
-        
+
         assert result["type"] == "REPLACE"
         assert result["operation"] == "REPLACE"
         assert result["table"] == "users"
@@ -448,7 +448,7 @@ class TestAdvancedDMLFeatures:
         """Test TRUNCATE TABLE statement."""
         sql = "TRUNCATE TABLE logs"
         result = parser.parse(sql)
-        
+
         assert result["type"] == "TRUNCATE"
         assert result["operation"] == "TRUNCATE"
         # May or may not have table field depending on implementation
@@ -458,7 +458,7 @@ class TestAdvancedDMLFeatures:
         """Test TRUNCATE with multiple tables."""
         sql = "TRUNCATE TABLE logs, audit_trail"
         result = parser.parse(sql)
-        
+
         assert result["type"] == "TRUNCATE"
         # Should contain the table names in the query string
         assert "logs" in result["query"]
@@ -476,7 +476,7 @@ class TestMultimodelQueries:
         """Test DOCUMENT.INSERT statement."""
         sql = "DOCUMENT.INSERT(users, {'name': 'John', 'age': 30})"
         result = parser.parse(sql)
-        
+
         # May not be fully supported yet, but should parse without crashing
         assert "query" in result
         assert "users" in result["query"]
@@ -485,7 +485,7 @@ class TestMultimodelQueries:
         """Test DOCUMENT.FIND statement."""
         sql = "DOCUMENT.FIND(users, {'age': {'$gt': 25}})"
         result = parser.parse(sql)
-        
+
         # Should parse without crashing
         assert "query" in result
         assert "users" in result["query"]
@@ -494,7 +494,7 @@ class TestMultimodelQueries:
         """Test JSON-based queries that are supported."""
         sql = "SELECT JSON_EXTRACT(data, '$.name') FROM users WHERE JSON_VALID(data)"
         result = parser.parse(sql)
-        
+
         assert result["type"] == "SELECT"
         assert result["tables"] == ["users"]
 
@@ -508,7 +508,7 @@ class TestMultimodelQueries:
         )
         """
         result = parser.parse(sql)
-        
+
         assert result["type"] == "CREATE_TABLE"
         assert result["table"] == "employees"
 
@@ -536,7 +536,7 @@ class TestComplexQueryStructures:
         SELECT * FROM employee_hierarchy ORDER BY level, name
         """
         result = parser.parse(sql)
-        
+
         assert result["type"] == "SELECT" or result["type"] == "WITH"
         # Should contain CTE information
         assert "with" in result or "cte" in result
@@ -552,7 +552,7 @@ class TestComplexQueryStructures:
         FROM employees
         """
         result = parser.parse(sql)
-        
+
         assert result["type"] == "SELECT"
         # Should detect window functions
         assert "window" in str(result).lower() or "over" in str(result).lower()
@@ -571,7 +571,7 @@ class TestComplexQueryStructures:
         )
         """
         result = parser.parse(sql)
-        
+
         assert result["type"] == "SELECT"
         # Should handle subqueries
         assert "subquery" in str(result).lower() or len(result.get("tables", [])) >= 1
@@ -588,7 +588,7 @@ class TestComplexQueryStructures:
         GROUP BY user_id
         """
         result = parser.parse(sql)
-        
+
         assert result["type"] == "AGGREGATE" or result["type"] == "SELECT"
         assert "case" in str(result).lower() or "extract" in str(result).lower()
 
@@ -730,10 +730,12 @@ class TestTransactionAndControlStatements:
             ("SAVEPOINT sp1", "SAVEPOINT"),
             ("RELEASE SAVEPOINT sp1", "RELEASE_SAVEPOINT"),
         ]
-        
+
         for sql, expected_type in transaction_queries:
             result = parser.parse(sql)
-            assert result["type"] == expected_type or result["operation"] == expected_type
+            assert (
+                result["type"] == expected_type or result["operation"] == expected_type
+            )
 
     def test_session_management(self, parser):
         """Test session management statements."""
@@ -744,7 +746,7 @@ class TestTransactionAndControlStatements:
             "SHOW TABLES",
             "USE database_name",
         ]
-        
+
         for sql in session_queries:
             result = parser.parse(sql)
             assert "type" in result
@@ -758,7 +760,7 @@ class TestTransactionAndControlStatements:
             ("EXPLAIN SELECT * FROM users", "EXPLAIN"),
             ("DESCRIBE users", "DESCRIBE"),
         ]
-        
+
         for sql, expected_type in special_queries:
             result = parser.parse(sql)
             assert result["type"] == expected_type

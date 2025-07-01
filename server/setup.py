@@ -8,7 +8,13 @@ import numpy as np
 import os
 
 # Compiler optimization flags
-extra_compile_args = ["-O3", "-ffast-math", "-march=native", "-mtune=native", "-ftree-vectorize"]
+extra_compile_args = [
+    "-O3",
+    "-ffast-math",
+    "-march=native",
+    "-mtune=native",
+    "-ftree-vectorize",
+]
 extra_link_args = ["-O3"]
 
 # Include directories

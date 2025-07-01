@@ -335,66 +335,72 @@ class UnifiedQueryOptimizer:
                 try:
                     # Implement proper plan-to-QueryNode conversion
                     from query_transformer import QueryNode
-                    
+
                     # Convert execution plan to QueryNode for transformation
                     if isinstance(optimized_plan, dict):
-                        if optimized_plan.get('type') == 'SELECT':
+                        if optimized_plan.get("type") == "SELECT":
                             # Convert SQL SELECT plan to QueryNode
                             query_node = QueryNode(
                                 node_type="SELECT",
-                                columns=optimized_plan.get('columns', []),
-                                tables=optimized_plan.get('tables', []),
-                                conditions=optimized_plan.get('where_conditions', [])
+                                columns=optimized_plan.get("columns", []),
+                                tables=optimized_plan.get("tables", []),
+                                conditions=optimized_plan.get("where_conditions", []),
                             )
-                        elif optimized_plan.get('type') == 'JOIN':
+                        elif optimized_plan.get("type") == "JOIN":
                             # Convert JOIN plan to QueryNode
                             query_node = QueryNode(
                                 node_type="JOIN",
-                                operator=optimized_plan.get('join_type', 'INNER'),
-                                tables=optimized_plan.get('tables', []),
-                                conditions=optimized_plan.get('join_conditions', [])
+                                operator=optimized_plan.get("join_type", "INNER"),
+                                tables=optimized_plan.get("tables", []),
+                                conditions=optimized_plan.get("join_conditions", []),
                             )
-                        elif optimized_plan.get('type') == 'AGGREGATION':
+                        elif optimized_plan.get("type") == "AGGREGATION":
                             # Convert aggregation plan to QueryNode
                             query_node = QueryNode(
                                 node_type="AGGREGATE",
-                                columns=optimized_plan.get('group_by', []),
-                                tables=optimized_plan.get('tables', []),
-                                conditions=optimized_plan.get('having_conditions', [])
+                                columns=optimized_plan.get("group_by", []),
+                                tables=optimized_plan.get("tables", []),
+                                conditions=optimized_plan.get("having_conditions", []),
                             )
                         else:
                             # Create a generic scan node for other plan types
                             query_node = QueryNode(
                                 node_type="SCAN",
-                                tables=optimized_plan.get('tables', ['unknown']),
-                                columns=optimized_plan.get('columns', [])
+                                tables=optimized_plan.get("tables", ["unknown"]),
+                                columns=optimized_plan.get("columns", []),
                             )
                     else:
                         # Handle non-dict plans
                         query_node = QueryNode(
-                            node_type="SCAN",
-                            tables=[str(optimized_plan)],
-                            columns=[]
+                            node_type="SCAN", tables=[str(optimized_plan)], columns=[]
                         )
-                    
+
                     # Apply transformations to the query node
-                    if hasattr(self.transformation_engine, 'apply_transformations'):
-                        transformed_node = self.transformation_engine.apply_transformations(query_node)
-                        
+                    if hasattr(self.transformation_engine, "apply_transformations"):
+                        transformed_node = (
+                            self.transformation_engine.apply_transformations(query_node)
+                        )
+
                         # Convert back to execution plan if transformation was successful
                         if transformed_node and transformed_node != query_node:
                             # Update the original plan with transformed information
                             if isinstance(optimized_plan, dict):
-                                optimized_plan['columns'] = transformed_node.columns
-                                optimized_plan['tables'] = transformed_node.tables
-                                optimized_plan['conditions'] = transformed_node.conditions
+                                optimized_plan["columns"] = transformed_node.columns
+                                optimized_plan["tables"] = transformed_node.tables
+                                optimized_plan["conditions"] = (
+                                    transformed_node.conditions
+                                )
                                 if transformed_node.operator:
-                                    optimized_plan['operator'] = transformed_node.operator
-                        
+                                    optimized_plan["operator"] = (
+                                        transformed_node.operator
+                                    )
+
                         logging.debug("Query transformations applied successfully")
                     else:
-                        logging.debug("Transformation engine not available or incomplete")
-                        
+                        logging.debug(
+                            "Transformation engine not available or incomplete"
+                        )
+
                 except Exception as e:
                     logging.warning(f"Transformation error: {e}")
                     # Continue with original plan

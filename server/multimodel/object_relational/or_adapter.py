@@ -734,7 +734,7 @@ class ObjectRelationalAdapter:
             table_info = self.or_tables.get(table_name)
             if not table_info:
                 return []
-            
+
             # If table has inheritance, resolve from parent
             parent_table = table_info.get("inherits")
             if parent_table:
@@ -742,9 +742,11 @@ class ObjectRelationalAdapter:
                 if parent_schema:
                     own_columns = table_info.get("columns", [])
                     return self._merge_inherited_columns(parent_schema, own_columns)
-            
+
             # Return own columns if no inheritance
             return table_info.get("columns", [])
         except Exception as e:
-            logging.error(f"Error resolving inherited columns for {table_name}: {str(e)}")
+            logging.error(
+                f"Error resolving inherited columns for {table_name}: {str(e)}"
+            )
             return []

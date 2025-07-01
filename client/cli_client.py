@@ -22,6 +22,7 @@ from shared.constants import SERVER_HOST, SERVER_PORT
 DISCOVERY_PORT = 9998
 DISCOVERY_TIMEOUT = 3  # seconds
 
+
 class ServerDiscoverer:
     """Discovers HMSSQL servers on the network"""
 
@@ -29,7 +30,7 @@ class ServerDiscoverer:
         self.servers = {}
         self.discovery_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.discovery_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.discovery_socket.bind(('', DISCOVERY_PORT))
+        self.discovery_socket.bind(("", DISCOVERY_PORT))
         self.running = False
         self.discovery_thread = None
 
@@ -46,17 +47,19 @@ class ServerDiscoverer:
 
     def _discover(self):
         """Listen for server broadcasts"""
-        self.discovery_socket.settimeout(0.5)  # Use a short timeout for responsive stopping
+        self.discovery_socket.settimeout(
+            0.5
+        )  # Use a short timeout for responsive stopping
 
         while self.running:
             try:
                 data, _ = self.discovery_socket.recvfrom(4096)
                 try:
-                    server_info = json.loads(data.decode('utf-8'))
-                    if server_info.get('service') == 'HMSSQL':
+                    server_info = json.loads(data.decode("utf-8"))
+                    if server_info.get("service") == "HMSSQL":
                         # Use host:port as a unique key
                         server_key = f"{server_info['host']}:{server_info['port']}"
-                        server_info['last_seen'] = time.time()
+                        server_info["last_seen"] = time.time()
                         self.servers[server_key] = server_info
                 except json.JSONDecodeError:
                     pass
@@ -69,12 +72,13 @@ class ServerDiscoverer:
             # Clean up old servers (not seen in the last minute)
             current_time = time.time()
             for key in list(self.servers.keys()):
-                if current_time - self.servers[key]['last_seen'] > 60:
+                if current_time - self.servers[key]["last_seen"] > 60:
                     del self.servers[key]
 
     def get_available_servers(self):
         """Return list of available servers"""
         return list(self.servers.values())
+
 
 class ServerSelectionMenu:
     """Interactive menu for server selection"""
@@ -116,7 +120,9 @@ class ServerSelectionMenu:
                         if y >= height - 3:
                             break
 
-                        server_text = f"{server['name']} ({server['host']}:{server['port']})"
+                        server_text = (
+                            f"{server['name']} ({server['host']}:{server['port']})"
+                        )
 
                         if i == self.selected_index:
                             stdscr.attron(curses.color_pair(1))
@@ -129,7 +135,9 @@ class ServerSelectionMenu:
 
                 # Display instructions
                 instructions = "↑/↓: Navigate | Enter: Select | r: Refresh | q: Quit"
-                stdscr.addstr(height-2, (width - len(instructions)) // 2, instructions)
+                stdscr.addstr(
+                    height - 2, (width - len(instructions)) // 2, instructions
+                )
 
                 # Refresh the screen
                 stdscr.refresh()
@@ -139,15 +147,18 @@ class ServerSelectionMenu:
 
                 if key == curses.KEY_UP and self.selected_index > 0:
                     self.selected_index -= 1
-                elif key == curses.KEY_DOWN and self.selected_index < len(self.servers) - 1:
+                elif (
+                    key == curses.KEY_DOWN
+                    and self.selected_index < len(self.servers) - 1
+                ):
                     self.selected_index += 1
-                elif key == ord('\n') and self.servers:  # Enter key
+                elif key == ord("\n") and self.servers:  # Enter key
                     selected_server = self.servers[self.selected_index]
                     break
-                elif key == ord('r'):  # Refresh
+                elif key == ord("r"):  # Refresh
                     # Return None with refresh flag
                     return None, True
-                elif key == ord('q'):  # Quit
+                elif key == ord("q"):  # Quit
                     break
 
             return selected_server, False
@@ -159,12 +170,14 @@ class ServerSelectionMenu:
             curses.echo()
             curses.endwin()
 
+
 class DBMSClient(cmd.Cmd):
     """
     Command Line Interface for HMS-SQL Database
     """
 
-    intro = textwrap.dedent("""
+    intro = textwrap.dedent(
+        """
     ╔═══════════════════════════════════════════════════╗
     ║           Welcome to HMS-SQL Database CLI         ║
     ╠═══════════════════════════════════════════════════╣
@@ -173,15 +186,59 @@ class DBMSClient(cmd.Cmd):
     ║ Type 'register <username>' to create an account   ║
     ║ Type 'exit' to quit                               ║
     ╚═══════════════════════════════════════════════════╝
-    """)
+    """
+    )
     prompt = "hms-sql> "
 
     SQL_KEYWORDS = [
-        "SELECT", "FROM", "WHERE", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "TABLE",
-        "DATABASE", "INDEX", "VIEW", "INTO", "VALUES", "SET", "AND", "OR", "NOT", "NULL",
-        "IS", "IN", "LIKE", "GROUP", "BY", "HAVING", "ORDER", "LIMIT", "JOIN", "INNER",
-        "LEFT", "RIGHT", "OUTER", "ON", "AS", "AVG", "COUNT", "MIN", "MAX", "SUM", "DISTINCT",
-        "UNION", "ALL", "CASE", "WHEN", "THEN", "ELSE", "END", "SCRIPT"
+        "SELECT",
+        "FROM",
+        "WHERE",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "CREATE",
+        "DROP",
+        "TABLE",
+        "DATABASE",
+        "INDEX",
+        "VIEW",
+        "INTO",
+        "VALUES",
+        "SET",
+        "AND",
+        "OR",
+        "NOT",
+        "NULL",
+        "IS",
+        "IN",
+        "LIKE",
+        "GROUP",
+        "BY",
+        "HAVING",
+        "ORDER",
+        "LIMIT",
+        "JOIN",
+        "INNER",
+        "LEFT",
+        "RIGHT",
+        "OUTER",
+        "ON",
+        "AS",
+        "AVG",
+        "COUNT",
+        "MIN",
+        "MAX",
+        "SUM",
+        "DISTINCT",
+        "UNION",
+        "ALL",
+        "CASE",
+        "WHEN",
+        "THEN",
+        "ELSE",
+        "END",
+        "SCRIPT",
     ]
 
     def __init__(self, host=SERVER_HOST, port=SERVER_PORT):
@@ -203,21 +260,21 @@ class DBMSClient(cmd.Cmd):
     def onecmd(self, line):
         """Override onecmd to handle multi-line statements terminated by semicolon."""
         # If the line contains 'query' and doesn't end with semicolon, it might be multi-line
-        if line.strip().startswith("query ") and not line.strip().endswith(';'):
+        if line.strip().startswith("query ") and not line.strip().endswith(";"):
             # Extract the SQL part after 'query '
             sql_part = line[6:].strip()  # Remove 'query ' prefix
 
             # Build complete query until semicolon
             complete_sql = sql_part
 
-            while not complete_sql.endswith(';'):
+            while not complete_sql.endswith(";"):
                 try:
                     print("... ", end="", flush=True)
                     additional_line = input()
 
                     # If user just types semicolon, add it and break
-                    if additional_line.strip() == ';':
-                        complete_sql += ';'
+                    if additional_line.strip() == ";":
+                        complete_sql += ";"
                         break
 
                     # Add the line to the complete SQL
@@ -228,7 +285,7 @@ class DBMSClient(cmd.Cmd):
                     return False
 
             # Remove semicolon and call do_query - clean up any extra whitespace
-            if complete_sql.endswith(';'):
+            if complete_sql.endswith(";"):
                 complete_sql = complete_sql[:-1].strip()
 
             return self.do_query(complete_sql)
@@ -245,7 +302,7 @@ class DBMSClient(cmd.Cmd):
         readline.parse_and_bind("tab: complete")
 
         # Set word delimiters - include common SQL operators
-        readline.set_completer_delims(' \t\n`~!@#$%^&*()-=+[{]}\\|;:\'",<>/?')
+        readline.set_completer_delims(" \t\n`~!@#$%^&*()-=+[{]}\\|;:'\",<>/?")
 
     def complete(self, text, state):
         """Complete the current text with SQL keywords and table names"""
@@ -261,34 +318,46 @@ class DBMSClient(cmd.Cmd):
         # Check if this is the beginning of a statement - suggest SQL keywords
         if not line.strip() or line.strip() == text:
             # Add keywords that match the text
-            completions = [kw for kw in self.SQL_KEYWORDS if kw.lower().startswith(lower_text)]
+            completions = [
+                kw for kw in self.SQL_KEYWORDS if kw.lower().startswith(lower_text)
+            ]
 
         # Check for table name completions after FROM, INTO, UPDATE, JOIN, etc.
-        elif re.search(r'\b(from|into|update|join|on)\s+\w*$', line.lower()):
-            completions = [tbl for tbl in self.tables_cache if tbl.lower().startswith(lower_text)]
+        elif re.search(r"\b(from|into|update|join|on)\s+\w*$", line.lower()):
+            completions = [
+                tbl for tbl in self.tables_cache if tbl.lower().startswith(lower_text)
+            ]
 
         # Check for column name completions after SELECT, WHERE, GROUP BY, etc.
-        elif re.search(r'\bselect\s+\w*$', line.lower()) or \
-             re.search(r'\bwhere\s+\w*$', line.lower()) or \
-             re.search(r'\bgroup\s+by\s+\w*$', line.lower()) or \
-             re.search(r'\border\s+by\s+\w*$', line.lower()):
+        elif (
+            re.search(r"\bselect\s+\w*$", line.lower())
+            or re.search(r"\bwhere\s+\w*$", line.lower())
+            or re.search(r"\bgroup\s+by\s+\w*$", line.lower())
+            or re.search(r"\border\s+by\s+\w*$", line.lower())
+        ):
 
             # Combine all cached columns
             all_columns = set()
             for cols in self.columns_cache.values():
                 all_columns.update(cols)
 
-            completions = [col for col in all_columns if col.lower().startswith(lower_text)]
+            completions = [
+                col for col in all_columns if col.lower().startswith(lower_text)
+            ]
 
         # Check for keywords after certain points in a query
-        elif re.search(r'\bselect\b.*\bfrom\b.*$', line.lower()):
+        elif re.search(r"\bselect\b.*\bfrom\b.*$", line.lower()):
             # After FROM, suggest WHERE, GROUP BY, ORDER BY, etc.
             next_keywords = ["WHERE", "GROUP BY", "ORDER BY", "LIMIT", "HAVING"]
-            completions = [kw for kw in next_keywords if kw.lower().startswith(lower_text)]
+            completions = [
+                kw for kw in next_keywords if kw.lower().startswith(lower_text)
+            ]
 
         # Default - complete with SQL keywords
         else:
-            completions = [kw for kw in self.SQL_KEYWORDS if kw.lower().startswith(lower_text)]
+            completions = [
+                kw for kw in self.SQL_KEYWORDS if kw.lower().startswith(lower_text)
+            ]
 
         # Return the state-th completion
         if state < len(completions):
@@ -304,7 +373,7 @@ class DBMSClient(cmd.Cmd):
         request = {
             "action": "query",
             "session_id": self.session_id,
-            "query": "SHOW TABLES"
+            "query": "SHOW TABLES",
         }
 
         response = self.send_request(request)
@@ -323,7 +392,7 @@ class DBMSClient(cmd.Cmd):
         request = {
             "action": "query",
             "session_id": self.session_id,
-            "query": f"SHOW COLUMNS FROM {table_name}"
+            "query": f"SHOW COLUMNS FROM {table_name}",
         }
 
         response = self.send_request(request)
@@ -331,7 +400,9 @@ class DBMSClient(cmd.Cmd):
         if isinstance(response, dict) and "rows" in response:
             # Extract column names from rows (assuming column name is first field)
             self.columns_cache[table_name] = [row[0] for row in response["rows"]]
-            print(f"Loaded {len(self.columns_cache[table_name])} columns for table {table_name}")
+            print(
+                f"Loaded {len(self.columns_cache[table_name])} columns for table {table_name}"
+            )
 
     def select_server(self):
         """Discover and select an available server"""
@@ -355,9 +426,11 @@ class DBMSClient(cmd.Cmd):
                 selected_server, refresh = menu.display()
 
                 if not refresh and selected_server:
-                    self.host = selected_server['host']
-                    self.port = selected_server['port']
-                    print(f"Selected server: {selected_server['name']} ({self.host}:{self.port})")
+                    self.host = selected_server["host"]
+                    self.port = selected_server["port"]
+                    print(
+                        f"Selected server: {selected_server['name']} ({self.host}:{self.port})"
+                    )
                     return True
 
                 if not refresh:
@@ -386,8 +459,7 @@ class DBMSClient(cmd.Cmd):
         password = getpass.getpass("Password: ")
 
         # Prepare request
-        request = {"action": "login",
-                   "username": username, "password": password}
+        request = {"action": "login", "username": username, "password": password}
 
         # Send request to server
         response = self.send_request(request)
@@ -413,8 +485,7 @@ class DBMSClient(cmd.Cmd):
             return
 
         username = args[0]
-        role = "admin" if len(
-            args) > 1 and args[1].lower() == "admin" else "user"
+        role = "admin" if len(args) > 1 and args[1].lower() == "admin" else "user"
 
         password = getpass.getpass("Password: ")
         confirm_pwd = getpass.getpass("Confirm Password: ")
@@ -473,8 +544,7 @@ class DBMSClient(cmd.Cmd):
         command = "VISUALIZE " + arg
 
         # Prepare request
-        request = {"action": "query",
-                   "session_id": self.session_id, "query": command}
+        request = {"action": "query", "session_id": self.session_id, "query": command}
 
         # Send request to server
         response = self.send_request(request)
@@ -546,7 +616,11 @@ class DBMSClient(cmd.Cmd):
     def display_result(self, result):
         """Display the result of a query in a formatted table"""
         # First check for common error formats
-        if isinstance(result, dict) and result.get("status") == "error" and "error" in result:
+        if (
+            isinstance(result, dict)
+            and result.get("status") == "error"
+            and "error" in result
+        ):
             print(f"Error: {result['error']}")
             return
 
@@ -556,7 +630,12 @@ class DBMSClient(cmd.Cmd):
             return
 
         # Check for results that have both a message and tabular data (rows/columns)
-        if isinstance(result, dict) and "message" in result and "rows" in result and "columns" in result:
+        if (
+            isinstance(result, dict)
+            and "message" in result
+            and "rows" in result
+            and "columns" in result
+        ):
             # Print the message but continue to display the table
             print(f"{result['message']}")
 
@@ -578,15 +657,20 @@ class DBMSClient(cmd.Cmd):
 
             # Print header
             print("\n" + "-" * (sum(col_widths) + (3 * len(columns)) - 3))
-            header = " | ".join(str(col).ljust(col_widths[i]) for i, col in enumerate(columns))
+            header = " | ".join(
+                str(col).ljust(col_widths[i]) for i, col in enumerate(columns)
+            )
             print(header)
             print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
 
             # Print rows
             for row in rows:
                 row_str = " | ".join(
-                    (str(cell) if cell is not None else "NULL").ljust(col_widths[i])
-                    if i < len(col_widths) else (str(cell) if cell is not None else "NULL")
+                    (
+                        (str(cell) if cell is not None else "NULL").ljust(col_widths[i])
+                        if i < len(col_widths)
+                        else (str(cell) if cell is not None else "NULL")
+                    )
                     for i, cell in enumerate(row)
                 )
                 print(row_str)
@@ -613,11 +697,17 @@ class DBMSClient(cmd.Cmd):
 
                     if status == "success":
                         # Check if this is a data result (from SELECT)
-                        if "data" in stmt_result and isinstance(stmt_result["data"], dict):
+                        if "data" in stmt_result and isinstance(
+                            stmt_result["data"], dict
+                        ):
                             data_result = stmt_result["data"]
 
                             # If it has columns and rows, it's a SELECT result
-                            if data_result.get("type") == "data" and "columns" in data_result and "rows" in data_result:
+                            if (
+                                data_result.get("type") == "data"
+                                and "columns" in data_result
+                                and "rows" in data_result
+                            ):
                                 columns = data_result["columns"]
                                 rows = data_result["rows"]
 
@@ -627,29 +717,57 @@ class DBMSClient(cmd.Cmd):
                                     print("Query returned no rows.")
                                 else:
                                     # Calculate column widths
-                                    col_widths = [max(len(str(col)), 10) for col in columns]
+                                    col_widths = [
+                                        max(len(str(col)), 10) for col in columns
+                                    ]
                                     for row in rows:
                                         for i, cell in enumerate(row):
                                             if i < len(col_widths):
-                                                cell_str = str(cell) if cell is not None else "NULL"
-                                                col_widths[i] = max(col_widths[i], len(cell_str))
+                                                cell_str = (
+                                                    str(cell)
+                                                    if cell is not None
+                                                    else "NULL"
+                                                )
+                                                col_widths[i] = max(
+                                                    col_widths[i], len(cell_str)
+                                                )
 
                                     # Print header
-                                    print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
-                                    header = " | ".join(str(col).ljust(col_widths[i]) for i, col in enumerate(columns))
+                                    print(
+                                        "-" * (sum(col_widths) + (3 * len(columns)) - 3)
+                                    )
+                                    header = " | ".join(
+                                        str(col).ljust(col_widths[i])
+                                        for i, col in enumerate(columns)
+                                    )
                                     print(header)
-                                    print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
+                                    print(
+                                        "-" * (sum(col_widths) + (3 * len(columns)) - 3)
+                                    )
 
                                     # Print rows
                                     for row in rows:
                                         row_str = " | ".join(
-                                            (str(cell) if cell is not None else "NULL").ljust(col_widths[i])
-                                            if i < len(col_widths) else (str(cell) if cell is not None else "NULL")
+                                            (
+                                                (
+                                                    str(cell)
+                                                    if cell is not None
+                                                    else "NULL"
+                                                ).ljust(col_widths[i])
+                                                if i < len(col_widths)
+                                                else (
+                                                    str(cell)
+                                                    if cell is not None
+                                                    else "NULL"
+                                                )
+                                            )
                                             for i, cell in enumerate(row)
                                         )
                                         print(row_str)
 
-                                    print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
+                                    print(
+                                        "-" * (sum(col_widths) + (3 * len(columns)) - 3)
+                                    )
                                     print(f"Total: {len(rows)} row(s) returned")
                             elif "message" in data_result:
                                 print(f"Result: {data_result['message']}")
@@ -682,15 +800,20 @@ class DBMSClient(cmd.Cmd):
 
             # Print header with bold formatting
             print("\n" + "-" * (sum(col_widths) + (3 * len(columns)) - 3))
-            header = " | ".join(str(col).ljust(col_widths[i]) for i, col in enumerate(columns))
+            header = " | ".join(
+                str(col).ljust(col_widths[i]) for i, col in enumerate(columns)
+            )
             print(header)
             print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
 
             # Print rows
             for row in rows:
                 row_str = " | ".join(
-                    (str(cell) if cell is not None else "NULL").ljust(col_widths[i])
-                    if i < len(col_widths) else (str(cell) if cell is not None else "NULL")
+                    (
+                        (str(cell) if cell is not None else "NULL").ljust(col_widths[i])
+                        if i < len(col_widths)
+                        else (str(cell) if cell is not None else "NULL")
+                    )
                     for i, cell in enumerate(row)
                 )
                 print(row_str)
@@ -702,7 +825,9 @@ class DBMSClient(cmd.Cmd):
         # Handle insert/update/delete success with row count
         if isinstance(result, dict) and "rows_affected" in result:
             operation = result.get("operation", "Operation")
-            print(f"{operation} completed successfully. {result['rows_affected']} row(s) affected.")
+            print(
+                f"{operation} completed successfully. {result['rows_affected']} row(s) affected."
+            )
             return
 
         # Handle list of dictionaries (unpacked results)
@@ -723,7 +848,9 @@ class DBMSClient(cmd.Cmd):
 
             # Print header
             print("\n" + "-" * (sum(col_widths) + (3 * len(columns)) - 3))
-            header = " | ".join(col.ljust(col_widths[i]) for i, col in enumerate(columns))
+            header = " | ".join(
+                col.ljust(col_widths[i]) for i, col in enumerate(columns)
+            )
             print(header)
             print("-" * (sum(col_widths) + (3 * len(columns)) - 3))
 
@@ -765,16 +892,12 @@ class DBMSClient(cmd.Cmd):
             return
 
         # Extract table names for columns cache (if it's a regular SELECT)
-        table_match = re.search(r'\bFROM\s+(\w+)', sql_query, re.IGNORECASE)
+        table_match = re.search(r"\bFROM\s+(\w+)", sql_query, re.IGNORECASE)
         if table_match and table_match.group(1) not in self.columns_cache:
             self.refresh_columns_cache(table_match.group(1))
 
         # Prepare request
-        request = {
-            "action": "query",
-            "session_id": self.session_id,
-            "query": sql_query
-        }
+        request = {"action": "query", "session_id": self.session_id, "query": sql_query}
 
         # Send request to server
         response = self.send_request(request)
@@ -799,22 +922,22 @@ class DBMSClient(cmd.Cmd):
         for _, line in enumerate(lines, 1):
             # Skip empty lines and comments
             line = line.strip()
-            if not line or line.startswith('--') or line.startswith('#'):
+            if not line or line.startswith("--") or line.startswith("#"):
                 continue
 
             # Check if we're starting a BATCH INSERT
             if not current_command and line.upper().startswith("BATCH INSERT"):
                 current_command = line
                 in_batch_insert = True
-                open_parens = line.count('(')
-                close_parens = line.count(')')
+                open_parens = line.count("(")
+                close_parens = line.count(")")
                 continue
 
             # If we're in a BATCH INSERT, collect lines until the statement is complete
             if in_batch_insert:
                 current_command += " " + line
-                open_parens += line.count('(')
-                close_parens += line.count(')')
+                open_parens += line.count("(")
+                close_parens += line.count(")")
 
                 # Check if the BATCH INSERT is complete
                 if open_parens <= close_parens:
@@ -825,7 +948,7 @@ class DBMSClient(cmd.Cmd):
                     request = {
                         "action": "query",
                         "session_id": self.session_id,
-                        "query": current_command
+                        "query": current_command,
                     }
 
                     response = self.send_request(request)
@@ -856,11 +979,7 @@ class DBMSClient(cmd.Cmd):
             total_commands += 1
             print(f"\nExecuting command {total_commands}: {line}")
 
-            request = {
-                "action": "query",
-                "session_id": self.session_id,
-                "query": line
-            }
+            request = {"action": "query", "session_id": self.session_id, "query": line}
 
             response = self.send_request(request)
 
@@ -895,7 +1014,9 @@ class DBMSClient(cmd.Cmd):
             REPLICATE STATUS
         """
         if not arg:
-            print("Error: Missing arguments. Use 'REPLICATE AS REPLICA OF host port' or 'REPLICATE STATUS'")
+            print(
+                "Error: Missing arguments. Use 'REPLICATE AS REPLICA OF host port' or 'REPLICATE STATUS'"
+            )
             return
 
         args = arg.split()
@@ -915,7 +1036,9 @@ class DBMSClient(cmd.Cmd):
                         host = info.get("host", "unknown")
                         port = info.get("port", "unknown")
                         lag = info.get("lag", 0)
-                        print(f"  - {replica_id[:8]}: {host}:{port} ({status}, lag: {lag})")
+                        print(
+                            f"  - {replica_id[:8]}: {host}:{port} ({status}, lag: {lag})"
+                        )
                 elif role == "replica":
                     primary_id = response.get("primary_id", "unknown")
                     lag = response.get("lag", 0)
@@ -924,7 +1047,12 @@ class DBMSClient(cmd.Cmd):
             else:
                 print(f"Error: {response.get('error', 'Unknown error')}")
 
-        elif len(args) >= 5 and args[0].upper() == "AS" and args[1].upper() == "REPLICA" and args[2].upper() == "OF":
+        elif (
+            len(args) >= 5
+            and args[0].upper() == "AS"
+            and args[1].upper() == "REPLICA"
+            and args[2].upper() == "OF"
+        ):
             # Register as replica
             primary_host = args[3]
             primary_port = args[4]
@@ -935,26 +1063,32 @@ class DBMSClient(cmd.Cmd):
                 print(f"Error: Port must be a number")
                 return
 
-            response = self._send_command({
-                "command": "set_as_replica",
-                "primary_host": primary_host,
-                "primary_port": primary_port,
-                "action": "node"
-            })
+            response = self._send_command(
+                {
+                    "command": "set_as_replica",
+                    "primary_host": primary_host,
+                    "primary_port": primary_port,
+                    "action": "node",
+                }
+            )
 
             if response and response.get("status") == "success":
                 print(response.get("message", "Successfully registered as replica"))
             else:
                 print(f"Error: {response.get('error', 'Unknown error')}")
         else:
-            print("Error: Invalid syntax. Use 'REPLICATE AS REPLICA OF host port' or 'REPLICATE STATUS'")
+            print(
+                "Error: Invalid syntax. Use 'REPLICATE AS REPLICA OF host port' or 'REPLICATE STATUS'"
+            )
 
     def do_PROMOTE(self, _):
         """
         Promote this node to primary (use in case primary fails)
         Usage: PROMOTE
         """
-        response = self._send_command({"command": "promote_to_primary", "action": "node"})
+        response = self._send_command(
+            {"command": "promote_to_primary", "action": "node"}
+        )
 
         if response and response.get("status") == "success":
             print(response.get("message", "Successfully promoted to primary"))
@@ -990,8 +1124,16 @@ class DBMSClient(cmd.Cmd):
             return
 
         # Get the indices of the database and table name columns
-        db_idx = result["columns"].index("DATABASE_NAME") if "DATABASE_NAME" in result["columns"] else 0
-        table_idx = result["columns"].index("TABLE_NAME") if "TABLE_NAME" in result["columns"] else 1
+        db_idx = (
+            result["columns"].index("DATABASE_NAME")
+            if "DATABASE_NAME" in result["columns"]
+            else 0
+        )
+        table_idx = (
+            result["columns"].index("TABLE_NAME")
+            if "TABLE_NAME" in result["columns"]
+            else 1
+        )
 
         # Organize tables by database
         databases = {}
@@ -1067,8 +1209,7 @@ class DBMSClient(cmd.Cmd):
 
 
 def main():
-    """_summary_
-    """
+    """_summary_"""
     # Get server host and port from command line arguments if provided
     host = SERVER_HOST
     port = SERVER_PORT

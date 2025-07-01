@@ -50,7 +50,7 @@ class JSONPathParser:
             # Add the array itself
             if prefix:
                 paths.append((prefix, document))
-            
+
             # Add individual array elements
             for i, item in enumerate(document):
                 current_path = f"{prefix}.{i}" if prefix else str(i)
@@ -132,11 +132,13 @@ class JSONPathParser:
         return parts
 
     @staticmethod
-    def evaluate_filter(document: Dict[str, Any], filter_conditions: Dict[str, Any]) -> bool:
+    def evaluate_filter(
+        document: Dict[str, Any], filter_conditions: Dict[str, Any]
+    ) -> bool:
         """Evaluate filter conditions against a document"""
         for path, condition in filter_conditions.items():
             value = JSONPathParser.get_value_by_path(document, path)
-            
+
             if isinstance(condition, dict):
                 # Handle comparison operators
                 for op, expected in condition.items():
@@ -166,7 +168,7 @@ class JSONPathParser:
                 # Direct equality comparison
                 if value != condition:
                     return False
-        
+
         return True
 
 
@@ -247,10 +249,12 @@ class DocumentStoreAdapter:
                         collection_name = collection_info.get("name")
                         schema_name = collection_info.get("schema", "public")
                         collection_key = f"{schema_name}.{collection_name}"
-                        
+
                         if collection_key not in self.collections:
-                            self.collections[collection_key] = DocumentCollection.from_dict(collection_info)
-                        
+                            self.collections[collection_key] = (
+                                DocumentCollection.from_dict(collection_info)
+                            )
+
                         # Restore primary index
                         primary_index = BPTree(order=100)
                         self.path_indexes[f"{collection_key}._id"] = primary_index
@@ -949,7 +953,7 @@ class DocumentStoreAdapter:
                 # Group stage - basic implementation
                 group_spec = stage["$group"]
                 group_id = group_spec.get("_id")
-                
+
                 if group_id is None:
                     # Group all documents together
                     grouped = {"_id": None, "items": results}
@@ -965,7 +969,8 @@ class DocumentStoreAdapter:
                                     else:
                                         path = path.lstrip("$")
                                         total = sum(
-                                            JSONPathParser.get_value_by_path(doc, path) or 0
+                                            JSONPathParser.get_value_by_path(doc, path)
+                                            or 0
                                             for doc in results
                                         )
                                         grouped[field] = total
@@ -974,15 +979,19 @@ class DocumentStoreAdapter:
                                     values = [
                                         JSONPathParser.get_value_by_path(doc, path)
                                         for doc in results
-                                        if JSONPathParser.get_value_by_path(doc, path) is not None
+                                        if JSONPathParser.get_value_by_path(doc, path)
+                                        is not None
                                     ]
-                                    grouped[field] = sum(values) / len(values) if values else 0
+                                    grouped[field] = (
+                                        sum(values) / len(values) if values else 0
+                                    )
                                 elif op == "$max":
                                     path = path.lstrip("$")
                                     values = [
                                         JSONPathParser.get_value_by_path(doc, path)
                                         for doc in results
-                                        if JSONPathParser.get_value_by_path(doc, path) is not None
+                                        if JSONPathParser.get_value_by_path(doc, path)
+                                        is not None
                                     ]
                                     grouped[field] = max(values) if values else None
                                 elif op == "$min":
@@ -990,28 +999,31 @@ class DocumentStoreAdapter:
                                     values = [
                                         JSONPathParser.get_value_by_path(doc, path)
                                         for doc in results
-                                        if JSONPathParser.get_value_by_path(doc, path) is not None
+                                        if JSONPathParser.get_value_by_path(doc, path)
+                                        is not None
                                     ]
                                     grouped[field] = min(values) if values else None
                     results = [grouped]
                 else:
                     # Group by specific field
                     groups = {}
-                    group_id_path = group_id.lstrip("$") if isinstance(group_id, str) else group_id
-                    
+                    group_id_path = (
+                        group_id.lstrip("$") if isinstance(group_id, str) else group_id
+                    )
+
                     for doc in results:
                         key = JSONPathParser.get_value_by_path(doc, group_id_path)
                         key = str(key) if key is not None else "null"
-                        
+
                         if key not in groups:
                             groups[key] = {"_id": key, "items": []}
                         groups[key]["items"].append(doc)
-                    
+
                     # Apply aggregation functions
                     grouped_results = []
                     for group_key, group_data in groups.items():
                         group_result = {"_id": group_key}
-                        
+
                         for field, aggregation in group_spec.items():
                             if field == "_id":
                                 continue
@@ -1019,11 +1031,16 @@ class DocumentStoreAdapter:
                                 for op, path in aggregation.items():
                                     if op == "$sum":
                                         if path == 1:
-                                            group_result[field] = len(group_data["items"])
+                                            group_result[field] = len(
+                                                group_data["items"]
+                                            )
                                         else:
                                             path = path.lstrip("$")
                                             total = sum(
-                                                JSONPathParser.get_value_by_path(doc, path) or 0
+                                                JSONPathParser.get_value_by_path(
+                                                    doc, path
+                                                )
+                                                or 0
                                                 for doc in group_data["items"]
                                             )
                                             group_result[field] = total
@@ -1032,12 +1049,17 @@ class DocumentStoreAdapter:
                                         values = [
                                             JSONPathParser.get_value_by_path(doc, path)
                                             for doc in group_data["items"]
-                                            if JSONPathParser.get_value_by_path(doc, path) is not None
+                                            if JSONPathParser.get_value_by_path(
+                                                doc, path
+                                            )
+                                            is not None
                                         ]
-                                        group_result[field] = sum(values) / len(values) if values else 0
-                        
+                                        group_result[field] = (
+                                            sum(values) / len(values) if values else 0
+                                        )
+
                         grouped_results.append(group_result)
-                    
+
                     results = grouped_results
 
             elif "$unwind" in stage:
@@ -1047,11 +1069,11 @@ class DocumentStoreAdapter:
                     unwind_path = unwind_path.lstrip("$")
                 elif isinstance(unwind_path, dict):
                     unwind_path = unwind_path.get("path", "").lstrip("$")
-                
+
                 unwound_results = []
                 for doc in results:
                     array_value = JSONPathParser.get_value_by_path(doc, unwind_path)
-                    
+
                     if isinstance(array_value, list):
                         for item in array_value:
                             new_doc = doc.copy()
@@ -1066,7 +1088,7 @@ class DocumentStoreAdapter:
                     else:
                         # If not an array, keep original document
                         unwound_results.append(doc)
-                
+
                 results = unwound_results
 
         return results

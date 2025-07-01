@@ -491,14 +491,14 @@ class TableStatistics:
         try:
             # Parse condition for better selectivity estimation
             condition_str = str(condition).upper()
-            
+
             # Extract column name and operator from condition
             column_name = None
             operator = None
             value = None
-            
+
             # Simple condition parsing for common patterns
-            for op in ['=', '>', '<', '>=', '<=', '!=', '<>', 'LIKE', 'IN']:
+            for op in ["=", ">", "<", ">=", "<=", "!=", "<>", "LIKE", "IN"]:
                 if op in condition_str:
                     parts = condition_str.split(op, 1)
                     if len(parts) == 2:
@@ -506,26 +506,26 @@ class TableStatistics:
                         operator = op
                         value = parts[1].strip()
                         break
-            
+
             if column_name and operator:
                 # Get column statistics if available
                 table_stats = self.table_statistics.get(table_name, {})
-                column_stats = table_stats.get('columns', {}).get(column_name, {})
-                
+                column_stats = table_stats.get("columns", {}).get(column_name, {})
+
                 if column_stats:
-                    distinct_values = column_stats.get('distinct_values', 1)
-                    null_count = column_stats.get('null_count', 0)
-                    total_count = table_stats.get('row_count', row_count)
-                    
+                    distinct_values = column_stats.get("distinct_values", 1)
+                    null_count = column_stats.get("null_count", 0)
+                    total_count = table_stats.get("row_count", row_count)
+
                     # Adjust selectivity based on operator and statistics
-                    if operator == '=':
+                    if operator == "=":
                         # Equality: 1/distinct_values (uniform distribution assumption)
                         selectivity = 1.0 / max(distinct_values, 1)
-                    elif operator in ['>', '<', '>=', '<=']:
+                    elif operator in [">", "<", ">=", "<="]:
                         # Range queries: estimate based on value position
-                        min_val = column_stats.get('min_value')
-                        max_val = column_stats.get('max_value')
-                        
+                        min_val = column_stats.get("min_value")
+                        max_val = column_stats.get("max_value")
+
                         if min_val is not None and max_val is not None and value:
                             try:
                                 # Convert value to appropriate type for comparison
@@ -533,10 +533,14 @@ class TableStatistics:
                                     value_num = float(value.strip("'\""))
                                     val_range = max_val - min_val
                                     if val_range > 0:
-                                        if operator in ['<', '<=']:
-                                            selectivity = (value_num - min_val) / val_range
-                                        elif operator in ['>', '>=']:
-                                            selectivity = (max_val - value_num) / val_range
+                                        if operator in ["<", "<="]:
+                                            selectivity = (
+                                                value_num - min_val
+                                            ) / val_range
+                                        elif operator in [">", ">="]:
+                                            selectivity = (
+                                                max_val - value_num
+                                            ) / val_range
                                         else:
                                             selectivity = 0.5  # Default for range
                                         selectivity = max(0.01, min(0.99, selectivity))
@@ -544,12 +548,12 @@ class TableStatistics:
                                         selectivity = 0.5
                             except (ValueError, TypeError):
                                 selectivity = 0.3  # Default for range queries
-                    elif operator in ['!=', '<>']:
+                    elif operator in ["!=", "<>"]:
                         # Not equal: complement of equality
                         selectivity = 1.0 - (1.0 / max(distinct_values, 1))
-                    elif operator == 'LIKE':
+                    elif operator == "LIKE":
                         # LIKE patterns - rough estimates
-                        if '%' in value:
+                        if "%" in value:
                             if value.startswith("'%") and value.endswith("%'"):
                                 selectivity = 0.1  # Contains pattern
                             elif value.startswith("'%"):
@@ -560,24 +564,26 @@ class TableStatistics:
                                 selectivity = 0.01  # Complex pattern
                         else:
                             selectivity = 1.0 / max(distinct_values, 1)  # Exact match
-                    elif operator == 'IN':
+                    elif operator == "IN":
                         # IN clause: estimate based on number of values
                         try:
-                            in_values = value.strip("()").split(',')
+                            in_values = value.strip("()").split(",")
                             num_in_values = len(in_values)
-                            selectivity = min(0.5, num_in_values / max(distinct_values, 1))
+                            selectivity = min(
+                                0.5, num_in_values / max(distinct_values, 1)
+                            )
                         except:
                             selectivity = 0.1
-                    
+
                     # Account for null values if null_count is significant
                     if null_count > 0 and total_count > 0:
                         null_fraction = null_count / total_count
                         # Reduce selectivity proportionally to null fraction
-                        selectivity *= (1 - null_fraction)
-                
+                        selectivity *= 1 - null_fraction
+
                 # Apply reasonable bounds
                 selectivity = max(0.001, min(0.99, selectivity))
-            
+
         except Exception as e:
             # If analysis fails, fall back to default
             logging.debug(f"Condition analysis failed for {condition}: {e}")

@@ -3,6 +3,7 @@
 Returns:
     _type_: _description_
 """
+
 import json
 from bson import ObjectId
 import logging
@@ -46,14 +47,15 @@ def get_current_database_or_error(catalog_manager, include_type=True):
 def send_data(sock, data):
     """Send JSON data to a socket with size prefix"""
     # Serialize the data to JSON
-    json_data = json.dumps(data).encode('utf-8')
-    
-    # Send the size of the data as 4 bytes (big-endian) 
-    size_bytes = len(json_data).to_bytes(4, byteorder='big')
+    json_data = json.dumps(data).encode("utf-8")
+
+    # Send the size of the data as 4 bytes (big-endian)
+    size_bytes = len(json_data).to_bytes(4, byteorder="big")
     sock.sendall(size_bytes)
-    
+
     # Send the actual JSON data
     sock.sendall(json_data)
+
 
 def receive_data(sock):
     """Receive JSON data from a socket with size prefix"""
@@ -61,19 +63,19 @@ def receive_data(sock):
     size_bytes = sock.recv(4)
     if not size_bytes:
         raise RuntimeError("Connection closed by remote host")
-    
-    size = int.from_bytes(size_bytes, byteorder='big')
-    
+
+    size = int.from_bytes(size_bytes, byteorder="big")
+
     # Read the JSON data according to the size
     data_bytes = bytearray()
     bytes_remaining = size
-    
+
     while bytes_remaining > 0:
         chunk = sock.recv(min(bytes_remaining, 4096))
         if not chunk:
             raise RuntimeError("Connection closed by remote host")
         data_bytes.extend(chunk)
         bytes_remaining -= len(chunk)
-    
+
     # Deserialize the JSON data
-    return json.loads(data_bytes.decode('utf-8'))
+    return json.loads(data_bytes.decode("utf-8"))

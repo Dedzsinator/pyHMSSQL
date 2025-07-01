@@ -38,7 +38,7 @@ class HMSSQLRestClient:
         response = requests.post(
             f"{self.base_url}/login",
             json={"username": username, "password": password},
-            timeout=30
+            timeout=30,
         )
 
         data = response.json()
@@ -64,7 +64,7 @@ class HMSSQLRestClient:
         response = requests.post(
             f"{self.base_url}/register",
             json={"username": username, "password": password, "role": role},
-            timeout=30
+            timeout=30,
         )
 
         return response.json()
@@ -79,7 +79,9 @@ class HMSSQLRestClient:
         if not self.session_id:
             return {"error": "Not logged in", "status": "error"}
 
-        response = requests.post(f"{self.base_url}/logout", headers=self.headers, timeout=30)
+        response = requests.post(
+            f"{self.base_url}/logout", headers=self.headers, timeout=30
+        )
 
         data = response.json()
         if response.status_code == 200:
@@ -105,7 +107,7 @@ class HMSSQLRestClient:
             f"{self.base_url}/query",
             json={"query": query},
             headers=self.headers,
-            timeout=30
+            timeout=30,
         )
 
         return response.json()
@@ -120,7 +122,9 @@ class HMSSQLRestClient:
         if not self.session_id:
             return {"error": "Not logged in", "status": "error"}
 
-        response = requests.get(f"{self.base_url}/databases", headers=self.headers, timeout=30)
+        response = requests.get(
+            f"{self.base_url}/databases", headers=self.headers, timeout=30
+        )
 
         return response.json()
 
@@ -180,9 +184,7 @@ class HMSSQLRestClient:
             return {"error": "Not logged in", "status": "error"}
 
         response = requests.get(
-            f"{self.base_url}/table/{table_name}",
-            headers=self.headers,
-            timeout=30
+            f"{self.base_url}/table/{table_name}", headers=self.headers, timeout=30
         )
 
         return response.json()
@@ -197,7 +199,9 @@ class HMSSQLRestClient:
         if not self.session_id:
             return {"error": "Not logged in", "status": "error"}
 
-        response = requests.get(f"{self.base_url}/status", headers=self.headers, timeout=30)
+        response = requests.get(
+            f"{self.base_url}/status", headers=self.headers, timeout=30
+        )
 
         return response.json()
 
@@ -218,10 +222,11 @@ class HMSSQLRestClient:
             f"{self.base_url}/use_database",
             json={"database": database},
             headers=self.headers,
-            timeout=30
+            timeout=30,
         )
 
         return response.json()
+
 
 # Example usage
 if __name__ == "__main__":
@@ -264,24 +269,28 @@ if __name__ == "__main__":
 
     # Create a table
     print("\nCreating test table...")
-    create_table_result = client.execute_query("""
+    create_table_result = client.execute_query(
+        """
         CREATE TABLE IF NOT EXISTS users (
             id INT PRIMARY KEY,
             name VARCHAR(100),
             email VARCHAR(100),
             age INT
         )
-    """)
+    """
+    )
     print(json.dumps(create_table_result, indent=2))
 
     # Insert some data
     print("\nInserting test data...")
-    insert_result = client.execute_query("""
+    insert_result = client.execute_query(
+        """
         INSERT INTO users (id, name, email, age) VALUES
         (1, 'Alice', 'alice@example.com', 30),
         (2, 'Bob', 'bob@example.com', 25),
         (3, 'Charlie', 'charlie@example.com', 35)
-    """)
+    """
+    )
     print(json.dumps(insert_result, indent=2))
 
     # Query the data

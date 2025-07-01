@@ -1,6 +1,7 @@
 import logging
 import traceback
 import os
+
 try:
     from bptree_optimized import BPlusTreeOptimized as BPlusTree
 except ImportError:

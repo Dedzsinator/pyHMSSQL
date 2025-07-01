@@ -580,7 +580,7 @@ class TypeValidator:
             if constraint.startswith("CHECK"):
                 # Extract CHECK constraint expression
                 check_expr = constraint[5:].strip("() ")
-                
+
                 # Simple constraint evaluation for common patterns
                 if ">" in check_expr:
                     parts = check_expr.split(">")
@@ -608,7 +608,9 @@ class TypeValidator:
                     parts = check_expr.upper().split("IN")
                     if len(parts) == 2:
                         values_part = parts[1].strip("() ")
-                        allowed_values = [v.strip("' \"") for v in values_part.split(",")]
+                        allowed_values = [
+                            v.strip("' \"") for v in values_part.split(",")
+                        ]
                         return str(value) in allowed_values
                 elif "LENGTH" in check_expr.upper() or "LEN" in check_expr.upper():
                     # Handle length constraints
@@ -618,7 +620,7 @@ class TypeValidator:
                     elif "<" in check_expr:
                         threshold = int(check_expr.split("<")[1].strip())
                         return len(str(value)) < threshold
-                        
+
             elif constraint.startswith("NOT NULL"):
                 return value is not None
             elif constraint.startswith("UNIQUE"):
@@ -632,10 +634,10 @@ class TypeValidator:
                 # Foreign key constraint checking would require catalog lookup
                 # For now, assume valid (implementation would require table lookup)
                 return True
-            
+
             # Default: assume constraint is satisfied
             return True
-            
+
         except (ValueError, TypeError, AttributeError):
             # If constraint evaluation fails, assume constraint is not satisfied
             return False
