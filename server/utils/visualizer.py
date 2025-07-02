@@ -73,11 +73,12 @@ class Visualizer:
 
             # Get the index definition
             index_def = indexes[index_name]
+            column_name = index_def.get('column', 'unknown')
 
             # Try multiple file naming conventions
             possible_files = [
                 f"data/indexes/{db_name}_{table_name}_{index_name}.idx",
-                f"data/indexes/{db_name}_{table_name}_{index_def.get('column', 'unknown')}.idx",
+                f"data/indexes/{db_name}_{table_name}_{column_name}.idx",
                 f"data/indexes/{table_name}_{index_name}.idx",
                 f"data/indexes/{index_name}.idx",
             ]
@@ -115,28 +116,19 @@ class Visualizer:
             # Try to load the B+ tree from file
             try:
                 from bptree import BPlusTreeOptimized
-                from bptree import BPlusTree
 
-                # Try to load as optimized B+ tree first
+                # Try to load as optimized B+ tree
                 try:
                     index_obj = BPlusTreeOptimized.load_from_file(index_file_path)
                     logging.info(f"Loaded optimized B+ tree from {index_file_path}")
-                except:
-                    # Fallback to regular B+ tree
-                    try:
-                        index_obj = BPlusTree.load_from_file(index_file_path)
-                        logging.info(f"Loaded regular B+ tree from {index_file_path}")
-                    except Exception as fallback_error:
-                        logging.error(
-                            f"Failed to load as regular B+ tree: {fallback_error}"
-                        )
-                        # Last resort: try to get from index manager
-                        full_index_name = f"{table_name}.{index_name}"
-                        index_obj = self.index_manager.get_index(full_index_name)
-                        if not index_obj:
-                            raise Exception(
-                                f"Could not load index from file or index manager: {fallback_error}"
-                            )
+                except Exception as e:
+                    # If loading fails, try to get from index manager
+                    logging.warning(f"Could not load index from {index_file_path}: {e}")
+                    full_index_name = f"{table_name}.{index_name}"
+                    index_obj = self.index_manager.get_index(full_index_name)
+                    if not index_obj:
+                        # Last resort: create a new tree
+                        index_obj = BPlusTreeOptimized(order=50, name=f"{table_name}_{column_name}_index")
 
             except Exception as load_error:
                 logging.error(

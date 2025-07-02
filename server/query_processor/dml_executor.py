@@ -6,7 +6,7 @@ including INSERT, UPDATE, and DELETE, with concurrency control.
 
 import logging
 import os
-from bptree import BPlusTree
+from bptree import BPlusTreeOptimized as BPlusTree
 import re
 import traceback
 from parsers.condition_parser import ConditionParser

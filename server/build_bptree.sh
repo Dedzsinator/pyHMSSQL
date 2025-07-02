@@ -7,6 +7,12 @@ echo "======================================="
 echo "Building Optimized B+ Tree for pyHMSSQL"
 echo "======================================="
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+echo "Working directory: $(pwd)"
+
 # Clean any previous build artifacts
 echo "Cleaning previous build..."
 rm -f bptree*.so bptree*.c
@@ -51,7 +57,7 @@ except Exception as e:
     print(f'✗ Error testing implementation: {e}')
     exit(1)
 " || {
-    echo "Error: Failed to import or test bptree_optimized"
+    echo "Error: Failed to import or test bptree"
     exit 1
 }
 

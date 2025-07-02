@@ -23,7 +23,7 @@ from ..unified.record_layout import UnifiedRecordLayout, RecordType
 from catalog_manager import CatalogManager
 
 # Force using regular BPlusTree for graph storage due to optimized version limitations with bytes
-from bptree import BPlusTree as BPTree
+from bptree import BPlusTreeOptimized as BPTree
 from transaction.transaction_manager import TransactionManager
 
 
