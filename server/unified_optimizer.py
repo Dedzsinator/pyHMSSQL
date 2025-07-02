@@ -33,7 +33,7 @@ import threading
 
 # Import all optimizer components
 try:
-    from server.statistics import AdvancedStatisticsCollector
+    from server.db_statistics import AdvancedStatisticsCollector
     from server.query_transformer import QueryTransformer as QueryTransformationEngine
     from server.join_order_enumerator import JoinOrderEnumerator, JoinCondition
     from server.cost_estimator import AdvancedCostEstimator
@@ -41,7 +41,7 @@ try:
     from server.access_path_selector import AccessPathSelector
 except ImportError:
     # Fallback for direct execution within server directory
-    from statistics import AdvancedStatisticsCollector
+    from db_statistics import AdvancedStatisticsCollector
     from query_transformer import QueryTransformer as QueryTransformationEngine
     from join_order_enumerator import JoinOrderEnumerator, JoinCondition
     from cost_estimator import AdvancedCostEstimator
