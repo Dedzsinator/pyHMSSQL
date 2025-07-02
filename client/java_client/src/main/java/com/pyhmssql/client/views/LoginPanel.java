@@ -84,6 +84,7 @@ public class LoginPanel extends VBox {
 
         if (server.isEmpty() || username.isEmpty()) {
             statusLabel.setText("Please fill in required fields");
+            statusLabel.setStyle("-fx-text-fill: red;");
             return;
         }
 
@@ -91,6 +92,7 @@ public class LoginPanel extends VBox {
             int port = Integer.parseInt(portStr);
             connectButton.setDisable(true);
             statusLabel.setText("Connecting...");
+            statusLabel.setStyle("-fx-text-fill: blue;");
 
             connectionManager.setServerDetails(server, port);
             connectionManager.connect(username, password).thenAccept(result -> {
@@ -98,14 +100,29 @@ public class LoginPanel extends VBox {
                     connectButton.setDisable(false);
                     if (result.containsKey("error")) {
                         statusLabel.setText("Error: " + result.get("error"));
-                    } else {
+                        statusLabel.setStyle("-fx-text-fill: red;");
+                    } else if (result.containsKey("session_id")) {
                         statusLabel.setText("Connected successfully!");
                         statusLabel.setStyle("-fx-text-fill: green;");
+
+                        // Connection successful - the MainWindow will handle this via listeners
+                    } else {
+                        statusLabel.setText("Connection failed - invalid response");
+                        statusLabel.setStyle("-fx-text-fill: red;");
                     }
                 });
+            }).exceptionally(throwable -> {
+                Platform.runLater(() -> {
+                    connectButton.setDisable(false);
+                    statusLabel.setText("Connection failed: " + throwable.getMessage());
+                    statusLabel.setStyle("-fx-text-fill: red;");
+                });
+                return null;
             });
         } catch (NumberFormatException e) {
             statusLabel.setText("Invalid port number");
+            statusLabel.setStyle("-fx-text-fill: red;");
+            connectButton.setDisable(false);
         }
     }
 }

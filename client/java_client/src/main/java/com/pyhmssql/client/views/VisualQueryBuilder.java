@@ -143,6 +143,8 @@ public class VisualQueryBuilder extends BorderPane {
                                 if (!row.isEmpty()) {
                                     databases.add(row.get(0).toString());
                                 }
+                            } else {
+                                databases.add(rowObj.toString());
                             }
                         }
                     }
@@ -320,6 +322,8 @@ public class VisualQueryBuilder extends BorderPane {
                                 if (!row.isEmpty()) {
                                     tables.add(row.get(0).toString());
                                 }
+                            } else {
+                                tables.add(rowObj.toString());
                             }
                         }
                     }

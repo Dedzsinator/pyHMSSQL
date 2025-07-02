@@ -26,82 +26,63 @@ public class UserPreferencesDialog extends Dialog<ButtonType> {
 
     public UserPreferencesDialog(ConnectionManager connectionManager) {
         this.connectionManager = connectionManager;
-        initDialog();
-        createContent();
-        setupButtons();
-        loadCurrentPreferences();
-    }
-
-    private void initDialog() {
         setTitle("User Preferences");
-        setHeaderText("Configure your application preferences");
-        setResizable(true);
-        getDialogPane().setPrefSize(500, 400);
-    }
+        setHeaderText("Configure application settings");
 
-    private void createContent() {
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(20));
+        TabPane tabPane = new TabPane();
 
-        int row = 0;
+        // General tab
+        Tab generalTab = new Tab("General");
+        GridPane generalGrid = new GridPane();
+        generalGrid.setHgap(10);
+        generalGrid.setVgap(10);
+        generalGrid.setPadding(new Insets(20));
 
-        // Result Limit
-        grid.add(new Label("Query Result Limit:"), 0, row);
-        resultLimitField = new TextField("1000");
-        resultLimitField.setPromptText("Maximum rows to display");
-        grid.add(resultLimitField, 1, row++);
+        CheckBox autoConnectBox = new CheckBox("Auto-connect on startup");
+        CheckBox rememberWindowBox = new CheckBox("Remember window size and position");
+        CheckBox showLineNumbersBox = new CheckBox("Show line numbers in editor");
 
-        // Auto Commit
-        autoCommitCheckBox = new CheckBox("Auto Commit Transactions");
-        autoCommitCheckBox.setSelected(true);
-        grid.add(autoCommitCheckBox, 0, row++, 2, 1);
+        generalGrid.add(autoConnectBox, 0, 0, 2, 1);
+        generalGrid.add(rememberWindowBox, 0, 1, 2, 1);
+        generalGrid.add(showLineNumbersBox, 0, 2, 2, 1);
 
-        // Debug Mode
-        debugModeCheckBox = new CheckBox("Enable Debug Mode");
-        debugModeCheckBox.setSelected(false);
-        grid.add(debugModeCheckBox, 0, row++, 2, 1);
+        generalTab.setContent(generalGrid);
 
-        // Default Database
-        grid.add(new Label("Default Database:"), 0, row);
-        defaultDatabaseCombo = new ComboBox<>();
-        defaultDatabaseCombo.setPromptText("Select default database");
-        defaultDatabaseCombo.setPrefWidth(200);
-        grid.add(defaultDatabaseCombo, 1, row++);
+        // Editor tab
+        Tab editorTab = new Tab("Editor");
+        GridPane editorGrid = new GridPane();
+        editorGrid.setHgap(10);
+        editorGrid.setVgap(10);
+        editorGrid.setPadding(new Insets(20));
 
-        // Query Timeout
-        grid.add(new Label("Query Timeout (seconds):"), 0, row);
-        timeoutSpinner = new Spinner<>(5, 300, 30, 5);
-        timeoutSpinner.setEditable(true);
-        timeoutSpinner.setPrefWidth(100);
-        grid.add(timeoutSpinner, 1, row++);
+        ComboBox<String> fontFamilyCombo = new ComboBox<>();
+        fontFamilyCombo.getItems().addAll("Courier New", "Monaco", "Consolas", "DejaVu Sans Mono");
+        fontFamilyCombo.setValue("Courier New");
 
-        // Auto Complete
-        autoCompleteCheckBox = new CheckBox("Enable SQL Auto-completion");
-        autoCompleteCheckBox.setSelected(true);
-        grid.add(autoCompleteCheckBox, 0, row++, 2, 1);
+        Spinner<Integer> fontSizeSpinner = new Spinner<>(8, 24, 12);
+        Spinner<Integer> tabSizeSpinner = new Spinner<>(2, 8, 4);
 
-        // Load available databases for the combo box
-        loadDatabases();
+        CheckBox wordWrapBox = new CheckBox("Enable word wrap");
+        CheckBox syntaxHighlightBox = new CheckBox("Enable syntax highlighting");
 
-        getDialogPane().setContent(grid);
-    }
+        editorGrid.add(new Label("Font Family:"), 0, 0);
+        editorGrid.add(fontFamilyCombo, 1, 0);
+        editorGrid.add(new Label("Font Size:"), 0, 1);
+        editorGrid.add(fontSizeSpinner, 1, 1);
+        editorGrid.add(new Label("Tab Size:"), 0, 2);
+        editorGrid.add(tabSizeSpinner, 1, 2);
+        editorGrid.add(wordWrapBox, 0, 3, 2, 1);
+        editorGrid.add(syntaxHighlightBox, 0, 4, 2, 1);
 
-    private void loadDatabases() {
-        connectionManager.getDatabases().thenAccept(result -> {
-            if (result.containsKey("databases")) {
-                @SuppressWarnings("unchecked")
-                java.util.List<String> databases = (java.util.List<String>) result.get("databases");
-                Platform.runLater(() -> {
-                    defaultDatabaseCombo.getItems().clear();
-                    defaultDatabaseCombo.getItems().addAll(databases);
-                });
-            }
-        }).exceptionally(ex -> {
-            System.err.println("Error loading databases for preferences: " + ex.getMessage());
-            return null;
-        });
+        editorTab.setContent(editorGrid);
+
+        tabPane.getTabs().addAll(generalTab, editorTab);
+
+        getDialogPane().setContent(tabPane);
+        getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        // Load current preferences
+        loadCurrentPreferences();
     }
 
     private void loadCurrentPreferences() {
@@ -144,82 +125,5 @@ public class UserPreferencesDialog extends Dialog<ButtonType> {
             System.err.println("Error loading preferences: " + ex.getMessage());
             return null;
         });
-    }
-
-    private void setupButtons() {
-        ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
-        ButtonType cancelButtonType = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
-
-        getDialogPane().getButtonTypes().addAll(saveButtonType, cancelButtonType);
-
-        // Get the save button and set up the action
-        Button saveButton = (Button) getDialogPane().lookupButton(saveButtonType);
-        saveButton.setOnAction(e -> {
-            collectPreferences();
-            savePreferences();
-        });
-
-        // Set up result converter
-        setResultConverter(buttonType -> {
-            if (buttonType == saveButtonType) {
-                collectPreferences();
-                savePreferences();
-            }
-            return buttonType;
-        });
-    }
-
-    private void collectPreferences() {
-        updatedPrefs.clear();
-
-        try {
-            updatedPrefs.put("result_limit", Integer.parseInt(resultLimitField.getText()));
-        } catch (NumberFormatException e) {
-            updatedPrefs.put("result_limit", 1000);
-        }
-
-        updatedPrefs.put("auto_commit", autoCommitCheckBox.isSelected());
-        updatedPrefs.put("debug_mode", debugModeCheckBox.isSelected());
-
-        if (defaultDatabaseCombo.getValue() != null) {
-            updatedPrefs.put("default_database", defaultDatabaseCombo.getValue());
-        }
-
-        updatedPrefs.put("query_timeout", timeoutSpinner.getValue());
-        updatedPrefs.put("auto_complete", autoCompleteCheckBox.isSelected());
-    }
-
-    private void savePreferences() {
-        connectionManager.updatePreferences(updatedPrefs)
-                .thenAccept(result -> {
-                    if (result.containsKey("error")) {
-                        Platform.runLater(() -> showError("Failed to save preferences: " + result.get("error")));
-                    } else {
-                        // Update successful
-                        Platform.runLater(() -> showInfo("Preferences saved successfully!"));
-                    }
-                })
-                .exceptionally(ex -> {
-                    Platform.runLater(() -> showError("Failed to save preferences: " + ex.getMessage()));
-                    return null;
-                });
-    }
-
-    private void showError(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.initOwner(getOwner());
-        alert.showAndWait();
-    }
-
-    private void showInfo(String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Success");
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.initOwner(getOwner());
-        alert.showAndWait();
     }
 }

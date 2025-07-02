@@ -290,12 +290,22 @@ public class MainWindow extends BorderPane {
 
     private void showNotification(String message, String type) {
         Platform.runLater(() -> {
-            // Replace JFXSnackbar with simple Alert for now
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Notification");
-            alert.setHeaderText(null);
-            alert.setContentText(message);
-            alert.showAndWait();
+            // Use ControlsFX notification instead of popup dialogs
+            if (notificationPane != null) {
+                notificationPane.setText(message);
+                notificationPane.show();
+
+                // Auto-hide after 3 seconds
+                Timeline hideTimeline = new Timeline(new KeyFrame(
+                        Duration.seconds(3),
+                        e -> notificationPane.hide()));
+                hideTimeline.play();
+            } else {
+                // Fallback to status bar if notification pane is not available
+                if (statusBar != null) {
+                    statusBar.setText(message);
+                }
+            }
         });
     }
 
@@ -905,13 +915,52 @@ public class MainWindow extends BorderPane {
     }
 
     private void openTransactionManager() {
-        TransactionPanel transactionPanel = new TransactionPanel(connectionManager);
-        Tab transactionTab = new Tab("Transaction Manager", transactionPanel);
+        // Create a simple transaction panel since TransactionPanel doesn't exist
+        VBox transactionContent = new VBox(10);
+        transactionContent.setPadding(new Insets(20));
+
+        Label titleLabel = new Label("Transaction Manager");
+        titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+
+        HBox buttonBox = new HBox(10);
+        Button beginBtn = new Button("BEGIN TRANSACTION");
+        Button commitBtn = new Button("COMMIT");
+        Button rollbackBtn = new Button("ROLLBACK");
+
+        beginBtn.setOnAction(e -> executeTransactionCommand("BEGIN TRANSACTION"));
+        commitBtn.setOnAction(e -> executeTransactionCommand("COMMIT"));
+        rollbackBtn.setOnAction(e -> executeTransactionCommand("ROLLBACK"));
+
+        buttonBox.getChildren().addAll(beginBtn, commitBtn, rollbackBtn);
+
+        TextArea transactionLog = new TextArea();
+        transactionLog.setPromptText("Transaction commands will be logged here...");
+        transactionLog.setPrefRowCount(10);
+        transactionLog.setEditable(false);
+
+        transactionContent.getChildren().addAll(titleLabel, buttonBox,
+                new Label("Transaction Log:"), transactionLog);
+
+        Tab transactionTab = new Tab("Transaction Manager", transactionContent);
         transactionTab.setClosable(true);
         tabPane.getTabs().add(transactionTab);
         tabPane.getSelectionModel().select(transactionTab);
 
         showNotification("Transaction Manager opened", "success");
+    }
+
+    private void executeTransactionCommand(String command) {
+        if (connectionManager != null) {
+            connectionManager.executeQuery(command).thenAccept(result -> {
+                Platform.runLater(() -> {
+                    if (result.containsKey("error")) {
+                        showNotification("Transaction error: " + result.get("error"), "error");
+                    } else {
+                        showNotification("Transaction command executed: " + command, "success");
+                    }
+                });
+            });
+        }
     }
 
     private void showServerStatusDialog() {

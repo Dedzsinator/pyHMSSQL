@@ -518,3 +518,112 @@
         -fx-transition-duration: 0ms;
     }
 }
+
+/* Notification Pane Styling */
+.notification-pane {
+    -fx-background-color: #2E3440;
+    -fx-text-fill: white;
+    -fx-padding: 10px;
+    -fx-border-width: 0 0 1px 0;
+    -fx-border-color: #4C566A;
+}
+
+.notification-pane .text {
+    -fx-fill: white;
+    -fx-font-size: 13px;
+}
+
+.notification-pane .graphic {
+    -fx-text-fill: #81A1C1;
+}
+
+/* SQL Syntax Highlighting */
+.sql-keyword {
+    -fx-fill: #569CD6;
+    -fx-font-weight: bold;
+}
+
+.sql-type {
+    -fx-fill: #4EC9B0;
+    -fx-font-weight: bold;
+}
+
+.sql-string {
+    -fx-fill: #CE9178;
+}
+
+.sql-number {
+    -fx-fill: #B5CEA8;
+}
+
+.sql-comment {
+    -fx-fill: #6A9955;
+    -fx-font-style: italic;
+}
+
+.sql-operator {
+    -fx-fill: #D4D4D4;
+    -fx-font-weight: bold;
+}
+
+/* Database Explorer */
+.db-explorer {
+    -fx-background-color: #2E3440;
+    -fx-border-width: 0 1px 0 0;
+    -fx-border-color: #4C566A;
+}
+
+.db-explorer .tree-view {
+    -fx-background-color: transparent;
+}
+
+.db-explorer .tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #D8DEE9;
+    -fx-padding: 3px 5px;
+}
+
+.db-explorer .tree-cell:selected {
+    -fx-background-color: #5E81AC;
+    -fx-text-fill: white;
+}
+
+.db-explorer .tree-cell:hover {
+    -fx-background-color: rgba(94, 129, 172, 0.3);
+}
+
+/* Modern Tab Pane */
+.modern-tab-pane {
+    -fx-background-color: #2E3440;
+}
+
+.modern-tab-pane .tab-header-area {
+    -fx-background-color: #3B4252;
+    -fx-border-width: 0 0 1px 0;
+    -fx-border-color: #4C566A;
+}
+
+.modern-tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-text-fill: #D8DEE9;
+    -fx-background-radius: 0;
+    -fx-border-width: 0 1px 0 0;
+    -fx-border-color: #4C566A;
+    -fx-padding: 10px 15px;
+}
+
+.modern-tab-pane .tab:selected {
+    -fx-background-color: #2E3440;
+    -fx-text-fill: #88C0D0;
+    -fx-border-width: 0 1px 3px 0;
+    -fx-border-color: #88C0D0 #4C566A #88C0D0 transparent;
+}
+
+.modern-tab-pane .tab:hover {
+    -fx-background-color: rgba(136, 192, 208, 0.1);
+}
+
+.modern-tab-pane .tab-content-area {
+    -fx-background-color: #2E3440;
+    -fx-border-width: 0;
+}
