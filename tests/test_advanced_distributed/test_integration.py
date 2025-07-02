@@ -324,7 +324,9 @@ class TestShardingCompressionIntegration:
             lambda shard, k=key: shard.get(k)
         )
         assert retrieved is not None
-        assert len(retrieved.data) == len(test_data)
+        # Verify the retrieved data
+        assert len(retrieved) == len(test_data)
+        assert retrieved[:] == test_data
 
         # Verify zero-copy efficiency
         buffer_stats = zerocopy.buffer_pool.get_stats()
@@ -458,7 +460,7 @@ class TestCRDTNetworkingIntegration:
                 crdt_set.merge(state)
 
         # Verify eventual consistency (LWW semantics)
-        final_states = [crdt_set.elements() for crdt_set in crdt_sets.values()]
+        final_states = [crdt_set.value() for crdt_set in crdt_sets.values()]
 
         # All nodes should have same final state
         assert all(state == final_states[0] for state in final_states)
@@ -628,9 +630,9 @@ class TestFullSystemIntegration:
 
             # Consistency
             consistency_config = ConsistencyConfig(
-                default_level=ConsistencyLevel.QUORUM,
-                read_timeout=5.0,
-                write_timeout=5.0,
+                level=ConsistencyLevel.QUORUM,
+                timeout_ms=5000,
+                retry_count=3,
             )
             components["consistency"] = ConsistencyManager(consistency_config)
 

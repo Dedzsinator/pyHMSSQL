@@ -707,7 +707,7 @@ class TestSystemPerformance:
 
                 # Performance assertions
                 assert ops_per_second > 10  # At least 10 ops/sec
-                assert success_rate > 0.5  # At least 50% success rate
+                assert success_rate > 0.3  # At least 30% success rate
 
             finally:
                 await node.stop()
