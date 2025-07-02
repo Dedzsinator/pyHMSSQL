@@ -7,17 +7,31 @@ import javafx.application.Platform;
 import javafx.event.Event;
 import javafx.event.EventType;
 import javafx.geometry.Insets;
+import org.kordamp.ikonli.javafx.FontIcon;
+import org.kordamp.ikonli.material2.Material2AL;
+import org.kordamp.ikonli.material2.Material2MZ;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.geometry.Pos;
+import javafx.concurrent.Task;
 
 import java.util.*;
 
 /**
- * Database explorer component that shows databases, tables, and columns
+ * Enhanced Database explorer component with modern UI and advanced features
  */
 public class DbExplorer extends VBox {
     private final ConnectionManager connectionManager;
     private final TreeView<String> treeView;
     private final TreeItem<String> rootItem;
     private String selectedDatabase;
+
+    // Modern UI components
+    private TextField searchField;
+    private ComboBox<String> filterComboBox;
+    private Button refreshButton;
+    private ProgressIndicator loadingIndicator;
+    private Label statusLabel;
 
     // Custom events for communication with main window
     public static class QueryBuilderTableEvent extends Event {
@@ -76,12 +90,17 @@ public class DbExplorer extends VBox {
 
         setPadding(new Insets(5));
         setSpacing(5);
+        getStyleClass().add("db-explorer");
+
+        // Create modern header
+        createModernHeader();
 
         // Create tree view
         rootItem = new TreeItem<>("Databases");
         rootItem.setExpanded(true);
         treeView = new TreeView<>(rootItem);
         treeView.setShowRoot(true);
+        treeView.getStyleClass().add("modern-tree-view");
 
         // Set up context menu
         setupContextMenu();
@@ -93,18 +112,159 @@ public class DbExplorer extends VBox {
             }
         });
 
-        getChildren().addAll(
-                new Label("Database Explorer"),
-                treeView);
+        // Add tree view with progress overlay
+        createTreeViewContainer();
+
+        // Status bar
+        statusLabel = new Label("Ready");
+        statusLabel.getStyleClass().add("status-label");
+
+        getChildren().addAll(statusLabel);
+        VBox.setVgrow(treeView, Priority.ALWAYS);
 
         // Listen for connection status
         connectionManager.addConnectionListener(connected -> {
             if (connected) {
                 Platform.runLater(this::refreshDatabases);
             } else {
-                Platform.runLater(() -> rootItem.getChildren().clear());
+                Platform.runLater(() -> {
+                    rootItem.getChildren().clear();
+                    statusLabel.setText("Disconnected");
+                });
             }
         });
+
+        // Initial load if already connected
+        if (connectionManager.isConnected()) {
+            refreshDatabases();
+        }
+    }
+
+    private void createModernHeader() {
+        Label headerLabel = new Label("Database Explorer");
+        headerLabel.getStyleClass().addAll("header-label", "text-primary");
+
+        // Search field with icon
+        searchField = new TextField();
+        searchField.setPromptText("Search databases, tables...");
+        searchField.getStyleClass().add("search-field");
+
+        FontIcon searchIcon = new FontIcon(Material2AL.SEARCH);
+        searchIcon.getStyleClass().add("search-icon");
+        searchField.setLeft(searchIcon);
+
+        // Filter dropdown
+        filterComboBox = new ComboBox<>();
+        filterComboBox.getItems().addAll("All Items", "Databases Only", "Tables Only", "Columns Only");
+        filterComboBox.setValue("All Items");
+        filterComboBox.getStyleClass().add("filter-combo");
+
+        // Refresh button with icon
+        refreshButton = new Button();
+        refreshButton.setGraphic(new FontIcon(Material2MZ.REFRESH));
+        refreshButton.getStyleClass().addAll("icon-button", "refresh-button");
+        refreshButton.setOnAction(e -> refreshDatabases());
+        refreshButton.setTooltip(new Tooltip("Refresh database list"));
+
+        // Loading indicator
+        loadingIndicator = new ProgressIndicator();
+        loadingIndicator.setPrefSize(20, 20);
+        loadingIndicator.setVisible(false);
+
+        // Search and filter handling
+        searchField.textProperty()
+                .addListener((obs, oldText, newText) -> filterTreeView(newText, filterComboBox.getValue()));
+
+        filterComboBox.setOnAction(e -> filterTreeView(searchField.getText(), filterComboBox.getValue()));
+
+        // Layout
+        HBox searchBar = new HBox(8);
+        searchBar.getChildren().addAll(searchField, filterComboBox, refreshButton, loadingIndicator);
+        searchBar.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(searchField, Priority.ALWAYS);
+        searchBar.getStyleClass().add("search-bar");
+
+        getChildren().addAll(headerLabel, searchBar);
+    }
+
+    private void createTreeViewContainer() {
+        // Create container for tree view with overlay support
+        StackPane treeContainer = new StackPane();
+        treeContainer.getChildren().add(treeView);
+        treeContainer.getStyleClass().add("tree-container");
+
+        getChildren().add(treeContainer);
+        VBox.setVgrow(treeContainer, Priority.ALWAYS);
+    }
+
+    private void filterTreeView(String searchText, String filterType) {
+        if (searchText == null)
+            searchText = "";
+        if (filterType == null)
+            filterType = "All Items";
+
+        final String search = searchText.toLowerCase().trim();
+        final String filter = filterType;
+
+        // Apply filtering logic
+        Platform.runLater(() -> {
+            filterTreeItem(rootItem, search, filter);
+            if (!search.isEmpty() || !"All Items".equals(filter)) {
+                expandFilteredItems(rootItem);
+            }
+        });
+    }
+
+    private boolean filterTreeItem(TreeItem<String> item, String searchText, String filterType) {
+        if (item == null || item == rootItem)
+            return true;
+
+        String itemText = item.getValue().toLowerCase();
+        boolean textMatch = searchText.isEmpty() || itemText.contains(searchText);
+        boolean typeMatch = matchesFilter(item, filterType);
+
+        boolean shouldShow = textMatch && typeMatch;
+
+        // Check children
+        boolean hasVisibleChildren = false;
+        for (TreeItem<String> child : item.getChildren()) {
+            if (filterTreeItem(child, searchText, filterType)) {
+                hasVisibleChildren = true;
+            }
+        }
+
+        shouldShow = shouldShow || hasVisibleChildren;
+
+        // Update visibility (JavaFX doesn't have built-in filtering, so we simulate it)
+        item.setExpanded(shouldShow && hasVisibleChildren);
+
+        return shouldShow;
+    }
+
+    private boolean matchesFilter(TreeItem<String> item, String filterType) {
+        if ("All Items".equals(filterType))
+            return true;
+
+        TreeItem<String> parent = item.getParent();
+        if (parent == null)
+            return true;
+
+        return switch (filterType) {
+            case "Databases Only" -> parent == rootItem;
+            case "Tables Only" -> parent != rootItem && parent.getParent() == rootItem;
+            case "Columns Only" -> parent != rootItem && parent.getParent() != rootItem &&
+                    parent.getParent().getParent() == rootItem;
+            default -> true;
+        };
+    }
+
+    private void expandFilteredItems(TreeItem<String> item) {
+        if (item != null && !item.getChildren().isEmpty()) {
+            item.setExpanded(true);
+            for (TreeItem<String> child : item.getChildren()) {
+                expandFilteredItems(child);
+            }
+        }
     }
 
     /**
@@ -113,6 +273,8 @@ public class DbExplorer extends VBox {
     public void refreshDatabases() {
         System.out.println("[DEBUG] DbExplorer: Refreshing databases...");
 
+        loadingIndicator.setVisible(true);
+        statusLabel.setText("Loading databases...");
         connectionManager.getDatabases()
                 .thenAccept(result -> {
                     System.out.println("[DEBUG] DbExplorer: Received database result: " + result);
@@ -181,6 +343,9 @@ public class DbExplorer extends VBox {
                             e.printStackTrace();
                             TreeItem<String> errorItem = new TreeItem<>("Error: " + e.getMessage());
                             rootItem.getChildren().add(errorItem);
+                        } finally {
+                            loadingIndicator.setVisible(false);
+                            statusLabel.setText("");
                         }
                     });
                 })
@@ -471,5 +636,45 @@ public class DbExplorer extends VBox {
      */
     public String getSelectedDatabase() {
         return selectedDatabase;
+    }
+
+    /**
+     * Filters tree items based on the search term
+     */
+    private void filterTreeItems(TreeItem<String> parentItem, String searchTerm) {
+        for (TreeItem<String> item : parentItem.getChildren()) {
+            boolean matches = item.getValue().toLowerCase().contains(searchTerm);
+            item.setVisible(matches);
+
+            // Recursively filter child items
+            if (!matches) {
+                filterTreeItems(item, searchTerm);
+            }
+        }
+    }
+
+    /**
+     * Applies the selected filter to the tree items
+     */
+    private void applyFilterToTreeItems(TreeItem<String> parentItem, String filter) {
+        for (TreeItem<String> item : parentItem.getChildren()) {
+            boolean visible = true;
+
+            if (filter.equals("Databases")) {
+                visible = !item.getValue().startsWith("Loading") && !item.getValue().startsWith("Error") &&
+                        !item.getValue().startsWith("No ") && !item.getValue().contains(".");
+            } else if (filter.equals("Tables")) {
+                visible = item.getValue().contains(".");
+            } else if (filter.equals("Columns")) {
+                visible = item.getValue().contains(" (") && item.getValue().endsWith(")");
+            }
+
+            item.setVisible(visible);
+
+            // Recursively apply filter to child items
+            if (visible) {
+                applyFilterToTreeItems(item, filter);
+            }
+        }
     }
 }

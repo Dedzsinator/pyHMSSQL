@@ -295,6 +295,27 @@ public class QueryEditor extends BorderPane {
         }
     }
 
+    // Additional methods needed by MainWindow
+    public String getQueryText() {
+        return codeArea.getText();
+    }
+
+    public void setQueryText(String query) {
+        if (query != null) {
+            codeArea.replaceText(query);
+        }
+    }
+
+    public String getSelectedText() {
+        return codeArea.getSelectedText();
+    }
+
+    public boolean hasUnsavedChanges() {
+        // For now, assume always unsaved if there's text
+        // In a real implementation, you'd track the saved state
+        return !codeArea.getText().trim().isEmpty();
+    }
+
     public void setOnExecuteQuery(Consumer<Map<String, Object>> handler) {
         this.onExecuteQuery = handler;
     }

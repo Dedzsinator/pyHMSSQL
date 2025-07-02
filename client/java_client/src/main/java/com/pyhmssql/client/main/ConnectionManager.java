@@ -1027,4 +1027,65 @@ public class ConnectionManager {
         String query = "SET PREFERENCE " + key + " " + value;
         return executeQuery(query);
     }
+
+    /**
+     * Get server status and statistics
+     * 
+     * @return CompletableFuture containing server status information
+     */
+    public CompletableFuture<Map<String, Object>> getServerStatus() {
+        return executeQuery("SHOW SERVER STATUS");
+    }
+
+    /**
+     * Create a new database
+     * 
+     * @param databaseName Name of the database to create
+     * @return CompletableFuture containing the result
+     */
+    public CompletableFuture<Map<String, Object>> createDatabase(String databaseName) {
+        return executeQuery("CREATE DATABASE " + databaseName);
+    }
+
+    /**
+     * Drop a database
+     * 
+     * @param databaseName Name of the database to drop
+     * @return CompletableFuture containing the result
+     */
+    public CompletableFuture<Map<String, Object>> dropDatabase(String databaseName) {
+        return executeQuery("DROP DATABASE " + databaseName);
+    }
+
+    /**
+     * Get database properties and statistics
+     * 
+     * @param databaseName Name of the database
+     * @return CompletableFuture containing database properties
+     */
+    public CompletableFuture<Map<String, Object>> getDatabaseProperties(String databaseName) {
+        return executeQuery("USE " + databaseName + "; SHOW DATABASE PROPERTIES");
+    }
+
+    /**
+     * Disconnect from the server and cleanup resources
+     */
+    public void disconnect() {
+        try {
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
+            }
+            sessionId = null;
+            currentDatabase = null;
+            notifyConnectionListeners(false);
+
+            if (debugMode) {
+                System.out.println("[DEBUG] Disconnected from server");
+            }
+        } catch (IOException e) {
+            if (debugMode) {
+                System.err.println("[DEBUG] Error during disconnect: " + e.getMessage());
+            }
+        }
+    }
 }

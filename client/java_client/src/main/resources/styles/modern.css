@@ -1,0 +1,605 @@
+/* Modern Material Design 3 CSS for pyHMSSQL Professional Client */
+
+/* Root variables for consistent theming */
+.root {
+    /* Primary Colors */
+    -fx-primary: #1976d2;
+    -fx-primary-dark: #1565c0;
+    -fx-primary-light: #42a5f5;
+    -fx-on-primary: #ffffff;
+    
+    /* Secondary Colors */
+    -fx-secondary: #03dac6;
+    -fx-secondary-dark: #018786;
+    -fx-secondary-light: #80e8df;
+    -fx-on-secondary: #000000;
+    
+    /* Surface Colors */
+    -fx-surface: #ffffff;
+    -fx-surface-variant: #f5f5f5;
+    -fx-on-surface: #1c1b1f;
+    -fx-on-surface-variant: #49454f;
+    
+    /* Background Colors */
+    -fx-background: #fefbff;
+    -fx-background-variant: #f8f9fa;
+    -fx-on-background: #1c1b1f;
+    
+    /* Error Colors */
+    -fx-error: #ba1a1a;
+    -fx-error-container: #ffdad6;
+    -fx-on-error: #ffffff;
+    -fx-on-error-container: #410002;
+    
+    /* Outline Colors */
+    -fx-outline: #79747e;
+    -fx-outline-variant: #c4c7c5;
+    
+    /* Shadow and Elevation */
+    -fx-shadow-color: rgba(0, 0, 0, 0.2);
+    -fx-elevation-1: -fx-drop-shadow(three-pass-box, -fx-shadow-color, 1, 0.2, 0, 1);
+    -fx-elevation-2: -fx-drop-shadow(three-pass-box, -fx-shadow-color, 3, 0.3, 0, 1);
+    -fx-elevation-3: -fx-drop-shadow(three-pass-box, -fx-shadow-color, 6, 0.4, 0, 2);
+    
+    /* Typography */
+    -fx-font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 14px;
+    -fx-font-weight: 400;
+    
+    /* Spacing */
+    -fx-spacing-xs: 4px;
+    -fx-spacing-sm: 8px;
+    -fx-spacing-md: 16px;
+    -fx-spacing-lg: 24px;
+    -fx-spacing-xl: 32px;
+    
+    /* Border Radius */
+    -fx-radius-sm: 4px;
+    -fx-radius-md: 8px;
+    -fx-radius-lg: 12px;
+    -fx-radius-xl: 16px;
+}
+
+/* Base window styling */
+.root {
+    -fx-base: -fx-background;
+    -fx-background-color: -fx-background;
+    -fx-text-fill: -fx-on-background;
+}
+
+/* Modern Menu Bar */
+.menu-bar {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-outline-variant;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 0;
+}
+
+.menu-bar .menu-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-on-surface;
+    -fx-padding: 8 16;
+    -fx-background-radius: -fx-radius-sm;
+}
+
+.menu-bar .menu-button:hover {
+    -fx-background-color: derive(-fx-primary, 90%);
+}
+
+.menu-bar .menu-button:showing {
+    -fx-background-color: derive(-fx-primary, 80%);
+}
+
+/* Modern Context Menu */
+.context-menu {
+    -fx-background-color: -fx-surface;
+    -fx-background-radius: -fx-radius-md;
+    -fx-border-color: -fx-outline-variant;
+    -fx-border-width: 1;
+    -fx-border-radius: -fx-radius-md;
+    -fx-effect: -fx-elevation-3;
+    -fx-padding: 8;
+}
+
+.menu-item {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-on-surface;
+    -fx-padding: 8 16;
+    -fx-background-radius: -fx-radius-sm;
+}
+
+.menu-item:focused {
+    -fx-background-color: derive(-fx-primary, 90%);
+}
+
+/* Modern Toolbar */
+.jfx-toolbar {
+    -fx-background-color: -fx-primary;
+    -fx-text-fill: -fx-on-primary;
+    -fx-padding: 8 16;
+}
+
+.toolbar-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-on-primary;
+    -fx-background-radius: -fx-radius-lg;
+    -fx-padding: 8;
+    -fx-cursor: hand;
+}
+
+.toolbar-button:hover {
+    -fx-background-color: derive(-fx-primary, -20%);
+}
+
+.toolbar-button:pressed {
+    -fx-background-color: derive(-fx-primary, -30%);
+}
+
+.toolbar-icon {
+    -fx-fill: -fx-on-primary;
+}
+
+/* Connection Status Icons */
+.connection-status .toolbar-icon.connected {
+    -fx-fill: -fx-secondary;
+}
+
+.connection-status .toolbar-icon.disconnected {
+    -fx-fill: -fx-error;
+}
+
+/* Modern Tab Pane */
+.modern-tab-pane {
+    -fx-tab-min-width: 120;
+    -fx-tab-max-width: 200;
+}
+
+.modern-tab-pane .tab-header-area {
+    -fx-background-color: -fx-surface-variant;
+    -fx-border-color: -fx-outline-variant;
+    -fx-border-width: 0 0 1 0;
+}
+
+.modern-tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: -fx-radius-sm -fx-radius-sm 0 0;
+    -fx-padding: 12 16;
+}
+
+.modern-tab-pane .tab:selected {
+    -fx-background-color: -fx-primary;
+    -fx-text-fill: -fx-on-primary;
+}
+
+.modern-tab-pane .tab:hover {
+    -fx-background-color: derive(-fx-primary, 90%);
+}
+
+.modern-tab-pane .tab-content-area {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: transparent;
+}
+
+/* Modern Buttons */
+.jfx-button {
+    -fx-background-color: -fx-primary;
+    -fx-text-fill: -fx-on-primary;
+    -fx-background-radius: -fx-radius-lg;
+    -fx-padding: 12 24;
+    -fx-font-weight: 500;
+    -fx-cursor: hand;
+    -fx-effect: -fx-elevation-1;
+}
+
+.jfx-button:hover {
+    -fx-background-color: derive(-fx-primary, -10%);
+    -fx-effect: -fx-elevation-2;
+}
+
+.jfx-button:pressed {
+    -fx-background-color: derive(-fx-primary, -20%);
+    -fx-effect: -fx-elevation-1;
+}
+
+.jfx-button:disabled {
+    -fx-opacity: 0.6;
+}
+
+/* Secondary Button */
+.jfx-button.secondary {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-primary;
+    -fx-border-color: -fx-primary;
+    -fx-border-width: 1;
+    -fx-border-radius: -fx-radius-lg;
+    -fx-effect: none;
+}
+
+.jfx-button.secondary:hover {
+    -fx-background-color: derive(-fx-primary, 90%);
+}
+
+/* Text Button */
+.jfx-button.text {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-primary;
+    -fx-effect: none;
+    -fx-padding: 8 16;
+}
+
+.jfx-button.text:hover {
+    -fx-background-color: derive(-fx-primary, 95%);
+}
+
+/* Modern Text Fields */
+.text-field, .text-area, .password-field {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-outline;
+    -fx-border-width: 1;
+    -fx-border-radius: -fx-radius-sm;
+    -fx-background-radius: -fx-radius-sm;
+    -fx-padding: 12 16;
+    -fx-text-fill: -fx-on-surface;
+}
+
+.text-field:focused, .text-area:focused, .password-field:focused {
+    -fx-border-color: -fx-primary;
+    -fx-border-width: 2;
+}
+
+/* Modern ComboBox */
+.combo-box {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-outline;
+    -fx-border-width: 1;
+    -fx-border-radius: -fx-radius-sm;
+    -fx-background-radius: -fx-radius-sm;
+}
+
+.combo-box:focused {
+    -fx-border-color: -fx-primary;
+    -fx-border-width: 2;
+}
+
+.combo-box .arrow-button {
+    -fx-background-color: transparent;
+}
+
+.combo-box .arrow {
+    -fx-background-color: -fx-on-surface;
+}
+
+/* Modern ListView */
+.list-view {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-outline-variant;
+    -fx-border-width: 1;
+    -fx-border-radius: -fx-radius-md;
+    -fx-background-radius: -fx-radius-md;
+}
+
+.list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-on-surface;
+    -fx-padding: 12 16;
+    -fx-border-color: transparent;
+}
+
+.list-view .list-cell:filled:hover {
+    -fx-background-color: derive(-fx-primary, 95%);
+}
+
+.list-view .list-cell:filled:selected {
+    -fx-background-color: derive(-fx-primary, 80%);
+    -fx-text-fill: -fx-primary;
+}
+
+/* Modern TableView */
+.table-view {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-outline-variant;
+    -fx-border-width: 1;
+    -fx-border-radius: -fx-radius-md;
+    -fx-background-radius: -fx-radius-md;
+}
+
+.table-view .column-header {
+    -fx-background-color: -fx-surface-variant;
+    -fx-text-fill: -fx-on-surface-variant;
+    -fx-font-weight: 500;
+    -fx-padding: 12 16;
+    -fx-border-color: -fx-outline-variant;
+    -fx-border-width: 0 1 1 0;
+}
+
+.table-view .table-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-on-surface;
+    -fx-padding: 12 16;
+    -fx-border-color: -fx-outline-variant;
+    -fx-border-width: 0 1 1 0;
+}
+
+.table-view .table-row-cell:hover {
+    -fx-background-color: derive(-fx-primary, 95%);
+}
+
+.table-view .table-row-cell:selected {
+    -fx-background-color: derive(-fx-primary, 90%);
+}
+
+/* Modern CheckBox */
+.check-box {
+    -fx-text-fill: -fx-on-surface;
+}
+
+.check-box .box {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-outline;
+    -fx-border-width: 2;
+    -fx-border-radius: -fx-radius-sm;
+    -fx-background-radius: -fx-radius-sm;
+}
+
+.check-box:selected .box {
+    -fx-background-color: -fx-primary;
+    -fx-border-color: -fx-primary;
+}
+
+.check-box .mark {
+    -fx-background-color: -fx-on-primary;
+}
+
+/* Modern RadioButton */
+.radio-button {
+    -fx-text-fill: -fx-on-surface;
+}
+
+.radio-button .radio {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-outline;
+    -fx-border-width: 2;
+}
+
+.radio-button:selected .radio {
+    -fx-background-color: -fx-primary;
+    -fx-border-color: -fx-primary;
+}
+
+.radio-button .dot {
+    -fx-background-color: -fx-on-primary;
+}
+
+/* Modern Scroll Bars */
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: derive(-fx-outline, 50%);
+    -fx-background-radius: 1em;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: -fx-outline;
+}
+
+.scroll-bar .track {
+    -fx-background-color: transparent;
+}
+
+/* Modern Progress Bar */
+.progress-bar {
+    -fx-background-color: -fx-outline-variant;
+    -fx-background-radius: 1em;
+}
+
+.progress-bar .bar {
+    -fx-background-color: -fx-primary;
+    -fx-background-radius: 1em;
+}
+
+/* Modern Slider */
+.slider {
+    -fx-background-color: transparent;
+}
+
+.slider .track {
+    -fx-background-color: -fx-outline-variant;
+    -fx-background-radius: 1em;
+}
+
+.slider .thumb {
+    -fx-background-color: -fx-primary;
+    -fx-background-radius: 1em;
+}
+
+/* Database Explorer */
+.db-explorer {
+    -fx-background-color: -fx-surface-variant;
+    -fx-border-color: -fx-outline-variant;
+    -fx-border-width: 0 1 0 0;
+}
+
+.db-explorer .tree-view {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.db-explorer .tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fx-on-surface-variant;
+    -fx-padding: 4 8;
+}
+
+.db-explorer .tree-cell:hover {
+    -fx-background-color: derive(-fx-primary, 95%);
+}
+
+.db-explorer .tree-cell:selected {
+    -fx-background-color: derive(-fx-primary, 85%);
+    -fx-text-fill: -fx-primary;
+}
+
+/* Status Bar */
+.status-bar {
+    -fx-background-color: -fx-surface-variant;
+    -fx-text-fill: -fx-on-surface-variant;
+    -fx-border-color: -fx-outline-variant;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 8 16;
+}
+
+/* Notification Pane */
+.notification-pane {
+    -fx-background-color: -fx-surface;
+}
+
+/* JFX Snackbar */
+.jfx-snackbar {
+    -fx-background-color: derive(-fx-on-surface, 20%);
+    -fx-background-radius: -fx-radius-sm;
+    -fx-text-fill: -fx-surface;
+}
+
+/* Code Area (SQL Editor) */
+.code-area {
+    -fx-background-color: -fx-surface;
+    -fx-border-color: -fx-outline-variant;
+    -fx-border-width: 1;
+    -fx-border-radius: -fx-radius-md;
+    -fx-background-radius: -fx-radius-md;
+}
+
+.code-area .content {
+    -fx-background-color: -fx-surface;
+    -fx-background-radius: -fx-radius-md;
+}
+
+.code-area .paragraph-box:has-caret {
+    -fx-background-color: derive(-fx-primary, 98%);
+}
+
+/* SQL Syntax Highlighting */
+.code-area .keyword {
+    -fx-fill: #0000ff;
+    -fx-font-weight: bold;
+}
+
+.code-area .string {
+    -fx-fill: #008000;
+}
+
+.code-area .comment {
+    -fx-fill: #808080;
+    -fx-font-style: italic;
+}
+
+.code-area .number {
+    -fx-fill: #ff0000;
+}
+
+/* Dark Theme Override */
+.root.dark-theme {
+    /* Dark Surface Colors */
+    -fx-surface: #1e1e1e;
+    -fx-surface-variant: #2d2d2d;
+    -fx-on-surface: #e3e3e3;
+    -fx-on-surface-variant: #c7c7c7;
+    
+    /* Dark Background Colors */
+    -fx-background: #121212;
+    -fx-background-variant: #1e1e1e;
+    -fx-on-background: #e3e3e3;
+    
+    /* Adjusted Outline Colors */
+    -fx-outline: #8e8e93;
+    -fx-outline-variant: #48484a;
+}
+
+/* Responsive Design for smaller screens */
+@media screen and (max-width: 1024px) {
+    .root {
+        -fx-font-size: 12px;
+    }
+    
+    .jfx-button {
+        -fx-padding: 8 16;
+    }
+    
+    .text-field, .text-area, .password-field {
+        -fx-padding: 8 12;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .toolbar, .menu-bar, .status-bar {
+        -fx-background-color: transparent;
+    }
+    
+    .root {
+        -fx-background-color: white;
+        -fx-text-fill: black;
+    }
+}
+
+/* High Contrast Mode */
+.root.high-contrast {
+    -fx-primary: #0000ff;
+    -fx-background: #ffffff;
+    -fx-text-fill: #000000;
+    -fx-border-color: #000000;
+}
+
+/* Animation Classes */
+.fade-in {
+    -fx-opacity: 0;
+}
+
+.fade-in.visible {
+    -fx-opacity: 1;
+    -fx-transition: -fx-opacity 0.3s ease-in-out;
+}
+
+.slide-in-right {
+    -fx-translate-x: 100px;
+}
+
+.slide-in-right.visible {
+    -fx-translate-x: 0;
+    -fx-transition: -fx-translate-x 0.3s ease-out;
+}
+
+/* Utility Classes */
+.text-primary {
+    -fx-text-fill: -fx-primary;
+}
+
+.text-secondary {
+    -fx-text-fill: -fx-secondary;
+}
+
+.text-error {
+    -fx-text-fill: -fx-error;
+}
+
+.bg-surface {
+    -fx-background-color: -fx-surface;
+}
+
+.bg-primary {
+    -fx-background-color: -fx-primary;
+}
+
+.elevation-1 {
+    -fx-effect: -fx-elevation-1;
+}
+
+.elevation-2 {
+    -fx-effect: -fx-elevation-2;
+}
+
+.elevation-3 {
+    -fx-effect: -fx-elevation-3;
+}

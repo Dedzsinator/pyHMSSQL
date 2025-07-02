@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.prefs.Preferences;
 
 /**
  * pyHMSSQL Professional Client - Main Application Entry Point
@@ -241,22 +242,46 @@ public class App extends Application {
     }
 
     private boolean hasUnsavedChanges() {
-        // TODO: Implement unsaved changes detection
-        return false;
+        try {
+            // Check if MainWindow has unsaved changes
+            Scene scene = primaryStage.getScene();
+            if (scene != null && scene.getRoot() instanceof MainWindow) {
+                MainWindow mainWindow = (MainWindow) scene.getRoot();
+                return mainWindow.hasUnsavedChanges();
+            }
+            return false;
+        } catch (Exception e) {
+            logger.error("Error checking for unsaved changes", e);
+            return false;
+        }
     }
 
     private void saveApplicationState() {
         try {
             // Save window state
             if (primaryStage != null && ConfigurationManager.UI.Window.rememberSize()) {
-                // TODO: Save window dimensions and position to user preferences
+                // Save window dimensions and position to user preferences
+                Preferences userPrefs = Preferences.userNodeForPackage(App.class);
+                userPrefs.putDouble("window.width", primaryStage.getWidth());
+                userPrefs.putDouble("window.height", primaryStage.getHeight());
+                userPrefs.putDouble("window.x", primaryStage.getX());
+                userPrefs.putDouble("window.y", primaryStage.getY());
+                userPrefs.putBoolean("window.maximized", primaryStage.isMaximized());
+                userPrefs.flush();
             }
 
             // Save recent connections
-            // TODO: Implement connection state persistence
+            Scene scene = primaryStage.getScene();
+            if (scene != null && scene.getRoot() instanceof MainWindow) {
+                MainWindow mainWindow = (MainWindow) scene.getRoot();
+                mainWindow.saveConnectionHistory();
+            }
 
-            // Save workspace state
-            // TODO: Implement workspace state persistence
+            // Save workspace state (open tabs, current database, etc.)
+            if (scene != null && scene.getRoot() instanceof MainWindow) {
+                MainWindow mainWindow = (MainWindow) scene.getRoot();
+                mainWindow.saveWorkspaceState();
+            }
 
             logger.info("Application state saved");
 
@@ -268,7 +293,11 @@ public class App extends Application {
     private void cleanup() {
         try {
             // Close database connections
-            // TODO: Implement connection cleanup
+            Scene scene = primaryStage.getScene();
+            if (scene != null && scene.getRoot() instanceof MainWindow) {
+                MainWindow mainWindow = (MainWindow) scene.getRoot();
+                mainWindow.cleanup();
+            }
 
             // Clear caches
             if (config != null) {
