@@ -4,7 +4,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 try:
-    from bptree_optimized import BPlusTreeOptimized as BPlusTree
+    from bptree import BPlusTreeOptimized as BPlusTree
 
     OPTIMIZED_AVAILABLE = True
 except ImportError:
@@ -114,7 +114,7 @@ class Visualizer:
 
             # Try to load the B+ tree from file
             try:
-                from bptree_optimized import BPlusTreeOptimized
+                from bptree import BPlusTreeOptimized
                 from bptree import BPlusTree
 
                 # Try to load as optimized B+ tree first

@@ -15,7 +15,7 @@ if server_dir not in sys.path:
 
 # Import the B+ tree implementation
 try:
-    from bptree_optimized import BPlusTreeOptimized as BPTree
+    from bptree import BPlusTreeOptimized as BPTree
 
     print("✅ Successfully imported BPlusTreeOptimized")
 except ImportError as e:

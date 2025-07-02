@@ -34,8 +34,8 @@ extra_link_args = [
 # Extensions to build
 extensions = [
     Extension(
-        "hyperoptimized_sort",
-        sources=["hyperoptimized_sort.pyx"],
+        "sort",
+        sources=["sort.pyx"],
         include_dirs=[np.get_include()],
         extra_compile_args=extra_compile_args,
         extra_link_args=extra_link_args,
@@ -54,7 +54,7 @@ def build_extensions():
 
     # Compile with Cython
     setup(
-        name="hyperoptimized_sort",
+        name="sort",
         ext_modules=cythonize(
             extensions,
             compiler_directives={

@@ -17,7 +17,7 @@ def run_benchmark(num_keys_param=100000, batch_size_param=10000, order_param=50)
     """Run a benchmark for the optimized B+ tree implementation"""
     try:
         # Try to import the optimized B+ tree
-        from bptree_optimized import BPlusTreeOptimized
+        from bptree import BPlusTreeOptimized
     except ImportError:
         logger.error("BPlusTreeOptimized module not found. Please build it first.")
         return None

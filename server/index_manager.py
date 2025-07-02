@@ -10,7 +10,7 @@ import time
 import threading
 
 try:
-    from bptree_optimized import BPlusTreeOptimized as BPlusTree
+    from bptree import BPlusTreeOptimized as BPlusTree
 except ImportError:
     # Fallback to adapter if optimized is not available
     from bptree_adapter import BPlusTree

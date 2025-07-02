@@ -35,7 +35,7 @@ from .unified_optimizer import (
     OptimizationLevel,
     OptimizationOptions,
 )
-from .advanced_statistics import AdvancedStatisticsCollector, TableStatistics
+from .statistics import AdvancedStatisticsCollector, TableStatistics
 
 
 @dataclass

@@ -10,7 +10,7 @@ server_dir = os.path.join(project_root, "server")
 if server_dir not in sys.path:
     sys.path.insert(0, server_dir)
 
-from bptree_optimized import BPlusTreeOptimized as BPTree
+from bptree import BPlusTreeOptimized as BPTree
 
 
 def debug_multidim_search():

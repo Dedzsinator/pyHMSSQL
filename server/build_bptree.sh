@@ -9,7 +9,7 @@ echo "======================================="
 
 # Clean any previous build artifacts
 echo "Cleaning previous build..."
-rm -f bptree_optimized*.so bptree_optimized*.c
+rm -f bptree*.so bptree*.c
 rm -rf build/ __pycache__/
 
 # Check for required dependencies
@@ -26,14 +26,14 @@ python3 -c "import cython; print(f'Cython version: {cython.__version__}')" || {
 
 echo "Building optimized B+ tree implementation..."
 CFLAGS="-O3 -march=native -ffast-math" python3 setup.py build_ext --inplace || {
-    echo "Error: Failed to build bptree_optimized extension"
+    echo "Error: Failed to build bptree extension"
     exit 1
 }
 
 echo "Testing optimized implementation..."
 python3 -c "
 try:
-    from bptree_optimized import BPlusTreeOptimized
+    from bptree import BPlusTreeOptimized
     tree = BPlusTreeOptimized(order=10, name='test')
     tree.insert(1, 'test_value')
     result = tree.search(1)
@@ -65,5 +65,5 @@ echo "======================================="
 echo "✓ Build completed successfully!"
 echo "======================================="
 echo "Files created:"
-ls -la bptree_optimized*.so 2>/dev/null || echo "  No .so files found"
-echo "Use bptree_adapter.py or directly import bptree_optimized"
+ls -la bptree*.so 2>/dev/null || echo "  No .so files found"
+echo "Use bptree_adapter.py or directly import bptree"

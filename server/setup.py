@@ -23,8 +23,8 @@ include_dirs = [np.get_include()]
 # Define the extension
 extensions = [
     Extension(
-        "bptree_optimized",
-        ["bptree_optimized.pyx"],
+        "bptree",
+        ["bptree.pyx"],
         include_dirs=include_dirs,
         extra_compile_args=extra_compile_args,
         extra_link_args=extra_link_args,
@@ -34,7 +34,7 @@ extensions = [
 
 # Build configuration
 setup(
-    name="bptree_optimized",
+    name="bptree",
     ext_modules=cythonize(
         extensions,
         compiler_directives={

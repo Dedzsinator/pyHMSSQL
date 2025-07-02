@@ -34,7 +34,7 @@ docker run --rm pyhmssql:$BUILD_VERSION python -c "
 import sys
 print('Testing optimized B+ tree import...')
 try:
-    from bptree_optimized import BPTreeOptimized
+    from bptree import BPTreeOptimized
     print('✅ Optimized B+ tree import successful')
     
     # Test basic functionality

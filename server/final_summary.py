@@ -17,7 +17,7 @@ def print_completion_summary():
     print("-" * 30)
 
     modules = [
-        ("🧮 Advanced Statistics Collector", "advanced_statistics.py", "✅ COMPLETE"),
+        ("🧮 Statistics Collector", "statistics.py", "✅ COMPLETE"),
         ("🔄 Query Transformation Engine", "query_transformer.py", "✅ COMPLETE"),
         ("🔗 Join Order Enumerator", "join_order_enumerator.py", "✅ COMPLETE"),
         ("💰 Advanced Cost Estimator", "cost_estimator.py", "✅ COMPLETE"),

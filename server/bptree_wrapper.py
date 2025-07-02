@@ -9,7 +9,7 @@ from typing import Optional
 
 # Import ONLY the optimized implementation
 try:
-    from bptree_optimized import BPlusTreeOptimized
+    from bptree import BPlusTreeOptimized
 
     OPTIMIZED_AVAILABLE = True
 except ImportError:

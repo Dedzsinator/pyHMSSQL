@@ -25,7 +25,7 @@ if server_dir not in sys.path:
 
 # Import the B+ tree implementation
 try:
-    from bptree_optimized import BPlusTreeOptimized as BPTree
+    from bptree import BPlusTreeOptimized as BPTree
 except ImportError:
     try:
         from bptree import BPlusTree as BPTree

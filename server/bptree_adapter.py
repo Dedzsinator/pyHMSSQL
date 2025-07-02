@@ -2,7 +2,7 @@
 B+ tree adapter for seamless integration with the DBMS
 """
 
-from bptree_optimized import BPlusTreeOptimized
+from bptree import BPlusTreeOptimized
 import logging
 
 

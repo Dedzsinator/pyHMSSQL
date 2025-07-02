@@ -268,7 +268,7 @@ def test_component_availability():
     print("=" * 60)
 
     components = [
-        ("Advanced Statistics", "server.advanced_statistics"),
+        ("Statistics", "server.statistics"),
         ("Query Transformer", "server.query_transformer"),
         ("Join Order Enumerator", "server.join_order_enumerator"),
         ("Cost Estimator", "server.cost_estimator"),

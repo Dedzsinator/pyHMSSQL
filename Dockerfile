@@ -48,7 +48,7 @@ RUN echo "Building optimized B+ tree..." && \
     echo "Verifying B+ tree compilation..." && \
     python -c "import sys; \
     try: \
-    from bptree_optimized import BPTreeOptimized; \
+    from bptree import BPTreeOptimized; \
     print('Optimized B+ tree successfully compiled and importable'); \
     except ImportError as e: \
     print(f'Failed to import optimized B+ tree: {e}'); \

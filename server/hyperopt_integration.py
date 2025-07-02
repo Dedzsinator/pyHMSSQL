@@ -10,7 +10,7 @@ import logging
 from typing import List, Dict, Any, Callable, Optional
 
 try:
-    from hyperoptimized_sort import HyperoptimizedSorter, hyperopt_sort
+    from sort import HyperoptimizedSorter, hyperopt_sort
 
     HYPEROPT_AVAILABLE = True
     logger = logging.getLogger(__name__)

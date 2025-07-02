@@ -22,7 +22,7 @@ from catalog_manager import CatalogManager
 
 # Use optimized B+ Tree for document storage with proper encoding
 try:
-    from bptree_optimized import BPlusTreeOptimized as BPTree
+    from bptree import BPlusTreeOptimized as BPTree
 except ImportError:
     from bptree_adapter import BPlusTree as BPTree
 from transaction.transaction_manager import TransactionManager

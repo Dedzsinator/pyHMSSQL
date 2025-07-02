@@ -34,7 +34,7 @@ try:
     from ..storage.wal import WriteAheadLog
     from ..compression import CompressionManager
     from ..zerocopy import ZeroCopyManager, BufferPool
-    from .advanced_shard_system import (
+    from .shard_system import (
         ShardMigrationManager,
         ShardLoadBalancer,
         ShardPerformanceMonitor,
