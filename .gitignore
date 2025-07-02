@@ -15,3 +15,4 @@ adaptive_optimizer_data
 htmlcov
 venv/
 *.html
+node_modules/
