@@ -166,7 +166,7 @@ public class QueryBuilderDialog extends Stage {
 
         HBox fieldButtons = new HBox(5);
         Button addFieldButton = new Button("Add");
-        addFieldButton.setGraphic(new FontIcon(Material2MZ.KEYBOARD_ARROW_RIGHT));
+        addFieldButton.setGraphic(new FontIcon(Material2AL.ARROW_RIGHT));
         addFieldButton.getStyleClass().addAll("secondary-button", "small-button");
 
         Button removeFieldButton = new Button("Remove");
@@ -174,7 +174,7 @@ public class QueryBuilderDialog extends Stage {
         removeFieldButton.getStyleClass().addAll("secondary-button", "small-button");
 
         Button addAllFieldsButton = new Button("Add All");
-        addAllFieldsButton.setGraphic(new FontIcon(Material2MZ.KEYBOARD_DOUBLE_ARROW_RIGHT));
+        addAllFieldsButton.setGraphic(new FontIcon(Material2AL.ARROW_RIGHT));
         addAllFieldsButton.getStyleClass().addAll("secondary-button", "small-button");
 
         fieldButtons.getChildren().addAll(addFieldButton, removeFieldButton, addAllFieldsButton);

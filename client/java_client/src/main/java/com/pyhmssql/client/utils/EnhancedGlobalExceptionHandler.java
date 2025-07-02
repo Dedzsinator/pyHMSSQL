@@ -19,17 +19,17 @@ import java.util.Optional;
  * Enhanced Global Exception Handler with detailed error reporting and
  * user-friendly dialogs
  */
-public class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
-    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-    private static GlobalExceptionHandler instance;
+public class EnhancedGlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
+    private static final Logger logger = LoggerFactory.getLogger(EnhancedGlobalExceptionHandler.class);
+    private static EnhancedGlobalExceptionHandler instance;
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private GlobalExceptionHandler() {
+    private EnhancedGlobalExceptionHandler() {
     }
 
-    public static GlobalExceptionHandler getInstance() {
+    public static EnhancedGlobalExceptionHandler getInstance() {
         if (instance == null) {
-            instance = new GlobalExceptionHandler();
+            instance = new EnhancedGlobalExceptionHandler();
         }
         return instance;
     }
@@ -147,6 +147,12 @@ public class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
         String message = throwable.getMessage();
 
         return switch (className) {
+            case "IllegalAccessError" -> {
+                if (message != null && message.contains("com.jfoenix")) {
+                    yield "UI component compatibility issue detected. The application will use standard components instead.";
+                }
+                yield "An access permission error occurred: " + (message != null ? message : "Unknown access error");
+            }
             case "ConnectionException", "ConnectException", "SocketException" ->
                 "Unable to connect to the database server. Please check your connection settings and ensure the server is running.";
             case "SQLException" ->

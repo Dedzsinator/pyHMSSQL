@@ -754,6 +754,24 @@ public class ConnectionManager {
         }
     }
 
+    /**
+     * Check if currently connected to the server
+     * 
+     * @return true if connected, false otherwise
+     */
+    public boolean isConnected() {
+        return socket != null && socket.isConnected() && !socket.isClosed() && sessionId != null;
+    }
+
+    /**
+     * Notify connection listeners about connection status change
+     * 
+     * @param connected true if connected, false if disconnected
+     */
+    private void notifyConnectionListeners(boolean connected) {
+        notifyListeners(connected);
+    }
+
     public CompletableFuture<Map<String, Object>> getDatabases() {
         Map<String, Object> request = new HashMap<>();
         request.put("action", "query");

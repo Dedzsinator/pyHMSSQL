@@ -29,7 +29,6 @@ import org.controlsfx.control.StatusBar;
 import org.controlsfx.control.NotificationPane;
 import org.controlsfx.control.action.Action;
 import org.controlsfx.control.MasterDetailPane;
-import com.jfoenix.controls.*;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.material2.Material2AL;
 import org.kordamp.ikonli.material2.Material2MZ;
@@ -56,10 +55,9 @@ public class MainWindow extends BorderPane {
     private NotificationPane notificationPane;
     private MasterDetailPane masterDetailPane;
 
-    // Modern UI Controls
-    private JFXToolbar toolbar;
-    private JFXSnackbar snackbar;
-    private JFXSpinner progressSpinner;
+    // Modern UI Controls - replace JFoenix with standard components
+    private ToolBar toolbar;
+    private ProgressIndicator progressSpinner;
 
     // Configuration and Theme Management
     private final ConfigurationManager configManager;
@@ -74,6 +72,10 @@ public class MainWindow extends BorderPane {
     private Timeline performanceUpdateTimeline;
     private Label memoryUsageLabel;
     private Label connectionCountLabel;
+
+    // Add instance variables for the icons
+    private FontIcon connectionIcon;
+    private FontIcon databaseIcon;
 
     public MainWindow() {
         try {
@@ -115,32 +117,30 @@ public class MainWindow extends BorderPane {
     }
 
     private void initializeComponents() {
-        // Initialize core components
+        // Initialize modern UI components FIRST
+        progressSpinner = new ProgressIndicator();
+        progressSpinner.setVisible(false);
+        progressSpinner.setPrefSize(20, 20);
+        progressSpinner.setProgress(-1); // Indeterminate progress
+
+        // Setup notification pane
+        notificationPane = new NotificationPane();
+        notificationPane.getStyleClass().add("notification-pane");
+
+        // Initialize core components AFTER modern UI components
         initMenuBar();
         initToolbar();
         initTabPane();
         initDbExplorer();
         initStatusBar();
-
-        // Initialize modern UI components
-        progressSpinner = new JFXSpinner();
-        progressSpinner.setVisible(false);
-        progressSpinner.setPrefSize(20, 20);
-
-        snackbar = new JFXSnackbar();
-        snackbar.setPrefWidth(400);
-
-        // Setup notification pane
-        notificationPane = new NotificationPane();
-        notificationPane.getStyleClass().add("notification-pane");
     }
 
     private void initToolbar() {
-        toolbar = new JFXToolbar();
+        toolbar = new ToolBar();
         toolbar.setStyle("-fx-background-color: -fx-primary;");
 
         // Connection status indicator
-        FontIcon connectionIcon = new FontIcon(Material2AL.LINK_OFF);
+        connectionIcon = new FontIcon(Material2AL.LINK_OFF);
         connectionIcon.setIconSize(16);
         connectionIcon.getStyleClass().add("toolbar-icon");
 
@@ -150,7 +150,7 @@ public class MainWindow extends BorderPane {
         connectionStatus.getStyleClass().add("connection-status");
 
         // Database indicator
-        FontIcon databaseIcon = new FontIcon(Material2MZ.STORAGE);
+        databaseIcon = new FontIcon(Material2MZ.STORAGE);
         databaseIcon.setIconSize(16);
         databaseIcon.getStyleClass().add("toolbar-icon");
 
@@ -159,36 +159,47 @@ public class MainWindow extends BorderPane {
         databaseStatus.setGraphic(databaseIcon);
         databaseStatus.getStyleClass().add("database-status");
 
-        // Quick action buttons
-        JFXButton connectBtn = new JFXButton("", new FontIcon(Material2AL.LOGIN));
-        connectBtn.getStyleClass().addAll("jfx-button", "toolbar-button");
+        // Quick action buttons - replace JFXButton with Button
+        Button connectBtn = new Button("", new FontIcon(Material2AL.LOGIN));
+        connectBtn.getStyleClass().addAll("button", "toolbar-button");
         connectBtn.setOnAction(e -> showLoginPanel());
 
-        JFXButton newQueryBtn = new JFXButton("", new FontIcon(Material2AL.ADD));
-        newQueryBtn.getStyleClass().addAll("jfx-button", "toolbar-button");
+        Button newQueryBtn = new Button("", new FontIcon(Material2AL.ADD));
+        newQueryBtn.getStyleClass().addAll("button", "toolbar-button");
         newQueryBtn.setOnAction(e -> openNewQueryTab());
 
-        JFXButton executeBtn = new JFXButton("", new FontIcon(Material2MZ.PLAY_ARROW));
-        executeBtn.getStyleClass().addAll("jfx-button", "toolbar-button");
+        Button executeBtn = new Button("", new FontIcon(Material2MZ.PLAY_ARROW));
+        executeBtn.getStyleClass().addAll("button", "toolbar-button");
         executeBtn.setOnAction(e -> executeCurrentQuery());
 
         // Theme toggle button
-        JFXButton themeBtn = new JFXButton("", new FontIcon(Material2MZ.PALETTE));
-        themeBtn.getStyleClass().addAll("jfx-button", "toolbar-button");
+        Button themeBtn = new Button("", new FontIcon(Material2MZ.PALETTE));
+        themeBtn.getStyleClass().addAll("button", "toolbar-button");
         themeBtn.setOnAction(e -> toggleTheme());
 
         // Add spacer and progress indicator
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox leftBox = new HBox(10, connectionStatus, databaseStatus);
-        leftBox.setAlignment(Pos.CENTER_LEFT);
+        // Ensure progressSpinner is initialized - use standard ProgressIndicator
+        if (progressSpinner == null) {
+            progressSpinner = new ProgressIndicator();
+            progressSpinner.setVisible(false);
+            progressSpinner.setPrefSize(20, 20);
+            progressSpinner.setProgress(-1); // Indeterminate progress
+        }
 
-        HBox rightBox = new HBox(5, connectBtn, newQueryBtn, executeBtn, themeBtn, progressSpinner);
-        rightBox.setAlignment(Pos.CENTER_RIGHT);
-
-        toolbar.setLeft(leftBox);
-        toolbar.setRight(rightBox);
+        // Add all components to toolbar
+        toolbar.getItems().addAll(
+                connectionStatus,
+                databaseStatus,
+                new Separator(),
+                connectBtn,
+                newQueryBtn,
+                executeBtn,
+                themeBtn,
+                spacer,
+                progressSpinner);
     }
 
     private void setupLayout() {
@@ -205,25 +216,22 @@ public class MainWindow extends BorderPane {
         setTop(new VBox(menuBar, toolbar));
         setCenter(notificationPane);
         setBottom(statusBar);
-
-        // Add snackbar
-        StackPane root = new StackPane(this);
-        snackbar.registerSnackbarContainer(root);
     }
 
     private void setupBindings() {
         // Update toolbar based on connection status
         connected.addListener((obs, oldVal, newVal) -> {
             Platform.runLater(() -> {
-                FontIcon icon = (FontIcon) ((Label) toolbar.getLeft()).getGraphic();
-                if (newVal) {
-                    icon.setIconCode(Material2AL.LINK);
-                    icon.getStyleClass().removeAll("disconnected");
-                    icon.getStyleClass().add("connected");
-                } else {
-                    icon.setIconCode(Material2AL.LINK_OFF);
-                    icon.getStyleClass().removeAll("connected");
-                    icon.getStyleClass().add("disconnected");
+                if (connectionIcon != null) {
+                    if (newVal) {
+                        connectionIcon.setIconCode(Material2AL.LINK);
+                        connectionIcon.getStyleClass().removeAll("disconnected");
+                        connectionIcon.getStyleClass().add("connected");
+                    } else {
+                        connectionIcon.setIconCode(Material2AL.LINK_OFF);
+                        connectionIcon.getStyleClass().removeAll("connected");
+                        connectionIcon.getStyleClass().add("disconnected");
+                    }
                 }
             });
         });
@@ -282,10 +290,12 @@ public class MainWindow extends BorderPane {
 
     private void showNotification(String message, String type) {
         Platform.runLater(() -> {
-            snackbar.fireEvent(new JFXSnackbar.SnackbarEvent(
-                    new JFXSnackbarLayout(message, "DISMISS", e -> snackbar.close()),
-                    Duration.millis(3000),
-                    null));
+            // Replace JFXSnackbar with simple Alert for now
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Notification");
+            alert.setHeaderText(null);
+            alert.setContentText(message);
+            alert.showAndWait();
         });
     }
 
@@ -531,6 +541,17 @@ public class MainWindow extends BorderPane {
         Platform.runLater(() -> {
             QueryEditor queryEditor = new QueryEditor(connectionManager);
             Tab queryTab = new Tab("Query " + (tabPane.getTabs().size() + 1), queryEditor);
+            queryTab.setClosable(true);
+            tabPane.getTabs().add(queryTab);
+            tabPane.getSelectionModel().select(queryTab);
+        });
+    }
+
+    private void openNewQueryTab(String title, String query) {
+        Platform.runLater(() -> {
+            QueryEditor queryEditor = new QueryEditor(connectionManager);
+            queryEditor.setQueryText(query);
+            Tab queryTab = new Tab(title, queryEditor);
             queryTab.setClosable(true);
             tabPane.getTabs().add(queryTab);
             tabPane.getSelectionModel().select(queryTab);
@@ -861,7 +882,10 @@ public class MainWindow extends BorderPane {
     }
 
     private void openQueryBuilder() {
-        VisualQueryBuilder queryBuilder = new VisualQueryBuilder(connectionManager);
+        VisualQueryBuilder queryBuilder = new VisualQueryBuilder(connectionManager, query -> {
+            // Handle the generated query - could open it in a new query tab or execute it
+            openNewQueryTab("Generated Query", query);
+        });
         Tab queryBuilderTab = new Tab("Query Builder", queryBuilder);
         queryBuilderTab.setClosable(true);
         tabPane.getTabs().add(queryBuilderTab);

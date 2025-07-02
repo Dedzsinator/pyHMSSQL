@@ -7,7 +7,7 @@ import javafx.geometry.Insets;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.scene.chart.*;
-import eu.hansolo.toolboxfx.DarkMatter;
+// import eu.hansolo.toolboxfx.DarkMatter; // TODO: Add this dependency or implement alternative
 import org.controlsfx.control.ToggleSwitch;
 
 import java.util.Map;

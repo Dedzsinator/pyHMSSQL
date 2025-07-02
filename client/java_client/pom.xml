@@ -11,9 +11,9 @@
     <description>Professional JavaFX client for pyHMSSQL Database Management System</description>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <maven.compiler.release>17</maven.compiler.release>
+        <maven.compiler.source>24</maven.compiler.source>
+        <maven.compiler.target>24</maven.compiler.target>
+        <maven.compiler.release>24</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javafx.version>21.0.1</javafx.version>
         <jackson.version>2.16.1</jackson.version>
@@ -54,11 +54,6 @@
             <groupId>org.controlsfx</groupId>
             <artifactId>controlsfx</artifactId>
             <version>11.2.1</version>
-        </dependency>
-        <dependency>
-            <groupId>com.jfoenix</groupId>
-            <artifactId>jfoenix</artifactId>
-            <version>9.0.10</version>
         </dependency>
         <dependency>
             <groupId>org.kordamp.ikonli</groupId>
@@ -120,18 +115,13 @@
         <!-- Charts and Visualization -->
         <dependency>
             <groupId>org.jfree</groupId>
-            <artifactId>jfreechart-fx</artifactId>
-            <version>2.0.1</version>
+            <artifactId>jfreechart</artifactId>
+            <version>1.5.4</version>
         </dependency>
         <dependency>
-            <groupId>eu.hansolo</groupId>
-            <artifactId>charts</artifactId>
-            <version>21.0.7</version>
-        </dependency>
-        <dependency>
-            <groupId>eu.hansolo</groupId>
-            <artifactId>toolboxfx</artifactId>
-            <version>21.0.12</version>
+            <groupId>org.jfree</groupId>
+            <artifactId>jfreesvg</artifactId>
+            <version>2.1</version>
         </dependency>
 
         <!-- SQL Formatting -->
@@ -229,9 +219,6 @@
                     <target>${maven.compiler.target}</target>
                     <release>${maven.compiler.release}</release>
                     <encoding>${project.build.sourceEncoding}</encoding>
-                    <compilerArgs>
-                        <arg>--enable-preview</arg>
-                    </compilerArgs>
                 </configuration>
             </plugin>
 
@@ -242,7 +229,18 @@
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>com.pyhmssql.client.main.App</mainClass>
-                    <commandlineArgs>--enable-preview</commandlineArgs>
+                    <options>
+                        <option>--add-exports</option>
+                        <option>javafx.graphics/com.sun.javafx.scene=ALL-UNNAMED</option>
+                        <option>--add-exports</option>
+                        <option>javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED</option>
+                        <option>--add-exports</option>
+                        <option>javafx.controls/com.sun.javafx.scene.control.behavior=ALL-UNNAMED</option>
+                        <option>--add-exports</option>
+                        <option>javafx.base/com.sun.javafx.binding=ALL-UNNAMED</option>
+                        <option>--add-exports</option>
+                        <option>javafx.base/com.sun.javafx.event=ALL-UNNAMED</option>
+                    </options>
                 </configuration>
             </plugin>
 
@@ -259,7 +257,6 @@
                         --add-opens javafx.base/com.sun.javafx.binding=ALL-UNNAMED
                         --add-opens javafx.base/com.sun.javafx.event=ALL-UNNAMED
                         --add-opens javafx.graphics/com.sun.javafx.stage=ALL-UNNAMED
-                        --enable-preview
                     </argLine>
                 </configuration>
             </plugin>
@@ -350,7 +347,7 @@
                         <groupId>org.openjfx</groupId>
                         <artifactId>javafx-maven-plugin</artifactId>
                         <configuration>
-                            <commandlineArgs>--enable-preview -Dcom.pyhmssql.client.dev=true</commandlineArgs>
+                            <commandlineArgs>-Dcom.pyhmssql.client.dev=true</commandlineArgs>
                         </configuration>
                     </plugin>
                 </plugins>

@@ -2,12 +2,13 @@ package com.pyhmssql.client.main;
 
 import com.pyhmssql.client.config.ConfigurationManager;
 import com.pyhmssql.client.theme.ThemeManager;
-import com.pyhmssql.client.utils.GlobalExceptionHandler;
+import com.pyhmssql.client.utils.EnhancedGlobalExceptionHandler;
 import com.pyhmssql.client.utils.AppInfo;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 import javafx.scene.image.Image;
 import javafx.stage.Stage;
 import org.slf4j.Logger;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.prefs.Preferences;
+import javafx.scene.layout.StackPane;
 
 /**
  * pyHMSSQL Professional Client - Main Application Entry Point
@@ -140,12 +142,12 @@ public class App extends Application {
 
     private void initializeExceptionHandling() {
         // Set up global exception handling
-        Thread.setDefaultUncaughtExceptionHandler(new GlobalExceptionHandler());
+        Thread.setDefaultUncaughtExceptionHandler(EnhancedGlobalExceptionHandler.getInstance());
 
         // JavaFX platform exception handling
         Platform.runLater(() -> {
             Thread.currentThread().setUncaughtExceptionHandler(
-                    new GlobalExceptionHandler());
+                    EnhancedGlobalExceptionHandler.getInstance());
         });
     }
 
@@ -186,7 +188,8 @@ public class App extends Application {
     }
 
     private Scene createMainScene(MainWindow mainWindow) {
-        Scene scene = new Scene(mainWindow,
+        // Don't create a new Scene here since MainWindow might already be in one
+        Scene scene = new Scene(new StackPane(mainWindow),
                 ConfigurationManager.UI.Window.getWidth(),
                 ConfigurationManager.UI.Window.getHeight());
 
@@ -229,7 +232,7 @@ public class App extends Application {
                 alert.setContentText("You have unsaved changes. Do you want to exit without saving?");
 
                 return alert.showAndWait()
-                        .filter(response -> response == Alert.ButtonType.OK)
+                        .filter(response -> response == ButtonType.OK)
                         .isPresent();
             }
 
@@ -361,13 +364,5 @@ public class App extends Application {
             logger.error("Fatal error during application startup", e);
             System.exit(1);
         }
-    }}Platform.runLater(()->{
-
-    Alert alert = new Alert(
-            Alert.AlertType.ERROR);alert.setTitle(title);alert.setHeaderText(null);alert.setContentText(message);alert.showAndWait();
-    });}
-
-    public static void main(String[] args) {
-        launch(args);
     }
 }

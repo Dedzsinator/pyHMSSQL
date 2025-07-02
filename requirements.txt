@@ -22,3 +22,4 @@ aiofiles
 PyJWT
 kubernetes
 lz4
+python-snappy
