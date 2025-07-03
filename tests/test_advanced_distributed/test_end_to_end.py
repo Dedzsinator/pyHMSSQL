@@ -13,7 +13,6 @@ Created for comprehensive testing of production-ready distributed DBMS system.
 """
 
 import pytest
-import pytest_asyncio
 import asyncio
 import time
 import tempfile
@@ -24,6 +23,12 @@ import threading
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from unittest.mock import Mock, patch
+
+# Handle missing pytest-asyncio gracefully
+try:
+    import pytest_asyncio
+except ImportError:
+    pytest_asyncio = None
 
 # Import all system components
 from kvstore.raft import RaftNode, RaftConfig
@@ -77,9 +82,9 @@ class DistributedSystemNode:
 
         # Sharding
         shard_config = {
-            "num_shards": 4, 
-            "enable_compression": True, 
-            "enable_zero_copy": True
+            "num_shards": 4,
+            "enable_compression": True,
+            "enable_zero_copy": True,
         }
         self.sharding = AdvancedShardManager(shard_config)
 

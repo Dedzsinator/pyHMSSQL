@@ -39,6 +39,9 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow running")
     config.addinivalue_line("markers", "network: mark test as requiring network")
 
+    # Enable asyncio mode
+    config.option.asyncio_mode = "auto"
+
 
 def pytest_collection_modifyitems(config, items):
     """Modify test collection to add markers automatically"""

@@ -219,7 +219,11 @@ class AdvancedShardManager:
     - Advanced placement strategies and resource isolation
     """
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any]):
+        # Validate configuration
+        if config.get("num_shards", 0) <= 0:
+            raise ShardingError("num_shards must be greater than 0")
+
         self.config = config or {}
         self.num_cores = psutil.cpu_count(logical=False)
         self.num_shards = self.config.get("num_shards", self.num_cores)
@@ -587,7 +591,10 @@ class AdvancedShardManager:
     def get_shard_for_key(
         self, key: str, consistency_level: Optional["ConsistencyLevel"] = None
     ) -> int:
-        """Determine which shard should handle a key using advanced hashing"""
+        """Get the shard ID for a given key"""
+        if not self.running:
+            raise RuntimeError("Shard manager is not running")
+
         # Use SHA-256 for better distribution
         hash_bytes = hashlib.sha256(key.encode("utf-8")).digest()
         hash_int = int.from_bytes(hash_bytes[:4], byteorder="big")
@@ -835,6 +842,10 @@ class AdvancedShardManager:
             "active_migrations": len(self.migration_manager.active_migrations),
             "pending_migrations": self.migration_manager.migration_queue.qsize(),
         }
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get shard manager statistics (alias for get_comprehensive_stats)"""
+        return self.get_comprehensive_stats()
 
 
 # Maintain backward compatibility

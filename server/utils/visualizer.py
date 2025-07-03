@@ -73,7 +73,7 @@ class Visualizer:
 
             # Get the index definition
             index_def = indexes[index_name]
-            column_name = index_def.get('column', 'unknown')
+            column_name = index_def.get("column", "unknown")
 
             # Try multiple file naming conventions
             possible_files = [
@@ -128,7 +128,9 @@ class Visualizer:
                     index_obj = self.index_manager.get_index(full_index_name)
                     if not index_obj:
                         # Last resort: create a new tree
-                        index_obj = BPlusTreeOptimized(order=50, name=f"{table_name}_{column_name}_index")
+                        index_obj = BPlusTreeOptimized(
+                            order=50, name=f"{table_name}_{column_name}_index"
+                        )
 
             except Exception as load_error:
                 logging.error(

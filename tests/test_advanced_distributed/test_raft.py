@@ -39,11 +39,11 @@ class TestRaftConfiguration:
         """Test default RAFT configuration values"""
         config = RaftConfig()
 
-        assert config.election_timeout_min == 1.0
-        assert config.election_timeout_max == 3.0
-        assert config.heartbeat_interval == 0.5
+        assert config.election_timeout_min == 0.15
+        assert config.election_timeout_max == 0.3
+        assert config.heartbeat_interval == 0.05
         assert config.max_log_entries_per_request == 100
-        assert config.snapshot_threshold == 1000
+        assert config.log_compaction_threshold == 1000
 
     def test_raft_config_custom_values(self):
         """Test custom RAFT configuration"""

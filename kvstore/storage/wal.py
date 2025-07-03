@@ -15,11 +15,17 @@ import zlib
 from typing import Dict, List, Optional, Any, BinaryIO, AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
-import aiofiles
-import aiofiles.os
 from pathlib import Path
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
+
+# Try to import aiofiles, fallback to regular file operations
+try:
+    import aiofiles
+    import aiofiles.os
+    AIOFILES_AVAILABLE = True
+except ImportError:
+    AIOFILES_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +61,18 @@ class WALEntry:
 
     def to_bytes(self) -> bytes:
         """Serialize entry to bytes"""
+        # Handle bytes values by encoding them as base64
+        value = self.value
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            import base64
+            value = {"__bytes__": base64.b64encode(bytes(value)).decode('ascii')}
+        
         data = {
             "type": self.entry_type.value,
             "seq": self.sequence_number,
             "ts": self.timestamp,
             "key": self.key,
-            "value": self.value,
+            "value": value,
             "tx_id": self.transaction_id,
             "meta": self.metadata,
         }
@@ -108,12 +120,18 @@ class WALEntry:
         json_data = zlib.decompress(compressed_data)
         parsed = json.loads(json_data.decode("utf-8"))
 
+        # Handle base64-encoded bytes values
+        value = parsed.get("value")
+        if isinstance(value, dict) and "__bytes__" in value:
+            import base64
+            value = base64.b64decode(value["__bytes__"])
+
         return cls(
             entry_type=WALEntryType(parsed["type"]),
             sequence_number=parsed["seq"],
             timestamp=parsed["ts"],
             key=parsed.get("key"),
-            value=parsed.get("value"),
+            value=value,
             transaction_id=parsed.get("tx_id"),
             metadata=parsed.get("meta", {}),
             checksum=checksum,
@@ -213,31 +231,59 @@ class WALSegment:
         if not os.path.exists(self.file_path):
             return
 
-        async with aiofiles.open(self.file_path, "rb") as f:
-            while True:
-                # Read header
-                header_data = await f.read(12)
-                if len(header_data) < 12:
-                    break
-
-                try:
-                    magic_int, checksum, length = struct.unpack(">III", header_data)
-
-                    # Read data
-                    data = await f.read(length)
-                    if len(data) < length:
+        if AIOFILES_AVAILABLE:
+            async with aiofiles.open(self.file_path, "rb") as f:
+                while True:
+                    # Read header
+                    header_data = await f.read(12)
+                    if len(header_data) < 12:
                         break
 
-                    # Parse entry
-                    full_data = header_data + data
-                    entry = WALEntry.from_bytes(full_data)
+                    try:
+                        magic_int, checksum, length = struct.unpack(">III", header_data)
 
-                    if from_sequence is None or entry.sequence_number >= from_sequence:
-                        yield entry
+                        # Read data
+                        data = await f.read(length)
+                        if len(data) < length:
+                            break
 
-                except Exception as e:
-                    logger.error(f"Error reading WAL entry: {e}")
-                    break
+                        # Parse entry
+                        full_data = header_data + data
+                        entry = WALEntry.from_bytes(full_data)
+
+                        if from_sequence is None or entry.sequence_number >= from_sequence:
+                            yield entry
+
+                    except Exception as e:
+                        logger.error(f"Error reading WAL entry: {e}")
+                        break
+        else:
+            # Fallback to synchronous file operations
+            with open(self.file_path, "rb") as f:
+                while True:
+                    # Read header
+                    header_data = f.read(12)
+                    if len(header_data) < 12:
+                        break
+
+                    try:
+                        magic_int, checksum, length = struct.unpack(">III", header_data)
+
+                        # Read data
+                        data = f.read(length)
+                        if len(data) < length:
+                            break
+
+                        # Parse entry
+                        full_data = header_data + data
+                        entry = WALEntry.from_bytes(full_data)
+
+                        if from_sequence is None or entry.sequence_number >= from_sequence:
+                            yield entry
+
+                    except Exception as e:
+                        logger.error(f"Error reading WAL entry: {e}")
+                        break
 
 
 class WriteAheadLog:
@@ -584,6 +630,13 @@ class WriteAheadLog:
         )
 
         return stats
+
+    async def read_entries_from(self, sequence: int) -> List[WALEntry]:
+        """Read entries starting from a sequence number (for compatibility)"""
+        entries = []
+        async for entry in self.read_entries(from_sequence=sequence):
+            entries.append(entry)
+        return entries
 
 
 # Convenience functions for common operations

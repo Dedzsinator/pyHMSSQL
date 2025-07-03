@@ -508,7 +508,7 @@ class DBMSServer:
         """
         try:
             # Check if audit_db is available
-            if hasattr(self, 'audit_db') and self.audit_db is not None:
+            if hasattr(self, "audit_db") and self.audit_db is not None:
                 self.audit_db.audit_logs.insert_one(log_entry)
             else:
                 # If audit_db is not available, just log it

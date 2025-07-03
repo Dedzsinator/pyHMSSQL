@@ -447,17 +447,17 @@ class Planner:
         - SHOW ALL_TABLES
         """
         logging.debug("Planning SHOW query: %s", parsed_query)
-        
+
         # Get the object type, defaulting to "UNKNOWN" if not present
         object_type = parsed_query.get("object", "UNKNOWN")
-        
+
         # Handle the case where object is "UNKNOWN" - might be a custom SHOW command
         if object_type == "UNKNOWN":
             # Check the original query for specific patterns
             query = parsed_query.get("query", "").upper()
             if "ALL_TABLES" in query or "SHOW ALL_TABLES" in query:
                 object_type = "ALL_TABLES"
-        
+
         return {
             "type": "SHOW",
             "object": object_type,

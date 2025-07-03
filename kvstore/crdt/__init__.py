@@ -413,7 +413,7 @@ class LWWElementSet(CRDTValue):
                 other_elements = temp_crdt._elements
             else:
                 other_elements = other._elements
-            
+
             # Merge elements from other
             for value, other_element in other_elements.items():
                 if value not in self._elements:
@@ -488,7 +488,7 @@ class ORSet(CRDTValue):
             # Assume it's a clock object with node_id attribute
             self.clock = clock_or_node_id
             self.node_id = clock_or_node_id.node_id
-            
+
         self.added_elements: List[Tuple[Any, str]] = (
             []
         )  # List of (element, unique_tag) pairs

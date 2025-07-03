@@ -50,6 +50,20 @@ class LogEntry:
             timestamp=data.get("timestamp", time.time()),
         )
 
+    def __eq__(self, other) -> bool:
+        """Compare entries ignoring timestamp differences"""
+        if not isinstance(other, LogEntry):
+            return False
+        return (
+            self.term == other.term
+            and self.index == other.index
+            and self.command == other.command
+        )
+
+    def __hash__(self) -> int:
+        """Hash based on term, index, and command"""
+        return hash((self.term, self.index, str(sorted(self.command.items()))))
+
 
 @dataclass
 class VoteRequest:
@@ -93,13 +107,24 @@ class AppendEntriesResponse:
 class RaftConfig:
     """Raft configuration"""
 
-    def __init__(self):
-        self.election_timeout_min = 0.15  # 150ms
-        self.election_timeout_max = 0.3  # 300ms
-        self.heartbeat_interval = 0.05  # 50ms
-        self.log_compaction_threshold = 1000
-        self.max_log_entries_per_request = 100
-        self.snapshot_interval = 10000
+    def __init__(
+        self,
+        election_timeout_min: float = 0.15,
+        election_timeout_max: float = 0.3,
+        heartbeat_interval: float = 0.05,
+        log_compaction_threshold: int = 1000,
+        max_log_entries_per_request: int = 100,
+        snapshot_interval: int = 10000,
+    ):
+        if election_timeout_min >= election_timeout_max:
+            raise ValueError("election_timeout_min must be less than election_timeout_max")
+
+        self.election_timeout_min = election_timeout_min
+        self.election_timeout_max = election_timeout_max
+        self.heartbeat_interval = heartbeat_interval
+        self.log_compaction_threshold = log_compaction_threshold
+        self.max_log_entries_per_request = max_log_entries_per_request
+        self.snapshot_interval = snapshot_interval
 
 
 class RaftNode:
@@ -168,9 +193,15 @@ class RaftNode:
                 return
             self._running = True
 
-        # Start background tasks
-        asyncio.create_task(self._background_loop())
         logger.info(f"Raft node {self.node_id} started")
+
+    async def start_async(self):
+        """Start the Raft node with background tasks (async version)"""
+        self.start()
+
+        # Start background tasks
+        if not self._background_task:
+            self._background_task = asyncio.create_task(self._background_loop())
 
     def stop(self):
         """Stop the Raft node"""
@@ -299,7 +330,9 @@ class RaftNode:
                     count += 1
 
             # Check if majority agrees and entry is from current term
-            majority_needed = (len(self.peers) + 1) // 2 + 1  # +1 to include self in total count
+            majority_needed = (
+                len(self.peers) + 1
+            ) // 2 + 1  # +1 to include self in total count
             if count >= majority_needed:
                 if (
                     index <= len(self.log)
@@ -527,14 +560,20 @@ class RaftNode:
             )
             self.log.append(entry)
 
+            # For single-node clusters or testing, immediately commit
+            if len(self.peers) == 0:
+                self.commit_index = len(self.log)
+                self.last_applied = self.commit_index
+                if self.on_command_applied:
+                    self.on_command_applied(entry.command)
+                return True
+
         # Wait for replication (simplified)
         await asyncio.sleep(0.1)
 
         with self._lock:
-            # For single-node clusters, update commit index immediately
-            if len(self.peers) == 0:
-                self._update_commit_index()
-                self._apply_committed_entries()  # Apply the committed entries
+            self._update_commit_index()
+            self._apply_committed_entries()
             return self.commit_index >= entry.index
 
     # Aliases for backward compatibility
@@ -563,7 +602,6 @@ class RaftNode:
             return len(self.log), self.commit_index, self.last_applied
 
     # Persistence interface
-
     def get_persistent_state(self) -> Dict[str, Any]:
         """Get state that needs to be persisted"""
         with self._lock:
@@ -576,7 +614,7 @@ class RaftNode:
             }
 
     def restore_persistent_state(self, state: Dict[str, Any]):
-        """Restore persisted state"""
+        """Restore state from persistent storage"""
         with self._lock:
             self.current_term = state.get("current_term", 0)
             self.voted_for = state.get("voted_for")

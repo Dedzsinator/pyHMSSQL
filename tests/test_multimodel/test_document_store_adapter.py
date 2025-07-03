@@ -342,14 +342,18 @@ class TestDocumentStoreAdapter:
             adapter.insert_document("users", doc, "test_schema")
 
         # Test various filters
-        query = DocumentQuery(collection="test_schema.users", filter_conditions={"age": 25})
+        query = DocumentQuery(
+            collection="test_schema.users", filter_conditions={"age": 25}
+        )
         results = adapter.find_documents(query)
         assert len(results) == 2
         names = [doc["name"] for doc in results]
         assert "John" in names
         assert "Bob" in names
 
-        query = DocumentQuery(collection="test_schema.users", filter_conditions={"city": "NYC"})
+        query = DocumentQuery(
+            collection="test_schema.users", filter_conditions={"city": "NYC"}
+        )
         results = adapter.find_documents(query)
         assert len(results) == 2
         names = [doc["name"] for doc in results]
@@ -455,7 +459,8 @@ class TestDocumentStoreAdapter:
 
         # Query by nested CPU brand
         query = DocumentQuery(
-            collection="test_schema.products", filter_conditions={"specs.cpu.brand": "Intel"}
+            collection="test_schema.products",
+            filter_conditions={"specs.cpu.brand": "Intel"},
         )
         results = adapter.find_documents(query)
         assert len(results) == 1
@@ -463,7 +468,8 @@ class TestDocumentStoreAdapter:
 
         # Query by nested memory size with comparison
         query = DocumentQuery(
-            collection="test_schema.products", filter_conditions={"specs.memory.size": {"$gte": 20}}
+            collection="test_schema.products",
+            filter_conditions={"specs.memory.size": {"$gte": 20}},
         )
         results = adapter.find_documents(query)
         assert len(results) == 1
@@ -548,7 +554,8 @@ class TestDocumentStorePerformance:
         # Test query performance without index
         start_time = time.time()
         query = DocumentQuery(
-            collection="perf_schema.perf_test", filter_conditions={"score": {"$gte": 50}}
+            collection="perf_schema.perf_test",
+            filter_conditions={"score": {"$gte": 50}},
         )
         results_no_index = adapter.find_documents(query)
         time_no_index = time.time() - start_time

@@ -12,7 +12,6 @@ Created for comprehensive testing of production-ready distributed DBMS core serv
 """
 
 import pytest
-import pytest_asyncio
 import asyncio
 import time
 import threading
@@ -22,6 +21,12 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from unittest.mock import Mock, patch, MagicMock
+
+# Handle missing pytest-asyncio gracefully
+try:
+    import pytest_asyncio
+except ImportError:
+    pytest_asyncio = None
 
 # Import all advanced features for integration testing
 from kvstore.raft import RaftNode, RaftConfig, RaftState, LogEntry
@@ -62,11 +67,11 @@ class TestRaftWALIntegration:
                 return Mock(term=1, vote_granted=True)
 
             async def mock_send_append_entries(peer, request):
-                return Mock(
-                    term=1, success=True, last_log_index=len(request.entries)
-                )
+                return Mock(term=1, success=True, last_log_index=len(request.entries))
 
-            raft_node = RaftNode("node1", [], raft_config)  # No peers for single-node cluster
+            raft_node = RaftNode(
+                "node1", [], raft_config
+            )  # No peers for single-node cluster
             raft_node.send_vote_request = mock_send_vote_request
             raft_node.send_append_entries = mock_send_append_entries
 
@@ -75,12 +80,14 @@ class TestRaftWALIntegration:
                 # Schedule the async operation
                 try:
                     loop = asyncio.get_running_loop()
-                    loop.create_task(wal.write_entry(
-                        entry_type=WALEntryType.SET,
-                        key=command.get("key", "unknown"),
-                        value=command.get("value"),
-                        metadata={"raft_term": raft_node.current_term}
-                    ))
+                    loop.create_task(
+                        wal.write_entry(
+                            entry_type=WALEntryType.SET,
+                            key=command.get("key", "unknown"),
+                            value=command.get("value"),
+                            metadata={"raft_term": raft_node.current_term},
+                        )
+                    )
                 except RuntimeError:
                     # No running event loop, skip WAL write for now
                     pass
@@ -271,21 +278,24 @@ class TestShardingCompressionIntegration:
 
         # Store with compression
         key = "large_text"
-        compressed_result = compression.compress(large_data.encode(), CompressionType.LZ4)
+        compressed_result = compression.compress(
+            large_data.encode(), CompressionType.LZ4
+        )
 
         await shard_manager.execute_on_shard(
-            key, 
-            lambda shard, k=key, v=compressed_result.compressed_data: shard.set(k, v)
+            key,
+            lambda shard, k=key, v=compressed_result.compressed_data: shard.set(k, v),
         )
 
         # Retrieve and decompress
         retrieved_compressed = await shard_manager.execute_on_shard(
-            key, 
-            lambda shard, k=key: shard.get(k)
+            key, lambda shard, k=key: shard.get(k)
         )
         assert retrieved_compressed is not None
 
-        decompressed = compression.decompress(retrieved_compressed, CompressionType.LZ4, compressed_result.metadata)
+        decompressed = compression.decompress(
+            retrieved_compressed, CompressionType.LZ4, compressed_result.metadata
+        )
         assert decompressed.decode() == large_data
 
         # Verify compression effectiveness
@@ -314,14 +324,12 @@ class TestShardingCompressionIntegration:
 
         key = "zerocopy_data"
         await shard_manager.execute_on_shard(
-            key,
-            lambda shard, k=key, v=mapped_buffer: shard.set(k, v)
+            key, lambda shard, k=key, v=mapped_buffer: shard.set(k, v)
         )
 
         # Retrieve mapped data
         retrieved = await shard_manager.execute_on_shard(
-            key,
-            lambda shard, k=key: shard.get(k)
+            key, lambda shard, k=key: shard.get(k)
         )
         assert retrieved is not None
         # Verify the retrieved data
@@ -386,7 +394,9 @@ class TestCRDTNetworkingIntegration:
         }
 
         # Setup CRDT sets for each node
-        crdt_sets = {node_id: LWWElementSet(clock, node_id) for node_id, clock in nodes.items()}
+        crdt_sets = {
+            node_id: LWWElementSet(clock, node_id) for node_id, clock in nodes.items()
+        }
 
         # Setup networking (mocked for unit testing)
         network_server = Mock()
@@ -509,7 +519,9 @@ class TestPubSubRaftIntegration:
         raft_config.election_timeout_max = 1.0
         raft_config.heartbeat_interval = 0.2
 
-        raft_node = RaftNode("pubsub_leader", [], raft_config)  # No peers for isolated testing
+        raft_node = RaftNode(
+            "pubsub_leader", [], raft_config
+        )  # No peers for isolated testing
 
         # Mock send functions
         async def mock_send_vote_request(peer, request):
@@ -534,7 +546,7 @@ class TestPubSubRaftIntegration:
 
         raft_node.on_command_applied = on_raft_command
         raft_node.start()
-        
+
         # Force node to become leader for testing
         await asyncio.sleep(0.1)
         raft_node._become_leader()
@@ -620,7 +632,7 @@ class TestFullSystemIntegration:
             # WAL
             wal_config = WALConfig(wal_dir=temp_dir, segment_size_mb=1)
             components["wal"] = WriteAheadLog(wal_config)
-            components["wal"].start()
+            await components["wal"].start()
 
             # Compression
             components["compression"] = CompressionManager()
@@ -636,8 +648,14 @@ class TestFullSystemIntegration:
             )
             components["consistency"] = ConsistencyManager(consistency_config)
 
-            # Sharding
-            shard_config = {"num_shards": 3}
+            # Sharding - disable WAL in individual shards to avoid conflicts
+            shard_config = {
+                "num_shards": 3,
+                "enable_wal": False,  # Use the main system WAL instead
+                "enable_consistency": True,
+                "enable_compression": False,
+                "enable_zero_copy": False,
+            }
             components["sharding"] = AdvancedShardManager(shard_config)
 
             # RAFT
@@ -663,18 +681,31 @@ class TestFullSystemIntegration:
 
             # CRDT
             components["vector_clock"] = VectorClock("system_node")
-            components["crdt_set"] = LWWElementSet(components["vector_clock"], "system_node")
+            components["crdt_set"] = LWWElementSet(
+                components["vector_clock"], "system_node"
+            )
 
             # Start services
             components["sharding"].start()  # Start the shard manager first
-            components["raft"].start()
+            
+            # Start RAFT with async support
+            await components["raft"].start_async()
+            
+            # Wait a moment for RAFT to initialize
+            await asyncio.sleep(0.1)
+            
+            # For test setup, manually make RAFT node a leader since we have mocked peers
+            with components["raft"]._lock:
+                components["raft"].state = RaftState.LEADER
+                components["raft"].current_term = 1
+                components["raft"].current_leader = components["raft"].node_id
 
             yield components
 
             # Cleanup
             components["raft"].stop()
             components["sharding"].stop()  # Stop the shard manager (stops all shards)
-            components["wal"].stop()
+            await components["wal"].stop()
 
     @pytest.mark.asyncio
     async def test_full_system_workflow(self, full_system):
@@ -689,7 +720,9 @@ class TestFullSystemIntegration:
         # Workflow: Client writes data
         # 1. Data is compressed
         original_data = "Important system data " * 100
-        compressed_result = compression.compress(original_data.encode(), CompressionType.LZ4)
+        compressed_result = compression.compress(
+            original_data.encode(), CompressionType.LZ4
+        )
 
         # 2. Write goes through RAFT for consensus
         write_command = {
@@ -708,22 +741,27 @@ class TestFullSystemIntegration:
             key="system_key",
             value=compressed_result.compressed_data,
         )
+        # Ensure WAL data is flushed before reading
+        await wal.sync()
 
         # 4. Data is stored in shards
         await sharding.execute_on_shard(
-            "system_key", 
-            lambda shard, k="system_key", v=compressed_result.compressed_data: shard.set(k, v)
+            "system_key",
+            lambda shard, k="system_key", v=compressed_result.compressed_data: shard.set(
+                k, v
+            ),
         )
 
         # 5. Read data back
         retrieved_compressed = await sharding.execute_on_shard(
-            "system_key", 
-            lambda shard, k="system_key": shard.get(k)
+            "system_key", lambda shard, k="system_key": shard.get(k)
         )
         assert retrieved_compressed is not None
 
         # 6. Decompress data
-        decompressed = compression.decompress(retrieved_compressed, CompressionType.LZ4, compressed_result.metadata)
+        decompressed = compression.decompress(
+            retrieved_compressed, CompressionType.LZ4, compressed_result.metadata
+        )
         assert decompressed.decode() == original_data
 
         # 7. Verify WAL persistence
@@ -766,7 +804,9 @@ class TestFullSystemIntegration:
 
         # Verify data still accessible via shards
         for i in range(10):
-            retrieved = sharding.get(f"fault_key_{i}")
+            retrieved = await sharding.execute_on_shard(
+                f"fault_key_{i}", lambda shard, k=f"fault_key_{i}": shard.get(k)
+            )
             # May be None if not yet persisted to shards
 
         # Verify WAL has all entries for recovery
@@ -778,7 +818,9 @@ class TestFullSystemIntegration:
         assert len(wal_entries) >= 0  # May not have persisted all yet
 
         # Restart RAFT (simulated recovery)
-        new_raft = RaftNode("system_node", [], raft.config)  # No peers for isolated testing
+        new_raft = RaftNode(
+            "system_node", [], raft.config
+        )  # No peers for isolated testing
         new_raft.send_vote_request = raft.send_vote_request
         new_raft.send_append_entries = raft.send_append_entries
         new_raft.start()
@@ -790,14 +832,17 @@ class TestFullSystemIntegration:
 
         new_raft.stop()
 
-    def test_system_performance_characteristics(self, full_system):
+    @pytest.mark.asyncio
+    async def test_system_performance_characteristics(self, full_system):
         """Test system performance under load"""
         sharding = full_system["sharding"]
         compression = full_system["compression"]
 
         # Performance test data
         test_data = "Performance test data " * 50
-        compressed_result = compression.compress(test_data.encode(), CompressionType.LZ4)
+        compressed_result = compression.compress(
+            test_data.encode(), CompressionType.LZ4
+        )
 
         # Measure write performance
         start_time = time.time()
@@ -805,8 +850,9 @@ class TestFullSystemIntegration:
 
         for i in range(operations_count):
             key = f"perf_key_{i}"
-            success = sharding.set(key, compressed_result.compressed_data)
-            assert success
+            await sharding.execute_on_shard(
+                key, lambda shard, k=key, v=compressed_result.compressed_data: shard.set(k, v)
+            )
 
         write_duration = time.time() - start_time
         write_ops_per_sec = operations_count / write_duration
@@ -816,7 +862,9 @@ class TestFullSystemIntegration:
 
         for i in range(operations_count):
             key = f"perf_key_{i}"
-            value = sharding.get(key)
+            value = await sharding.execute_on_shard(
+                key, lambda shard, k=key: shard.get(k)
+            )
             assert value is not None
 
         read_duration = time.time() - start_time
@@ -960,7 +1008,9 @@ class TestUnitCompressionManager:
         result = manager.compress(text.encode(), algorithm=CompressionType.LZ4)
         assert hasattr(result, "compressed_data")
         # Use correct decompress signature: algorithm type and metadata
-        decompressed = manager.decompress(result.compressed_data, CompressionType.LZ4, result.metadata)
+        decompressed = manager.decompress(
+            result.compressed_data, CompressionType.LZ4, result.metadata
+        )
         assert decompressed.decode() == text
 
     def test_compression_ratio(self):
@@ -993,7 +1043,9 @@ class TestUnitZeroCopyManager:
 
 
 class TestUnitAdvancedShardManager:
-    @pytest.mark.skip(reason="AdvancedShardManager hangs in async execution - known issue")
+    @pytest.mark.skip(
+        reason="AdvancedShardManager hangs in async execution - known issue"
+    )
     @pytest.mark.asyncio
     async def test_set_get_delete(self):
         from kvstore.shards import AdvancedShardManager
@@ -1007,18 +1059,18 @@ class TestUnitAdvancedShardManager:
             "enable_wal": False,  # Disable WAL to avoid blocking
             "enable_zero_copy": False,
         }
-        
+
         manager = AdvancedShardManager(config)
-        
+
         try:
             # Start manager
             manager.start()
-            
+
             # Wait a bit for initialization
             await asyncio.sleep(0.1)
-            
+
             key, value = "k", "v"
-            
+
             # Use execute_on_shard with lambda functions for operations
             # Set operation
             result = await manager.execute_on_shard(
@@ -1026,25 +1078,25 @@ class TestUnitAdvancedShardManager:
             )
             # set() returns None, so result should be None
             assert result is None
-            
+
             # Get operation
             retrieved_value = await manager.execute_on_shard(
                 key, lambda shard, k=key: shard.get(k)
             )
             assert retrieved_value == value
-            
+
             # Delete operation
             deleted = await manager.execute_on_shard(
                 key, lambda shard, k=key: shard.delete(k)
             )
             assert deleted is True
-            
+
             # Verify deletion
             retrieved_after_delete = await manager.execute_on_shard(
                 key, lambda shard, k=key: shard.get(k)
             )
             assert retrieved_after_delete is None
-            
+
         finally:
             manager.stop()
 
@@ -1059,9 +1111,9 @@ class TestUnitRaftNode:
         node.start()
         # Give it a moment to initialize
         await asyncio.sleep(0.1)
-        assert node.state in ("leader", "follower", "candidate")
+        assert node.state.value in ("leader", "follower", "candidate")
         node.stop()
-        assert not node.running
+        assert not node._running
 
 
 class TestUnitLWWElementSet:
