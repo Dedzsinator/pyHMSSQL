@@ -48,6 +48,8 @@ class BufferPool:
         self.free_buffers = []
         self.next_id = 0
         self.lock = threading.Lock()
+        self.deallocations = 0
+        self.cache_hits = 0
         self.allocations = 0
         
         # Pre-allocate minimum buffers
@@ -90,6 +92,7 @@ class BufferPool:
                     if buffer_size >= size:
                         self.free_buffers.remove(buffer_id)
                         self.buffer_info[buffer_id].last_used = time.time()
+                        self.cache_hits += 1  # Track cache hit
                         self.buffer_info[buffer_id].ref_count += 1
                         self.buffers[buffer_id].seek(0)
                         self.buffers[buffer_id].truncate(0)
@@ -118,6 +121,7 @@ class BufferPool:
                 if pool_buffer is buffer:
                     self.buffer_info[buffer_id].ref_count -= 1
                     if self.buffer_info[buffer_id].ref_count <= 0:
+                        self.deallocations += 1  # Track deallocation
                         self.buffer_info[buffer_id].ref_count = 0
                         if buffer_id not in self.free_buffers:
                             self.free_buffers.append(buffer_id)
@@ -138,6 +142,10 @@ class BufferPool:
                 "free_buffers": len(self.free_buffers),
                 "available_buffers": len(self.free_buffers),
                 "max_buffers": self.max_buffers,
+                "deallocations": self.deallocations,
+                "cache_hits": self.cache_hits,
+                "total_bytes_allocated": sum(buffer_sizes),
+                "memory_efficiency": (self.cache_hits / max(self.allocations, 1)) * 100 if self.allocations > 0 else 0,
                 "min_buffers": self.min_buffers,
                 "allocations": self.allocations,
                 "buffer_sizes": buffer_sizes
@@ -251,8 +259,10 @@ class MemoryMappedBuffer:
         
     def __setitem__(self, key, value):
         """Set data using slice notation"""
-        if not self.mmap_obj or ("r" in self.mode and "+" not in self.mode):
-            raise RuntimeError("Memory-mapped file not opened for writing")
+        if not self.mmap_obj:
+            raise RuntimeError("Memory-mapped file not opened")
+        if "r" in self.mode and "+" not in self.mode:
+            raise ValueError("Memory-mapped file not opened for writing")
         self.mmap_obj[key] = value
 
 class ZeroCopyManager:
