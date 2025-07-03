@@ -1,7 +1,7 @@
 @dataclass
 class ShardConfig:
     """Configuration for a single shard"""
-    
+
     shard_id: int
     cpu_core: int = 0
     numa_node: int = 0

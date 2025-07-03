@@ -117,7 +117,9 @@ class RaftConfig:
         snapshot_interval: int = 10000,
     ):
         if election_timeout_min >= election_timeout_max:
-            raise ValueError("election_timeout_min must be less than election_timeout_max")
+            raise ValueError(
+                "election_timeout_min must be less than election_timeout_max"
+            )
 
         self.election_timeout_min = election_timeout_min
         self.election_timeout_max = election_timeout_max
@@ -193,7 +195,19 @@ class RaftNode:
                 return
             self._running = True
 
-        logger.info(f"Raft node {self.node_id} started")
+            # For single-node clusters, immediately become leader
+            if len(self.peers) == 0:
+                self.state = RaftState.LEADER
+                self.current_leader = self.node_id
+                self.current_term = 1
+                if self.on_state_change:
+                    self.on_state_change(self.state)
+                if self.on_leader_change:
+                    self.on_leader_change(self.node_id)
+
+        logger.info(
+            f"Raft node {self.node_id} started{' as leader (single-node)' if len(self.peers) == 0 else ''}"
+        )
 
     async def start_async(self):
         """Start the Raft node with background tasks (async version)"""

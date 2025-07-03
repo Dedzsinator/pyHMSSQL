@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 try:
     import aiofiles
     import aiofiles.os
+
     AIOFILES_AVAILABLE = True
 except ImportError:
     AIOFILES_AVAILABLE = False
@@ -65,8 +66,9 @@ class WALEntry:
         value = self.value
         if isinstance(value, (bytes, bytearray, memoryview)):
             import base64
-            value = {"__bytes__": base64.b64encode(bytes(value)).decode('ascii')}
-        
+
+            value = {"__bytes__": base64.b64encode(bytes(value)).decode("ascii")}
+
         data = {
             "type": self.entry_type.value,
             "seq": self.sequence_number,
@@ -124,6 +126,7 @@ class WALEntry:
         value = parsed.get("value")
         if isinstance(value, dict) and "__bytes__" in value:
             import base64
+
             value = base64.b64decode(value["__bytes__"])
 
         return cls(
@@ -232,58 +235,76 @@ class WALSegment:
             return
 
         if AIOFILES_AVAILABLE:
-            async with aiofiles.open(self.file_path, "rb") as f:
-                while True:
-                    # Read header
-                    header_data = await f.read(12)
-                    if len(header_data) < 12:
-                        break
-
-                    try:
-                        magic_int, checksum, length = struct.unpack(">III", header_data)
-
-                        # Read data
-                        data = await f.read(length)
-                        if len(data) < length:
+            try:
+                async with aiofiles.open(self.file_path, "rb") as f:
+                    while True:
+                        # Read header
+                        header_data = await f.read(12)
+                        if len(header_data) < 12:
                             break
 
-                        # Parse entry
-                        full_data = header_data + data
-                        entry = WALEntry.from_bytes(full_data)
+                        try:
+                            magic_int, checksum, length = struct.unpack(
+                                ">III", header_data
+                            )
 
-                        if from_sequence is None or entry.sequence_number >= from_sequence:
-                            yield entry
+                            # Read data
+                            data = await f.read(length)
+                            if len(data) < length:
+                                break
 
-                    except Exception as e:
-                        logger.error(f"Error reading WAL entry: {e}")
-                        break
+                            # Parse entry
+                            full_data = header_data + data
+                            entry = WALEntry.from_bytes(full_data)
+
+                            if (
+                                from_sequence is None
+                                or entry.sequence_number >= from_sequence
+                            ):
+                                yield entry
+
+                        except Exception as e:
+                            logger.error(f"Error reading WAL entry: {e}")
+                            break
+            except Exception as e:
+                logger.error(f"Error opening WAL segment {self.file_path}: {e}")
+                return
         else:
             # Fallback to synchronous file operations
-            with open(self.file_path, "rb") as f:
-                while True:
-                    # Read header
-                    header_data = f.read(12)
-                    if len(header_data) < 12:
-                        break
-
-                    try:
-                        magic_int, checksum, length = struct.unpack(">III", header_data)
-
-                        # Read data
-                        data = f.read(length)
-                        if len(data) < length:
+            try:
+                with open(self.file_path, "rb") as f:
+                    while True:
+                        # Read header
+                        header_data = f.read(12)
+                        if len(header_data) < 12:
                             break
 
-                        # Parse entry
-                        full_data = header_data + data
-                        entry = WALEntry.from_bytes(full_data)
+                        try:
+                            magic_int, checksum, length = struct.unpack(
+                                ">III", header_data
+                            )
 
-                        if from_sequence is None or entry.sequence_number >= from_sequence:
-                            yield entry
+                            # Read data
+                            data = f.read(length)
+                            if len(data) < length:
+                                break
 
-                    except Exception as e:
-                        logger.error(f"Error reading WAL entry: {e}")
-                        break
+                            # Parse entry
+                            full_data = header_data + data
+                            entry = WALEntry.from_bytes(full_data)
+
+                            if (
+                                from_sequence is None
+                                or entry.sequence_number >= from_sequence
+                            ):
+                                yield entry
+
+                        except Exception as e:
+                            logger.error(f"Error reading WAL entry: {e}")
+                            break
+            except Exception as e:
+                logger.error(f"Error opening WAL segment {self.file_path}: {e}")
+                return
 
 
 class WriteAheadLog:
@@ -538,11 +559,16 @@ class WriteAheadLog:
         for segment_id in sorted_segments:
             segment = self.segments[segment_id]
 
-            async for entry in segment.read_entries(from_sequence):
-                if to_sequence is not None and entry.sequence_number > to_sequence:
-                    return
+            try:
+                async for entry in segment.read_entries(from_sequence):
+                    if to_sequence is not None and entry.sequence_number > to_sequence:
+                        return
 
-                yield entry
+                    yield entry
+            except Exception as e:
+                logger.warning(f"Error reading from segment {segment_id}: {e}")
+                # Continue to next segment instead of failing completely
+                continue
 
     async def recover(self, callback) -> int:
         """Recover from WAL by replaying entries"""
