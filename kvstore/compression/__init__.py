@@ -744,7 +744,8 @@ class RLECodec:
     """Run-Length Encoding codec for repetitive data"""
 
     def __init__(self):
-        pass
+        """Initialize RLE codec"""
+        self.logger = logging.getLogger(__name__ + ".RLECodec")
 
     def compress(self, data: Any) -> CompressionResult:
         """Compress data using Run-Length Encoding"""
@@ -876,7 +877,8 @@ class GorillaCodec:
     """
 
     def __init__(self):
-        pass
+        """Initialize Gorilla codec"""
+        self.logger = logging.getLogger(__name__ + ".GorillaCodec")
 
     def compress(
         self, time_series_data: Union[List[float], List[Tuple]]
@@ -1019,9 +1021,7 @@ class GorillaCodec:
 
         # Combine results
         if has_timestamps and timestamps:
-            result = list(zip(timestamps, values))
-            # Convert to list of lists for consistent comparison
-            return [list(item) for item in result]
+            return list(zip(timestamps, values))
         else:
             return values
 
@@ -1107,7 +1107,8 @@ class DeltaCodec:
     """
 
     def __init__(self):
-        pass
+        """Initialize Delta codec"""
+        self.logger = logging.getLogger(__name__ + ".DeltaCodec")
 
     def compress(self, sequential_data: Union[List, Tuple]) -> CompressionResult:
         """Compress sequential data using delta encoding"""

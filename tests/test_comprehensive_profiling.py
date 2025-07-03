@@ -51,7 +51,26 @@ if DISABLE_PROFILING:
     # Create dummy functions to avoid import errors
     def test_dummy_profiling_disabled():
         """Dummy test when profiling is disabled."""
-        pass
+        # This test verifies that the profiling skip mechanism works correctly
+        # when profiling is disabled via environment variable
+        assert DISABLE_PROFILING is True
+        
+        # Verify that mock profiler is returned when profiling is disabled
+        from tests.test_config import get_profiler, MockProfiler
+        profiler = get_profiler()
+        assert isinstance(profiler, MockProfiler)
+        
+        # Verify mock profiler methods work without error
+        profiler.start_profiling()
+        profiler.start_operation("TEST_OPERATION")
+        profiler.end_operation()
+        profiler.stop_profiling()
+        
+        # Verify mock returns empty metrics
+        metrics = profiler.get_metrics()
+        assert metrics == {}
+        
+        print("✓ Profiling disabled test completed successfully")
 
     # Exit early to avoid import errors
     import sys

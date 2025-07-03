@@ -214,8 +214,8 @@ class TestRaftElection:
         """Test that election timeout triggers leader election"""
         node = mock_raft_node
 
-        # Start node
-        node.start()
+        # Start node with async background tasks
+        await node.start_async()
 
         # Wait for election timeout
         await asyncio.sleep(0.3)

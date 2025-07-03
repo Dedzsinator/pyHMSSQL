@@ -87,7 +87,7 @@ class TestAdvancedQueryOptimization:
         # Insert test data
         for i in range(20):
             insert_sql = (
-                f"INSERT INTO cache_test VALUES ({i}, 'Name{i}', 'Cat{i%5}', {i*10})"
+                f"INSERT INTO cache_test (id, name, category, value) VALUES ({i}, 'Name{i}', 'Cat{i%5}', {i*10})"
             )
             parsed = self.parser.parse_sql(insert_sql)
             plan = self.planner.plan_query(parsed)
@@ -162,34 +162,46 @@ class TestAdvancedQueryOptimization:
             result = self.execution_engine.execute(plan)
             assert result["status"] == "success"
 
-        # Insert sample data
+        # Insert sample data with explicit column names
         sample_data = {
-            "customers": [
-                "(1, 'Customer A', 'North')",
-                "(2, 'Customer B', 'South')",
-                "(3, 'Customer C', 'East')",
-            ],
-            "orders": [
-                "(1, 1, '2023-01-01', 'completed')",
-                "(2, 2, '2023-01-02', 'pending')",
-                "(3, 1, '2023-01-03', 'completed')",
-            ],
-            "order_items": [
-                "(1, 1, 1, 2, 10.00)",
-                "(2, 1, 2, 1, 20.00)",
-                "(3, 2, 1, 3, 10.00)",
-                "(4, 3, 3, 1, 50.00)",
-            ],
-            "products": [
-                "(1, 'Product A', 'Electronics', 10.00)",
-                "(2, 'Product B', 'Electronics', 20.00)",
-                "(3, 'Product C', 'Books', 50.00)",
-            ],
+            "customers": {
+                "columns": "(id, name, region)",
+                "values": [
+                    "(1, 'Customer A', 'North')",
+                    "(2, 'Customer B', 'South')",
+                    "(3, 'Customer C', 'East')",
+                ],
+            },
+            "orders": {
+                "columns": "(id, customer_id, order_date, status)",
+                "values": [
+                    "(1, 1, '2023-01-01', 'completed')",
+                    "(2, 2, '2023-01-02', 'pending')",
+                    "(3, 1, '2023-01-03', 'completed')",
+                ],
+            },
+            "order_items": {
+                "columns": "(id, order_id, product_id, quantity, price)",
+                "values": [
+                    "(1, 1, 1, 2, 10.00)",
+                    "(2, 1, 2, 1, 20.00)",
+                    "(3, 2, 1, 3, 10.00)",
+                    "(4, 3, 3, 1, 50.00)",
+                ],
+            },
+            "products": {
+                "columns": "(id, name, category, price)",
+                "values": [
+                    "(1, 'Product A', 'Electronics', 10.00)",
+                    "(2, 'Product B', 'Electronics', 20.00)",
+                    "(3, 'Product C', 'Books', 50.00)",
+                ],
+            },
         }
 
-        for table_name, values in sample_data.items():
-            for value in values:
-                insert_sql = f"INSERT INTO {table_name} VALUES {value}"
+        for table_name, table_data in sample_data.items():
+            for value in table_data["values"]:
+                insert_sql = f"INSERT INTO {table_name} {table_data['columns']} VALUES {value}"
                 parsed = self.parser.parse_sql(insert_sql)
                 plan = self.planner.plan_query(parsed)
                 result = self.execution_engine.execute(plan)
@@ -267,7 +279,7 @@ class TestAdvancedQueryOptimization:
         ]
 
         for sale in sales_data:
-            insert_sql = f"INSERT INTO sales VALUES {sale}"
+            insert_sql = f"INSERT INTO sales (id, salesperson, region, amount, sale_date) VALUES {sale}"
             parsed = self.parser.parse_sql(insert_sql)
             plan = self.planner.plan_query(parsed)
             result = self.execution_engine.execute(plan)
@@ -329,7 +341,7 @@ class TestAdvancedQueryOptimization:
         # Insert test data
         for i in range(50):
             insert_sql = f"""
-            INSERT INTO index_test VALUES (
+            INSERT INTO index_test (id, first_name, last_name, email, age, salary, department, hire_date) VALUES (
                 {i}, 
                 'First{i}', 
                 'Last{i}', 
@@ -599,7 +611,7 @@ class TestAdvancedTransactionManagement:
         successful_operations = 0
 
         for i in range(num_operations):
-            insert_sql = f"INSERT INTO long_test VALUES ({i}, 'Data{i}', '2023-01-01')"
+            insert_sql = f"INSERT INTO long_test (id, data, timestamp) VALUES ({i}, 'Data{i}', '2023-01-01')"
             try:
                 parsed = self.parser.parse_sql(insert_sql)
                 plan = self.planner.plan_query(parsed)
@@ -741,14 +753,14 @@ class TestMemoryAndResourceManagement:
 
         # Cause various types of errors
         error_scenarios = [
-            "INSERT INTO error_test VALUES (1, NULL)",  # NULL constraint violation
-            "INSERT INTO error_test VALUES (1, 100)",  # Duplicate primary key (after first)
+            "INSERT INTO error_test (id, value) VALUES (1, NULL)",  # NULL constraint violation
+            "INSERT INTO error_test (id, value) VALUES (1, 100)",  # Duplicate primary key (after first)
             "SELECT * FROM nonexistent_table",  # Table doesn't exist
-            "INSERT INTO error_test VALUES ('invalid', 100)",  # Type mismatch
+            "INSERT INTO error_test (id, value) VALUES ('invalid', 100)",  # Type mismatch
         ]
 
         # First insert a valid record
-        valid_insert = "INSERT INTO error_test VALUES (1, 100)"
+        valid_insert = "INSERT INTO error_test (id, value) VALUES (1, 100)"
         parsed = self.parser.parse_sql(valid_insert)
         plan = self.planner.plan_query(parsed)
         result = self.execution_engine.execute(plan)
@@ -807,7 +819,7 @@ class TestMemoryAndResourceManagement:
                     # Mix of different operations
                     if i % 3 == 0:
                         # Insert operation
-                        sql = f"INSERT INTO concurrent_resource_test VALUES ({thread_id * 1000 + i}, {thread_id}, 'Data{i}')"
+                        sql = f"INSERT INTO concurrent_resource_test (id, thread_id, data) VALUES ({thread_id * 1000 + i}, {thread_id}, 'Data{i}')"
                     elif i % 3 == 1:
                         # Select operation
                         sql = f"SELECT COUNT(*) FROM concurrent_resource_test WHERE thread_id = {thread_id}"

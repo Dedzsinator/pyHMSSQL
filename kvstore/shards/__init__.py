@@ -827,6 +827,7 @@ class AdvancedShardManager:
             "migration_operations": self.stats["migration_operations"],
             "numa_misses": self.stats["numa_misses"],
             "cache_coherency_events": self.stats["cache_coherency_events"],
+            "cache_hits": sum(shard.cache_stats["hits"] for shard in self.shards.values()),
             "shards": shard_stats,
             "placement_groups": placement_group_stats,
             "numa_topology": [

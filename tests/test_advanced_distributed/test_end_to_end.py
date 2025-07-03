@@ -299,6 +299,7 @@ class DistributedSystemNode:
 
     def get_port(self) -> int:
         """Get the network port this node is listening on"""
+        return self.network.port
         if self.network.server:
             return self.network.server.sockets[0].getsockname()[1]
         return 0

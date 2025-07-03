@@ -306,6 +306,16 @@ class MemoryMappedBuffer:
             raise ValueError("Memory-mapped file not opened for writing")
         self.mmap_obj[key] = value
 
+    def tobytes(self) -> bytes:
+        """Convert the mapped buffer to bytes"""
+        if not self.mmap_obj:
+            raise RuntimeError("Memory-mapped file not opened")
+        return bytes(self.mmap_obj)
+
+    def __bytes__(self) -> bytes:
+        """Convert the mapped buffer to bytes (for bytes() compatibility)"""
+        return self.tobytes()
+
 
 class ZeroCopyManager:
     """Manager for zero-copy operations"""
