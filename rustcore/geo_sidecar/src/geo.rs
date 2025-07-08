@@ -5,7 +5,6 @@ use maxminddb::{geoip2, Reader};
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeoLocation {
@@ -56,7 +55,8 @@ impl GeoResolver {
                 Ok(city) => {
                     let country = city
                         .country
-                        .and_then(|c| c.names)
+                        .as_ref()
+                        .and_then(|c| c.names.as_ref())
                         .and_then(|n| n.get("en"))
                         .map(|s| s.to_string())
                         .unwrap_or_else(|| "Unknown".to_string());
@@ -72,18 +72,21 @@ impl GeoResolver {
 
                     let city_name = city
                         .city
-                        .and_then(|c| c.names)
+                        .as_ref()
+                        .and_then(|c| c.names.as_ref())
                         .and_then(|n| n.get("en"))
                         .map(|s| s.to_string())
                         .unwrap_or_else(|| "Unknown".to_string());
 
                     let (latitude, longitude) = city
                         .location
+                        .as_ref()
                         .map(|loc| (loc.latitude.unwrap_or(0.0), loc.longitude.unwrap_or(0.0)))
                         .unwrap_or((0.0, 0.0));
 
                     let timezone = city
                         .location
+                        .as_ref()
                         .and_then(|loc| loc.time_zone)
                         .map(|tz| tz.to_string())
                         .unwrap_or_else(|| "UTC".to_string());

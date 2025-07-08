@@ -16,6 +16,14 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any, Callable
 import hashlib
 
+# Import CyCore HLC for distributed timestamps (optional)
+try:
+    from cycore import HLCTimestamp, HybridLogicalClock
+    CYCORE_HLC_AVAILABLE = True
+except ImportError:
+    HLCTimestamp = HybridLogicalClock = None
+    CYCORE_HLC_AVAILABLE = False
+
 
 class NodeState(Enum):
     """RAFT node states"""
@@ -46,6 +54,7 @@ class LogEntry:
     committed: bool = False
     timestamp: float = field(default_factory=time.time)
     checksum: str = field(default="")
+    hlc_timestamp: Optional[Any] = field(default=None)  # HLC timestamp for ordering
 
     def __post_init__(self):
         if not self.checksum:
@@ -54,6 +63,14 @@ class LogEntry:
                 f"{self.term}{self.index}{json.dumps(self.operation, sort_keys=True)}"
             )
             self.checksum = hashlib.sha256(data.encode()).hexdigest()[:16]
+        
+        # Add HLC timestamp if available for better distributed ordering
+        if CYCORE_HLC_AVAILABLE and self.hlc_timestamp is None:
+            try:
+                hlc = HybridLogicalClock()
+                self.hlc_timestamp = hlc.now() if hasattr(hlc, 'now') else None
+            except Exception:
+                pass  # Fallback to regular timestamp
 
 
 @dataclass
@@ -203,6 +220,15 @@ class RaftNode:
 
         # Add self to cluster
         self.cluster.add_node(node_id, host, port)
+
+        # Initialize HLC for distributed timestamp ordering (optional)
+        self.hlc_clock = None
+        if CYCORE_HLC_AVAILABLE:
+            try:
+                self.hlc_clock = HybridLogicalClock()
+                logging.info("✓ RaftNode %s: HLC clock initialized", node_id)
+            except Exception as e:
+                logging.warning("RaftNode %s: Failed to initialize HLC: %s", node_id, e)
 
         # Timing
         self.last_heartbeat = time.time()

@@ -42,6 +42,25 @@ try:
 except ImportError:
     GEO_LOAD_BALANCER_AVAILABLE = False
 
+# Import CyCore high-performance components (optional)
+try:
+    from cycore import HLCTimestamp, HybridLogicalClock, SwissMap
+    from cycore import get_info as cycore_info
+    CYCORE_AVAILABLE = True
+    CYCORE_INFO = cycore_info()
+except ImportError:
+    HLCTimestamp = HybridLogicalClock = SwissMap = None
+    CYCORE_AVAILABLE = False
+    CYCORE_INFO = {"hlc_implementation": "none", "hashmap_implementation": "none"}
+
+# Import Rust sidecar integration (optional)
+try:
+    from rust_sidecar import HybridGeoLoadBalancer, SidecarConfig
+    RUST_SIDECAR_AVAILABLE = True
+except ImportError:
+    HybridGeoLoadBalancer = SidecarConfig = None
+    RUST_SIDECAR_AVAILABLE = False
+
 
 def setup_logging():
     """
@@ -98,6 +117,8 @@ class DBMSServer:
     """_summary_"""
 
     def __init__(self, host="localhost", port=9999, data_dir="data", server_name=None):
+        global CYCORE_AVAILABLE, RUST_SIDECAR_AVAILABLE
+        
         self.catalog_manager = CatalogManager(data_dir)
         self.index_manager = IndexManager(self.catalog_manager)
 
@@ -158,8 +179,44 @@ class DBMSServer:
         self.discovery_thread.start()
         logging.info("Discovery broadcast started for server: %s", self.server_name)
         
+        # Initialize high-performance components
+        self.hlc_clock = None
+        self.performance_cache = None
+        
+        # Initialize CyCore components if available
+        if CYCORE_AVAILABLE:
+            try:
+                # Initialize HLC for distributed timestamps
+                self.hlc_clock = HybridLogicalClock()
+                logging.info("✓ CyCore HLC initialized: %s", CYCORE_INFO.get('hlc_implementation'))
+                
+                # Initialize high-performance cache using SwissMap
+                if SwissMap:
+                    self.performance_cache = SwissMap()
+                    logging.info("✓ CyCore hashmap initialized: %s", CYCORE_INFO.get('hashmap_implementation'))
+                    
+            except Exception as e:
+                logging.warning("Failed to initialize CyCore components: %s", e)
+                CYCORE_AVAILABLE = False
+        
         # Initialize geo-aware load balancer (optional)
         self.geo_load_balancer = None
+        self.rust_sidecar = None
+        
+        # Initialize Rust sidecar integration if available
+        if RUST_SIDECAR_AVAILABLE:
+            try:
+                sidecar_config = SidecarConfig(
+                    enabled=True,
+                    sidecar_port=19999,
+                    socket_path="/tmp/pyhmssql_geo_router.sock"
+                )
+                # We'll start this later in the start_server method
+                self.rust_sidecar_config = sidecar_config
+                logging.info("✓ Rust sidecar configuration ready")
+            except Exception as e:
+                logging.warning("Failed to configure Rust sidecar: %s", e)
+                RUST_SIDECAR_AVAILABLE = False
         if GEO_LOAD_BALANCER_AVAILABLE:
             try:
                 geo_config = {
@@ -807,8 +864,44 @@ def start_server(
     server.replication_manager.mode = replication_mode
     server.replication_manager.sync_replicas = sync_replicas
 
+    # Initialize and start Rust sidecar if available
+    if RUST_SIDECAR_AVAILABLE and hasattr(server, 'rust_sidecar_config'):
+        try:
+            import asyncio
+            # Start sidecar in background
+            def start_sidecar():
+                try:
+                    async def run_sidecar():
+                        from rust_sidecar import SidecarManager
+                        sidecar_manager = SidecarManager(server.rust_sidecar_config)
+                        if await sidecar_manager.start():
+                            logging.info("✓ Rust geo-routing sidecar started")
+                            server.rust_sidecar = sidecar_manager
+                        else:
+                            logging.warning("Failed to start Rust sidecar")
+                    
+                    # Run in new event loop
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(run_sidecar())
+                except Exception as e:
+                    logging.warning("Rust sidecar startup failed: %s", e)
+            
+            # Start sidecar in background thread
+            sidecar_thread = threading.Thread(target=start_sidecar, daemon=True)
+            sidecar_thread.start()
+            
+        except Exception as e:
+            logging.warning("Failed to initialize Rust sidecar: %s", e)
+
     # Print a message to console indicating where logs will be stored
     print(f"DBMS Server starting. Logs will be stored in: {log_file}")
+    
+    # Print component integration status
+    if CYCORE_AVAILABLE:
+        print(f"✓ CyCore integration: HLC={CYCORE_INFO.get('hlc_implementation')}, HashMap={CYCORE_INFO.get('hashmap_implementation')}")
+    if RUST_SIDECAR_AVAILABLE:
+        print("✓ Rust sidecar integration: Available")
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((SERVER_HOST, SERVER_PORT))

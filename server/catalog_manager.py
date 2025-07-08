@@ -12,6 +12,14 @@ from bptree_wrapper import BPlusTreeFactory
 from sqlglot_parser import SQLGlotParser
 from sqlglot import exp, parse_one
 
+# Import CyCore high-performance components (optional)
+try:
+    from cycore import SwissMap, RangeMap, HLCTimestamp, HybridLogicalClock
+    CYCORE_AVAILABLE = True
+except ImportError:
+    SwissMap = RangeMap = HLCTimestamp = HybridLogicalClock = None
+    CYCORE_AVAILABLE = False
+
 
 class CatalogManager:
     """_summary_"""
@@ -41,6 +49,23 @@ class CatalogManager:
         self.indexes_file = os.path.join(self.catalog_dir, "indexes.json")
         self.preferences_file = os.path.join(self.catalog_dir, "preferences.json")
         self.users_file = os.path.join(self.catalog_dir, "users.json")
+
+        # Initialize high-performance components
+        self.table_cache = None
+        self.range_cache = None
+        self.hlc_clock = None
+        
+        if CYCORE_AVAILABLE:
+            try:
+                # Use SwissMap for high-performance table metadata caching
+                self.table_cache = SwissMap()
+                # Use RangeMap for efficient range queries and partitioning
+                self.range_cache = RangeMap() if RangeMap else None
+                # Use HLC for consistent metadata timestamps
+                self.hlc_clock = HybridLogicalClock() if HybridLogicalClock else None
+                logging.info("✓ CatalogManager: CyCore components initialized")
+            except Exception as e:
+                logging.warning("CatalogManager: Failed to initialize CyCore: %s", e)
         self.views_file = os.path.join(self.catalog_dir, "views.json")
         self.procedures_file = os.path.join(self.catalog_dir, "procedures.json")
         self.functions_file = os.path.join(self.catalog_dir, "functions.json")

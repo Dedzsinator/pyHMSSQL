@@ -1,8 +1,6 @@
 //! Performance metrics collection
 
-use parking_lot::RwLock;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct MetricsSnapshot {

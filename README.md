@@ -1569,3 +1569,10 @@ This project is licensed under the MIT License - see the LICENSE file for detail
   -Write-ahead logging
   -Buffer management
 
+
+
+# Build everything professionally
+python build_cycore.py --clean --test
+
+# Use in code with professional naming
+from cycore import SwissMap, HLCTimestamp, get_info

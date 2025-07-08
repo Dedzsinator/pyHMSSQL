@@ -1,0 +1,1 @@
+std::option::Option<maxminddb::geoip2::city::Location<'_>>
