@@ -18,6 +18,7 @@ import socket
 import sys
 import os
 import argparse  # Make sure argparse is imported at the top level
+from typing import Optional, Tuple
 
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -33,6 +34,13 @@ from planner import Planner  # noqa: E402
 from ddl_processor.index_manager import IndexManager  # noqa: E402
 from catalog_manager import CatalogManager  # noqa: E402
 from scaler import ReplicationManager, ReplicationMode, ReplicaRole  # noqa: E402
+
+# Import geo-aware load balancer (optional)
+try:
+    from geo_load_balancer import GeoLoadBalancerIntegration
+    GEO_LOAD_BALANCER_AVAILABLE = True
+except ImportError:
+    GEO_LOAD_BALANCER_AVAILABLE = False
 
 
 def setup_logging():
@@ -149,6 +157,20 @@ class DBMSServer:
         )
         self.discovery_thread.start()
         logging.info("Discovery broadcast started for server: %s", self.server_name)
+        
+        # Initialize geo-aware load balancer (optional)
+        self.geo_load_balancer = None
+        if GEO_LOAD_BALANCER_AVAILABLE:
+            try:
+                geo_config = {
+                    "enable_follower_reads": True,
+                    "default_staleness_ms": 1000,
+                    "health_check_interval": 10
+                }
+                self.geo_load_balancer = GeoLoadBalancerIntegration(self, geo_config)
+                logging.info("Geo-aware load balancer initialized")
+            except Exception as e:
+                logging.warning(f"Failed to initialize geo-aware load balancer: {e}")
 
     def _store_transaction_id(self, session_id, transaction_id):
         """Store a transaction ID for a session."""
@@ -611,515 +633,57 @@ class DBMSServer:
 
         return {"error": "Unknown node command", "status": "error"}
 
-    def handle_query(self, query, session_id=None, user=None):
-        """Handle a SQL query and return the result."""
-        start_time = time.time()
-        if not query:
-            return {"error": "No query provided", "status": "error"}
-
-        # Fix the user logging issue - handle both dict and string user values
-        if isinstance(user, dict):
-            username = user.get("username", "anonymous")
-        elif isinstance(user, str):
-            username = user
-        else:
-            username = "anonymous"
-
-        logging.info("Query from %s: %s", username, query)
-
-        # Log to audit trail
-        try:
-            self._log_query_audit(username, query)
-        except Exception as e:
-            logging.error(f"Error logging query audit: {str(e)}")
-
-        # Handle SCRIPT commands specially before other processing
-        if query.strip().upper().startswith("SCRIPT "):
-            return self._handle_script_execution(query, user)
-
-        # DISABLED CACHING FOR NOW
-        try:
-            # Get the current database
-            db_name = self.catalog_manager.get_current_database()
-            if db_name:
-                # Get all tables in the database
-                tables = self.catalog_manager.list_tables(db_name)
-                for table in tables:
-                    logging.info(f"Invalidating cache for table: {table}")
-                    # Check if the method exists before calling it
-                    if hasattr(self.catalog_manager, "_invalidate_table_cache"):
-                        self.catalog_manager._invalidate_table_cache(table)
-        except Exception as e:
-            logging.error(f"Error invalidating cache: {str(e)}")
-
-        # Check if this is a DML query that modifies data
-        is_modifying_query = (
-            query.strip()
-            .upper()
-            .startswith(("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER"))
-            or "INSERT INTO" in query.upper()
-            or "UPDATE " in query.upper()
-            or "DELETE FROM" in query.upper()
-        )
-
-        # Extract table name from modification queries for cache invalidation
-        target_table = None
-        if is_modifying_query:
-            # Try to extract the table name using regex patterns
-            if "INSERT INTO" in query.upper():
-                match = re.search(r"INSERT\s+INTO\s+(\w+)", query, re.IGNORECASE)
-                if match:
-                    target_table = match.group(1)
-            elif "UPDATE" in query.upper():
-                match = re.search(r"UPDATE\s+(\w+)", query, re.IGNORECASE)
-                if match:
-                    target_table = match.group(1)
-            elif "DELETE FROM" in query.upper():
-                match = re.search(r"DELETE\s+FROM\s+(\w+)", query, re.IGNORECASE)
-                if match:
-                    target_table = match.group(1)
-
-            if target_table:
-                logging.info(
-                    f"Identified target table for modification: {target_table}"
-                )
-
-        # Current database is useful for debugging
-        logging.info(
-            "Current database: %s", self.catalog_manager.get_current_database()
-        )
-
-        try:
-            # Parse and execute the query
-            parsed_query = self.sql_parser.parse_sql(query)
-            logging.info(f"▶️ Parsed query: {parsed_query}")
-
-            # Handle SCRIPT execution
-            if parsed_query.get("type") == "SCRIPT":
-                return self._execute_script_plan(parsed_query, user)
-
-            # Plan the query
-            plan = self.planner.plan_query(parsed_query)
-
-            # Optimize the plan
-            if hasattr(self, "optimizer"):
-                plan_type = plan.get("type")
-                optimized_plan = self.optimizer.optimize(plan, plan_type)
-                logging.info("✅ Optimized query plan")
-            else:
-                optimized_plan = plan
-
-            # For DML operations, mark as no-cache to prevent caching the results
-            if is_modifying_query and isinstance(optimized_plan, dict):
-                optimized_plan["_no_cache"] = True
-
-            # Execute the plan
-            result = self.execution_engine.execute(optimized_plan)
-
-            # Add execution time
-            duration = time.time() - start_time
-            if isinstance(result, dict):
-                result["_duration"] = duration
-
-            # Log execution time
-            logging.info(f"⏱️ Query executed in {duration*1000:.2f} ms")
-
-            # CRITICAL FIX: Format JOIN results properly
-            if isinstance(result, list) and result and isinstance(result[0], dict):
-                # This is a JOIN result or similar list of records
-                if not result:
-                    return {"rows": [], "columns": [], "status": "success"}
-
-                # Get all unique columns from all records
-                all_columns = set()
-                for record in result:
-                    all_columns.update(record.keys())
-
-                # Sort columns for consistent display
-                columns = sorted(list(all_columns))
-
-                # Convert records to rows format
-                rows = []
-                for record in result:
-                    row = []
-                    for col in columns:
-                        value = record.get(col)
-                        # Handle None values
-                        if value is None:
-                            row.append("NULL")
-                        else:
-                            row.append(str(value))
-                    rows.append(row)
-
-                return {"rows": rows, "columns": columns, "status": "success"}
-
-            return result
-
-        except Exception as e:
-            logging.error(f"Error handling query: {str(e)}")
-            return {"error": f"Query execution failed: {str(e)}", "status": "error"}
-
-    def _handle_script_execution(self, query, user=None):
+    async def route_client_request(self, client_address: str, query_type: str = "read") -> Optional[Tuple[str, int]]:
         """
-        Handle SQL script execution commands.
-
+        Route client request using geo-aware load balancer.
+        
         Args:
-            query: The script command (e.g., "SCRIPT filename.sql")
-            user: The user executing the command
-
+            client_address: Client IP address  
+            query_type: Type of query (read/write/admin)
+            
         Returns:
-            dict: Result of script execution
+            Tuple of (host, port) for best replica, or None if routing fails
         """
+        if not self.geo_load_balancer:
+            # Fallback to local server
+            return (self.host, self.port)
+        
         try:
-            # Extract filename from the SCRIPT command
-            parts = query.strip().split(None, 1)  # Split at first whitespace
-            if len(parts) < 2:
-                return {
-                    "error": "Invalid SCRIPT command. Usage: SCRIPT filename.sql",
-                    "status": "error",
-                }
-
-            filename = parts[1].strip().rstrip(";")  # Remove semicolon if present
-            logging.info(f"Executing script: {filename}")
-
-            # Create a simple plan for script execution
-            script_plan = {"type": "SCRIPT", "filename": filename}
-
-            # Use the existing method to execute the script
-            return self._execute_script_plan(script_plan, user)
-
+            return await self.geo_load_balancer.route_client_request(client_address, query_type)
         except Exception as e:
-            logging.error(f"Error handling script execution: {str(e)}")
-            logging.error(traceback.format_exc())
-            return {"error": f"Script execution failed: {str(e)}", "status": "error"}
+            logging.error(f"Geo load balancer routing failed: {e}")
+            # Fallback to local server
+            return (self.host, self.port)
 
-    def _find_script_file(self, filename):
-        """Find the script file in various locations."""
-        # Remove leading ./ if present
-        clean_filename = filename
-        if filename.startswith("./"):
-            clean_filename = filename[2:]
-
-        # Get the current working directory (where client was started)
-        client_cwd = os.getcwd()
-
-        potential_paths = [
-            # Relative to client's current working directory (most common)
-            os.path.join(client_cwd, filename),
-            os.path.join(client_cwd, clean_filename),
-            # Direct path as provided
-            filename,
-            clean_filename,
-            # Absolute path if provided
-            filename if os.path.isabs(filename) else None,
-            # Relative to project root
-            os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filename
-            ),
-            os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                clean_filename,
-            ),
-            # Relative to server directory
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), clean_filename),
-            # In scripts subdirectory of project root
-            os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "scripts",
-                filename,
-            ),
-            os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "scripts",
-                clean_filename,
-            ),
-            # In scripts subdirectory of server directory
-            os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "scripts", filename
-            ),
-            os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "scripts", clean_filename
-            ),
-        ]
-
-        # Filter out None values
-        potential_paths = [path for path in potential_paths if path is not None]
-
-        for path in potential_paths:
-            if os.path.exists(path):
-                logging.info(f"Found script file at: {path}")
-                return path
-
-        # Log all attempted paths for debugging
-        logging.warning(
-            f"Script file '{filename}' not found in any of these locations:"
-        )
-        for path in potential_paths:
-            logging.warning(f"  - {path}")
-
-        return None
-
-    def _execute_script_plan(self, plan, user=None):
-        """Execute a SCRIPT plan by reading and executing SQL file."""
+    def update_replica_health_metrics(self):
+        """Update health metrics for geo-aware load balancer"""
+        if not self.geo_load_balancer:
+            return
+        
         try:
-            filename = plan.get("filename")
-            if not filename:
-                return {
-                    "error": "No filename specified in SCRIPT command",
-                    "status": "error",
-                }
-
-            # Find the script file
-            script_path = self._find_script_file(filename)
-            if not script_path:
-                return {
-                    "error": f"Script file '{filename}' not found",
-                    "status": "error",
-                }
-
-            logging.info(f"Executing script file: {script_path}")
-
-            # Read the script file
-            try:
-                with open(script_path, "r", encoding="utf-8") as f:
-                    script_content = f.read()
-            except IOError as e:
-                return {
-                    "error": f"Failed to read script file '{filename}': {str(e)}",
-                    "status": "error",
-                }
-
-            # Execute the script
-            results = self._execute_sql_script(script_content, user)
-
-            # Format results for display
-            formatted_results = []
-            for result in results:
-                if result["status"] == "success":
-                    if result["result"]["type"] == "data":
-                        # For data results, include the actual data
-                        formatted_results.append(
-                            {
-                                "statement": result["statement"],
-                                "sql": (
-                                    result["sql"][:100] + "..."
-                                    if len(result["sql"]) > 100
-                                    else result["sql"]
-                                ),
-                                "status": "success",
-                                "data": result["result"],
-                            }
-                        )
-                    else:
-                        # For message results
-                        formatted_results.append(
-                            {
-                                "statement": result["statement"],
-                                "sql": (
-                                    result["sql"][:100] + "..."
-                                    if len(result["sql"]) > 100
-                                    else result["sql"]
-                                ),
-                                "status": "success",
-                                "message": result["result"]["message"],
-                            }
-                        )
-                else:
-                    formatted_results.append(
-                        {
-                            "statement": result["statement"],
-                            "sql": (
-                                result["sql"][:100] + "..."
-                                if len(result["sql"]) > 100
-                                else result["sql"]
-                            ),
-                            "status": "error",
-                            "error": result["error"],
-                        }
-                    )
-
-            successful_count = sum(1 for r in results if r["status"] == "success")
-
-            return {
-                "status": "success",
-                "message": f"Script '{filename}' executed: {successful_count}/{len(results)} statements successful",
-                "script_file": filename,
-                "statements_executed": len(results),
-                "successful_statements": successful_count,
-                "results": formatted_results,
+            # Collect health metrics
+            import psutil
+            
+            health_metrics = {
+                "healthy": True,
+                "cpu_load": psutil.cpu_percent(interval=1) / 100.0,
+                "memory_usage": psutil.virtual_memory().percent / 100.0,
+                "disk_usage": psutil.disk_usage('/').percent / 100.0,
+                "connection_count": len(self.sessions),
+                "is_leader": getattr(self.replication_manager, 'role', None) == ReplicaRole.PRIMARY,
+                "raft_term": getattr(self.replication_manager, 'current_term', 0),
+                "log_index": getattr(self.replication_manager, 'log_index', 0),
+                "replication_lag_ms": 0  # TODO: Calculate actual lag
             }
-
+            
+            # Update load balancer
+            node_id = self.server_name
+            self.geo_load_balancer.load_balancer.update_replica_health(node_id, health_metrics)
+            
         except Exception as e:
-            logging.error(f"Error executing script plan: {str(e)}")
-            return {"error": f"Script execution failed: {str(e)}", "status": "error"}
+            logging.error(f"Failed to update replica health metrics: {e}")
 
-    def _execute_sql_script(self, script_content, user=None):
-        """Execute a SQL script containing multiple statements."""
-        # Split script into individual statements
-        statements = []
-        current_statement = ""
-
-        for line in script_content.split("\n"):
-            line = line.strip()
-
-            # Skip empty lines and comments
-            if not line or line.startswith("--"):
-                continue
-
-            current_statement += line + "\n"
-
-            # Check if statement is complete (ends with semicolon)
-            if line.endswith(";"):
-                statements.append(current_statement.strip())
-                current_statement = ""
-
-        # Add any remaining statement
-        if current_statement.strip():
-            statements.append(current_statement.strip())
-
-        results = []
-        successful_statements = 0
-
-        for i, statement in enumerate(statements, 1):
-            if not statement:
-                continue
-
-            logging.info(f"Executing statement {i}: {statement[:50]}...")
-
-            try:
-                # Execute the statement
-                result = self.handle_query(statement, user=user)
-
-                # Format result for display
-                if isinstance(result, dict):
-                    if result.get("status") == "error":
-                        logging.warning(
-                            f"Statement {i} failed: {result.get('error', 'Unknown error')}"
-                        )
-                        results.append(
-                            {
-                                "statement": i,
-                                "sql": statement,
-                                "status": "error",
-                                "error": result.get("error", "Unknown error"),
-                            }
-                        )
-                    else:
-                        logging.info(f"Statement {i} executed successfully")
-
-                        # Create a user-friendly result
-                        formatted_result = self._format_script_result(statement, result)
-                        results.append(
-                            {
-                                "statement": i,
-                                "sql": statement,
-                                "status": "success",
-                                "result": formatted_result,
-                            }
-                        )
-                        successful_statements += 1
-                else:
-                    logging.info(f"Statement {i} executed successfully")
-                    formatted_result = self._format_script_result(statement, result)
-                    results.append(
-                        {
-                            "statement": i,
-                            "sql": statement,
-                            "status": "success",
-                            "result": formatted_result,
-                        }
-                    )
-                    successful_statements += 1
-
-            except Exception as e:
-                error_msg = f"Execution error: {str(e)}"
-                logging.warning(f"Statement {i} failed: {error_msg}")
-                results.append(
-                    {
-                        "statement": i,
-                        "sql": statement,
-                        "status": "error",
-                        "error": error_msg,
-                    }
-                )
-
-        logging.info(
-            f"Script execution completed: {successful_statements}/{len(statements)} statements successful"
-        )
-        return results
-
-    def _format_script_result(self, statement, result):
-        """Format query result for script output."""
-        stmt_type = statement.strip().upper().split()[0]
-
-        if stmt_type in ["SELECT", "SHOW"]:
-            # For SELECT and SHOW statements, return the data
-            if isinstance(result, dict):
-                if "rows" in result and "columns" in result:
-                    return {
-                        "type": "data",
-                        "columns": result["columns"],
-                        "rows": result["rows"],
-                        "row_count": len(result["rows"]),
-                    }
-                elif "data" in result:
-                    return {"type": "data", "data": result["data"]}
-            elif isinstance(result, list):
-                return {"type": "data", "rows": result, "row_count": len(result)}
-            return {"type": "data", "message": "Query executed successfully"}
-
-        elif stmt_type in ["INSERT"]:
-            # For INSERT statements
-            if isinstance(result, dict) and "rows_affected" in result:
-                return {
-                    "type": "message",
-                    "message": f"Inserted {result['rows_affected']} rows",
-                }
-            elif isinstance(result, dict) and result.get("status") == "success":
-                return {"type": "message", "message": "Insert completed successfully"}
-            return {"type": "message", "message": "Insert executed"}
-
-        elif stmt_type in ["UPDATE"]:
-            if isinstance(result, dict) and "rows_affected" in result:
-                return {
-                    "type": "message",
-                    "message": f"Updated {result['rows_affected']} rows",
-                }
-            elif isinstance(result, dict) and result.get("status") == "success":
-                return {"type": "message", "message": "Update completed successfully"}
-            return {"type": "message", "message": "Update executed"}
-
-        elif stmt_type in ["DELETE"]:
-            if isinstance(result, dict) and "rows_affected" in result:
-                return {
-                    "type": "message",
-                    "message": f"Deleted {result['rows_affected']} rows",
-                }
-            elif isinstance(result, dict) and result.get("status") == "success":
-                return {"type": "message", "message": "Delete completed successfully"}
-            return {"type": "message", "message": "Delete executed"}
-
-        elif stmt_type == "CREATE":
-            if "TABLE" in statement.upper():
-                return {"type": "message", "message": "Table created successfully"}
-            elif "DATABASE" in statement.upper():
-                return {"type": "message", "message": "Database created successfully"}
-            elif "INDEX" in statement.upper():
-                return {"type": "message", "message": "Index created successfully"}
-            return {"type": "message", "message": "Create operation completed"}
-
-        elif stmt_type == "DROP":
-            return {"type": "message", "message": "Drop operation completed"}
-
-        elif stmt_type in ["BEGIN", "COMMIT", "ROLLBACK"]:
-            return {"type": "message", "message": f"{stmt_type} transaction executed"}
-
-        elif stmt_type == "USE":
-            return {"type": "message", "message": "Database changed successfully"}
-
-        else:
-            return {"type": "message", "message": "Statement executed successfully"}
+    # ...existing code...
 
     def shutdown(self):
         """Perform clean shutdown tasks."""
